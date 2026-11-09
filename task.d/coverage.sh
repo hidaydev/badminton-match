@@ -240,7 +240,7 @@ print_report() {
       printf "%-28s %10d %9.2f%% %7d%% %9d %10d %10d %8.2f%%\n", $1, $2, pct, target, gap, $4, $5, bpct
     }
   ' "$COV/domains.tsv"
-  awk -F'\t' -v total_target="$TARGET_TOTAL" -v files="$COV/files.tsv" '
+  awk -F'\t' -v total_target="$TARGET_TOTAL" -v tol="$TOLERANCE" -v files="$COV/files.tsv" '
     { lf = $1; lh = $2; tbf = $3; tbh = $4 }
     END {
       pct = (lf == 0) ? 0 : (lh * 100 / lf)
@@ -249,7 +249,12 @@ print_report() {
       while ((getline row < files) > 0) count++
       printf "coverage: %d files, %d executable lines, %d covered (%.2f%%)\n", count, lf, lh, pct
       printf "coverage: branches BRF %d, BRH %d (%.2f%%)\n", tbf, tbh, bpct
-      printf "coverage: total target %d%%, gap %d lines\n", total_target, gap
+      # QA-14: a target met inside the noise band of this gate is not a
+      # milestone. Publish the tolerance and the lower bound with the number, so
+      # a run at 91.99 reads as indistinguishable from 92.09 instead of as a
+      # separate achievement.
+      printf "coverage: total target %d%%, lower bound %.2f%% (tolerance %.1f pp), gap %d lines\n", \
+        total_target, total_target - tol, tol, gap
     }
   ' "$COV/total.tsv"
   # QA-05: the branch axis per file, so a file at 100 percent lines with half
