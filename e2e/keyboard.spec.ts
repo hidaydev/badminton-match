@@ -40,13 +40,18 @@ test('the account menu is operable by keyboard alone', async ({ page }) => {
   await page.keyboard.press('Escape')
   await expect(navigation).toBeHidden()
 
-  // Tab from the trigger reaches a menu item, so the disclosure is not a
-  // mouse-only island.
+  // Opening the menu puts focus on its first item, so a keyboard user is
+  // already inside the disclosure without a Tab press; and Tab leaves the menu
+  // and closes it, so the next Shift+Tab is not trapped behind a popup the user
+  // has left. The pattern is the component's, so the spec asserts it.
   await page.keyboard.press('Enter')
   await expect(navigation).toBeVisible()
-  await page.keyboard.press('Tab')
   await expect(navigation.locator(':focus')).toHaveCount(1)
+  await page.keyboard.press('Tab')
+  await expect(navigation).toBeHidden()
 
+  await page.keyboard.press('Enter')
+  await expect(navigation).toBeVisible()
   const settings = navigation.getByRole('menuitem', { name: t('nav.settings') })
   await settings.focus()
   await page.keyboard.press('Enter')
