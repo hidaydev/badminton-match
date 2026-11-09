@@ -603,12 +603,15 @@ for file in $(list_test_files); do
   # Capture before the next compile touches the cache. The set is small: the
   # counters were deleted before this binary ran, so only the objects it loaded
   # are here. A part that fails to decode is a bug in this script, not a reason
-  # to record a zero, so `gcov` errors are fatal rather than ignored.
+  # to record a zero, so `gcov` errors are fatal rather than ignored. `mismatch`
+  # is the one exception: gcov 13 reports a different end line for the
+  # compiler-generated `eqdestroy` of a module than the `.gcno` recorded, which
+  # is a Nim/gcov artifact rather than a decoding failure.
   find "$NIMCACHE_COV" -name '*.gcda' >"$COV/captured.list"
   if [ -s "$COV/captured.list" ]; then
     geninfo --output-filename "$COV/parts/$name.info" \
       --rc branch_coverage=0 \
-      --ignore-errors source,unsupported,unused \
+      --ignore-errors source,unsupported,unused,mismatch \
       --gcov-tool "$gcov_tool" $(cat "$COV/captured.list") \
       >>"$COV/lcov-capture.log" 2>&1 ||
       { tail -10 "$COV/lcov-capture.log" >&2
