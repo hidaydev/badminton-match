@@ -22,6 +22,7 @@ fi
 case "$*" in
   "image exists "*) exit "${FAKE_PODMAN_IMAGE_EXISTS:-0}" ;;
   *"State.Running"*) printf '%s\n' "${FAKE_CONTAINER_RUNNING:-false}" ; exit 0 ;;
+  *"migrate --dir /app/db/migrations"*) exit "${FAKE_MIGRATE_EXIT:-0}" ;;
   *"datname = 'bm2'"*) printf '%s\n' "${FAKE_BM2_EXISTS:-}" ; exit 0 ;;
   *"datname = 'bm2_rc'"*) printf '1\n' ; exit 0 ;;
 esac
@@ -1063,6 +1064,46 @@ suite "deploy-vps-rc.sh":
     let result = runRcGate(fixture, rcDir)
     check not result.stdout.contains("must not contain MAJADU_OWNER_DSN")
     check result.stdout.contains("ci gate: empty or malformed")
+
+  # OPS-21: a failed migrate used to leave :local on a build that could not
+  # migrate, with no alert, one restart away from an outage.
+  test "a broken migration restores :prev and pages":
+    let fixture = newFixture("rc-migrate-failure")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let podmanLog = fixture.root / "podman.log"
+    let systemctlLog = fixture.root / "systemctl.log"
+    fixture.installFake("systemctl", systemctlLogFake)
+    let result = runRcGate(fixture, rcDir, @[
+      ("FAKE_CI_BODY", ciSuccessBody),
+      ("FAKE_PODMAN_LOG", podmanLog),
+      ("FAKE_SYSTEMCTL_LOG", systemctlLog),
+      ("FAKE_MIGRATE_EXIT", "1"),
+    ])
+    check result.exitCode == 1
+    let calls = readFile(podmanLog)
+    check calls.contains("--memory 3g --cpus 2")
+    let migrateAt = calls.find("migrate --dir /app/db/migrations")
+    let restoreAt = calls.find("tag localhost/majadu-rc-api:prev localhost/majadu-rc-api:local")
+    check migrateAt >= 0
+    check restoreAt > migrateAt
+    let logText = readFile(rcDir / "logs" / "deploy.log")
+    check logText.contains(
+      "restored localhost/majadu-rc-api:local from localhost/majadu-rc-api:prev")
+    check readFile(systemctlLog).contains("start majadu-alert@deploy-rc.service")
+    check readFile(rcDir / "deploy" / "last-attempt.json")
+      .contains("\"step\":\"migrate\"")
+
+  test "an early failure does not replace a healthy :local":
+    let fixture = newFixture("rc-early-failure")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let podmanLog = fixture.root / "podman.log"
+    # No token: the CI gate stops before the build.
+    removeFile(rcDir / "env" / "github-token")
+    let result = runRcGate(fixture, rcDir, @[("FAKE_PODMAN_LOG", podmanLog)])
+    check result.exitCode == 1
+    check not readFile(podmanLog).contains("tag localhost/majadu-rc-api:prev")
 
   test "the web deploy passes no token on a command line":
     let script = readFile(opsScriptsDir / "deploy-vps-rc.sh")

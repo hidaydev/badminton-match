@@ -72,11 +72,27 @@ json_field() {
   sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p" "$1" 2>/dev/null | head -1
 }
 
+# The same sink production uses: an RC push that fails is the signal this
+# instance exists to produce, so it must not be the one that stays silent.
+alert() {
+  if systemctl --user list-unit-files 'majadu-alert@.service' >/dev/null 2>&1; then
+    systemctl --user start majadu-alert@deploy-rc.service >/dev/null 2>&1 || true
+  fi
+}
+
 # The running release record survives a failed attempt: the failure belongs in
 # last-attempt.json, next to the version, schema and digest it was serving.
 fail() {
   local run_version run_schema
   log "ERROR: $1 (step: $STEP)"
+  # A failure after the build left :local on a build that may not migrate;
+  # returning :prev to :local means a restart is safe again. Until the build
+  # succeeds this is off, so an early failure cannot replace a healthy :local.
+  if [ "${RESTORE_LOCAL:-0}" = "1" ] && podman image exists "$LOCAL_IMAGE:prev" 2>/dev/null; then
+    if podman tag "$LOCAL_IMAGE:prev" "$LOCAL_IMAGE:local" 2>/dev/null; then
+      log "restored $LOCAL_IMAGE:local from $LOCAL_IMAGE:prev; $COMMIT was not promoted"
+    fi
+  fi
   run_version=$(json_field "$STATE_DIR/last-release.json" version)
   run_schema=$(json_field "$STATE_DIR/last-release.json" schema)
   : "${run_version:=${VERSION:-unknown}}"
@@ -85,6 +101,7 @@ fail() {
     "$STEP" "$CI_STATE" "$1" "$run_version" "$run_schema" \
     "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
     >"$STATE_DIR/last-attempt.json"
+  alert
   exit 1
 }
 
@@ -408,11 +425,17 @@ STEP="build"
 if podman image exists "$LOCAL_IMAGE:local"; then
   podman tag "$LOCAL_IMAGE:local" "$LOCAL_IMAGE:prev"
 fi
+# The build runs beside a 512 MB production container, so it is bounded instead
+# of being allowed to take the whole host while it compiles.
 podman build -f apps/api/Dockerfile \
+  --memory 3g --cpus 2 \
   --build-arg APP_VERSION="$VERSION" \
   --build-arg APP_COMMIT="$COMMIT" \
   -t "$LOCAL_IMAGE:local" . >>"$LOG" 2>&1 ||
   fail "podman build failed; :local was not replaced"
+# From here on the new build owns :local, so a later failure has to hand it
+# back to :prev.
+RESTORE_LOCAL=1
 log "built $LOCAL_IMAGE:local at $COMMIT"
 
 # ---------------------------------------------------------------------------
@@ -422,7 +445,7 @@ log "built $LOCAL_IMAGE:local at $COMMIT"
 STEP="migrate"
 run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
   migrate --dir /app/db/migrations >>"$LOG" 2>&1 ||
-  fail "dbtools migrate failed; the running release was left alone"
+  fail "dbtools migrate failed; :local is restored from :prev and the previous build serves"
 
 STEP="verify-schema"
 run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
