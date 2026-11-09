@@ -26,6 +26,7 @@ afterEach(() => {
   Reflect.deleteProperty(navigator, 'clipboard')
   Reflect.deleteProperty(navigator, 'share')
   Reflect.deleteProperty(navigator, 'onLine')
+  Reflect.deleteProperty(navigator, 'locks')
   // `fullscreenElement` and the viewport are defined per test; leaving them set
   // makes the next render start in fullscreen or in portrait.
   Object.defineProperty(document, 'fullscreenElement', { value: null, configurable: true })
@@ -43,6 +44,15 @@ describe('ScoreboardPage', () => {
     expect(within(halfOf('Bowo')).getByText('0')).toBeInTheDocument()
     expect(localStorage.getItem('score-red')).toBe('1')
     expect(localStorage.getItem('score-blue')).toBe('0')
+  })
+
+  it('adds a point to the blue half as well', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    fireEvent.click(halfOf('Bowo'))
+
+    expect(within(halfOf('Bowo')).getByText('1')).toBeInTheDocument()
+    expect(localStorage.getItem('score-blue')).toBe('1')
   })
 
   it('saturates at 99 and never shows 100', () => {
@@ -420,6 +430,45 @@ describe('ScoreboardPage', () => {
     })
 
     expect(screen.getByText('Could not export the match')).toBeInTheDocument()
+  })
+
+  it('follows a score written by another window', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    localStorage.setItem('score-red', '7')
+    localStorage.setItem('score-blue', '4')
+    localStorage.setItem('name-red', 'Citra')
+    localStorage.setItem('name-blue', 'Dewi')
+    act(() => {
+      window.dispatchEvent(new StorageEvent('storage', { key: 'score-red', newValue: '7' }))
+      window.dispatchEvent(new StorageEvent('storage', { key: 'score-blue', newValue: '4' }))
+      window.dispatchEvent(new StorageEvent('storage', { key: 'name-red', newValue: 'Citra' }))
+      window.dispatchEvent(new StorageEvent('storage', { key: 'name-blue', newValue: 'Dewi' }))
+      window.dispatchEvent(new StorageEvent('storage', { key: null }))
+    })
+
+    expect(within(halfOf('Citra')).getByText('7')).toBeInTheDocument()
+    expect(within(halfOf('Dewi')).getByText('4')).toBeInTheDocument()
+  })
+
+  it('goes read-only when another document holds the writer lock', async () => {
+    Object.defineProperty(navigator, 'locks', {
+      value: {
+        request: (
+          _name: string,
+          _options: unknown,
+          callback: (lock: object | null) => unknown,
+        ) => Promise.resolve(callback(null)),
+      },
+      configurable: true,
+    })
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    expect(await screen.findByText('Another window is keeping score')).toBeInTheDocument()
+    expect(halfOf('Arya')).toBeDisabled()
+
+    fireEvent.click(halfOf('Arya'))
+    expect(within(halfOf('Arya')).getByText('0')).toBeInTheDocument()
   })
 
   it('shows an offline indicator when the network drops', () => {

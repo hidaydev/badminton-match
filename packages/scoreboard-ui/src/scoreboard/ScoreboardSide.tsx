@@ -20,6 +20,7 @@ export const ScoreboardSide = memo(function ScoreboardSide({
   isEditing,
   isPop,
   isOverlay,
+  readOnly = false,
   onScore,
   onMinus,
   onNameChange,
@@ -54,9 +55,9 @@ export const ScoreboardSide = memo(function ScoreboardSide({
           />
         ) : (
           <span
-            className={`uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${editValue ? 'text-white/90' : 'text-white/80'}`}
+            className={`uppercase font-bold border-b border-transparent transition-colors ${readOnly ? 'text-white/80 cursor-default' : `cursor-text hover:border-white/20 ${editValue ? 'text-white/90' : 'text-white/80'}`}`}
             style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)', letterSpacing: '0.18em' }}
-            onClick={onStartEditing}
+            onClick={readOnly ? undefined : onStartEditing}
           >
             {displayName}
           </span>
@@ -69,8 +70,9 @@ export const ScoreboardSide = memo(function ScoreboardSide({
       <button
         type="button"
         onClick={onScore}
+        disabled={readOnly}
         aria-label={labels.score(displayName, score)}
-        className="score-face w-full flex-1 flex flex-col items-center justify-center cursor-pointer active:brightness-150 duration-75"
+        className={`score-face w-full flex-1 flex flex-col items-center justify-center duration-75 ${readOnly ? 'cursor-default' : 'cursor-pointer active:brightness-150'}`}
         style={{ transitionProperty: 'filter' }}
       >
         <span
@@ -96,7 +98,8 @@ export const ScoreboardSide = memo(function ScoreboardSide({
       <button
         type="button"
         onClick={onMinus}
-        className={`absolute ${MINUS_POSITION[side]} top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/90 cursor-pointer active:bg-black/40 transition-colors`}
+        disabled={readOnly}
+        className={`absolute ${MINUS_POSITION[side]} top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/90 transition-colors ${readOnly ? 'cursor-default' : 'cursor-pointer active:bg-black/40'}`}
         style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.15)' }}
         aria-label={labels.decrease}
       >

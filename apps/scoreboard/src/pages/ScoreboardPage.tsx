@@ -4,7 +4,8 @@ import type { ScoreboardSideProps } from '../components/scoreboard'
 import { useStorageUnavailable } from '../hooks/useStorageUnavailable'
 import { usePersistentStorage } from '../hooks/usePersistentStorage'
 import { useOnline } from '../hooks/useConnectivity'
-import { readStoredValue, writeStoredValue } from '../utils/storage'
+import { useWriterLock } from '../hooks/useWriterLock'
+import { readStoredValue, writeStoredValue, adoptStoredValue } from '../utils/storage'
 import { SCOREBOARD_LABELS } from '../scoreboardLabels'
 import {
   readMatchSnapshot,
@@ -16,10 +17,21 @@ const LS_RED = 'score-red'
 const LS_BLUE = 'score-blue'
 
 function readScore(key: string) {
-  const v = readStoredValue(key)
-  if (v === null) return 0
-  const parsed = parseInt(v, 10)
+  return scoreFromValue(readStoredValue(key))
+}
+
+function scoreFromValue(value: string | null) {
+  if (value === null) return 0
+  const parsed = parseInt(value, 10)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+function readName(key: string) {
+  return nameFromValue(readStoredValue(key))
+}
+
+function nameFromValue(value: string | null) {
+  return (value === 'Red' || value === 'Blue' || value === null) ? '' : value
 }
 
 async function enterFullscreenLandscape(): Promise<string | null> {
@@ -48,17 +60,12 @@ async function exitFullscreen() {
 export default function ScoreboardPage() {
   const storageUnavailable = useStorageUnavailable()
   const isOnline = useOnline()
+  const isWriter = useWriterLock()
   const { status: persistenceStatus, requestPersistence } = usePersistentStorage()
   const [red, setRed] = useState(() => readScore(LS_RED))
   const [blue, setBlue] = useState(() => readScore(LS_BLUE))
-  const [redName, setRedName] = useState(() => {
-    const v = readStoredValue('name-red')
-    return (v === 'Red' || v === null) ? '' : v
-  })
-  const [blueName, setBlueName] = useState(() => {
-    const v = readStoredValue('name-blue')
-    return (v === 'Blue' || v === null) ? '' : v
-  })
+  const [redName, setRedName] = useState(() => readName('name-red'))
+  const [blueName, setBlueName] = useState(() => readName('name-blue'))
   const [editingRed, setEditingRed] = useState(false)
   const [editingBlue, setEditingBlue] = useState(false)
   const [popRed, setPopRed] = useState(false)
@@ -83,6 +90,21 @@ export default function ScoreboardPage() {
   useEffect(() => { writeStoredValue(LS_BLUE, String(blue)) }, [blue])
   useEffect(() => { writeStoredValue('name-red', redName) }, [redName])
   useEffect(() => { writeStoredValue('name-blue', blueName) }, [blueName])
+
+  // A second window (or the installed copy) owns storage events: follow the
+  // writer instead of diverging until the next local tap overwrites it.
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === null) return
+      adoptStoredValue(event.key, event.newValue)
+      if (event.key === LS_RED) setRed(scoreFromValue(event.newValue))
+      else if (event.key === LS_BLUE) setBlue(scoreFromValue(event.newValue))
+      else if (event.key === 'name-red') setRedName(nameFromValue(event.newValue))
+      else if (event.key === 'name-blue') setBlueName(nameFromValue(event.newValue))
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement)
@@ -111,21 +133,35 @@ export default function ScoreboardPage() {
     }
   }, [])
 
-  // triggerPop is stable (useCallback with [] deps), safe to use without dep
-  const addRed = useCallback(() => { setRed(r => Math.min(99, r + 1)); triggerPop('red'); requestPersistence() }, [requestPersistence]) // eslint-disable-line react-hooks/exhaustive-deps
-  const addBlue = useCallback(() => { setBlue(b => Math.min(99, b + 1)); triggerPop('blue'); requestPersistence() }, [requestPersistence]) // eslint-disable-line react-hooks/exhaustive-deps
+  // triggerPop is stable (useCallback with [] deps); include it and the writer
+  // flag so a read-only document never mutates or animates a score.
+  const addRed = useCallback(() => {
+    if (!isWriter) return
+    setRed(r => Math.min(99, r + 1))
+    triggerPop('red')
+    requestPersistence()
+  }, [isWriter, requestPersistence, triggerPop])
+
+  const addBlue = useCallback(() => {
+    if (!isWriter) return
+    setBlue(b => Math.min(99, b + 1))
+    triggerPop('blue')
+    requestPersistence()
+  }, [isWriter, requestPersistence, triggerPop])
 
   const minusRed = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
+    if (!isWriter) return
     setRed(r => Math.max(0, r - 1))
     triggerPop('red')
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isWriter, triggerPop])
 
   const minusBlue = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
+    if (!isWriter) return
     setBlue(b => Math.max(0, b - 1))
     triggerPop('blue')
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isWriter, triggerPop])
 
   const reset = useCallback(() => { setRed(0); setBlue(0) }, [])
 
@@ -177,16 +213,17 @@ export default function ScoreboardPage() {
       score: red,
       displayName: nameA,
       editValue: redName,
-      isEditing: editingRed,
+      isEditing: isWriter && editingRed,
       isPop: popRed,
       isOverlay: false,
+      readOnly: !isWriter,
       onScore: addRed,
       onMinus: minusRed,
-      onNameChange: setRedName,
-      onStartEditing: () => setEditingRed(true),
+      onNameChange: (value: string) => { if (isWriter) setRedName(value) },
+      onStartEditing: () => { if (isWriter) setEditingRed(true) },
       onStopEditing: () => setEditingRed(false),
     }),
-    [red, nameA, redName, editingRed, popRed, addRed, minusRed],
+    [red, nameA, redName, editingRed, popRed, addRed, minusRed, isWriter],
   )
 
   const blueSide: ScoreboardSideProps = useMemo(
@@ -196,16 +233,17 @@ export default function ScoreboardPage() {
       score: blue,
       displayName: nameB,
       editValue: blueName,
-      isEditing: editingBlue,
+      isEditing: isWriter && editingBlue,
       isPop: popBlue,
       isOverlay: false,
+      readOnly: !isWriter,
       onScore: addBlue,
       onMinus: minusBlue,
-      onNameChange: setBlueName,
-      onStartEditing: () => setEditingBlue(true),
+      onNameChange: (value: string) => { if (isWriter) setBlueName(value) },
+      onStartEditing: () => { if (isWriter) setEditingBlue(true) },
       onStopEditing: () => setEditingBlue(false),
     }),
-    [blue, nameB, blueName, editingBlue, popBlue, addBlue, minusBlue],
+    [blue, nameB, blueName, editingBlue, popBlue, addBlue, minusBlue, isWriter],
   )
 
   const statusNote = storageUnavailable
@@ -255,6 +293,15 @@ export default function ScoreboardPage() {
           style={{ background: 'rgba(0,0,0,0.5)', letterSpacing: '0.08em' }}
         >
           {statusNote}
+        </div>
+      )}
+      {!isWriter && (
+        <div
+          role="status"
+          className="fixed top-8 left-1/2 -translate-x-1/2 z-30 px-3 py-1 rounded-lg text-[0.65rem] text-white/90 text-center pointer-events-none"
+          style={{ background: 'rgba(0,0,0,0.65)', border: '1px solid rgba(255,255,255,0.15)' }}
+        >
+          Another window is keeping score
         </div>
       )}
       {!isOnline && (

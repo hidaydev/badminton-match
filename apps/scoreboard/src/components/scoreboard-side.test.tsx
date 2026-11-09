@@ -51,6 +51,14 @@ describe('ScoreboardSide', () => {
     expect(onScore).toHaveBeenCalledTimes(1)
   })
 
+  it('disables the score and minus controls when read only', () => {
+    render(<ScoreboardSide {...props({ readOnly: true })} />)
+
+    expect(scoreButton()).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Decrease red score' })).toBeDisabled()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  })
+
   it('does not score while typing a space or pressing Enter in the name input', () => {
     const onScore = vi.fn()
     render(<ScoreboardSide {...props({ isEditing: true, onScore })} />)

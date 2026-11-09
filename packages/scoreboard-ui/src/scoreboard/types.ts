@@ -41,6 +41,8 @@ export interface ScoreboardSideProps {
   isEditing: boolean
   isPop: boolean
   isOverlay: boolean
+  /** Another document owns the score; input is ignored and announced. */
+  readOnly?: boolean
   onScore: () => void
   onMinus: (e: MouseEvent) => void
   onNameChange: (value: string) => void

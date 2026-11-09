@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  adoptStoredValue,
   isStorageUnavailable,
   readStoredValue,
   resetStorageStatus,
@@ -57,5 +58,14 @@ describe('storage', () => {
     readStoredValue('score-red')
 
     expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('adopts a value from another document and drops it on removal', () => {
+    adoptStoredValue('score-red', '9')
+    expect(readStoredValue('score-red')).toBe('9')
+    expect(localStorage.getItem('score-red')).toBeNull()
+
+    adoptStoredValue('score-red', null)
+    expect(readStoredValue('score-red')).toBeNull()
   })
 })
