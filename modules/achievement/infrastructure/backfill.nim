@@ -503,7 +503,15 @@ proc suffixThreshold(key: string): int =
   except ValueError:
     0
 
-proc listForPlayer*(db: Db, communityId, playerId: string): seq[JsonNode] =
+proc countForPlayer*(db: Db, communityId, playerId: string): int =
+  let row = db.queryOne(
+    """select count(*)::int as total from achievement.earned
+       where community_id = $1::uuid and player_id = $2::uuid""",
+    @[textParam(communityId), textParam(playerId)])
+  if row.isSome: parseInt(row.get.get("total")) else: 0
+
+proc listForPlayer*(db: Db, communityId, playerId: string, limit,
+                    offset: int): seq[JsonNode] =
   ## Newest first; the key breaks ties so the order is stable within a run.
   ## Catalog keys read their ladder from `achievement.definitions`; imported v1
   ## event medals (`tournament:<id>`) and the rank-streak badge have no
@@ -520,8 +528,10 @@ proc listForPlayer*(db: Db, communityId, playerId: string): seq[JsonNode] =
        from achievement.earned e
        left join achievement.definitions d on d.key = e.achievement_key
        where e.community_id = $1::uuid and e.player_id = $2::uuid
-       order by e.earned_at desc, e.achievement_key asc""",
-    @[textParam(communityId), textParam(playerId)]):
+       order by e.earned_at desc, e.achievement_key asc
+       limit $3 offset $4""",
+    @[textParam(communityId), textParam(playerId), intParam(limit.int64),
+      intParam(offset.int64)]):
     let key = row.get("key")
     let metric = keyMetric(key)
     let category =

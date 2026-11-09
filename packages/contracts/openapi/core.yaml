@@ -369,7 +369,14 @@
         ],
         "responses": {
           "200": {
-            "description": "One page, newest date first. items entries carry id, title, date, status, version, playerCount and totalGames. total is the number of rows matching the filters, not the page size. nextCursor is offset + limit when more rows remain and an empty string on the last page."
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPage"
+                }
+              }
+            }
           },
           "401": {
             "description": "unauthenticated",
@@ -3096,7 +3103,14 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AchievementPage"
+                }
+              }
+            }
           },
           "401": {
             "description": "unauthenticated",
@@ -3164,6 +3178,24 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size, clamped to api.page_size_max (1..10000, seeded 500). A value that is not an integer falls back to api.page_size_default.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Rows to skip, clamped to at least 0 and at most api.page_offset_max (seeded 1000000). A value that is not an integer falls back to 0.",
+            "schema": {
+              "type": "integer"
             }
           }
         ]
@@ -3377,7 +3409,14 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerClaimPage"
+                }
+              }
+            }
           },
           "401": {
             "description": "unauthenticated",
@@ -3445,6 +3484,24 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size, clamped to api.page_size_max (1..10000, seeded 500). A value that is not an integer falls back to api.page_size_default.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Rows to skip, clamped to at least 0 and at most api.page_offset_max (seeded 1000000). A value that is not an integer falls back to 0.",
+            "schema": {
+              "type": "integer"
             }
           }
         ]
@@ -4469,7 +4526,14 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatingSourcePage"
+                }
+              }
+            }
           },
           "401": {
             "description": "unauthenticated",
@@ -4519,6 +4583,24 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size, clamped to api.page_size_max (1..10000, seeded 500). A value that is not an integer falls back to api.page_size_default.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Rows to skip, clamped to at least 0 and at most api.page_offset_max (seeded 1000000). A value that is not an integer falls back to 0.",
+            "schema": {
+              "type": "integer"
             }
           }
         ]
@@ -5253,6 +5335,472 @@
             }
           }
         }
+      },
+      "SessionSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "locked",
+              "published",
+              "completed",
+              "archived"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "playerCount": {
+            "type": "integer"
+          },
+          "totalGames": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "date",
+          "status",
+          "version",
+          "playerCount",
+          "totalGames"
+        ],
+        "description": "One row of the session list."
+      },
+      "SessionPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionSummary"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Rows matching the filters, not the page size."
+          },
+          "nextCursor": {
+            "type": "string",
+            "description": "offset + limit when more rows remain, an empty string on the last page."
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "nextCursor"
+        ],
+        "description": "One page of a collection. Every list route answers this shape."
+      },
+      "Member": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "host",
+              "member"
+            ]
+          },
+          "joinedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "displayName",
+          "role",
+          "joinedAt"
+        ],
+        "description": "One community membership."
+      },
+      "MemberPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Member"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Rows matching the filters, not the page size."
+          },
+          "nextCursor": {
+            "type": "string",
+            "description": "offset + limit when more rows remain, an empty string on the last page."
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "nextCursor"
+        ],
+        "description": "One page of a collection. Every list route answers this shape."
+      },
+      "JoinRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "displayName",
+          "createdAt"
+        ],
+        "description": "One pending community join request."
+      },
+      "JoinRequestPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JoinRequest"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Rows matching the filters, not the page size."
+          },
+          "nextCursor": {
+            "type": "string",
+            "description": "offset + limit when more rows remain, an empty string on the last page."
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "nextCursor"
+        ],
+        "description": "One page of a collection. Every list route answers this shape."
+      },
+      "PendingClaim": {
+        "type": "object",
+        "properties": {
+          "claimId": {
+            "type": "string"
+          },
+          "playerId": {
+            "type": "string"
+          },
+          "playerName": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "claimId",
+          "playerId",
+          "playerName",
+          "userId",
+          "displayName",
+          "createdAt"
+        ],
+        "description": "One pending player claim, as the admin queue shows it."
+      },
+      "PendingClaimPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingClaim"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Rows matching the filters, not the page size."
+          },
+          "nextCursor": {
+            "type": "string",
+            "description": "offset + limit when more rows remain, an empty string on the last page."
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "nextCursor"
+        ],
+        "description": "One page of a collection. Every list route answers this shape."
+      },
+      "PlayerClaim": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "released"
+            ]
+          },
+          "decidedBy": {
+            "type": "string"
+          },
+          "decidedAt": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "status",
+          "decidedBy",
+          "decidedAt",
+          "reason",
+          "createdAt"
+        ],
+        "description": "One row of a player's claim trail. Empty strings mean not decided; userId and decidedBy are empty for a viewer who may not see them."
+      },
+      "PlayerClaimPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerClaim"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Rows matching the filters, not the page size."
+          },
+          "nextCursor": {
+            "type": "string",
+            "description": "offset + limit when more rows remain, an empty string on the last page."
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "nextCursor"
+        ],
+        "description": "One page of a collection. Every list route answers this shape."
+      },
+      "RatingSource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "session",
+              "tournament",
+              "manual"
+            ]
+          },
+          "date": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "deltas": {
+            "type": "integer"
+          },
+          "finalized": {
+            "type": "boolean"
+          },
+          "finalizedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "date",
+          "sourceId",
+          "deltas",
+          "finalized",
+          "finalizedAt"
+        ],
+        "description": "One rating source, including a tournament that has not been ingested yet."
+      },
+      "RatingSourcePage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RatingSource"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Rows matching the filters, not the page size."
+          },
+          "nextCursor": {
+            "type": "string",
+            "description": "offset + limit when more rows remain, an empty string on the last page."
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "nextCursor"
+        ],
+        "description": "One page of a collection. Every list route answers this shape."
+      },
+      "Achievement": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "threshold": {
+            "type": "integer"
+          },
+          "earnedAt": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "value": {
+            "type": "integer"
+          },
+          "tierLevel": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "tierName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nextTarget": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "thresholds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "key",
+          "category",
+          "threshold",
+          "earnedAt",
+          "kind",
+          "title",
+          "detail",
+          "note",
+          "value",
+          "tierLevel",
+          "tierName",
+          "nextTarget",
+          "thresholds",
+          "meta"
+        ],
+        "description": "One earned badge as the player page renders it."
+      },
+      "AchievementPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Achievement"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Rows matching the filters, not the page size."
+          },
+          "nextCursor": {
+            "type": "string",
+            "description": "offset + limit when more rows remain, an empty string on the last page."
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "nextCursor"
+        ],
+        "description": "One page of a collection. Every list route answers this shape."
       }
     }
   }

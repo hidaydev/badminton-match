@@ -13,6 +13,8 @@ import type { AnyTournamentSnapshot } from '../utils/teamTournament'
 import { isPlaceholderName } from '../utils/placeholders'
 import { ApiError } from './retry'
 import { API_BASE, request as transport } from '../../api/request'
+import { collectPages } from '../../api/paged'
+import type { Page } from '../../api/paged'
 
 export { ApiError } from './retry'
 
@@ -682,6 +684,8 @@ export interface SessionPage {
 export async function listSessions(options?: {
   date?: string
   q?: string
+  /** Exact server status; a draft-only read is how the home card finds work. */
+  status?: string
   limit?: number
   offset?: number
   signal?: AbortSignal
@@ -693,6 +697,7 @@ export async function listSessions(options?: {
   if (options?.offset !== undefined && options.offset > 0) params.set('offset', String(options.offset))
   if (options?.date) params.set('date', options.date)
   if (options?.q?.trim()) params.set('q', options.q.trim())
+  if (options?.status) params.set('status', options.status)
   const query = params.size > 0 ? `?${params.toString()}` : ''
 
   const body = await request<{ items: Array<{
@@ -1146,13 +1151,16 @@ export async function getPlayerAchievements(
   playerId: string,
   signal?: AbortSignal,
 ): Promise<AchievementRow[]> {
-  const body = await request<{ items: V2Achievement[] } | null>(
-    'GET',
-    communityPath(`/players/${enc(playerId)}/achievements`),
-    undefined,
-    signal,
+  const items = await collectPages<V2Achievement>((offset, limit) =>
+    request<Page<V2Achievement>>(
+      'GET',
+      communityPath(`/players/${enc(playerId)}/achievements`) +
+        `?limit=${limit}&offset=${offset}`,
+      undefined,
+      signal,
+    ),
   )
-  const rows = (body?.items ?? []).flatMap((item) => {
+  const rows = items.flatMap((item) => {
     const key = legacyAchievementKey(item.key)
     if (key === null) return []
     return [{

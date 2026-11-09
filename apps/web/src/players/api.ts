@@ -1,4 +1,6 @@
 import { request } from '../auth/api'
+import { collectPages } from '../api/paged'
+import type { Page } from '../api/paged'
 
 /** A player row as the API returns it. `aliases` only comes back per player. */
 export type Player = {
@@ -124,11 +126,12 @@ export function claimPlayer(
   )
 }
 
-export async function listClaims(slug: string, id: string): Promise<PlayerClaim[]> {
-  const body = await request<{ items: PlayerClaim[] }>(
-    `/c/${encodeURIComponent(slug)}/players/${encodeURIComponent(id)}/claims`,
+export function listClaims(slug: string, id: string): Promise<PlayerClaim[]> {
+  return collectPages((offset, limit) =>
+    request<Page<PlayerClaim>>(
+      `/c/${encodeURIComponent(slug)}/players/${encodeURIComponent(id)}/claims?limit=${limit}&offset=${offset}`,
+    ),
   )
-  return body.items
 }
 
 /** `reason` is required by the server when releasing someone else's claim. */

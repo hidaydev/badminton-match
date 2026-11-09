@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { getPlayerAchievements, getRankings, getPlayerRankPoints, getPlayerStatsRaw, request, communityApiPath, toRatingPlayer } from './endpoints'
 import type { V2PlayerStats, RatingPlayer, AchievementRow, RankPointsBoard, PlayerRankPoints } from './endpoints'
 import { communityQueryKey } from './keys'
+import { collectPages } from '../../api/paged'
+import type { Page } from '../../api/paged'
 
 // useRankings — papan poin publik (window bergulir, N entri terbaik).
 export function useRankings(limit = 200, minSessions?: number) {
@@ -69,14 +71,16 @@ export function useRatingSources() {
   return useQuery<RatingSourceRow[]>({
     queryKey: communityQueryKey('ratings', 'sources'),
     queryFn: async ({ signal }) => {
-      const data = await request<{ items: V2RatingEvent[] }>(
-        'GET',
-        communityApiPath('/rating-sources'),
-        undefined,
-        signal,
+      const events = await collectPages<V2RatingEvent>((offset, limit) =>
+        request<Page<V2RatingEvent>>(
+          'GET',
+          communityApiPath('/rating-sources') + `?limit=${limit}&offset=${offset}`,
+          undefined,
+          signal,
+        ),
       )
       const grouped = new Map<string, RatingSourceRow>()
-      for (const event of data?.items ?? []) {
+      for (const event of events) {
         const sourceId = event.sourceId || event.id
         // One event per source. A tournament that was never ingested still gets
         // a row, but it reports the tournament id as both ids and has no event

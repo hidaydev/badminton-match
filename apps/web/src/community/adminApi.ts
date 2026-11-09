@@ -1,5 +1,7 @@
 import { request } from '../auth/api'
 import type { CommunityRole } from '../auth/api'
+import { collectPages } from '../api/paged'
+import type { Page } from '../api/paged'
 
 export type Member = {
   userId: string
@@ -30,11 +32,13 @@ export type PendingClaim = {
   createdAt: string
 }
 
-export async function listMembers(slug: string): Promise<Member[]> {
-  const body = await request<{ items: Member[] }>(
-    `/c/${encodeURIComponent(slug)}/members`,
+/** The server pages this list; the settings screen still needs every member. */
+export function listMembers(slug: string): Promise<Member[]> {
+  return collectPages((offset, limit) =>
+    request<Page<Member>>(
+      `/c/${encodeURIComponent(slug)}/members?limit=${limit}&offset=${offset}`,
+    ),
   )
-  return body.items
 }
 
 export function setMemberRole(
@@ -55,20 +59,20 @@ export function removeMember(slug: string, userId: string): Promise<void> {
   )
 }
 
-export async function listJoinRequests(slug: string): Promise<JoinRequest[]> {
-  const body = await request<{ items: JoinRequest[] }>(
-    `/c/${encodeURIComponent(slug)}/join-requests`,
+export function listJoinRequests(slug: string): Promise<JoinRequest[]> {
+  return collectPages((offset, limit) =>
+    request<Page<JoinRequest>>(
+      `/c/${encodeURIComponent(slug)}/join-requests?limit=${limit}&offset=${offset}`,
+    ),
   )
-  return body.items
 }
 
-export async function listPendingClaims(
-  slug: string,
-): Promise<PendingClaim[]> {
-  const body = await request<{ items: PendingClaim[] }>(
-    `/c/${encodeURIComponent(slug)}/claims`,
+export function listPendingClaims(slug: string): Promise<PendingClaim[]> {
+  return collectPages((offset, limit) =>
+    request<Page<PendingClaim>>(
+      `/c/${encodeURIComponent(slug)}/claims?limit=${limit}&offset=${offset}`,
+    ),
   )
-  return body.items
 }
 
 export function decideJoinRequest(

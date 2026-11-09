@@ -1,4 +1,4 @@
-import std/options
+import std/[options, strutils]
 import db/db
 import ../../account/domain/roles
 import ./membership_sql
@@ -21,16 +21,24 @@ proc request*(db: Db, communityId, userId: string): bool =
        on conflict do nothing""",
     @[textParam(communityId), textParam(userId)]) > 0
 
-proc listPending*(db: Db, communityId: string): seq[JoinRequest] =
+proc listPending*(db: Db, communityId: string, limit, offset: int): seq[JoinRequest] =
   for row in db.query(
     """select r.id, r.user_id, u.display_name, r.created_at::text as created_at
        from community.join_request r
        join platform.user u on u.id = r.user_id
        where r.community_id = $1::uuid and r.status = 'pending'
-       order by r.created_at""",
-    @[textParam(communityId)]):
+       order by r.created_at, r.id
+       limit $2 offset $3""",
+    @[textParam(communityId), intParam(limit.int64), intParam(offset.int64)]):
     result.add(JoinRequest(id: row.get("id"), userId: row.get("user_id"),
       displayName: row.get("display_name"), createdAt: row.get("created_at")))
+
+proc countPending*(db: Db, communityId: string): int =
+  let row = db.queryOne(
+    """select count(*)::int as total from community.join_request
+       where community_id = $1::uuid and status = 'pending'""",
+    @[textParam(communityId)])
+  if row.isSome: parseInt(row.get.get("total")) else: 0
 
 proc decide*(db: Db, communityId, requestId, actorId: string,
              role: Role, approve: bool): bool =

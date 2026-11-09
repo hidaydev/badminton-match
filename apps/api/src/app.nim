@@ -1041,6 +1041,16 @@ proc pageParams(request: Request, snapshot: Snapshot): tuple[limit, offset: int]
     except ValueError:
       result.offset = 0
 
+proc pagedJson(request: Request, items: JsonNode, total, limit,
+               offset: int) =
+  ## The one page envelope every collection route answers. `nextCursor` is the
+  ## next offset when more rows remain, and an empty string on the last page,
+  ## so a client follows the same rule on every list.
+  let nextCursor =
+    if offset + items.len < total: $(offset + limit) else: ""
+  jsonResponse(request, 200, %*{"items": items, "total": total,
+    "nextCursor": nextCursor})
+
 proc listSessions(request: Request, ctx: CommunityContext,
                   snapshot: Snapshot) =
   ## One page, never a silently truncated history: the caller pages with
@@ -1081,10 +1091,7 @@ proc listSessions(request: Request, ctx: CommunityContext,
          and ($3 = '' or strpos(lower(s.title), lower($3)) > 0)""",
     @[textParam(ctx.communityId), textParam(date), textParam(q)])
   let total = if totalRow.isSome: parseInt(totalRow.get.get("total")) else: 0
-  let nextCursor =
-    if offset + items.len < total: $(offset + limit) else: ""
-  jsonResponse(request, 200, %*{"items": items, "total": total,
-    "nextCursor": nextCursor})
+  pagedJson(request, items, total, limit, offset)
 
 proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
                  sessionId: string, snapshot: Snapshot) =
@@ -1514,12 +1521,17 @@ proc requestJoin(request: Request, slug: string, snapshot: Snapshot) =
           role = "member"))
   jsonResponse(request, 202, %*{"status": "accepted"})
 
-proc listJoinRequests(request: Request, ctx: CommunityContext) =
+proc listJoinRequests(request: Request, ctx: CommunityContext,
+                      snapshot: Snapshot) =
+  let (limit, offset) = pageParams(request, snapshot)
   var items = newJArray()
-  for entry in joinRequestStore.listPending(application.db, ctx.communityId):
+  for entry in joinRequestStore.listPending(application.db, ctx.communityId,
+                                            limit, offset):
     items.add(%*{"id": entry.id, "userId": entry.userId,
       "displayName": entry.displayName, "createdAt": entry.createdAt})
-  jsonResponse(request, 200, %*{"items": items})
+  pagedJson(request, items,
+    joinRequestStore.countPending(application.db, ctx.communityId), limit,
+    offset)
 
 proc decideJoinRequest(request: Request, ctx: CommunityContext, user: AuthUser,
                        requestId: string,
@@ -1552,20 +1564,28 @@ proc decideJoinRequest(request: Request, ctx: CommunityContext, user: AuthUser,
     return
   jsonResponse(request, 200, %*{"status": if approve: "approved" else: "rejected"})
 
-proc listPendingClaims(request: Request, ctx: CommunityContext) =
+proc listPendingClaims(request: Request, ctx: CommunityContext,
+                       snapshot: Snapshot) =
+  let (limit, offset) = pageParams(request, snapshot)
   var items = newJArray()
-  for entry in playerClaim.listPending(application.db, ctx.communityId):
+  for entry in playerClaim.listPending(application.db, ctx.communityId,
+                                       limit, offset):
     items.add(%*{"claimId": entry.claimId, "playerId": entry.playerId,
       "playerName": entry.playerName, "userId": entry.userId,
       "displayName": entry.displayName, "createdAt": entry.createdAt})
-  jsonResponse(request, 200, %*{"items": items})
+  pagedJson(request, items,
+    playerClaim.countPending(application.db, ctx.communityId), limit, offset)
 
-proc listMembers(request: Request, ctx: CommunityContext) =
+proc listMembers(request: Request, ctx: CommunityContext,
+                 snapshot: Snapshot) =
+  let (limit, offset) = pageParams(request, snapshot)
   var items = newJArray()
-  for member in membershipStore.list(application.db, ctx.communityId):
+  for member in membershipStore.list(application.db, ctx.communityId, limit,
+                                     offset):
     items.add(%*{"userId": member.userId, "displayName": member.displayName,
       "role": member.role, "joinedAt": member.joinedAt})
-  jsonResponse(request, 200, %*{"items": items})
+  pagedJson(request, items,
+    membershipStore.count(application.db, ctx.communityId), limit, offset)
 
 proc patchMemberRole(request: Request, ctx: CommunityContext, user: AuthUser,
                      targetId: string,
@@ -1875,7 +1895,7 @@ proc claimProblem(request: Request, error: playerClaim.ClaimError) =
     discard
 
 proc listClaimsRoute(request: Request, ctx: CommunityContext, user: AuthUser,
-                     playerId: string) =
+                     playerId: string, snapshot: Snapshot) =
   ## Members see the claim trail but not who else applied or who decided:
   ## only a member's own claim stays identifiable, so the page can still say
   ## they are waiting. Hosts and admins need the full record to act on it.
@@ -1883,8 +1903,10 @@ proc listClaimsRoute(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 404, "NOT_FOUND", "player not found")
     return
   let privileged = ctx.role in [rHost, rAdmin]
+  let (limit, offset) = pageParams(request, snapshot)
   var items = newJArray()
-  for claim in playerClaim.list(application.db, ctx.communityId, playerId):
+  for claim in playerClaim.list(application.db, ctx.communityId, playerId,
+                                limit, offset):
     let reveal = privileged or claim.userId == user.id
     items.add(%*{
       "id": claim.id,
@@ -1895,7 +1917,8 @@ proc listClaimsRoute(request: Request, ctx: CommunityContext, user: AuthUser,
       "reason": (if reveal: claim.reason else: ""),
       "createdAt": claim.createdAt,
     })
-  jsonResponse(request, 200, %*{"items": items})
+  pagedJson(request, items,
+    playerClaim.count(application.db, ctx.communityId, playerId), limit, offset)
 
 proc submitClaim(request: Request, ctx: CommunityContext, user: AuthUser,
                  playerId: string) =
@@ -2133,49 +2156,59 @@ proc rebuildRatings(request: Request, ctx: CommunityContext,
   # not part of the contract, so a client cannot depend on it.
   jsonResponse(request, 202, %*{"status": "accepted"})
 
-proc listRatingSources(request: Request, ctx: CommunityContext) =
+proc listRatingSources(request: Request, ctx: CommunityContext,
+                       snapshot: Snapshot) =
+  ## Events and the tournaments that were never ingested are one list: the
+  ## admin has to sign both off. The union keeps the order, the page window and
+  ## the total in the database, so neither half is unbounded on its own.
+  let (limit, offset) = pageParams(request, snapshot)
+  let sourcesSql = """
+    select id, event_type, local_date, source_id, deltas, finalized,
+           finalized_at
+    from (
+      select e.id, e.event_type, e.local_date::text as local_date,
+             coalesce(e.source_id::text, '') as source_id,
+             e.point_entries::int as deltas,
+             coalesce(s.finalized, false) as finalized,
+             s.finalized_at::text as finalized_at,
+             e.created_at as sort_at
+      from rating.events e
+      left join rating.sources s
+        on s.community_id = e.community_id and s.source_id = e.source_id
+      where e.community_id = $1::uuid
+      union all
+      select t.id, 'tournament' as event_type, t.event_date::text,
+             t.id::text as source_id, 0 as deltas,
+             coalesce(s.finalized, false) as finalized,
+             s.finalized_at::text as finalized_at,
+             t.created_at as sort_at
+      from tournament.tournaments t
+      left join rating.sources s
+        on s.community_id = t.community_id and s.source_id = t.id
+      where t.community_id = $1::uuid
+        and not exists (
+          select 1 from rating.events e
+          where e.community_id = t.community_id
+            and e.event_type = 'tournament' and e.source_id = t.id)
+    ) sources
+  """
   var items = newJArray()
   for row in application.db.query(
-    """select e.id, e.event_type, e.local_date::text as local_date,
-              coalesce(e.source_id::text, '') as source_id,
-              coalesce(s.finalized, false) as finalized,
-              s.finalized_at::text as finalized_at,
-              e.point_entries::int as deltas
-       from rating.events e
-       left join rating.sources s
-         on s.community_id = e.community_id and s.source_id = e.source_id
-       where e.community_id = $1::uuid
-       order by e.local_date desc, e.created_at desc""",
-    @[textParam(ctx.communityId)]):
+    sourcesSql & """ order by local_date desc, sort_at desc
+                     limit $2 offset $3""",
+    @[textParam(ctx.communityId), intParam(limit.int64),
+      intParam(offset.int64)]):
     items.add(%*{"id": row.get("id"), "type": row.get("event_type"),
       "date": row.get("local_date"), "sourceId": row.get("source_id"),
       "deltas": parseInt(row.get("deltas")),
       "finalized": row.get("finalized") == "t",
       "finalizedAt": if row["finalized_at"].isSome:
         %row.get("finalized_at") else: newJNull()})
-  # A tournament that was never ingested has no event row, so a list built from
-  # events would hide it from the admin who has to sign it off.
-  for row in application.db.query(
-    """select t.id, t.event_date::text as local_date,
-              coalesce(s.finalized, false) as finalized,
-              s.finalized_at::text as finalized_at
-       from tournament.tournaments t
-       left join rating.sources s
-         on s.community_id = t.community_id and s.source_id = t.id
-       where t.community_id = $1::uuid
-         and not exists (
-           select 1 from rating.events e
-           where e.community_id = t.community_id
-             and e.event_type = 'tournament' and e.source_id = t.id)
-       order by t.event_date desc""",
-    @[textParam(ctx.communityId)]):
-    items.add(%*{"id": row.get("id"), "type": "tournament",
-      "date": row.get("local_date"), "sourceId": row.get("id"),
-      "deltas": 0,
-      "finalized": row.get("finalized") == "t",
-      "finalizedAt": if row["finalized_at"].isSome:
-        %row.get("finalized_at") else: newJNull()})
-  jsonResponse(request, 200, %*{"items": items})
+  let totalRow = application.db.queryOne(
+    "select count(*)::int as total from (" & sourcesSql & ") sources",
+    @[textParam(ctx.communityId)])
+  let total = if totalRow.isSome: parseInt(totalRow.get.get("total")) else: 0
+  pagedJson(request, items, total, limit, offset)
 
 proc removeRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
                         eventId: string) =
@@ -2805,16 +2838,19 @@ proc rankingPlayer(request: Request, communityId, timezone, playerId: string,
   jsonResponse(request, 200, item)
 
 proc playerAchievements(request: Request, ctx: CommunityContext,
-                        playerId: string) =
+                        playerId: string, snapshot: Snapshot) =
   if playerStore.get(application.db, ctx.communityId, playerId).isNone:
     problem(request, 404, "NOT_FOUND", "player not found")
     return
+  let (limit, offset) = pageParams(request, snapshot)
   let items = achievementBackfill.listForPlayer(application.db,
-    ctx.communityId, playerId)
+    ctx.communityId, playerId, limit, offset)
   var body = newJArray()
   for item in items:
     body.add(item)
-  jsonResponse(request, 200, %*{"items": body})
+  pagedJson(request, body,
+    achievementBackfill.countForPlayer(application.db, ctx.communityId,
+      playerId), limit, offset)
 
 proc boardPoints(communityId, timezone, playerId: string,
                  snapshot: Snapshot, settings: JsonNode): int =
@@ -3396,7 +3432,7 @@ proc dispatch(request: Request) =
         deletePlayerRoute(request, ctx, user, parts[4])
         return
       if parts.len == 6 and parts[5] == "achievements" and verb == "GET":
-        playerAchievements(request, ctx, parts[4])
+        playerAchievements(request, ctx, parts[4], snapshot)
         return
       if parts.len == 6 and parts[5] == "stats" and verb == "GET":
         playerStats(request, ctx, parts[4], snapshot)
@@ -3406,7 +3442,7 @@ proc dispatch(request: Request) =
         return
       if parts.len == 6 and parts[5] == "claims":
         if verb == "GET":
-          listClaimsRoute(request, ctx, user, parts[4])
+          listClaimsRoute(request, ctx, user, parts[4], snapshot)
           return
         if verb == "POST":
           submitClaim(request, ctx, user, parts[4])
@@ -3540,7 +3576,7 @@ proc dispatch(request: Request) =
         rebuildRatings(request, admin.get[1], admin.get[0])
         return
       if parts[3] == "rating-sources" and parts.len == 4 and verb == "GET":
-        listRatingSources(request, admin.get[1])
+        listRatingSources(request, admin.get[1], snapshot)
         return
       if parts[3] == "rating-sources" and parts.len == 5 and verb == "PATCH":
         patchRatingSource(request, admin.get[1], admin.get[0], parts[4], snapshot)
@@ -3572,7 +3608,7 @@ proc dispatch(request: Request) =
       if authorized.isNone: return
       let (user, ctx) = authorized.get
       if parts[3] == "members" and parts.len == 4 and verb == "GET":
-        listMembers(request, ctx)
+        listMembers(request, ctx, snapshot)
         return
       if parts[3] == "config" and parts.len == 4 and verb == "GET":
         communityConfig(request, ctx, snapshot)
@@ -3583,13 +3619,13 @@ proc dispatch(request: Request) =
         else: problem(request, 405, "METHOD", "")
         return
       if parts[3] == "join-requests" and parts.len == 4 and verb == "GET":
-        listJoinRequests(request, ctx)
+        listJoinRequests(request, ctx, snapshot)
         return
       if parts[3] == "join-requests" and parts.len == 5 and verb == "PATCH":
         decideJoinRequest(request, ctx, user, parts[4], snapshot)
         return
       if parts[3] == "claims" and parts.len == 4 and verb == "GET":
-        listPendingClaims(request, ctx)
+        listPendingClaims(request, ctx, snapshot)
         return
       if parts[3] == "invites" and parts.len == 4 and verb == "POST":
         createInvite(request, ctx, user, snapshot)
