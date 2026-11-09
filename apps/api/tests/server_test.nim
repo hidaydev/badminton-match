@@ -1,5 +1,6 @@
 import std/[json, os, strutils, unittest]
 import ../src/server
+import ../src/quota_route
 import clock
 
 suite "process contract":
@@ -165,6 +166,25 @@ suite "metrics listener":
       """http_request_duration_seconds_sum{route="/c/{slug}/sessions"}""")
     check text.contains(
       """http_request_duration_seconds_count{route="/c/{slug}/sessions"} 1""")
+
+  test "a thousand junk session ids leave one series, not a thousand":
+    ## SEC-15: the label is the matched contract shape, never the raw path, so a
+    ## member naming a session id that does not exist cannot grow the registry
+    ## one counter at a time. The table length is what this case checks: the
+    ## series count for PATCH must grow by at most one after the loop.
+    proc patchSeries(): int =
+      for line in metricsText().splitLines():
+        if line.startsWith("""http_requests_total{method="PATCH"""):
+          inc result
+    let before = patchSeries()
+    for index in 0 ..< 1000:
+      let path = "/c/x/sessions/junk" & $index
+      discard recordResponse("PATCH", path, 400, quotaRoute(path))
+    let text = metricsText()
+    check text.contains(
+      """method="PATCH",route="/c/{slug}/sessions/{id}",status="400"}""")
+    check not text.contains("junk")
+    check patchSeries() - before <= 1
 
   test "exposes the pool as gauges":
     recordPool(8, 3, 5)
