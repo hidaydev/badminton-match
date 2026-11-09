@@ -2385,18 +2385,35 @@ proc scheduleProblem(request: Request, status: sessionSchedule.ScheduleStatus) =
   of sessionSchedule.ssNotParticipant:
     problem(request, 400, "NOT_PARTICIPANT", "player is not in this session")
 
-proc scheduleDone(request: Request, ctx: CommunityContext, sessionId: string,
+proc scheduleAudit(ctx: CommunityContext, user: AuthUser, action,
+                  sessionId: string, evidence: JsonNode) =
+  ## One row per mutating scoring call. The schedule store owns its own
+  ## transaction, so this row commits after the write instead of with it; a
+  ## failed insert is logged rather than turning a saved score into a 500.
+  try:
+    recordAudit(application.db, evidenceEvent(action, ctx.communityId, user,
+      "session", sessionId, evidence, $ctx.role))
+  except DbError as error:
+    logError("scoring write not audited",
+      [("error", error.msg), ("action", action)])
+
+proc scheduleDone(request: Request, ctx: CommunityContext, user: AuthUser,
+                  action: string, evidence: JsonNode, sessionId: string,
                   status: sessionSchedule.ScheduleStatus) =
   if status != sessionSchedule.ssOk:
     scheduleProblem(request, status)
     return
+  # The writes that decide ranking points are the ones with no attributable
+  # record otherwise: a host could change a score before approval and the only
+  # trace would be the final value plus a version counter.
+  scheduleAudit(ctx, user, action, sessionId, evidence)
   let version = sessionVersionNow(ctx.communityId, sessionId)
   application.hub.sessionChanged(sessionId, version)
   jsonResponse(request, 200, %*{"version": version},
     [("ETag", "\"" & $version & "\"")])
 
-proc putScheduleRoute(request: Request, ctx: CommunityContext, sessionId: string,
-                    snapshot: Snapshot) =
+proc putScheduleRoute(request: Request, ctx: CommunityContext, user: AuthUser,
+                    sessionId: string, snapshot: Snapshot) =
   let version = requireIfMatch(request)
   if version.isNone: return
   var games: seq[sessionSchedule.GameSpec]
@@ -2407,12 +2424,13 @@ proc putScheduleRoute(request: Request, ctx: CommunityContext, sessionId: string
       [("error", error.msg), ("path", request.path)])
     problem(request, 400, "INVALID_SCHEDULE", error.msg)
     return
-  scheduleDone(request, ctx, sessionId,
+  scheduleDone(request, ctx, user, "session.schedule.put",
+    %*{"count": games.len}, sessionId,
     sessionSchedule.putSchedule(application.db, ctx.communityId, sessionId,
       version.get, games))
 
-proc setAbsentRoute(request: Request, ctx: CommunityContext, sessionId: string,
-                    snapshot: Snapshot) =
+proc setAbsentRoute(request: Request, ctx: CommunityContext, user: AuthUser,
+                    sessionId: string, snapshot: Snapshot) =
   let version = requireIfMatch(request)
   if version.isNone: return
   var playerIds: seq[string]
@@ -2423,7 +2441,8 @@ proc setAbsentRoute(request: Request, ctx: CommunityContext, sessionId: string,
       [("error", error.msg), ("path", request.path)])
     problem(request, 400, "INVALID_SCHEDULE", error.msg)
     return
-  scheduleDone(request, ctx, sessionId,
+  scheduleDone(request, ctx, user, "session.absent.set", %*{"count": playerIds.len},
+    sessionId,
     sessionSchedule.setAbsent(application.db, ctx.communityId, sessionId,
       version.get, playerIds))
 
@@ -2460,8 +2479,8 @@ proc setVerdictProblem(request: Request, verdict: sessionScoring.SetVerdict) =
     problem(request, 400, "SETS_REQUIRED",
       "this format needs set scores, not a single score")
 
-proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
-                       gameKey: string,
+proc setGameScoreRoute(request: Request, ctx: CommunityContext, user: AuthUser,
+                       sessionId, gameKey: string,
                     snapshot: Snapshot) =
   let version = requireIfMatch(request)
   if version.isNone: return
@@ -2475,7 +2494,10 @@ proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
     if body["played"].kind != JBool:
       problem(request, 400, "INVALID_BODY", "played must be a boolean")
       return
-    scheduleDone(request, ctx, sessionId,
+    scheduleDone(request, ctx, user, "session.game.played",
+      %*{"gameKey": gameKey,
+         "status": (if body["played"].getBool(): "played" else: "scheduled")},
+      sessionId,
       sessionSchedule.setPlayed(application.db, ctx.communityId, sessionId,
         gameKey, version.get, body["played"].getBool()))
     return
@@ -2503,10 +2525,11 @@ proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
   if outcome.verdict.error != sessionScoring.seOk:
     setVerdictProblem(request, outcome.verdict)
     return
-  scheduleDone(request, ctx, sessionId, outcome.status)
+  scheduleDone(request, ctx, user, "session.game.score",
+    %*{"gameKey": gameKey, "count": sets.len}, sessionId, outcome.status)
 
-proc skipGameRoute(request: Request, ctx: CommunityContext, sessionId,
-                   gameKey: string,
+proc skipGameRoute(request: Request, ctx: CommunityContext, user: AuthUser,
+                   sessionId, gameKey: string,
                     snapshot: Snapshot) =
   let version = requireIfMatch(request)
   if version.isNone: return
@@ -2524,11 +2547,13 @@ proc skipGameRoute(request: Request, ctx: CommunityContext, sessionId,
           "playerIds must hold strings")
         return
       playerIds.add(item.getStr())
-    scheduleDone(request, ctx, sessionId,
+    scheduleDone(request, ctx, user, "session.game.skip",
+      %*{"gameKey": gameKey, "count": playerIds.len}, sessionId,
       sessionSchedule.setSkips(application.db, ctx.communityId, sessionId,
         gameKey, version.get, playerIds))
     return
-  scheduleDone(request, ctx, sessionId,
+  scheduleDone(request, ctx, user, "session.game.skip", %*{"gameKey": gameKey},
+    sessionId,
     sessionSchedule.skipGame(application.db, ctx.communityId, sessionId, gameKey,
       version.get))
 
@@ -3522,21 +3547,21 @@ proc dispatch(request: Request) =
             clearSessionRating(request, ctx, user, parts[4])
           return
       if parts.len == 6 and parts[5] == "schedule" and verb == "PUT":
-        putScheduleRoute(request, ctx, parts[4], snapshot)
+        putScheduleRoute(request, ctx, user, parts[4], snapshot)
         return
       if parts.len == 6 and parts[5] == "absent" and verb == "PATCH":
-        setAbsentRoute(request, ctx, parts[4], snapshot)
+        setAbsentRoute(request, ctx, user, parts[4], snapshot)
         return
       if parts.len == 7 and parts[5] == "games":
         if verb == "GET":
           getGameRoute(request, ctx, parts[4], parts[6])
           return
         if verb == "PATCH":
-          setGameScoreRoute(request, ctx, parts[4], parts[6], snapshot)
+          setGameScoreRoute(request, ctx, user, parts[4], parts[6], snapshot)
           return
       if parts.len == 8 and parts[5] == "games" and parts[7] == "skip" and
          verb == "PATCH":
-        skipGameRoute(request, ctx, parts[4], parts[6], snapshot)
+        skipGameRoute(request, ctx, user, parts[4], parts[6], snapshot)
         return
       if parts.len in [4, 5] or
          (parts.len == 6 and parts[5] in

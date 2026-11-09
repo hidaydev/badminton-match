@@ -273,6 +273,26 @@ suite "janitor":
          where action = 'janitor.recent'""").get.get("total")
     check recent != "0"
 
+  test "the scoring actions are pruned by the same window":
+    # SEC-07 writes one row per score and per schedule, so the hottest new
+    # action must age out like any other: the purge is by `occurred_at`, never
+    # by action, and this pins that.
+    discard db.execUpdate(
+      """insert into account.audit
+           (occurred_at, actor_role, action, target_kind, target_id, result,
+            request_id)
+         values (now() - interval '400 days', 'host', 'session.game.score',
+                 'session', 'janitor-score-old', 'allow', '-'),
+                (now(), 'host', 'session.game.score', 'session',
+                 'janitor-score-new', 'allow', '-')""")
+    discard purgeAudit(db, 365)
+    let rows = db.query(
+      """select target_id from account.audit
+         where action = 'session.game.score'
+           and target_id like 'janitor-score-%'""")
+    check rows.len == 1
+    check rows[0].get("target_id") == "janitor-score-new"
+
   test "the retention predicate uses the occurred_at index":
     # With sequential scans disabled the planner can only pick an index, so
     # this fails if 0035 is missing instead of passing on a tiny table.

@@ -186,6 +186,29 @@ suite "session schedule HTTP":
       """{"games":[{"round":1,"court":0,"sideA":["00000000-0000-0000-0000-000000000000"]}]}""",
       ifMatch = "\"5\"")
     expectProblem(unknown, 400)
+    # SEC-07: the writes that decide ranking points are attributable now. One
+    # row per successful call, naming the host and the session; a refused call
+    # leaves none, so a retry cannot look like a second edit.
+    let hostId = database.queryOne(
+      "select id from platform.user where google_sub = 'sched-host'").get.get("id")
+    for action in ["session.schedule.put", "session.game.score",
+                   "session.absent.set", "session.game.skip"]:
+      let rows = database.query(
+        """select actor_id::text as actor, after->>'count' as count,
+                  after->>'gameKey' as game
+           from account.audit
+           where action = $1 and target_id = $2""",
+        @[textParam(action), textParam(sessionId)])
+      checkpoint(action)
+      check rows.len == 1
+      check rows[0].get("actor") == hostId
+    let scoreRows = database.query(
+      """select after->>'count' as count, after->>'gameKey' as game
+         from account.audit
+         where action = 'session.game.score' and target_id = $1""",
+      @[textParam(sessionId)])
+    check scoreRows[0].get("game") == "0-0"
+    check scoreRows[0].get("count") == "1"
 
   test "a classic session records sets and only counts a finished match":
     let body = call(baseUrl, HttpPost, "/c/sched-club/sessions", hostCookie,
