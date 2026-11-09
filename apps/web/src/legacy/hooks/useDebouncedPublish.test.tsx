@@ -182,8 +182,8 @@ describe('useDebouncedPublish', () => {
     await flush()
 
     expect(onError).toHaveBeenCalledTimes(1)
-    expect(onError).toHaveBeenCalledWith(t('session.contention'))
-    expect(onError).not.toHaveBeenCalledWith(t('session.action.failed'))
+    expect(onError).toHaveBeenCalledWith(t('session.contention'), expect.anything())
+    expect(onError).not.toHaveBeenCalledWith(t('session.action.failed'), expect.anything())
     expect(getSessionMock()).toHaveBeenCalledWith(SESSION)
     expect(client.getQueryData<CloudSnapshot>(sessionKey())?.version).toBe(11)
   })
@@ -236,7 +236,8 @@ describe('useDebouncedPublish', () => {
     expect(pending?.cloudSessionId).toBe(SESSION)
     expect(pending?.snapshot.session.title).toBe('first')
     expect(pending?.message).toBe(t('session.action.failed'))
-    expect(onError).toHaveBeenCalledWith(t('session.action.failed'))
+    expect(pending?.failedAt).toBeGreaterThan(0)
+    expect(onError).toHaveBeenCalledWith(t('session.action.failed'), expect.anything())
     // The retry record is persisted, not only in memory.
     expect(window.localStorage.getItem('badminton-store')).toContain('pendingPublish')
   })
@@ -292,6 +293,44 @@ describe('useDebouncedPublish', () => {
 
     expect(publishMock()).toHaveBeenCalledTimes(1)
     expect(onSaved).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves no beforeunload prompt after a clean success', async () => {
+    const { api } = setup()
+
+    act(() => api.publishToCloud())
+    await advance(300)
+    await flush()
+
+    const event = new Event('beforeunload', { cancelable: true })
+    act(() => {
+      window.dispatchEvent(event)
+    })
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(useStore.getState().pendingPublish).toBeNull()
+  })
+
+  it('keeps an existing stale message when beforeunload records the draft again', async () => {
+    const { api } = setup()
+    publishMock().mockRejectedValueOnce(
+      new ApiError('session changed since If-Match', 'STALE_VERSION', 412),
+    )
+
+    act(() => api.publishToCloud())
+    await advance(300)
+    await flush()
+    expect(useStore.getState().pendingPublish?.message).toBe(t('session.stale'))
+    const failedAt = useStore.getState().pendingPublish?.failedAt
+
+    const event = new Event('beforeunload', { cancelable: true })
+    act(() => {
+      window.dispatchEvent(event)
+    })
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(useStore.getState().pendingPublish?.message).toBe(t('session.stale'))
+    expect(useStore.getState().pendingPublish?.failedAt).toBe(failedAt)
   })
 
   it('does not recreate the pending record when the flush rejects after expiry', async () => {

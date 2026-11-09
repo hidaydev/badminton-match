@@ -12,6 +12,8 @@ import { createScheduleSlice } from './scheduleSlice'
 import type { FixMatchesSlice } from './fixMatchesSlice'
 import { createFixMatchesSlice } from './fixMatchesSlice'
 import type { PendingPublish, UISlice } from './uiSlice'
+
+export { PENDING_OVERWRITE_WINDOW_MS } from './uiSlice'
 import { createUISlice } from './uiSlice'
 
 // Combined state type
@@ -150,7 +152,21 @@ export function clearStoreDraft(): void {
  */
 export function recordPendingPublish(pending: PendingPublish): boolean {
   if (currentCommunitySlug() === '') return false
-  if (useStore.getState().cloudSessionId !== pending.cloudSessionId) return false
-  useStore.getState().setPendingPublish(pending)
+  const state = useStore.getState()
+  if (state.cloudSessionId !== pending.cloudSessionId) return false
+  const existing = state.pendingPublish
+  const failedAt =
+    existing !== null && existing.cloudSessionId === pending.cloudSessionId && existing.failedAt > 0
+      ? existing.failedAt
+      : pending.failedAt
+  const message =
+    pending.message ??
+    (existing !== null && existing.cloudSessionId === pending.cloudSessionId ? existing.message : null)
+  useStore.getState().setPendingPublish({
+    ...pending,
+    // Keep the original age and the message that first explained the record.
+    failedAt,
+    message,
+  })
   return true
 }

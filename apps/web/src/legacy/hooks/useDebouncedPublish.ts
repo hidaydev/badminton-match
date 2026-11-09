@@ -38,7 +38,7 @@ function buildSnapshot(state: StoreState, cached?: CloudSnapshot | null): CloudS
 
 export function useDebouncedPublish(
   cloudSessionId: string | null,
-  onError?: (message: string) => void,
+  onError?: (message: string, error?: unknown) => void,
   onSaved?: () => void,
 ) {
   const publishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -115,7 +115,7 @@ export function useDebouncedPublish(
         // close asks before dropping it.
         failedRef.current = true
         const message = getSaveErrorMessage(err)
-        onErrorRef.current?.(message)
+        onErrorRef.current?.(message, err)
         // Record the unconfirmed write. A navigation can unmount the screen
         // (and its toast) before the reviewer sees it, so the next screen
         // reads this record and offers a retry. The helper refuses after
@@ -127,6 +127,7 @@ export function useDebouncedPublish(
             cloudSessionId,
             snapshot: buildSnapshot(state, cached),
             message,
+            failedAt: Date.now(),
           })
         }
         if (cloudSessionId) {
@@ -200,6 +201,7 @@ export function useDebouncedPublish(
         cloudSessionId,
         snapshot: buildSnapshot(state, cached),
         message: null,
+        failedAt: Date.now(),
       })
       if (!recorded) return
       event.preventDefault()
@@ -238,8 +240,8 @@ export function useDebouncedPublish(
               // The screen is gone, so an inline banner cannot report this.
               // The record stays in the store for the next screen to retry,
               // unless expiry already detached it from this account.
-              recordPendingPublish({ cloudSessionId, snapshot: snap, message })
-              onErrorRef.current?.(message)
+              recordPendingPublish({ cloudSessionId, snapshot: snap, message, failedAt: Date.now() })
+              onErrorRef.current?.(message, err)
             })
           }
         }

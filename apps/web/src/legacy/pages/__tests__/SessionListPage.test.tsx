@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { mockFetch } from '../../../test/fetchMock'
 import { t } from '../../../i18n'
 import { LegacySlugProvider } from '../../router'
-import { clearStoreDraft, useStore } from '../../store'
+import { PENDING_OVERWRITE_WINDOW_MS, clearStoreDraft, useStore } from '../../store'
 import { ApiError, getSession, publishSession, setCommunitySlug } from '../../queries/endpoints'
 import type { CloudSnapshot } from '../../types'
 import SessionListPage from '../SessionListPage'
@@ -192,9 +192,8 @@ describe('SessionListPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('retries with the current version so a stale basis can recover', async () => {
-    mockFetch({ [`GET ${LIST}`]: () => ({ body: { items: list(), total: 2 } }) })
-    const snapshot: CloudSnapshot = {
+  function pendingSnapshot(): CloudSnapshot {
+    return {
       version: 3,
       session: useStore.getState().session,
       players: [],
@@ -204,11 +203,17 @@ describe('SessionListPage', () => {
       gameScores: {},
       absentPlayers: [],
     }
+  }
+
+  it('asks for confirmation before overwriting another editor\'s changes', async () => {
+    mockFetch({ [`GET ${LIST}`]: () => ({ body: { items: list(), total: 2 } }) })
+    const snapshot = pendingSnapshot()
     useStore.getState().setCloudSessionId('s1')
     useStore.getState().setPendingPublish({
       cloudSessionId: 's1',
       snapshot,
-      message: t('session.action.failed'),
+      message: t('session.stale'),
+      failedAt: Date.now(),
     })
     // The server has moved on since the snapshot was taken.
     getSessionMock.mockResolvedValueOnce({ ...snapshot, version: 7 })
@@ -217,9 +222,18 @@ describe('SessionListPage', () => {
     renderList()
 
     expect(await screen.findByText(t('sessions.unsaved.title'))).toBeInTheDocument()
-    expect(screen.getByText(t('session.action.failed'))).toBeInTheDocument()
+    expect(screen.getByText(t('session.stale'))).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: t('sessions.unsaved.retry') }))
+    // The safe action is the default one, and nothing is sent until the
+    // consequence is confirmed.
+    expect(screen.getByRole('button', { name: t('sessions.unsaved.reload') })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: t('sessions.unsaved.overwrite') }))
+
+    expect(screen.getByText(t('sessions.unsaved.confirm'))).toBeInTheDocument()
+    expect(screen.getByText(t('sessions.unsaved.confirmBody'))).toBeInTheDocument()
+    expect(publishMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: t('sessions.unsaved.confirmYes') }))
 
     await waitFor(() =>
       expect(publishMock).toHaveBeenCalledWith('s1', { ...snapshot, version: 7 }),
@@ -229,23 +243,39 @@ describe('SessionListPage', () => {
     expect(useStore.getState().cloudVersion).toBe(8)
   })
 
-  it('does not recreate the record when the retry rejects after expiry', async () => {
+  it('offers only reload for a record older than the overwrite window', async () => {
     mockFetch({ [`GET ${LIST}`]: () => ({ body: { items: list(), total: 2 } }) })
-    const snapshot: CloudSnapshot = {
-      version: 3,
-      session: useStore.getState().session,
-      players: [],
-      fixMatches: [],
-      schedule: [],
-      playedGames: [],
-      gameScores: {},
-      absentPlayers: [],
-    }
+    useStore.getState().setCloudSessionId('s1')
+    useStore.getState().setPendingPublish({
+      cloudSessionId: 's1',
+      snapshot: pendingSnapshot(),
+      message: t('session.stale'),
+      failedAt: Date.now() - PENDING_OVERWRITE_WINDOW_MS - 1,
+    })
+
+    renderList()
+
+    expect(await screen.findByText(t('sessions.unsaved.title'))).toBeInTheDocument()
+    expect(await screen.findByText(t('sessions.unsaved.tooOld'))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t('sessions.unsaved.overwrite') })).toBeNull()
+    expect(publishMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: t('sessions.unsaved.reload') }))
+
+    expect(screen.getByTestId('pathname')).toHaveTextContent('/c/acme/s/s1')
+    expect(useStore.getState().pendingPublish).toBeNull()
+    expect(publishMock).not.toHaveBeenCalled()
+  })
+
+  it('does not recreate the record when a confirmed overwrite rejects after expiry', async () => {
+    mockFetch({ [`GET ${LIST}`]: () => ({ body: { items: list(), total: 2 } }) })
+    const snapshot = pendingSnapshot()
     useStore.getState().setCloudSessionId('s1')
     useStore.getState().setPendingPublish({
       cloudSessionId: 's1',
       snapshot,
-      message: t('session.action.failed'),
+      message: t('session.stale'),
+      failedAt: Date.now(),
     })
     getSessionMock.mockResolvedValueOnce({ ...snapshot, version: 7 })
     let rejectPublish: (error: unknown) => void = () => {}
@@ -256,10 +286,11 @@ describe('SessionListPage', () => {
     renderList()
     expect(await screen.findByText(t('sessions.unsaved.title'))).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: t('sessions.unsaved.retry') }))
+    fireEvent.click(screen.getByRole('button', { name: t('sessions.unsaved.overwrite') }))
+    fireEvent.click(screen.getByRole('button', { name: t('sessions.unsaved.confirmYes') }))
     await waitFor(() => expect(publishMock).toHaveBeenCalledTimes(1))
 
-    // The session ends while the retry is still open.
+    // The session ends while the confirmed write is still open.
     act(() => {
       clearStoreDraft()
       setCommunitySlug('')
@@ -271,20 +302,11 @@ describe('SessionListPage', () => {
 
   it('dismisses a failed publish only when the user asks', async () => {
     mockFetch({ [`GET ${LIST}`]: () => ({ body: { items: list(), total: 2 } }) })
-    const snapshot: CloudSnapshot = {
-      version: 3,
-      session: useStore.getState().session,
-      players: [],
-      fixMatches: [],
-      schedule: [],
-      playedGames: [],
-      gameScores: {},
-      absentPlayers: [],
-    }
     useStore.getState().setPendingPublish({
       cloudSessionId: 's1',
-      snapshot,
+      snapshot: pendingSnapshot(),
       message: t('session.action.failed'),
+      failedAt: Date.now(),
     })
 
     renderList()

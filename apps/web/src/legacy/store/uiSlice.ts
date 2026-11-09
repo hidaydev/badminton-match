@@ -9,9 +9,22 @@ import type { CloudSnapshot } from '../types'
 export interface PendingPublish {
   cloudSessionId: string
   snapshot: CloudSnapshot
-  /** Mapped save message; `null` while the write is still in flight. */
+  /** Mapped save message; `null` on a pre-flight record from beforeunload. */
   message: string | null
+  /**
+   * When this record was first created, in epoch milliseconds. The age is
+   * measured from here, so repeated failures do not extend the window in
+   * which the copy may be forced over another editor's work.
+   */
+  failedAt: number
 }
+
+/**
+ * The copy may only be forced over a collaborator's version within this
+ * window. Older records can only be reloaded, because anything older than
+ * half an hour is more likely to be a forgotten draft than a live edit.
+ */
+export const PENDING_OVERWRITE_WINDOW_MS = 30 * 60 * 1000
 
 export interface UISlice {
   absentPlayers: string[]

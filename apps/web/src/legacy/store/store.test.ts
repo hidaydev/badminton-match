@@ -91,13 +91,14 @@ describe('legacy store persistence', () => {
     expect(useStore.getState().session.title).toBe('')
   })
 
-  it('refuses a pending publish once its draft is no longer active', async () => {
-    const { useStore, prepareCommunityDraft, clearStoreDraft, recordPendingPublish } = await loadStore()
+  it('refuses a pending publish when a different session is active', async () => {
+    const { useStore, prepareCommunityDraft, recordPendingPublish } = await loadStore()
     const { setCommunitySlug } = await import('../queries/endpoints')
     setCommunitySlug('a')
     prepareCommunityDraft('a')
-    useStore.getState().setCloudSessionId('s1')
-    const pending = {
+    useStore.getState().setCloudSessionId('s2')
+
+    const saved = recordPendingPublish({
       cloudSessionId: 's1',
       snapshot: {
         version: 1,
@@ -110,15 +111,71 @@ describe('legacy store persistence', () => {
         absentPlayers: [],
       },
       message: 'offline',
-    }
+      failedAt: Date.now(),
+    })
 
-    expect(recordPendingPublish(pending)).toBe(true)
+    expect(saved).toBe(false)
+    expect(useStore.getState().pendingPublish).toBeNull()
+  })
 
-    // The expiry teardown clears the draft and the adapter slug synchronously.
-    clearStoreDraft()
+  it('refuses a pending publish when the community slug is empty', async () => {
+    const { useStore, prepareCommunityDraft, recordPendingPublish } = await loadStore()
+    const { setCommunitySlug } = await import('../queries/endpoints')
+    setCommunitySlug('a')
+    prepareCommunityDraft('a')
+    useStore.getState().setCloudSessionId('s1')
+    // The expiry teardown clears the adapter slug while the id can still
+    // match the record; this condition alone must refuse the write.
     setCommunitySlug('')
 
-    expect(recordPendingPublish(pending)).toBe(false)
+    const saved = recordPendingPublish({
+      cloudSessionId: 's1',
+      snapshot: {
+        version: 1,
+        session: useStore.getState().session,
+        players: [],
+        fixMatches: [],
+        schedule: [],
+        playedGames: [],
+        gameScores: {},
+        absentPlayers: [],
+      },
+      message: 'offline',
+      failedAt: Date.now(),
+    })
+
+    expect(saved).toBe(false)
     expect(useStore.getState().pendingPublish).toBeNull()
+  })
+
+  it('keeps the first failure time and message when the record is written again', async () => {
+    const { useStore, prepareCommunityDraft, recordPendingPublish } = await loadStore()
+    const { setCommunitySlug } = await import('../queries/endpoints')
+    setCommunitySlug('a')
+    prepareCommunityDraft('a')
+    useStore.getState().setCloudSessionId('s1')
+    const snapshot = {
+      version: 1,
+      session: useStore.getState().session,
+      players: [],
+      fixMatches: [],
+      schedule: [],
+      playedGames: [],
+      gameScores: {},
+      absentPlayers: [],
+    }
+    const failedAt = Date.now() - 60_000
+
+    expect(recordPendingPublish({
+      cloudSessionId: 's1', snapshot, message: 'Someone else changed this session.', failedAt,
+    })).toBe(true)
+    // A beforeunload write passes no message and a new time; neither may
+    // blank the explanation or extend the overwrite window.
+    expect(recordPendingPublish({
+      cloudSessionId: 's1', snapshot, message: null, failedAt: Date.now(),
+    })).toBe(true)
+
+    expect(useStore.getState().pendingPublish?.failedAt).toBe(failedAt)
+    expect(useStore.getState().pendingPublish?.message).toBe('Someone else changed this session.')
   })
 })

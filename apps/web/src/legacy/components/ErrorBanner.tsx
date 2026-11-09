@@ -18,7 +18,7 @@ export default function ErrorBanner({
   onDismiss?: () => void
 }) {
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 flex max-w-[calc(100vw-2rem)] items-center gap-3 bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-2 rounded-lg" role="alert">
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 flex w-full max-w-xl items-center gap-3 bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-2 rounded-lg" role="alert">
       <span className="min-w-0">{message}</span>
       {onRetry && (
         <button

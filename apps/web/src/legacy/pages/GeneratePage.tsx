@@ -14,6 +14,8 @@ import { applySwap, applyTeamSwap, type SwapTarget, type TeamSwapTarget } from '
 import { applySlotSwap, type SlotSwapTarget } from '../utils/slotSwap'
 import { ScheduleView, QualityBanner } from '../components/generate/ScheduleComponents'
 import { useDebouncedPublish } from '../hooks/useDebouncedPublish'
+import { isVersionMismatch } from '../queries/errors'
+import { reloadPage } from '../utils/reload'
 import { collectAmbiguousBaseNames } from '../utils/nameParser'
 import { AmbiguousNamesProvider, combineAmbiguous, useAmbiguousNames } from '../context/AmbiguousNamesContext'
 import { t } from '../../i18n'
@@ -60,7 +62,7 @@ export default function GeneratePage() {
   )
   const result = isSharedView ? (sharedResult ?? snapshot?.lastResult ?? null) : storeResult
   const [error, setError] = useState<string | null>(null)
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<{ message: string; stale: boolean } | null>(null)
   const [retryInfo, setRetryInfo] = useState<{ attempts: number; perfect: boolean } | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
 
@@ -81,7 +83,7 @@ export default function GeneratePage() {
 
   const { publishToCloud, isSaving } = useDebouncedPublish(
     cloudSessionId,
-    (msg) => setSaveError(msg),
+    (msg, err) => setSaveError({ message: msg, stale: isVersionMismatch(err) }),
     () => setSaveError(null),
   )
 
@@ -281,15 +283,27 @@ export default function GeneratePage() {
       )}
       {saveError && (
         <div className="flex flex-col gap-2 p-3 bg-red-900/30 border border-red-700 rounded-xl text-red-400 text-sm sm:flex-row sm:items-center" role="alert">
-          <span className="min-w-0 flex-1">{saveError}</span>
+          <span className="min-w-0 flex-1">{saveError.message}</span>
           <span className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => { setSaveError(null); publishToCloud() }}
-              className="min-h-11 rounded-lg border border-red-600 px-3 text-xs font-bold text-red-200 transition-colors hover:bg-red-900/40"
-            >
-              {t('session.action.retry')}
-            </button>
+            {saveError.stale ? (
+              // A stale conditional request cannot succeed by resending it.
+              // The safe action is to load the server's current state.
+              <button
+                type="button"
+                onClick={() => reloadPage()}
+                className="min-h-11 rounded-lg border border-red-600 px-3 text-xs font-bold text-red-200 transition-colors hover:bg-red-900/40"
+              >
+                {t('session.action.reload')}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setSaveError(null); publishToCloud() }}
+                className="min-h-11 rounded-lg border border-red-600 px-3 text-xs font-bold text-red-200 transition-colors hover:bg-red-900/40"
+              >
+                {t('session.action.retry')}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setSaveError(null)}
