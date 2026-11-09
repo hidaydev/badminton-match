@@ -97,9 +97,29 @@ proc raiseResultError(res: PPGresult) {.noreturn.} =
   error.constraint = errorField(res, PG_DIAG_CONSTRAINT_NAME)
   raise error
 
+var
+  # The statement counter is a test hook: a suite proves that a batched write
+  # costs a fixed number of round trips instead of one per row. Only a
+  # transaction's own statements are counted, because its body is what a write
+  # holds its row locks for; `BEGIN`/`COMMIT` never reach the executors.
+  countingStatements {.threadvar.}: bool
+  transactionStatements {.threadvar.}: int
+  savepointSeq {.threadvar.}: int
+  # Every statement the process has issued, across threads. A read route cannot
+  # use `statementsInTransaction` (it opens no transaction) and a suite cannot
+  # read a threadvar of the worker thread that served the request, so the read
+  # side is counted process-wide.
+  statementsAll: Atomic[int]
+  # Rows the driver materialised, likewise process-wide. A statement count
+  # cannot tell a board-wide read from a one-row read (both are one statement),
+  # so the suites that prove a detail route stays narrow count rows instead.
+  rowsAll: Atomic[int]
+
 proc resultToRows(res: PPGresult): seq[Row] =
   let columns = pqnfields(res)
   let rows = pqntuples(res)
+  if rows > 0:
+    discard rowsAll.fetchAdd(rows)
   # Every row of a result shares the same column names, so they are read once
   # and handed to each row instead of being re-read and re-allocated per row.
   var names = newSeq[string](columns)
@@ -119,20 +139,6 @@ type BoundParams = object
   ## pointers during PQexecParams, so these strings must outlive the call.
   backing: seq[string]
 
-var
-  # The statement counter is a test hook: a suite proves that a batched write
-  # costs a fixed number of round trips instead of one per row. Only a
-  # transaction's own statements are counted, because its body is what a write
-  # holds its row locks for; `BEGIN`/`COMMIT` never reach the executors.
-  countingStatements {.threadvar.}: bool
-  transactionStatements {.threadvar.}: int
-  savepointSeq {.threadvar.}: int
-  # Every statement the process has issued, across threads. A read route cannot
-  # use `statementsInTransaction` (it opens no transaction) and a suite cannot
-  # read a threadvar of the worker thread that served the request, so the read
-  # side is counted process-wide.
-  statementsAll: Atomic[int]
-
 proc countStatement() =
   discard statementsAll.fetchAdd(1)
   if countingStatements:
@@ -143,6 +149,12 @@ proc statementsIssued*(): int =
   ## reads the delta around one call to prove a read costs a fixed number of
   ## round trips regardless of how many rows it returns.
   statementsAll.load()
+
+proc rowsReturned*(): int =
+  ## Rows returned to the driver since the process started, over every thread.
+  ## A suite reads the delta around one call to prove a detail read fetches one
+  ## row instead of materialising the whole board.
+  rowsAll.load()
 
 proc statementsInTransaction*(): int =
   ## How many statements the most recent transaction sent, `BEGIN`/`COMMIT`
