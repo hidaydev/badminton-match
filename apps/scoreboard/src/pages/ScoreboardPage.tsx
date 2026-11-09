@@ -4,6 +4,7 @@ import type { ScoreboardSideProps } from '../components/scoreboard'
 import { useStorageUnavailable } from '../hooks/useStorageUnavailable'
 import { usePersistentStorage } from '../hooks/usePersistentStorage'
 import { readStoredValue, writeStoredValue } from '../utils/storage'
+import { SCOREBOARD_LABELS } from '../scoreboardLabels'
 import {
   readMatchSnapshot,
   serializeMatchSnapshot,
@@ -146,8 +147,8 @@ export default function ScoreboardPage() {
 
   const doSwap = useCallback(() => setIsSwapped(s => !s), [])
 
-  const nameA = redName || 'RED'
-  const nameB = blueName || 'BLUE'
+  const nameA = redName || SCOREBOARD_LABELS.red.displayName
+  const nameB = blueName || SCOREBOARD_LABELS.blue.displayName
 
   const portraitStyle: React.CSSProperties = isPortrait ? {
     position: 'fixed',
@@ -164,6 +165,7 @@ export default function ScoreboardPage() {
 
   const redSide: ScoreboardSideProps = {
     side: 'red',
+    labels: SCOREBOARD_LABELS.red,
     score: red,
     displayName: nameA,
     editValue: redName,
@@ -179,6 +181,7 @@ export default function ScoreboardPage() {
 
   const blueSide: ScoreboardSideProps = {
     side: 'blue',
+    labels: SCOREBOARD_LABELS.blue,
     score: blue,
     displayName: nameB,
     editValue: blueName,
@@ -240,6 +243,7 @@ export default function ScoreboardPage() {
         </div>
       )}
       <ScoreboardFooter
+        labels={SCOREBOARD_LABELS}
         isFullscreen={isFullscreen}
         onReset={reset}
         onSwap={doSwap}

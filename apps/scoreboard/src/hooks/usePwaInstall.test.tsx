@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import { usePwaInstall } from './usePwaInstall'
+import { usePwaInstall } from '@majadu/scoreboard-ui'
 
 const desktopAgent = 'Mozilla/5.0 (X11; Linux x86_64) Chrome/131.0'
 const iphoneAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) Safari/605.1'

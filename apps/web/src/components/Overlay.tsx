@@ -3,8 +3,8 @@
 // iOS keyboard clamp and lift, so no call site has to repeat them.
 import { useEffect, useId, useRef } from 'react'
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
-import { useEscapeKey } from '../legacy/hooks/useEscapeKey'
-import { useFocusTrap } from '../legacy/hooks/useFocusTrap'
+import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import { t } from '../i18n'
 
 type OverlayProps = {

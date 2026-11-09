@@ -2,7 +2,7 @@ import { useState } from 'react'
 import ScoreboardPage from './pages/ScoreboardPage'
 import InstallModal from './components/InstallModal'
 import UpdatePrompt from './components/UpdatePrompt'
-import { usePwaInstall } from './hooks/usePwaInstall'
+import { usePwaInstall } from '@majadu/scoreboard-ui'
 import { useAppUpdate } from './hooks/useAppUpdate'
 import { readStoredValue, writeStoredValue } from './utils/storage'
 

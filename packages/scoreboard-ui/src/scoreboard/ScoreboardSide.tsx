@@ -1,38 +1,18 @@
-import type { MouseEvent } from 'react'
-import { t } from '../../../i18n'
+import type { ScoreboardSideProps } from './types'
 
-const SIDE_CONFIG = {
-  red: {
-    bg: '#b91c1c',
-    minusPosition: 'right-4' as const,
-    placeholder: 'RED',
-    sideKey: 'scoreboard.side.red' as const,
-  },
-  blue: {
-    bg: '#1d4ed8',
-    minusPosition: 'left-4' as const,
-    placeholder: 'BLUE',
-    sideKey: 'scoreboard.side.blue' as const,
-  },
+const SIDE_BACKGROUND = {
+  red: '#b91c1c',
+  blue: '#1d4ed8',
 } as const
 
-export interface ScoreboardSideProps {
-  side: 'red' | 'blue'
-  score: number
-  displayName: string
-  editValue: string
-  isEditing: boolean
-  isPop: boolean
-  isOverlay: boolean
-  onScore: () => void
-  onMinus: (e: MouseEvent) => void
-  onNameChange: (value: string) => void
-  onStartEditing: () => void
-  onStopEditing: () => void
-}
+const MINUS_POSITION = {
+  red: 'right-4',
+  blue: 'left-4',
+} as const
 
 export function ScoreboardSide({
   side,
+  labels,
   score,
   displayName,
   editValue,
@@ -45,13 +25,10 @@ export function ScoreboardSide({
   onStartEditing,
   onStopEditing,
 }: ScoreboardSideProps) {
-  const config = SIDE_CONFIG[side]
-  const sideName = t(config.sideKey)
-
   return (
     <div
       className="flex-1 flex flex-col items-center justify-center relative"
-      style={{ background: config.bg }}
+      style={{ background: SIDE_BACKGROUND[side] }}
     >
       {/* Player name */}
       <div className="absolute top-0 left-0 right-0 flex justify-center pt-5">
@@ -65,14 +42,14 @@ export function ScoreboardSide({
         ) : isEditing ? (
           <input
             autoFocus
-            placeholder={config.placeholder}
+            placeholder={labels.placeholder}
             value={editValue}
             onChange={e => onNameChange(e.target.value)}
             onBlur={onStopEditing}
             onKeyDown={e => { if (e.key === 'Enter') onStopEditing() }}
             className="bg-transparent text-center text-white/90 font-bold uppercase outline-none border-b border-white/30 w-36"
             style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)', letterSpacing: '0.18em' }}
-            aria-label={t('scoreboard.teamName', { side: sideName })}
+            aria-label={labels.teamName}
           />
         ) : (
           <span
@@ -85,13 +62,14 @@ export function ScoreboardSide({
         )}
       </div>
 
-      {/* Score face — the only control that adds a point, so it is the button
-          itself instead of a role="button" wrapper around other controls. */}
+      {/* Score face. This is a real button rather than a role="button" wrapper:
+          it is the only control that adds a point, so keydown from the name
+          field and the minus button can never reach it. */}
       <button
         type="button"
         onClick={onScore}
-        aria-label={t('scoreboard.score', { side: sideName, score })}
-        className="w-full flex-1 flex flex-col items-center justify-center cursor-pointer active:brightness-150 duration-75 hit44"
+        aria-label={labels.score(displayName, score)}
+        className="score-face w-full flex-1 flex flex-col items-center justify-center cursor-pointer active:brightness-150 duration-75"
         style={{ transitionProperty: 'filter' }}
       >
         <span
@@ -110,16 +88,16 @@ export function ScoreboardSide({
           className="text-white/80 tracking-widest mt-3 pointer-events-none"
           style={{ fontSize: 'clamp(0.55rem,1.2vmax,0.75rem)' }}
         >
-          {t('scoreboard.tapToScore')}
+          {labels.tapToScore}
         </span>
       </button>
 
       <button
         type="button"
         onClick={onMinus}
-        className={`absolute ${config.minusPosition} top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/90 cursor-pointer active:bg-black/40 transition-colors`}
+        className={`absolute ${MINUS_POSITION[side]} top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/90 cursor-pointer active:bg-black/40 transition-colors`}
         style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.15)' }}
-        aria-label={t('scoreboard.decrease', { side: sideName })}
+        aria-label={labels.decrease}
       >
         −
       </button>

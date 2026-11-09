@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
-import { useEscapeKey } from './useEscapeKey'
+import { useEscapeKey } from '@majadu/scoreboard-ui'
 
 function Overlay({ name, onEscape, enabled = true }: {
   name: string

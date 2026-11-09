@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { ScoreboardSide } from './ScoreboardSide'
-import type { ScoreboardSideProps } from './ScoreboardSide'
+import { ScoreboardSide } from '@majadu/scoreboard-ui'
+import type { ScoreboardSideProps } from '@majadu/scoreboard-ui'
+import { SCOREBOARD_LABELS } from '../scoreboardLabels'
 
 function props(overrides: Partial<ScoreboardSideProps> = {}): ScoreboardSideProps {
   return {
     side: 'red',
+    labels: SCOREBOARD_LABELS.red,
     score: 7,
     displayName: 'Arya',
     editValue: 'Arya',
@@ -85,7 +87,11 @@ describe('ScoreboardSide', () => {
   })
 
   it('labels the minus control per side', () => {
-    render(<ScoreboardSide {...props({ side: 'blue', displayName: 'Bowo' })} />)
+    render(
+      <ScoreboardSide
+        {...props({ side: 'blue', labels: SCOREBOARD_LABELS.blue, displayName: 'Bowo' })}
+      />,
+    )
     expect(screen.getByRole('button', { name: 'Decrease blue score' })).toBeInTheDocument()
   })
 

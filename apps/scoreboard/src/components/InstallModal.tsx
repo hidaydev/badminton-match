@@ -1,4 +1,4 @@
-import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useEscapeKey } from '@majadu/scoreboard-ui'
 
 interface InstallModalProps {
   isIos: boolean

@@ -1,7 +1,7 @@
 // src/pages/HomePage.tsx: home landing hub and primary navigation.
 import { useNavigate } from '../router'
 import { useState } from 'react'
-import { usePwaInstall } from '../hooks/usePwaInstall'
+import { usePwaInstall } from '../../hooks/usePwaInstall'
 import { useListSessions, isDraftSession } from '../queries'
 import { useAdmin } from '../context/AdminContext'
 import { communityHref } from '../../routes.manifest'

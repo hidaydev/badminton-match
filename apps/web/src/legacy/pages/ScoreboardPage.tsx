@@ -3,6 +3,8 @@ import { useNavigate } from '../router'
 import { ScoreboardSide, ScoreboardDivider, ScoreboardFooter } from '../components/scoreboard'
 import type { ScoreboardSideProps } from '../components/scoreboard'
 import { validateScore } from '../utils/scoreValidation'
+import { scoreboardLabels } from '../scoreboardLabels'
+import { PALETTE } from '../../theme/palette'
 import { t } from '../../i18n'
 
 const LS_RED = 'score-red'
@@ -50,6 +52,7 @@ export interface OverlayConfig {
 
 export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } = {}) {
   const navigate = useNavigate()
+  const labels = scoreboardLabels()
 
   const [red, setRed] = useState(() => overlay ? overlay.initialScoreA : readLS(LS_RED))
   const [blue, setBlue] = useState(() => overlay ? overlay.initialScoreB : readLS(LS_BLUE))
@@ -186,8 +189,8 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
   }, [navigate])
 
   // Overlay mode: name shown as read-only pill
-  const nameA = overlay ? redName : (redName || 'RED')
-  const nameB = overlay ? blueName : (blueName || 'BLUE')
+  const nameA = overlay ? redName : (redName || labels.red.placeholder)
+  const nameB = overlay ? blueName : (blueName || labels.blue.placeholder)
 
   const portraitStyle: React.CSSProperties = isPortrait ? {
     position: 'fixed',
@@ -209,6 +212,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
 
   const redSide: ScoreboardSideProps = {
     side: 'red',
+    labels: labels.red,
     score: red,
     displayName: nameA,
     editValue: redName,
@@ -224,6 +228,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
 
   const blueSide: ScoreboardSideProps = {
     side: 'blue',
+    labels: labels.blue,
     score: blue,
     displayName: nameB,
     editValue: blueName,
@@ -273,6 +278,8 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
         </div>
       )}
       <ScoreboardFooter
+        labels={labels}
+        accentColor={PALETTE.accent}
         isFullscreen={isFullscreen}
         onReset={reset}
         onSwap={doSwap}
