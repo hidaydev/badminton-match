@@ -92,19 +92,20 @@ insert into rating.snapshots (community_id, player_id, taken_on, rating) values
 -- scheduled game. The played game is what the session rating path consumes.
 insert into session.sessions
   (id, community_id, title, session_date, start_time, slot_minutes, status,
-   source, version) values
+   source, version, approved_at) values
   ('40000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001',
-   'Tuesday Night', '2026-11-03', '19:00', 30, 'locked', 'manual', 1),
+   'Tuesday Night', '2026-11-03', '19:00', 30, 'locked', 'manual', 1,
+   -- The rating ingest gate is an approval stamp, not just the status. It is
+   -- set here rather than by a follow-up update: since 0048 every update bumps
+   -- the version, and a fixture that stamps the row afterwards would hand the
+   -- corpus a session whose version is 2 before any case has run.
+   '2026-11-03T10:00:00Z'),
   ('40000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000001',
-   'Draft Night', '2026-11-10', '19:00', 30, 'draft', 'manual', 1),
+   'Draft Night', '2026-11-10', '19:00', 30, 'draft', 'manual', 1, null),
   ('40000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000001',
-   'Delete Me', '2026-11-17', '19:00', 30, 'draft', 'manual', 1),
+   'Delete Me', '2026-11-17', '19:00', 30, 'draft', 'manual', 1, null),
   ('40000000-0000-4000-8000-000000000004', '10000000-0000-4000-8000-000000000002',
-   'Foreign Night', '2026-11-03', '19:00', 30, 'draft', 'manual', 1);
-
--- The rating ingest gate is an approval stamp, not just the status.
-update session.sessions set approved_at = '2026-11-03T10:00:00Z'
-where id = '40000000-0000-4000-8000-000000000001';
+   'Foreign Night', '2026-11-03', '19:00', 30, 'draft', 'manual', 1, null);
 
 insert into session.courts
   (id, community_id, session_id, court_index, court_name, start_time, end_time) values
