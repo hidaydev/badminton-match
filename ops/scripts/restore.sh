@@ -63,32 +63,50 @@ if { [ "$TARGET" = "bm" ] || [ "$TARGET" = "bm2" ]; } && [ "$FORCE" -ne 1 ]; the
   exit 2
 fi
 
-# The authority is everything after "://" up to the first "/"; the path (the
-# database name plus any query) follows that slash. A DSN without a slash has no
-# path, and libpq does not parse a query without one, so a "?" inside the
-# authority (a password, for example) must never be read as a query start.
-dsn_authority() {
+# libpq splits a URI-like DSN as scheme://userinfo@authority/path?query.
+# userinfo ends at the first "@", and the authority ends at the first "/" or
+# "?" after it. A "?" that appears before any "/" is a query with no path; libpq
+# would then take the database from dbname, so this script refuses that shape
+# instead of guessing where the write goes.
+dsn_hostpart() {
   local dsn=$1 rest
   case "$dsn" in
     postgres://*|postgresql://*) rest=${dsn#*://} ;;
     *) return 1 ;;
   esac
   case "$rest" in
-    */*) printf '%s\n' "${rest%%/*}" ;;
+    *@*) printf '%s\n' "${rest#*@}" ;;
     *) printf '%s\n' "$rest" ;;
   esac
 }
 
-dsn_path() {
-  local dsn=$1 rest
+dsn_authority() {
+  local dsn=$1 rest userinfo host
   case "$dsn" in
     postgres://*|postgresql://*) rest=${dsn#*://} ;;
     *) return 1 ;;
   esac
   case "$rest" in
-    */*) printf '%s\n' "${rest#*/}" ;;
+    *@*) userinfo=${rest%%@*}@; host=${rest#*@} ;;
+    *) userinfo=""; host=$rest ;;
+  esac
+  case "$host" in
+    *[?/]*) printf '%s\n' "$userinfo${host%%[?/]*}" ;;
+    *) printf '%s\n' "$userinfo$host" ;;
+  esac
+}
+
+dsn_path() {
+  local host before pathq
+  host=$(dsn_hostpart "$1") || return 1
+  before=${host%%\?*}
+  # A query before the first slash, or no slash at all, leaves no path.
+  case "$before" in
+    */*) ;;
     *) return 1 ;;
   esac
+  pathq=${host#*/}
+  printf '%s\n' "${pathq%%\?*}"
 }
 
 # The database is the path up to the query; the query starts only after it.
@@ -141,10 +159,11 @@ url_decode_key() {
 }
 
 dsn_query() {
-  local path
-  path=$(dsn_path "$1") || return 0
-  case "$path" in
-    *\?*) printf '%s\n' "${path#*\?}" ;;
+  local host
+  host=$(dsn_hostpart "$1") || return 0
+  dsn_path "$1" >/dev/null 2>&1 || return 0
+  case "$host" in
+    *\?*) printf '%s\n' "${host#*\?}" ;;
   esac
 }
 
@@ -227,11 +246,13 @@ maintenance_dsn() {
     *) return 1 ;;
   esac
   authority=$(dsn_authority "$dsn") || return 1
-  path=$(dsn_path "$dsn") || path=""
+  path=$(dsn_path "$dsn") || return 1
+  query=$(dsn_query "$dsn")
   [ -n "$authority" ] || return 1
-  query=""
-  case "$path" in
-    *\?*) query="?${path#*\?}"; path=${path%%\?*} ;;
+  [ -n "$path" ] || return 1
+  case "$query" in
+    "") ;;
+    *) query="?$query" ;;
   esac
   hostport=${authority##*@}
   case "$hostport" in

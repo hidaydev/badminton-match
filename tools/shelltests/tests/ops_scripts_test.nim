@@ -400,6 +400,37 @@ suite "restore.sh":
     check result.stderr.contains(
       "restore: cannot read a database name from --dsn")
 
+  test "a query before the path slash cannot smuggle a target into a value":
+    let fixture = newFixture("restore-dsn-query-before-path")
+    defer: removeDir(fixture.root)
+    let pgLog = fixture.root / "pg_restore.log"
+    fixture.installFake("pg_restore",
+      "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " & pgLog & "\nexit 0\n")
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    # libpq reads dbname=postgres and treats /bm_staging inside application_name
+    # as a value, not a path. The guard must refuse instead of reading it as one.
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgresql://127.0.0.1:5432?dbname=postgres&application_name=/bm_staging"],
+      appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains(
+      "restore: cannot read a database name from --dsn")
+    check not fileExists(pgLog)
+
+  test "a no-path DSN that names the target in dbname is still refused":
+    let fixture = newFixture("restore-dsn-no-path-dbname")
+    defer: removeDir(fixture.root)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgresql://127.0.0.1:5432?dbname=bm_staging"], appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains(
+      "restore: cannot read a database name from --dsn")
+
   test "a held deploy lock stops the write before pg_restore":
     let fixture = newFixture("restore-lock-held")
     defer: removeDir(fixture.root)
