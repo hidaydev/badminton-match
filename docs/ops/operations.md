@@ -87,7 +87,37 @@ does not match `CUTOVER_SNAPSHOT_SHA256`. Columns or seeds that are not in place
 yet are not detected there; what proves the schema is `dbtools verify` in the
 deploy step. `503` means "do not send traffic", not "try again".
 
-## 4. What is still missing
+## 4. Monitoring, alerting and the availability target
+
+Two detectors run on the VPS and one runs outside it. The VPS ones are useful but
+they cannot report the failure they are most likely to miss: the host itself.
+
+| Detector | Runs on | What it proves |
+|---|---|---|
+| `majadu-readyz.timer` | VPS | the API answered `/readyz` in the last five minutes |
+| `majadu-deploy-check.timer` | VPS | the latest release reached `deploy/deployed-version` |
+| external uptime checker | provider | the public origin answers from outside the VPS |
+
+The external checker is an account-level uptime monitor (the provider's own
+service, not a unit in this repository) with two HTTPS checks: `GET
+https://api.qouver.com/majadu/readyz` expecting `200`, and `GET
+https://majadu.vercel.app/` expecting `200`. Its notification channel is the
+account email plus push, deliberately independent of the VPS, the user systemd
+manager and the `majadu-alert@` webhook. Configure the checks for a 60 second
+interval and a 5 minute alert delay; a check that only runs on the machine it
+watches cannot report that the machine is gone.
+
+Availability target: **99.0% per calendar month** for the public API and web
+origin (about 7 hours 18 minutes of allowed downtime), excluding announced
+maintenance announced in the community channel at least 24 hours ahead. The
+target is a single-instance target: the API is one process on one host, so a
+host failure is downtime, not a degraded mode.
+
+Journal retention is bounded by `ops/journald/majadu.conf` (200 MB, 30 days).
+Install it on the host as described in the file header, then confirm with
+`journalctl --disk-usage`.
+
+## 5. What is still missing
 
 Being honest about gaps is more useful than a runbook that assumes tools that do
 not exist:
