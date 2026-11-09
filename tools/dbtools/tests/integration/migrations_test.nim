@@ -449,5 +449,40 @@ try:
       except DbError as error:
         state = error.sqlState
       check state == "23514"
+
+    test "a team sheet accepts every tier the player ladder knows":
+      migrate(scratch, migrationsDir)
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('team-class', 'Team Class', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      let playerId = scratch.queryOne(
+        """insert into player.players (community_id, canonical_name, tier)
+           values ($1::uuid, 'D Player', 'D') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      let tournamentId = scratch.queryOne(
+        """insert into tournament.tournaments (community_id, name, status)
+           values ($1::uuid, 'Class Cup', 'active') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      let teamId = scratch.queryOne(
+        """insert into tournament.teams
+             (community_id, tournament_id, seed, team_name)
+           values ($1::uuid, $2::uuid, 1, 'Class Team') returning id""",
+        @[textParam(communityId), textParam(tournamentId)]).get.get("id")
+      discard scratch.execUpdate(
+        """insert into tournament.team_players
+             (community_id, team_id, player_id, player_name, cls)
+           values ($1::uuid, $2::uuid, $3::uuid, 'D Player', 'D')""",
+        @[textParam(communityId), textParam(teamId), textParam(playerId)])
+      var state = ""
+      try:
+        discard scratch.execUpdate(
+          """insert into tournament.team_players
+               (community_id, team_id, player_name, cls)
+             values ($1::uuid, $2::uuid, 'E Player', 'E')""",
+          @[textParam(communityId), textParam(teamId)])
+      except DbError as error:
+        state = error.sqlState
+      check state == "23514"
 finally:
   shutdown()

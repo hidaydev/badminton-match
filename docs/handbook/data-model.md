@@ -120,7 +120,7 @@ counted (used by the rating source screen and the revert/rebuild reports). The p
 | `tournament.matches` | `round_no`, nullable `pair_a_id`/`pair_b_id`, `phase` ∈ `group/qf/sf/3rd/final`, `group_id` ∈ `A–D`, `pic_name`, `match_key` unique per tournament, `match_order`, scores 0–99 with no draw when `played` | `0003:43-76`, `0012:17-31` |
 | `tournament.groups` | PK `(tournament_id, group_id, position)`; `group_id` A–D, `position` 0–3 | `0012:34-50` |
 | `tournament.teams` | `seed` 1–6, `team_name`; seed and name unique per tournament | `0012:54-70` |
-| `tournament.team_players` | `player_name` (snapshot), nullable `player_id`, `cls` ∈ `A+/A/B+/B/C+/C`; unique `(team_id, cls)` | `0012:72-89` |
+| `tournament.team_players` | `player_name` (snapshot), nullable `player_id`, `cls` ∈ `D/D+/C/C+/B/B+/A/A+` (the same eight values as `player.players.tier`); unique `(team_id, cls)` | `0012:72-89`, `0046` |
 | `tournament.team_matches` | `phase` ∈ `group/final`, `match_order`, unique `match_key`, nullable `team_a_id`/`team_b_id`, `courts text[3]` (default `Court 12/13/14`) | `0012:91-113` |
 | `tournament.team_partai` | `partai_index` 0–2, scores 0–99, `(score_a is null) = (score_b is null)`; unique `(team_match_id, partai_index)` | `0012:115-132` |
 
@@ -154,7 +154,17 @@ counted (used by the rating source screen and the revert/rebuild reports). The p
 - `player.players.canonical_key` and `player.aliases.alias_key` use the same normalization;
   aliases are unique per community so two players do not answer to the same name.
 - The name in `tournament.team_players.player_name` is a snapshot; `player_id` may be
-  `NULL` for a player not yet registered.
+  `NULL` for a player not yet registered. `cls` is also a snapshot, so reclassifying a
+  player on the rating ladder does not rewrite an old team sheet. This query lists the
+  rows where the two disagree (it should be run when a tier is renamed):
+
+  ```sql
+  select tp.community_id, tp.team_id, tp.player_id, tp.cls, p.tier
+    from tournament.team_players tp
+    join player.players p
+      on p.community_id = tp.community_id and p.id = tp.player_id
+   where p.tier is not null and tp.cls <> p.tier;
+  ```
 - `rating.sources` is the only place for sign-off; `rating.events` no longer has a
   `finalized` column (moved by `0013`).
 - `platform.ws_ticket` stores a hash, not a token; the `share` channel may have no user,
