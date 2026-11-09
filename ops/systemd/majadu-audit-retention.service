@@ -1,13 +1,13 @@
 # Audit retention, started by majadu-audit-retention.timer.
 #
-# Pruning account.audit needs the owner role, so this unit reads
-# MAJADU_AUDIT_DSN from the tool env; the application DSN would either fail the
-# privilege check or work by accident on a host where the roles are wrong. The
-# API unit does not load that file, so the running API never sees the owner
-# credential. The variable is commented out in ops/env/prod-tools.env.example
+# Pruning account.audit runs as bm2_audit_prune, not bm2_owner: the role has
+# SELECT and DELETE on that table and nothing else, so a compromised timer
+# cannot change the schema. This unit reads MAJADU_AUDIT_DSN from the tool env;
+# the application DSN would fail the DELETE privilege check. The API unit does
+# not load that file, so the running API never sees the prune credential. The variable is commented out in ops/env/prod-tools.env.example
 # until the timer is enabled, and the tool refuses to run without it.
 [Unit]
-Description=Majadu audit retention (owner role)
+Description=Majadu audit retention (prune role)
 Wants=network-online.target
 After=network-online.target
 OnFailure=majadu-alert@%N.service

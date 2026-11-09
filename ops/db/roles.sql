@@ -22,6 +22,32 @@ begin
   if not exists (select 1 from pg_roles where rolname = 'bm2_etl') then
     create role bm2_etl nologin;
   end if;
+  -- Pruning is not the owner's job. This role can see and delete rows in
+  -- account.audit and nothing else, so the retention timer runs without a
+  -- credential that can also change the schema.
+  if not exists (select 1 from pg_roles where rolname = 'bm2_audit_prune') then
+    create role bm2_audit_prune nologin;
+  end if;
+end $$;
+
+-- The table does not exist before 0004_platform.sql, so the grants are
+-- generated only when the migration has run.
+select 'grant usage on schema account to bm2_audit_prune'
+where to_regclass('account.audit') is not null \gexec
+select 'grant select, delete on account.audit to bm2_audit_prune'
+where to_regclass('account.audit') is not null \gexec
+
+do $$
+begin
+  if to_regclass('account.audit') is null then
+    return;
+  end if;
+  if not has_table_privilege('bm2_audit_prune', 'account.audit', 'DELETE') then
+    raise exception 'bm2_audit_prune cannot delete from account.audit';
+  end if;
+  if has_table_privilege('bm2_app', 'account.audit', 'DELETE') then
+    raise exception 'bm2_app can delete from account.audit';
+  end if;
 end $$;
 
 revoke connect on database :"db" from public;

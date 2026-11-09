@@ -1,0 +1,12 @@
+# One audit digest per day. The retention timer runs after this one, so a digest
+# proves the rows that existed before the day's prune, and the next day proves
+# what the prune removed.
+[Unit]
+Description=Write the daily audit digest
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target

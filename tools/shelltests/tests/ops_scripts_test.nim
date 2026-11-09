@@ -983,3 +983,54 @@ exit 0
       @[("MAJADU_REPO_DIR", fixture.root), ("MAJADU_APP_DIR", fixture.root)])
     check result.exitCode == 1
     check result.stderr.contains(prod & " must be mode 600 (found 644)")
+
+suite "audit-digest.sh":
+  test "a missing DSN exits 2 without touching the backup directory":
+    let fixture = newFixture("audit-digest-no-dsn")
+    defer: removeDir(fixture.root)
+    let result = fixture.runShell(
+      fixture.installOpsScript("audit-digest.sh"), @[],
+      @[("MAJADU_APP_DIR", fixture.root)])
+    check result.exitCode == 2
+    check result.stderr.contains("MAJADU_AUDIT_DSN is not set")
+
+  test "the digest is written atomically and stays private":
+    let fixture = newFixture("audit-digest-ok")
+    defer: removeDir(fixture.root)
+    fixture.installFake("psql", """#!/bin/sh
+printf '42:deadbeef\n'
+exit 0
+""")
+    let backups = fixture.root / "backups"
+    let result = fixture.runShell(
+      fixture.installOpsScript("audit-digest.sh"), @[],
+      @[("MAJADU_APP_DIR", fixture.root),
+        ("MAJADU_BACKUP_DIR", backups),
+        ("MAJADU_AUDIT_DSN", "postgres://bm2_audit_prune@127.0.0.1:5432/bm2")])
+    check result.exitCode == 0
+    var digestFiles: seq[string]
+    for kind, path in walkDir(backups):
+      if kind == pcFile and path.extractFilename.startsWith("audit-digest-"):
+        digestFiles.add(path)
+    check digestFiles.len == 1
+    let body = readFile(digestFiles[0])
+    check body.contains("\"rows\":42")
+    check body.contains("\"digest\":\"deadbeef\"")
+    check mode600(digestFiles[0])
+    for kind, path in walkDir(backups):
+      check not path.extractFilename.contains(".tmp")
+
+  test "an answer that is not a count exits 1":
+    let fixture = newFixture("audit-digest-bad")
+    defer: removeDir(fixture.root)
+    fixture.installFake("psql", """#!/bin/sh
+printf 'ERROR: permission denied for table audit\n'
+exit 0
+""")
+    let result = fixture.runShell(
+      fixture.installOpsScript("audit-digest.sh"), @[],
+      @[("MAJADU_APP_DIR", fixture.root),
+        ("MAJADU_BACKUP_DIR", fixture.root / "backups"),
+        ("MAJADU_AUDIT_DSN", "postgres://bm2_audit_prune@127.0.0.1:5432/bm2")])
+    check result.exitCode == 1
+    check result.stderr.contains("unexpected answer")
