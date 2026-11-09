@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import type { ScoringPreset } from '../../../community/api'
@@ -150,7 +150,8 @@ describe('SetupPage', () => {
 
     const radios = screen.getAllByRole('radio')
     expect(radios).toHaveLength(2)
+    // The preset list renders one commit before the default lands in the draft.
+    await waitFor(() => expect(radios[1]).toBeChecked())
     expect(radios[0]).not.toBeChecked()
-    expect(radios[1]).toBeChecked()
   })
 })
