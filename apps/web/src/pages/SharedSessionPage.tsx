@@ -2,7 +2,6 @@ import { useEffect, useId, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
 import { t } from '../i18n'
-import { tabId, tabPanelId } from '../components/TabBar'
 import type { MessageKey } from '../i18n/en'
 import { formatCompactDate } from '../utils/day'
 import { ordinal } from '../legacy/utils/ordinal'
@@ -242,9 +241,13 @@ export default function SharedSessionPage() {
           </div>
 
           <div
-            id={tabPanelId(panelId)}
+            // `Tabs` names each button `${panelId}-${id}` and points every tab
+            // at `panelId`, so the panel is the id itself and its label is the
+            // selected tab's id. The `tabId`/`tabPanelId` helpers in `TabBar`
+            // use a different scheme and left both references dangling.
+            id={panelId}
             role="tabpanel"
-            aria-labelledby={tabId(panelId, tab)}
+            aria-labelledby={`${panelId}-${tab}`}
             className="mt-3 flex flex-col"
           >
             {tab === 'games' &&
