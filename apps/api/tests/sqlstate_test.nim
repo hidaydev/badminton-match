@@ -16,6 +16,10 @@ suite "integrity violation status":
     check statusForSqlState("") == 500
     check statusForSqlState("08006") == 500
 
+  test "a held lock is retryable, not a defect":
+    check statusForSqlState("55P03") == 503
+    check codeForSqlState("55P03") == "UNAVAILABLE"
+
   test "one code per status":
     for state in ["23505", "23503", "23001"]:
       checkpoint(state)

@@ -10,10 +10,9 @@
     "body": "{}"
   },
   "expect": {
-    "status": 200,
+    "status": 202,
     "body": {
-      "deltas": 18,
-      "events": 3
+      "status": "accepted"
     }
   }
 }

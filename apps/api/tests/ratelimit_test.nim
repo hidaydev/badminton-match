@@ -31,9 +31,42 @@ suite "rate limiter":
   test "one address cannot mint more than its bucket cap":
     let limiter = newLimiter()
     for index in 0 ..< maxBucketsPerAddress + 8:
-      discard limiter.hit("user:" & $index, 10, 1000.0, "203.0.113.7")
+      discard limiter.hit("user:" & $index, 10, 1000.0, "203.0.113.7",
+        evictable = true)
     check limiter.bucketCountFor("203.0.113.7") == maxBucketsPerAddress
     # Another address keeps its own allowance and is not evicted by the first.
-    discard limiter.hit("user:elsewhere", 10, 1000.0, "203.0.113.8")
+    discard limiter.hit("user:elsewhere", 10, 1000.0, "203.0.113.8",
+      evictable = true)
     check limiter.bucketCountFor("203.0.113.8") == 1
     check limiter.bucketCountFor("203.0.113.7") == maxBucketsPerAddress
+
+  test "minted share buckets never evict the budget that enforces the limit":
+    ## The reviewer's sequence: exhaust the address budget, then mint one
+    ## share bucket per random code. The least recently seen bucket used to be
+    ## the exhausted route bucket, so the next request started a fresh 300.
+    let limiter = newLimiter()
+    let address = "198.51.100.7"
+    for _ in 0 ..< 300:
+      check limiter.hit("route|/auth/start|" & address, 300, 1000.0,
+        address).allowed
+    check not limiter.hit("route|/auth/start|" & address, 300, 1000.0,
+      address).allowed
+    for index in 0 ..< maxBucketsPerAddress + 1:
+      discard limiter.hit("share|code" & $index & "|" & address, 120,
+        1001.0 + index.float, address, evictable = true)
+    check not limiter.hit("route|/auth/start|" & address, 300, 1000.0,
+      address).allowed
+
+  test "a busy NAT keeps its address budget across many user buckets":
+    ## A NAT of signed-in users adds a per-user bucket for every user. Those
+    ## are pinned like the address budget, so the crowd cannot evict the
+    ## anonymous budget and hand it a fresh window.
+    let limiter = newLimiter()
+    let address = "198.51.100.9"
+    for _ in 0 ..< 300:
+      discard limiter.hit("route|/healthz|" & address, 300, 1000.0, address)
+    for index in 0 ..< 40:
+      discard limiter.hit("route|/healthz|user:" & $index, 300,
+        1001.0 + index.float, address)
+    check not limiter.hit("route|/healthz|" & address, 300, 1000.0,
+      address).allowed

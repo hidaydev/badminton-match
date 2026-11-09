@@ -468,7 +468,9 @@ suite "rankings HTTP":
       adminCookie)
     expectStatus(rebuiltAfterUndo, 202)
     check parseJson(rebuiltAfterUndo.body)["status"].getStr() == "accepted"
-    check parseJson(rebuiltAfterUndo.body)["job"].getStr().len > 0
+    # The job id is a per-process counter and is deliberately not part of the
+    # contract: the acknowledgement is the whole body.
+    check parseJson(rebuiltAfterUndo.body).len == 1
     # The replay runs on the worker, so wait for it before the following tests
     # read the board.
     waitForRatingJobs()

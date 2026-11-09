@@ -4,11 +4,13 @@
 ## the envelope's `i18nKey` and the problem content type: a handler branch that
 ## drifts from its contract fails here even when the branch still answers.
 ##
-## Three codes are not rows on purpose, with the reason recorded next to the
+## Five codes are not rows on purpose, with the reason recorded next to the
 ## guard at the bottom: `INTERNAL` is the boundary fallback with no route of its
 ## own, `USER_UPSERT_FAILED` and `INVALID_SESSION` sit behind an `insert ...
-## returning` that cannot return no row. Everything else is driven through the
-## route that emits it, with its own fixture.
+## returning` that cannot return no row, `MERGE_CONFLICT` needs a schema-level
+## conflict no fixture reaches, and `UNAVAILABLE` is a pool checkout or a full
+## rating queue. Everything else is driven through the route that emits it, with
+## its own fixture.
 
 import std/[base64, exitprocs, httpclient, json, net, options, os, osproc,
             strutils, times, unittest, uri]
@@ -746,11 +748,13 @@ suite "problem-code static guard":
     # second list: it is the codes `requireRow` actually exercised above, so
     # deleting a row also deletes its claim to coverage.
     const unreachable = ["INTERNAL", "USER_UPSERT_FAILED", "INVALID_SESSION",
-      "MERGE_CONFLICT"]
+      "MERGE_CONFLICT", "UNAVAILABLE"]
     # INTERNAL: boundary fallback for an unexpected SQLSTATE, no route of its
     # own. USER_UPSERT_FAILED and INVALID_SESSION: after an insert ... returning
     # that cannot return no row. MERGE_CONFLICT: fallback for an integrity
     # violation; no fixture reaches it without a schema-level conflict.
+    # UNAVAILABLE: a pool checkout (DbPoolTimeout) or a full rating queue, both
+    # of which need a fixture the suite cannot hold deterministically.
 
     var missing: seq[string] = @[]
     let text = readFile("apps/api/src/app.nim")

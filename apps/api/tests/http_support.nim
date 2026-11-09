@@ -158,6 +158,12 @@ proc waitForRatingJobs*(timeoutMs = 5000) =
     raise newException(ValueError,
       "rating worker did not drain within " & $timeoutMs & "ms")
 
+proc identityLookups*(): int =
+  ## Database lookups spent turning a session cookie into a user id. Random
+  ## cookies must stop reaching that query once the pre-limit is spent.
+  doAssert not runningApp.isNil, "startServer was not called"
+  runningApp.identityLookups()
+
 proc cleanupUsers*(db: Db, prefix: string) =
   discard db.execUpdate(
     """delete from account.sessions where user_id in

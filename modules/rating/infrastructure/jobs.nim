@@ -4,6 +4,7 @@
 ## community advisory lock or a pool connection for the length of a rebuild.
 
 import std/[json, locks, options, os, times]
+import clock
 import db/db
 import logger
 import platform/config/store
@@ -38,19 +39,29 @@ type
   WorkerArgs = object
     jobs: RatingJobs
 
+const
+  ## The queue is a courtesy, not durable storage: a restart loses it (accepted
+  ## risk). The cap keeps a burst of admin clicks or many communities from
+  ## turning the in-memory list into unbounded growth; a caller that cannot be
+  ## queued is told to retry instead of waiting behind an endless backlog.
+  maxPendingJobs* = 64
+
 proc newRatingJobs*(db: Db): RatingJobs =
   result = RatingJobs(db: db, pending: @[])
   initLock(result.lock)
   initCond(result.cond)
 
 proc enqueue*(jobs: RatingJobs, kind: JobKind, communityId: string): string =
-  ## Returns the job id the route reports. A duplicate joins the queued job
-  ## instead of adding a second run of the same work.
+  ## Returns the job id the route reports, or "" when the bounded queue is
+  ## full. A duplicate joins the queued job instead of adding a second run of
+  ## the same work, so the cap is only reached by distinct communities.
   acquire(jobs.lock)
   try:
     for job in jobs.pending:
       if job.kind == kind and job.communityId == communityId:
         return job.id
+    if jobs.pending.len >= maxPendingJobs:
+      return ""
     inc jobs.nextId
     result = "rating-job-" & $jobs.nextId
     jobs.pending.add(Job(id: result, kind: kind, communityId: communityId))
@@ -87,8 +98,8 @@ proc idle*(jobs: RatingJobs): bool =
     release(jobs.lock)
 
 proc waitIdle*(jobs: RatingJobs, timeoutMs = 5000): bool =
-  let deadline = epochTime() + timeoutMs.float / 1000.0
-  while epochTime() < deadline:
+  let deadline = utcNow().toTime.toUnixFloat + timeoutMs.float / 1000.0
+  while utcNow().toTime.toUnixFloat < deadline:
     if jobs.idle:
       return true
     sleep(5)

@@ -61,6 +61,55 @@ suite "security: rate limit":
     expectStatus(blocked, 429)
     check blocked.json["code"].getStr() == "RATE_LIMITED"
 
+  test "minting share buckets cannot reset the exhausted address budget":
+    # B2/D-?: exhaust `/auth/start` for an address, then mint one share bucket
+    # per random code. The old limiter evicted the least recently seen bucket
+    # carrying that address, which was the exhausted `/auth/start` budget, and
+    # the next rebuild got a fresh 300.
+    let address = "198.51.100.51"
+    var exhausted = false
+    for _ in 0 ..< 400:
+      let response = call(baseUrl, HttpPost, "/auth/start", body = "{}",
+        extra = [("X-Client-IP", address)])
+      if response.status == 429:
+        exhausted = true
+        break
+    check exhausted
+    for index in 0 ..< 17:
+      discard call(baseUrl, HttpGet, "/s/random" & $index,
+        extra = [("X-Client-IP", address)])
+    let afterChurn = call(baseUrl, HttpPost, "/auth/start", body = "{}",
+      extra = [("X-Client-IP", address)])
+    expectStatus(afterChurn, 429)
+
+  test "random cookies stop causing identity lookups after the pre-limit":
+    # B3: the pre-limit is charged before `account.sessions` is read, so after
+    # its budget the answer is a 429 with no query. Before the fix every one of
+    # these requests bought one indexed SELECT even though it was rejected.
+    let address = "198.51.100.41"
+    let before = identityLookups()
+    var plateau = 0
+    var last = before
+    var requests = 0
+    for index in 0 ..< 2000:
+      discard call(baseUrl, HttpGet, "/healthz",
+        cookie = "forged-lookup-" & $index,
+        extra = [("X-Client-IP", address)])
+      inc requests
+      let current = identityLookups()
+      if current == last:
+        inc plateau
+        if plateau >= 25:
+          break
+      else:
+        plateau = 0
+        last = current
+    check plateau >= 25
+    check requests > 300
+    # The budget is spent on a finite number of lookups, not one per request.
+    check last - before >= 300
+    check last - before < 2000
+
   test "a genuine session keeps one bucket across addresses":
     # The validated cookie is the identity, so rotating the address header must
     # not reset the budget for a signed-in caller either.
@@ -72,6 +121,7 @@ suite "security: rate limit":
     let userId = newUser(database, "ratelimit-session",
       "ratelimit-session@example.com", "Rate Limit")
     let cookie = cookieFor(database, userId)
+    let lookupsBefore = identityLookups()
     var blocked: HttpResult
     var allowed = 0
     for index in 0 ..< 400:
@@ -86,3 +136,6 @@ suite "security: rate limit":
         break
     check allowed >= 299
     expectStatus(blocked, 429)
+    # One validation served every request: the address headers rotate but the
+    # cache keeps the token-to-user mapping, and the budget stays per user.
+    check identityLookups() - lookupsBefore <= 1

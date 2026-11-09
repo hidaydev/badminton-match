@@ -1,4 +1,4 @@
-import std/[locks, options, os, strutils, times]
+import std/[locks, options, strutils, times]
 when defined(posix):
   import std/posix
 import db_connector/postgres
@@ -45,9 +45,13 @@ type
 const
   PG_DIAG_SQLSTATE = 67.cint
   PG_DIAG_CONSTRAINT_NAME = 110.cint
-  defaultAcquireTimeoutMs = 5000
-  defaultStatementTimeoutMs = 15000
-  defaultLockTimeoutMs = 5000
+  ## The API process edge reads MAJADU_DB_* and passes these values in.
+  ## `openDb` itself defaults every bound to zero, because a CLI tool
+  ## (dbtools migrate, tools/import, ratingingest) must not run under a web
+  ## timeout: a large migration or ETL would be killed halfway through.
+  defaultAcquireTimeoutMs* = 5000
+  defaultStatementTimeoutMs* = 15000
+  defaultLockTimeoutMs* = 5000
 
 proc nullParam*(): DbParam = DbParam(kind: dpNull)
 proc textParam*(value: string): DbParam = DbParam(kind: dpText, text: value)
@@ -311,18 +315,6 @@ proc getTimestamp*(row: Row, name: string): DateTime =
     raise newException(ValueError,
       "column is not a timestamp: " & name & " = " & value)
 
-proc timeoutFromEnv(name: string, fallback: int): int =
-  ## A malformed value falls back to the documented default instead of
-  ## refusing to start: the bound exists to recover from a runaway query, and
-  ## losing it because of a typo would be the failure it is meant to prevent.
-  let raw = getEnv(name).strip()
-  if raw.len == 0:
-    return fallback
-  try:
-    parseInt(raw)
-  except ValueError:
-    fallback
-
 proc configureConn(conn: PPGconn, statementMs, lockMs: int) =
   ## Applied when the connection is created, so every path through the pool
   ## inherits the bound. `options=-c ...` in the DSN would do the same but would
@@ -343,16 +335,17 @@ proc configureConn(conn: PPGconn, statementMs, lockMs: int) =
   finally:
     pqclear(res)
 
-proc openDb*(dsn: string, poolSize: int): Db =
+proc openDb*(dsn: string, poolSize: int, statementTimeoutMs = 0,
+             lockTimeoutMs = 0, acquireTimeoutMs = 0): Db =
+  ## Opens the pool. A zero bound disables that limit, which is the default:
+  ## the web timeouts belong to the API process edge that reads them from its
+  ## environment, not to every caller of this library.
   if poolSize < 1:
     raise newException(ValueError, "pool size must be at least 1")
   result = Db(size: poolSize)
-  result.acquireTimeoutMs =
-    timeoutFromEnv("MAJADU_DB_ACQUIRE_TIMEOUT_MS", defaultAcquireTimeoutMs)
-  result.statementTimeoutMs =
-    timeoutFromEnv("MAJADU_DB_STATEMENT_TIMEOUT_MS", defaultStatementTimeoutMs)
-  result.lockTimeoutMs =
-    timeoutFromEnv("MAJADU_DB_LOCK_TIMEOUT_MS", defaultLockTimeoutMs)
+  result.acquireTimeoutMs = acquireTimeoutMs
+  result.statementTimeoutMs = statementTimeoutMs
+  result.lockTimeoutMs = lockTimeoutMs
   initLock(result.lock)
   initCond(result.cond)
   for _ in 0 ..< poolSize:

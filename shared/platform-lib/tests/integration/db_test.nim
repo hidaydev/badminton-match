@@ -1,4 +1,4 @@
-import std/[atomics, options, os, strutils, times, unittest]
+import std/[atomics, monotimes, options, os, strutils, times, unittest]
 import ../../db/db
 
 proc dsn(): string =
@@ -125,39 +125,38 @@ suite "database layer":
     check at.nanosecond == 500_000_000
 
   test "every pooled connection carries the configured timeouts":
-    putEnv("MAJADU_DB_STATEMENT_TIMEOUT_MS", "750")
-    putEnv("MAJADU_DB_LOCK_TIMEOUT_MS", "250")
-    let probe = openDb(dsn(), 2)
-    defer:
-      probe.close()
-      delEnv("MAJADU_DB_STATEMENT_TIMEOUT_MS")
-      delEnv("MAJADU_DB_LOCK_TIMEOUT_MS")
+    let probe = openDb(dsn(), 2, statementTimeoutMs = 750, lockTimeoutMs = 250)
+    defer: probe.close()
     let settings = probe.connectionTimeouts()
     check settings.len == 2
     for (statement, lock) in settings:
       check statement == "750ms"
       check lock == "250ms"
 
-  test "pool checkout raises DbPoolTimeout at the configured deadline":
-    putEnv("MAJADU_DB_ACQUIRE_TIMEOUT_MS", "120")
+  test "the defaults leave a CLI pool without web caps":
     let probe = openDb(dsn(), 1)
-    defer:
-      probe.close()
-      delEnv("MAJADU_DB_ACQUIRE_TIMEOUT_MS")
+    defer: probe.close()
+    for (statement, lock) in probe.connectionTimeouts():
+      check statement == "0"
+      check lock == "0"
+
+  test "pool checkout raises DbPoolTimeout at the configured deadline":
+    let probe = openDb(dsn(), 1, acquireTimeoutMs = 120)
+    defer: probe.close()
     var started: Atomic[int]
     var thread: Thread[HolderArgs]
     createThread(thread, holdConnection, HolderArgs(db: probe,
       started: addr started))
     while started.load(moRelaxed) == 0:
       sleep(1)
-    let begin = epochTime()
+    let begin = getMonoTime()
     var caught = false
     try:
       discard probe.queryOne("select 1 as one")
     except DbPoolTimeout:
       caught = true
     check caught
-    check epochTime() - begin < 2.0
+    check (getMonoTime() - begin).inMilliseconds < 2000
     joinThread(thread)
 
   test "a whole-second timestamptz has no fraction":

@@ -6,6 +6,12 @@ type
     count*: int
     lastSeen*: float
     address*: string
+    ## Only a bucket whose key the caller can mint at will (a share-code
+    ## viewer bucket) may be evicted to make room for another key from the
+    ## same address. The buckets that enforce a limit -- the address route
+    ## budget, the identity pre-limit and every per-user budget -- are pinned,
+    ## so minting keys can never reset the budget the address is charged on.
+    evictable*: bool
 
   Limiter* = ref object
     ## Fixed-window counters in process memory. The window is one minute, which
@@ -36,8 +42,10 @@ proc newLimiter*(): Limiter =
   result.buckets = initTable[string, Bucket]()
 
 proc sweep(limiter: Limiter, now: float) =
-  ## Drops finished windows first, then the least recently used entries. Called
-  ## with the lock held.
+  ## Drops finished windows first, then the least recently used mintable
+  ## entries. Called with the lock held. Pinned buckets are only evicted when
+  ## the table is over the hard ceiling and no mintable entry is left, which
+  ## keeps memory bounded without letting key churn reset a live budget.
   var expired: seq[string] = @[]
   for key, bucket in limiter.buckets:
     if now - bucket.windowStart >= windowSeconds:
@@ -46,23 +54,38 @@ proc sweep(limiter: Limiter, now: float) =
     limiter.buckets.del(key)
   if limiter.buckets.len <= maxBuckets:
     return
-  var keys = newSeqOfCap[(float, string)](limiter.buckets.len)
+  var evictable = newSeqOfCap[(float, string)](limiter.buckets.len)
+  var pinned = newSeqOfCap[(float, string)](limiter.buckets.len)
   for key, bucket in limiter.buckets:
-    keys.add((bucket.lastSeen, key))
-  keys.sort()
-  let excess = limiter.buckets.len - maxBuckets
-  for index in 0 ..< excess:
-    limiter.buckets.del(keys[index][1])
+    if bucket.evictable:
+      evictable.add((bucket.lastSeen, key))
+    else:
+      pinned.add((bucket.lastSeen, key))
+  evictable.sort()
+  pinned.sort()
+  var excess = limiter.buckets.len - maxBuckets
+  for candidate in evictable:
+    if excess <= 0:
+      break
+    limiter.buckets.del(candidate[1])
+    dec excess
+  for candidate in pinned:
+    if excess <= 0:
+      break
+    limiter.buckets.del(candidate[1])
+    dec excess
 
 proc evictForAddress(limiter: Limiter, address: string) =
-  ## Called with the lock held when a new key would push this address past its
-  ## cap. The least recently used bucket of that address goes first, so one
-  ## client cannot evict another address's buckets.
+  ## Called with the lock held when a new mintable key would push this address
+  ## past its cap. Only another mintable bucket of that address is a candidate:
+  ## the bucket that enforces the limit is pinned, so minting share codes can
+  ## never hand the address a fresh budget. One client cannot evict another
+  ## address's buckets.
   var victim = ""
   var oldest = 0.0
   var owned = 0
   for key, bucket in limiter.buckets:
-    if bucket.address != address:
+    if bucket.address != address or not bucket.evictable:
       continue
     inc owned
     if victim.len == 0 or bucket.lastSeen < oldest:
@@ -83,10 +106,12 @@ proc bucketCountFor*(limiter: Limiter, address: string): int =
     release(limiter.lock)
 
 proc hit*(limiter: Limiter, key: string, limit: int, now: float,
-          address = ""): Decision =
+          address = "", evictable = false): Decision =
   ## Returns the remaining allowance decision for one request. A limit of zero
-  ## disables the check for that key. `address` ties a minted key to the client
-  ## that asked for it, which is what bounds the table per client.
+  ## disables the check for that key. `address` ties a key to the client that
+  ## asked for it, which is what bounds the table per client; `evictable` is
+  ## only true for a key that same client can mint, so the default protects the
+  ## budget that enforces the limit.
   if limit <= 0:
     return Decision(allowed: true, retryAfter: 0)
   acquire(limiter.lock)
@@ -95,12 +120,13 @@ proc hit*(limiter: Limiter, key: string, limit: int, now: float,
       limiter.sweep(now)
       limiter.nextSweep = now + sweepIntervalSeconds
     let known = limiter.buckets.hasKey(key)
-    if not known and address.len > 0:
+    if not known and address.len > 0 and evictable:
       limiter.evictForAddress(address)
     var bucket = limiter.buckets.getOrDefault(key)
     if bucket.windowStart == 0 or now - bucket.windowStart >= windowSeconds:
       bucket = Bucket(windowStart: now, count: 0)
     bucket.address = address
+    bucket.evictable = bucket.evictable or evictable
     bucket.lastSeen = now
     if bucket.count >= limit:
       let elapsed = now - bucket.windowStart
