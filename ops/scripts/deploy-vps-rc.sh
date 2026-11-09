@@ -43,7 +43,7 @@ CI_TOKEN_FILE="$APP_DIR/env/github-token"
 STATE_DIR="$APP_DIR/deploy"
 LOG="$APP_DIR/logs/deploy.log"
 LOCK_FILE="$APP_DIR/.deploy.lock"
-CI_WAIT_ATTEMPTS="${MAJADU_RC_CI_WAIT_ATTEMPTS:-40}"
+CI_WAIT_ATTEMPTS="${MAJADU_RC_CI_WAIT_ATTEMPTS:-20}"
 CI_WAIT_SECONDS="${MAJADU_RC_CI_WAIT_SECONDS:-15}"
 
 STEP="start"
@@ -137,6 +137,11 @@ fi
 
 cd "$MONO_DIR"
 COMMIT=$(git rev-parse HEAD)
+# An empty commit cannot be gated: `head_sha=` would ask GitHub for nothing and
+# `--build-arg APP_COMMIT=` would build an image no check can name. Fail here,
+# before the gate and before podman.
+[ -n "$COMMIT" ] ||
+  fail "git rev-parse HEAD returned an empty commit; refusing to deploy"
 VERSION=$(tr -d '[:space:]' <VERSION)
 [ -n "$VERSION" ] || fail "VERSION is empty"
 
@@ -258,7 +263,12 @@ else
     600|400) ;;
     *) fail "$CI_TOKEN_FILE must be mode 600 (found $TOKEN_MODE)" ;;
   esac
-  CI_TOKEN=$(cat "$CI_TOKEN_FILE")
+  # `read`, not `cat`: under `set -x` the trace names the assignment and the
+  # file, never the value. The emptiness check reads the file too, so the token
+  # is never expanded into a traced command. A trailing newline is optional.
+  grep -q '[^[:space:]]' "$CI_TOKEN_FILE" ||
+    fail "$CI_TOKEN_FILE is empty; refusing to build"
+  IFS= read -r CI_TOKEN <"$CI_TOKEN_FILE" || true
   CI_URL="https://api.github.com/repos/$GITHUB_REPO/actions/workflows/$CI_WORKFLOW/runs?head_sha=$COMMIT&per_page=100"
 
   attempt=1
@@ -279,12 +289,37 @@ else
     [ "$CI_TOTAL" -le 100 ] ||
       fail "ci gate: $CI_TOTAL $CI_WORKFLOW runs for $COMMIT exceed the 100-run page; refusing to decide on a hidden page"
 
-    # workflow_runs is newest first, and the first status/conclusion pair in the
-    # object belongs to that newest run.
-    CI_STATUS=$(printf '%s' "$CI_COMPACT" |
-      grep -o '"status":"[a-z_]*"' | head -1 | sed 's/.*:"//; s/"//' || true)
-    CI_CONCLUSION=$(printf '%s' "$CI_COMPACT" |
-      grep -o '"conclusion":"[a-z_]*"' | head -1 | sed 's/.*:"//; s/"//' || true)
+    # Pick the run with the highest id, not the first array element: a reordered
+    # response or a force-push reset must not let an older success mask a newer
+    # failure. Splitting at `{"id":` marks every object that starts with an id;
+    # only the run objects carry `run_number`, so repository and head_commit
+    # chunks are skipped. Quotes inside strings are JSON-escaped, so a crafted
+    # title or commit message cannot inject a status or conclusion field.
+    CI_NEWEST=$(printf '%s' "$CI_COMPACT" | sed 's/{"id":/\
+{"id":/g' | awk '
+      BEGIN { newest = -1 }
+      /"run_number":/ {
+        id = 0
+        if (match($0, /"id":[0-9]+/))
+          id = substr($0, RSTART + 5, RLENGTH - 5) + 0
+        status = ""
+        conclusion = ""
+        if (match($0, /"status":"[a-z_]+"/))
+          status = substr($0, RSTART + 10, RLENGTH - 11)
+        if (match($0, /"conclusion":"[a-z_]+"/))
+          conclusion = substr($0, RSTART + 14, RLENGTH - 15)
+        else if (match($0, /"conclusion":null/))
+          conclusion = ""
+        if (id > newest) {
+          newest = id
+          newest_status = status
+          newest_conclusion = conclusion
+        }
+      }
+      END { printf "%s|%s\n", newest_status, newest_conclusion }
+    ' || true)
+    CI_STATUS=${CI_NEWEST%%|*}
+    CI_CONCLUSION=${CI_NEWEST#*|}
 
     if [ -z "$CI_STATUS" ]; then
       CI_PENDING="no $CI_WORKFLOW run yet"

@@ -90,12 +90,14 @@ esac
 exit 0
 """
 
-const ciSuccessBody = """{"total_count":1,"workflow_runs":[{"status":"completed","conclusion":"success"}]}"""
-const ciFailureBody = """{"total_count":1,"workflow_runs":[{"status":"completed","conclusion":"failure"}]}"""
-const ciCancelledBody = """{"total_count":1,"workflow_runs":[{"status":"completed","conclusion":"cancelled"}]}"""
-const ciNullConclusionBody = """{"total_count":1,"workflow_runs":[{"status":"completed","conclusion":null}]}"""
-const ciPendingBody = """{"total_count":1,"workflow_runs":[{"status":"in_progress","conclusion":null}]}"""
+const ciSuccessBody = """{"total_count":1,"workflow_runs":[{"id":101,"name":"CI","run_number":7,"status":"completed","conclusion":"success","repository":{"id":555}}]}"""
+const ciFailureBody = """{"total_count":1,"workflow_runs":[{"id":102,"name":"CI","run_number":8,"status":"completed","conclusion":"failure"}]}"""
+const ciCancelledBody = """{"total_count":1,"workflow_runs":[{"id":103,"name":"CI","run_number":9,"status":"completed","conclusion":"cancelled"}]}"""
+const ciNullConclusionBody = """{"total_count":1,"workflow_runs":[{"id":104,"name":"CI","run_number":10,"status":"completed","conclusion":null}]}"""
+const ciPendingBody = """{"total_count":1,"workflow_runs":[{"id":105,"name":"CI","run_number":11,"status":"in_progress","conclusion":null}]}"""
 const ciMissingBody = """{"total_count":0,"workflow_runs":[]}"""
+const ciOrderedBody = """{"total_count":2,"workflow_runs":[{"id":100,"name":"CI","run_number":5,"status":"completed","conclusion":"success"},{"id":200,"name":"CI","run_number":6,"status":"completed","conclusion":"failure"}]}"""
+const ciTooManyBody = """{"total_count":101,"workflow_runs":[]}"""
 
 proc touch(path: string, body = "") =
   createDir(path.parentDir)
@@ -541,20 +543,45 @@ suite "deploy-vps-rc.sh":
     # No lookup happened, so the fake curl never ran.
     check not fileExists(curlLog)
 
-  test "an empty commit does not take the live shortcut":
+  test "an empty commit fails before the gate and the build":
     let fixture = newFixture("rc-ci-empty-commit")
     defer: removeDir(fixture.root)
     let rcDir = rcGateFixture(fixture, token = false)
-    # A git that answers nothing leaves COMMIT empty; the live state is empty
-    # too, and the guard must stop that from counting as a match.
+    # A git that answers nothing leaves COMMIT empty; the deploy must stop at
+    # the commit check instead of querying head_sha= or building unlabelled.
     fixture.installFake("git", "#!/bin/sh\nexit 0\n")
     touch(rcDir / "deploy" / "last-release.json",
       "{\"version\":\"2.0.0\",\"commit\":\"\"}\n")
     let result = runRcGate(fixture, rcDir)
     check result.exitCode == 1
+    check result.stdout.contains(
+      "git rev-parse HEAD returned an empty commit")
     check not result.stdout.contains("already the running release")
-    check result.stdout.contains("has no token at " &
-      rcDir / "env" / "github-token")
+    check not result.stdout.contains(
+      "built localhost/majadu-rc-api:local")
+
+  test "the CI gate refuses more than one page of runs":
+    let fixture = newFixture("rc-ci-too-many")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let result = runRcGate(fixture, rcDir,
+      @[("FAKE_CI_BODY", ciTooManyBody)])
+    check result.exitCode == 1
+    check result.stdout.contains("101 ci.yml runs for abc1234 exceed the 100-run page")
+    check not result.stdout.contains(
+      "built localhost/majadu-rc-api:local")
+
+  test "the CI gate takes the highest id, not the first array element":
+    let fixture = newFixture("rc-ci-order")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let result = runRcGate(fixture, rcDir,
+      @[("FAKE_CI_BODY", ciOrderedBody)])
+    check result.exitCode == 1
+    check result.stdout.contains(
+      "newest ci.yml run for abc1234 ended as failure")
+    check not result.stdout.contains(
+      "built localhost/majadu-rc-api:local")
 
   test "a signal during the CI wait leaves no token file behind":
     let fixture = newFixture("rc-ci-signal")
@@ -564,7 +591,10 @@ suite "deploy-vps-rc.sh":
     let body = "bash " & quoteShell(script) &
       " badminton-match refs/heads/release/2.0.0-rc.1 & pid=$!; " &
       "sleep 3; kill -TERM $pid 2>/dev/null; wait $pid 2>/dev/null; exit 0"
-    let result = fixture.runShell("-c", @[body, "bash"],
+    let driver = fixture.root / "signal-driver.sh"
+    writeFile(driver, "#!/bin/sh\n" & body & "\n")
+    setFilePermissions(driver, {fpUserRead, fpUserWrite, fpUserExec})
+    let result = fixture.runShell(driver, @[],
       @[("MAJADU_RC_APP_DIR", rcDir), ("MAJADU_RC_SKIP_GIT_SYNC", "1"),
         ("FAKE_CI_BODY", ciPendingBody),
         ("MAJADU_RC_CI_WAIT_ATTEMPTS", "100"),
@@ -575,6 +605,24 @@ suite "deploy-vps-rc.sh":
     check result.stdout.contains("waiting 1s")
     for kind, path in walkDir(rcDir / "deploy"):
       check not path.extractFilename.startsWith("ci-auth")
+
+  test "the token never appears in an xtrace":
+    let fixture = newFixture("rc-ci-xtrace")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let script = fixture.installOpsScript("deploy-vps-rc.sh")
+    let driver = fixture.root / "xtrace-driver.sh"
+    writeFile(driver, "#!/bin/sh\nexec bash -x " & quoteShell(script) &
+      " badminton-match refs/heads/release/2.0.0-rc.1\n")
+    setFilePermissions(driver, {fpUserRead, fpUserWrite, fpUserExec})
+    let result = fixture.runShell(driver, @[],
+      @[("MAJADU_RC_APP_DIR", rcDir), ("MAJADU_RC_SKIP_GIT_SYNC", "1"),
+        ("MAJADU_RC_CI_WAIT_ATTEMPTS", "1"),
+        ("FAKE_CI_BODY", ciSuccessBody)])
+    # The gate ran and read the token, and the trace kept its value out.
+    check result.stdout.contains("ci gate: abc1234 passed ci.yml")
+    check not result.stdout.contains("secret-token")
+    check not result.stderr.contains("secret-token")
 
 suite "cutover.sh":
   test "--from an unknown step exits 2 and names it":
@@ -653,13 +701,15 @@ suite "rollback.sh":
   test "podman missing exits 1":
     let fixture = newFixture("rollback-podman-missing")
     defer: removeDir(fixture.root)
-    # A private PATH: the three utilities the log line needs, and nothing that
+    # A private PATH: the utilities the log line needs plus the interpreter the
+    # script's `#!/usr/bin/env bash` resolves through PATH, and nothing that
     # could resolve `podman` on any host.
     let onlyDir = fixture.root / "no-podman-bin"
     createDir(onlyDir)
     writeExecutable(onlyDir / "date", "#!/bin/sh\nprintf '2026-01-01 00:00:00'")
     writeExecutable(onlyDir / "tee", "#!/bin/sh\nexec /bin/cat")
     writeExecutable(onlyDir / "mkdir", "#!/bin/sh\nexit 0")
+    writeExecutable(onlyDir / "bash", "#!/bin/sh\nexec /bin/bash \"$@\"\n")
     let result = fixture.runShell(fixture.installOpsScript("rollback.sh"),
       @[], appDir(fixture) & @[("PATH", onlyDir)])
     check result.exitCode == 1

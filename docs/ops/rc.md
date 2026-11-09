@@ -96,9 +96,9 @@ Push to `release/2.0.0-rc.1` → hook `majadu-monorepo` →
 3. `flock` on `/srv/qouver/apps/majadu-rc/.deploy.lock`.
 4. `git fetch` + `reset --hard origin/release/2.0.0-rc.1`.
 5. CI gate: the newest `ci.yml` run for the exact commit must be completed
-   with success. A queued or in-progress run is polled (40 attempts, 15 seconds
-   apart by default) while the deploy lock is held, then the deploy fails
-   closed.
+   with success. A queued or in-progress run is polled (20 attempts, 15 seconds
+   apart by default, about five minutes) while the deploy lock is held, then the
+   deploy fails closed.
 6. `:local` → `:prev`, `podman build` the new image.
 7. `dbtools migrate` + `verify` against `bm2_rc`.
 8. Sync the unit, restart `majadu-rc-api`, wait for `/readyz` for 60 seconds.
@@ -141,8 +141,11 @@ exact commit being deployed and refuses to build unless that run is `completed`
 with `success`. Other workflows are ignored on purpose, so a Coverage run or a
 bot check cannot stand in for CI and an unrelated cancelled run cannot block a
 healthy commit. A run that is queued or in progress is polled while the deploy
-lock is held (`MAJADU_RC_CI_WAIT_ATTEMPTS`, default 40, and
-`MAJADU_RC_CI_WAIT_SECONDS`, default 15), then the deploy fails closed.
+lock is held (`MAJADU_RC_CI_WAIT_ATTEMPTS`, default 20, and
+`MAJADU_RC_CI_WAIT_SECONDS`, default 15, about five minutes), then the deploy
+fails closed. The wait budget is deliberately shorter than the lock wait, so a
+second push that arrives during a CI wait may be dropped by the lock; re-push it
+after the current deploy ends.
 
 The token is read from `/srv/qouver/apps/majadu-rc/env/github-token`:
 
