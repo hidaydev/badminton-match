@@ -178,6 +178,12 @@
     "listMyCommunities": {
       "auth": "session"
     },
+    "listPendingClaims": {
+      "auth": "session",
+      "roles": [
+        "admin"
+      ]
+    },
     "listPlayerClaims": {
       "auth": "session"
     },
