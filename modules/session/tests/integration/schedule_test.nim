@@ -64,6 +64,41 @@ suite "session schedule":
       @[textParam(communityId), textParam(sessionId),
         textParam(playerId)]).get.getBool("is_absent")
 
+  test "a skip must name a game that exists":
+    # DB-11: the skip is keyed by the same (round, court) grid as the game, and
+    # nothing tied the two together until 0051. A skip for a coordinate no game
+    # uses would sit on the board as a player sitting out nothing.
+    let player = addPlayer("Skip Player")
+    var refused = false
+    try:
+      discard db.execUpdate(
+        """insert into session.game_skips
+             (community_id, session_id, round_no, court_no, player_id)
+           values ($1::uuid, $2::uuid, 9, 9, $3::uuid)""",
+        @[textParam(communityId), textParam(sessionId), textParam(player)])
+    except DbError as error:
+      refused = error.sqlState == "23503"
+    check refused
+
+  test "deleting a game takes its skips with it":
+    let player = addPlayer("Cascade Player")
+    discard db.execUpdate(
+      """insert into session.games (community_id, session_id, round_no, court_no)
+         values ($1::uuid, $2::uuid, 0, 0)""",
+      @[textParam(communityId), textParam(sessionId)])
+    discard db.execUpdate(
+      """insert into session.game_skips
+           (community_id, session_id, round_no, court_no, player_id)
+         values ($1::uuid, $2::uuid, 0, 0, $3::uuid)""",
+      @[textParam(communityId), textParam(sessionId), textParam(player)])
+    check skips().len == 1
+    discard db.execUpdate(
+      """delete from session.games
+         where community_id = $1::uuid and session_id = $2::uuid
+           and round_no = 0 and court_no = 0""",
+      @[textParam(communityId), textParam(sessionId)])
+    check skips().len == 0
+
   test "rewriting the sides drops a skip that named a player who left the game":
     let kept = addPlayer("Kept Player")
     let dropped = addPlayer("Dropped Player")
