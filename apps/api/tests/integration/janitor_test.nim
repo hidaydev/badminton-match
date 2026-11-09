@@ -22,6 +22,20 @@ proc keysOf(db: Db, userId: string): seq[string] =
     @[textParam(userId)]):
     result.add(row.get("key"))
 
+proc asRole(dsn, role: string): string =
+  ## Replaces only the user in `scheme://user[:password]@host/db`; the host,
+  ## port, database and options stay the ones the harness handed this suite.
+  let scheme = dsn.find("://")
+  if scheme < 0:
+    raise newException(ValueError, "MAJADU_PG_DSN is not a URI: " & dsn)
+  let userStart = scheme + 3
+  let at = dsn.find('@', start = userStart)
+  if at < 0:
+    raise newException(ValueError, "MAJADU_PG_DSN has no user: " & dsn)
+  let colon = dsn.find(':', start = userStart)
+  let userEnd = if colon >= 0 and colon < at: colon else: at
+  dsn[0 ..< userStart] & role & dsn[userEnd .. ^1]
+
 suite "janitor":
   var db: Db
   var communityId, userId, sessionId: string
@@ -156,6 +170,30 @@ suite "janitor":
       """select has_table_privilege('bm2_app', 'account.audit', 'DELETE') as allowed"""
       ).get.get("allowed")
     check allowed == "f"
+
+  test "auditCanBeDeleted is false for the application role":
+    # The tool's own guard reads `current_user`, so this connects as bm2_app
+    # instead of asking the catalogue about a role it is not.
+    let appDb = openDb(asRole(dsn(), "bm2_app"), 1)
+    try:
+      check not auditCanBeDeleted(appDb)
+    finally:
+      appDb.close()
+
+  test "the retention window comes from the seeded configuration":
+    # db/seeds/platform_config.sql owns the platform value; the cleaner must
+    # read it rather than carry a default of its own.
+    check auditRetentionDays(db) == 365
+
+  test "a non-positive batch size refuses before deleting anything":
+    let before = db.queryOne(
+      "select count(*) as total from account.audit").get.get("total")
+    expect ValueError:
+      discard purgeAudit(db, 365, batchSize = 0)
+    expect ValueError:
+      discard purgeAudit(db, 365, batchSize = -1)
+    check db.queryOne(
+      "select count(*) as total from account.audit").get.get("total") == before
 
   test "the owner-run cleaner removes only rows beyond the window":
     discard purgeAudit(db, 365)
