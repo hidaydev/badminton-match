@@ -25,6 +25,7 @@ export const en = {
   'nav.owner': 'All communities',
   'nav.menu': 'Menu',
   'shell.account': 'Account menu',
+  'shell.skipToContent': 'Skip to content',
   'admin.revertUnlockFirst': 'Unlock the session first, then revert its rating',
   'players.error.inUse': 'This player still has matches or sessions, so it cannot be deleted.',
   'nav.menu.close': 'Close',

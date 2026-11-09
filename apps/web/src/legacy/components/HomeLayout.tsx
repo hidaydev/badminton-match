@@ -6,6 +6,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { useCommunity } from '../../community/CommunityContext'
 import CommunityPicker from '../../community/CommunityPicker'
 import { t } from '../../i18n'
+import { SkipLink } from '../../components/SkipLink'
 import AccountSessions from './AccountSessions'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 
@@ -30,6 +31,7 @@ export default function HomeLayout() {
 
   return (
     <div className="min-h-screen bg-ground text-fg flex flex-col">
+      <SkipLink />
       <header className="border-b border-border-subtle bg-surface sticky top-0 z-10 pt-[env(safe-area-inset-top)]">
         <div className="max-w-3xl mx-auto px-3 py-2.5 flex items-center gap-2">
           {!isHome && (
@@ -187,7 +189,7 @@ export default function HomeLayout() {
           </div>
         </div>
       </header>
-      <main className="flex-1 max-w-3xl w-full mx-auto px-3 py-4 relative pb-[env(safe-area-inset-bottom)]">
+      <main id="main" className="flex-1 max-w-3xl w-full mx-auto px-3 py-4 relative pb-[env(safe-area-inset-bottom)]">
         <Outlet />
       </main>
       {sessionsOpen && <AccountSessions onClose={() => setSessionsOpen(false)} />}

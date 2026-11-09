@@ -7,6 +7,7 @@ import { Button } from './components/Button'
 import ClientOutdatedBanner from './components/ClientOutdatedBanner'
 import { LoadingState } from './components/LoadingState'
 import { PageHeader } from './components/PageHeader'
+import { RouteChange } from './components/RouteChange'
 import { CommunityProvider } from './community/CommunityProvider'
 import DirectoryList from './community/DirectoryList'
 import JoinRequestCard from './community/JoinRequestCard'
@@ -368,6 +369,7 @@ export default function App() {
           <BrowserRouter>
             <CommunityProvider>
               <ClientOutdatedBanner />
+              <RouteChange />
               <Routes>
                 <Route path="/s/:code" element={<SharedSessionPage />} />
                 {/* Accepting is how an account gets its first membership, so

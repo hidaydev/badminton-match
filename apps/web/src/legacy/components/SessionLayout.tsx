@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation, useNavigate } from '../router'
 import { useStore } from '../store'
 import { t } from '../../i18n'
+import { SkipLink } from '../../components/SkipLink'
 
 const steps = [
   { to: '/session/new', label: 'Setup' },
@@ -33,6 +34,7 @@ export default function SessionLayout() {
 
   return (
     <div className="min-h-screen bg-ground text-fg flex flex-col">
+      <SkipLink />
       <header className="border-b border-border-subtle bg-surface sticky top-0 z-10 pt-[env(safe-area-inset-top)]">
         <div className="max-w-3xl mx-auto px-3 py-2.5 flex items-center gap-2">
           <button
@@ -89,7 +91,7 @@ export default function SessionLayout() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-3xl w-full mx-auto px-3 py-4 pb-[env(safe-area-inset-bottom)]">
+      <main id="main" className="flex-1 max-w-3xl w-full mx-auto px-3 py-4 pb-[env(safe-area-inset-bottom)]">
         <Outlet />
       </main>
     </div>
