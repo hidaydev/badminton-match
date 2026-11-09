@@ -4,6 +4,7 @@ import std/[json, locks, os, strutils, times, uri]
 import clock
 import http_min
 import jwt_rs256
+import logger
 
 type
   OidcConfig* = object
@@ -28,11 +29,20 @@ type
 ## accident of the comparison it appears in (SQ-20).
 const jwksTtlSeconds = 3600
 
+## After a failed refresh the provider is left alone for this long. Without it a
+## blip turns every login into a fresh round trip to a host that is already
+## failing, which is the queue SQ-08 recorded. A stale key set is served in the
+## meantime, so an outage costs one attempt per window instead of one per login.
+const jwksRetrySeconds = 60
+
 var
   ## Initialised at module load, before any worker thread exists. There is no
   ## lazy `initLock` race between two concurrent first logins.
   cacheLock: Lock
   cache: JwksSnapshot
+  ## When the last refresh failed, in unix seconds. Written and read only under
+  ## `cacheLock`, like the snapshot itself.
+  lastFailureAt = 0.0
   fetcher: JwksFetcher
 
 initLock(cacheLock)
@@ -121,16 +131,54 @@ proc storeSnapshot(snapshot: JwksSnapshot) =
 proc stale(keys: seq[Jwk], fetchedAt, now: float): bool =
   keys.len == 0 or now - fetchedAt > jwksTtlSeconds.float
 
+proc failureWindowOpen(now: float): bool =
+  ## True while a refresh that just failed is still being backed off.
+  acquire(cacheLock)
+  try:
+    result = lastFailureAt > 0 and now - lastFailureAt <= jwksRetrySeconds.float
+  finally:
+    release(cacheLock)
+
+proc rememberFailure(now: float) =
+  acquire(cacheLock)
+  try:
+    lastFailureAt = now
+  finally:
+    release(cacheLock)
+
+proc clearFailure() =
+  acquire(cacheLock)
+  try:
+    lastFailureAt = 0.0
+  finally:
+    release(cacheLock)
+
 proc jwks*(config: OidcConfig): seq[Jwk] =
   ## The cached keys, refreshed once the hour has passed. The provider fetch is
   ## never performed while the cache lock is held, so one slow IdP round trip
   ## cannot serialise every login; the snapshot is swapped under the lock only
   ## after the fetch returns.
+  ##
+  ## A failed refresh serves the key set already in hand and starts a retry
+  ## window, so a provider outage does not become one failing request per login.
   let now = utcNow().toTime.toUnixFloat
   let current = cacheSnapshot()
   if not stale(current.keys, current.fetchedAt, now):
     return current.keys
-  var fetched = fetcher(config)
+  if failureWindowOpen(now):
+    return current.keys
+  var fetched: seq[Jwk]
+  try:
+    fetched = fetcher(config)
+  except CatchableError as error:
+    rememberFailure(utcNow().toTime.toUnixFloat)
+    logWarn("jwks refresh failed",
+      [("error", error.msg), ("keys", $current.keys.len),
+       ("retry_seconds", $jwksRetrySeconds)])
+    if current.keys.len > 0:
+      return current.keys
+    raise
+  clearFailure()
   let fresh = JwksSnapshot(keys: fetched, fetchedAt: utcNow().toTime.toUnixFloat)
   # A concurrent reader may have refreshed while this one fetched. Keeping the
   # newer snapshot avoids replacing fresh keys with an older response.
@@ -169,5 +217,15 @@ proc setJwksFetcher*(value: JwksFetcher) =
   fetcher = value
 
 proc resetJwksCache*() =
-  ## Test seam: starts the next case from an empty snapshot.
+  ## Test seam: starts the next case from an empty snapshot and no back-off.
   storeSnapshot(JwksSnapshot())
+  clearFailure()
+
+proc expireJwksCache*() =
+  ## Test seam: ages the snapshot past its TTL so the refresh path can run
+  ## without waiting an hour.
+  acquire(cacheLock)
+  try:
+    cache.fetchedAt = 0.0
+  finally:
+    release(cacheLock)
