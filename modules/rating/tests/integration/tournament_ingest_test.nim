@@ -162,7 +162,7 @@ proc bootstrap() =
 
 proc params(): RatingParams =
   RatingParams(sessionBase: 10, scoreTarget: 21, opponentClampLow: 0.5,
-    opponentClampHigh: 2, windowWeeks: 52, bestN: 10, thinEvidenceN: 3)
+    opponentClampHigh: 2, windowWeeks: 52, bestN: 10, thinEvidenceN: 3, topBandWidth: 100)
 
 proc newTeam(tournamentId, name: string, seed: int): string =
   database.queryOne(

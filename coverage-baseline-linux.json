@@ -1,6 +1,7 @@
 {
   "measured": "2026-11-09",
   "floor": 88.09,
+  "lowFiles": 0,
   "total": {"lines": 19360, "covered": 17055},
   "domains": {
     "apps/api": {"lines": 4425, "covered": 4042},

@@ -23,6 +23,11 @@ type
 
   JwksFetcher* = proc(config: OidcConfig): seq[Jwk]
 
+## How long the provider key set is reused before the next login refetches it.
+## A named constant rather than a literal so the one hour is not read as an
+## accident of the comparison it appears in (SQ-20).
+const jwksTtlSeconds = 3600
+
 var
   ## Initialised at module load, before any worker thread exists. There is no
   ## lazy `initLock` race between two concurrent first logins.
@@ -114,7 +119,7 @@ proc storeSnapshot(snapshot: JwksSnapshot) =
     release(cacheLock)
 
 proc stale(keys: seq[Jwk], fetchedAt, now: float): bool =
-  keys.len == 0 or now - fetchedAt > 3600
+  keys.len == 0 or now - fetchedAt > jwksTtlSeconds.float
 
 proc jwks*(config: OidcConfig): seq[Jwk] =
   ## The cached keys, refreshed once the hour has passed. The provider fetch is

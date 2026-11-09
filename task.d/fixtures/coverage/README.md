@@ -9,8 +9,8 @@ Each directory is a model the gate can judge without compiling anything:
 A model is three small tables:
 
 - `baseline.json` - the previous measurement, in
-  `coverage-baseline-<platform>.json`'s schema (floor, total, domain rows,
-  per-file rows, all as line counts).
+  `coverage-baseline-<platform>.json`'s schema (floor, low file count, total,
+  domain rows and per-file rows, all as line counts).
 - `files.tsv` - the current report: `path<TAB>executable lines<TAB>covered lines`.
 - `changed.tsv` - optional; the changed executable lines already intersected
   with the report, as `path<TAB>line<TAB>hits`. Without it the diff check
@@ -26,6 +26,7 @@ The paths are labels only: a model never touches the tree it lives in.
 | `domain-hides-file` | One file drops 50% to 30% while the total and the domain rise: a domain-only gate would have missed it. | 1 |
 | `diff-below-90` | The ratchet holds, but only 5 of 10 changed lines are covered. | 1 |
 | `branch-axis` | The report carries BRF/BRH per file and for the total, and `--update` records both axes. | 0 |
+| `low-file-growth` | A file slips from 50.01% to 49.99% (inside the 0.1 point tolerance) and becomes the first file below the per-file floor: the count grows from 0. | 1 |
 
 The update rules are fixtures too, and they never rewrite the checked-in files:
 

@@ -1,4 +1,4 @@
-import std/[json, options, os, tables]
+import std/[json, os, tables]
 import cli
 import community_time
 import db/db
@@ -14,12 +14,6 @@ Writes one rating.snapshots row per player on today's board, for every
 community. Re-running on the same day overwrites instead of duplicating.
 
 Requires MAJADU_PG_DSN; the community timezone decides what "today" is."""
-
-proc communitySettings(db: Db, communityId: string): JsonNode =
-  let row = db.queryOne(
-    """select values::text as values from community.settings
-       where community_id = $1::uuid""", @[textParam(communityId)])
-  if row.isSome: parseJson(row.get.get("values")) else: newJObject()
 
 proc snapshotDay*(db: Db, asOf, communityId, timezone: string): string =
   ## Which calendar day the snapshot is written for: the operator's `--as-of`

@@ -159,11 +159,17 @@ proc installOpsScript*(fixture: Fixture, name: string): string {.discardable.} =
   ## Copies one shipping `ops/scripts/<name>` into the fixture tree and returns
   ## the copy. Scripts that run their siblings (a dispatch target, for example)
   ## then resolve those siblings inside the fixture, not in the checkout. The
-  ## copy is executable, so runShell can use its shebang.
+  ## copy is executable, so runShell can use its shebang. The shared deploy
+  ## library travels with every deploy script, because the installed copy
+  ## sources it from its own directory (SQ-16).
   let dest = fixture.root / "ops" / "scripts" / name
   createDir(dest.parentDir)
   copyFile(opsScriptsDir / name, dest)
   setFilePermissions(dest, {fpUserRead, fpUserWrite, fpUserExec})
+  let common = fixture.root / "ops" / "scripts" / "deploy-common.sh"
+  if not fileExists(common):
+    copyFile(opsScriptsDir / "deploy-common.sh", common)
+    setFilePermissions(common, {fpUserRead, fpUserWrite, fpUserExec})
   dest
 
 proc installFake*(fixture: Fixture, name, body: string): string {.discardable.} =

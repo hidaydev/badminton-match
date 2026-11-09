@@ -36,6 +36,8 @@ insert into platform.config (key, value_type, value, min_value, max_value, scope
   ('rating.tier_bands', 'json',
    '[{"tier":"D","min":1000,"max":1199},{"tier":"D+","min":1200,"max":1299},{"tier":"C","min":1300,"max":1499},{"tier":"C+","min":1500,"max":1599},{"tier":"B","min":1600,"max":1799},{"tier":"B+","min":1800,"max":1899},{"tier":"A","min":1900,"max":2099},{"tier":"A+","min":2100,"max":null}]',
    null, null, 'platform', 'Eight-tier class bands and their ranges'),
+  ('rating.top_band_width', 'int', '100', 1, 10000, 'platform',
+   'Strength assumed above the floor of the open-ended top tier band'),
   ('security.allowed_origins', 'json',
    '["http://127.0.0.1:5173","http://localhost:5173"]', null, null, 'platform',
    'Browser origins allowed to send state-changing requests'),

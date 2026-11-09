@@ -867,12 +867,6 @@ proc importTournamentChildren(source, target: Db, communityId: string,
   )
   stats
 
-proc communitySettings(db: Db, communityId: string): JsonNode =
-  let row = db.queryOne(
-    """select values::text as values from community.settings
-       where community_id = $1::uuid""", @[textParam(communityId)])
-  if row.isSome: parseJson(row.get.get("values")) else: newJObject()
-
 proc sourceToken*(v1SourceId: string): (string, string) =
   ## v1 wrote the source id as the share code and the kind in a separate column;
   ## some dumps carry a `session:` prefix. Both forms name the same row.

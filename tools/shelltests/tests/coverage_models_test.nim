@@ -99,6 +99,29 @@ suite "coverage gate models":
     check result.exitCode == 0
     check result.stderr.contains("has no branch axis")
 
+  test "a file below the per-file floor that the baseline did not have fails":
+    ## SQ-14: the drop is inside the 0.1 point tolerance, so the file ratchet
+    ## holds; the new low file is caught by its own count.
+    let fixture = newFixture("coverage-low-growth")
+    defer: removeDir(fixture.root)
+    let result = fixture.runTask(@["coverage", "--model", model("low-file-growth")])
+    check result.exitCode == 1
+    check result.stderr.contains("below the 50% per-file floor, up from 0")
+    check result.stderr.contains("modules/eta/domain/a.nim")
+
+  test "update records the low file count in the baseline":
+    let fixture = newFixture("coverage-low-update")
+    defer: removeDir(fixture.root)
+    let result = fixture.runTask(@["coverage", "--model", model("low-file-growth"),
+      "--update"])
+    check result.exitCode == 0
+    var written = ""
+    for path in walkDirRec(fixture.root / ".cache"):
+      if path.endsWith("baseline.next.json"):
+        written = path
+    check written.len > 0
+    check readFile(written).contains("\"lowFiles\": 1")
+
   test "update rewrites the floor from the measured total":
     ## QA-13: the floor is a high-water mark. A run that measures 90 percent
     ## records 90, not the 52.52 an old baseline happened to carry.

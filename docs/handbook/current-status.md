@@ -35,10 +35,10 @@ Postgres 18.6 · schema per domain (platform, community, player, session,
   `routes_gen.nim`, `packages/web-client/src/api.ts`.
 - Every operation has a handler (compilation fails otherwise) and an authorization row in
   `testdata/authz/matrix.yaml`; `./task contract-check` guards the fingerprint.
-- **49 migrations** in `db/migrations/` (`0001`–`0049`, the last one
-  `0049_audit_append_only.sql`); seeds: `db/seeds/platform_config.sql`,
+- **50 migrations** in `db/migrations/` (`0001`–`0050`, the last one
+  `0050_rating_top_band_width.sql`); seeds: `db/seeds/platform_config.sql`,
   `db/seeds/achievement_definitions.sql`.
-- **34 config keys** in `modules/platform/config/registry.nim`, initial values in the seed;
+- **35 config keys** in `modules/platform/config/registry.nim`, initial values in the seed;
   per-community overrides in `community.settings` may only narrow the platform.
 - **Per-session scoring format** (ADR-012 in [`../decisions.md`](../decisions.md)): one
   schedule slot is one match containing 1..N sets. `0029_scoring_presets.sql`
@@ -113,7 +113,7 @@ communities) is still used; v2 pages that were never mounted in the router
 | Contract | `./task contract-check` | fingerprint + generated output |
 | Parity | `./task parity verify` / `./task parity v2 verify` | frozen v1 71 cases/48 routes; v2 143 cases |
 | Tournament ladder | `./task levels` | read/write `rating.levels`; no row = per-game formula |
-| Coverage | `./task coverage` | per file, module and total ratchet against `coverage-baseline-<platform>.json` (88.09% of 19,360 executable lines, Linux baseline measured 2026-11-09, integration; one fresh database per suite, gcov captured per suite, ~10 minutes). The gate's 0.1 pp tolerance is published with the number: 88.09% means a lower bound of 87.99%, and a run between them is inside the noise band, not a regression |
+| Coverage | `./task coverage` | per file, module and total ratchet against `coverage-baseline-<platform>.json` (88.09% of 19,360 executable lines, Linux baseline measured 2026-11-09, integration; one fresh database per suite, gcov captured per suite, ~10 minutes). The Nim number is **line coverage only**: gcov branch counts are printed next to it but are not part of the ratchet, so it must not be read as branch coverage. The gate also prints how many files sit below the 50% per-file floor and fails when that count grows (documents with an owner and an expiry live in `docs/handbook/coverage-debt.json`). The gate's 0.1 pp tolerance is published with the number: 88.09% means a lower bound of 87.99%, and a run between them is inside the noise band, not a regression |
 | Security | part of `./task test` | IDOR, escalation, CSRF, OIDC replay, rate limit, claims |
 | Web | `pnpm check:web` | TypeScript, ESLint, Tailwind guard, Vitest |
 | E2E | `./task e2e` | Playwright: a11y, visual, navigation, writes, OCC, offline, compatibility, role boundary; 100 runs across two devices and no skip, 40 of them functional; snapshots per platform in `e2e/__screenshots__/{platform}/` |

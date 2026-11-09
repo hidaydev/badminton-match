@@ -141,9 +141,45 @@ jobs:
           nim c --hints:off -d:release -o:.cache/ci/dbtools tools/dbtools/main.nim
           .cache/ci/dbtools migrate --dir db/migrations
           .cache/ci/dbtools seed --dir db/seeds
+      # SQ-17: the import and ratingingest suites are the two heaviest tools in
+      # the tree, and a missing DSN makes them exit 77. `./task test` fails an
+      # undocumented skip, but the release must also give them the databases
+      # they need instead of tripping that failure. The source is the captured
+      # v1 schema plus its fixture; the target is a fresh copy of the migrated
+      # database.
+      - name: "Release: provision the v1 import source and targets"
+        env:
+          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          IMPORT_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
+          BULK_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_source_test
+        run: |
+          psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE bm2_import_source_test" \
+            -c "CREATE DATABASE bm2_import_target_test OWNER bm2_owner TEMPLATE bm2_test" \
+            -c "CREATE DATABASE bm2_import_bulk_source_test" \
+            -c "CREATE DATABASE bm2_import_bulk_target_test OWNER bm2_owner TEMPLATE bm2_test"
+          psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
+            -f ops/dev/v1/schema.sql
+          psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
+            -f ops/dev/v1/fixtures/v1-fixtures.sql
+          psql -v ON_ERROR_STOP=1 -q -d "$BULK_SOURCE_DSN" \
+            -f ops/dev/v1/schema.sql
+          psql -v ON_ERROR_STOP=1 -q -d "$BULK_SOURCE_DSN" \
+            -f testdata/import/production-shaped.sql
+          for dsn in "$IMPORT_SOURCE_DSN" "$BULK_SOURCE_DSN"; do
+            loaded=$(psql -d "$dsn" -tAc "select to_regnamespace('bm')")
+            if [ "$loaded" != "bm" ]; then
+              echo "$dsn has no bm schema" >&2
+              exit 1
+            fi
+          done
       - name: "Release: gate"
         env:
           MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
+          MAJADU_IMPORT_TEST_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_target_test
+          MAJADU_IMPORT_TEST_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
+          MAJADU_IMPORT_BULK_TARGET_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_target_test
+          MAJADU_IMPORT_BULK_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_source_test
         run: ./task ci
 
   web:

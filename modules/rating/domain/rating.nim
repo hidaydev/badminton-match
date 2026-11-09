@@ -18,6 +18,10 @@ type
     bestN*: int
     thinEvidenceN*: int
     bands*: seq[TierBand]
+    topBandWidth*: int
+      ## The strength assumed above the floor of the open-ended top band. It is
+      ## a configured value, not a literal: changing it moves every top-band
+      ## player's rating.
 
 proc clamp*(value, low, high: float): float =
   if value < low: low
@@ -45,9 +49,9 @@ proc roundPoints*(value: float): int =
   int(floor(value + 0.5))
 
 proc tierStrength*(params: RatingParams, tier: string): Option[float] =
-  ## Midpoint of the tier's band. The top band is open ended, so it stretches
-  ## 100 points above its floor. A tier outside the ladder has no strength, and
-  ## the caller treats it as absent rather than as zero.
+  ## Midpoint of the tier's band. The top band is open ended, so its strength
+  ## stretches the configured width above its floor. A tier outside the ladder
+  ## has no strength, and the caller treats it as absent rather than as zero.
   if tier.len == 0 or params.bands.len == 0:
     return none(float)
   for band in params.bands:
@@ -55,7 +59,7 @@ proc tierStrength*(params: RatingParams, tier: string): Option[float] =
       continue
     if band.ceiling.isSome:
       return some((band.floor + band.ceiling.get) / 2)
-    return some(band.floor + 100)
+    return some(band.floor + params.topBandWidth.float)
   none(float)
 
 proc averageTierStrength*(params: RatingParams, tiers: seq[string]): float =

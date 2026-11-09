@@ -57,10 +57,7 @@ proc compute*(db: Db, communityId, sessionId: string): Option[JsonNode] =
 
   for game in db.query(
     """select round_no, court_no, winner, points_a, points_b,
-              coalesce(side_a1::text, '') as side_a1,
-              coalesce(side_a2::text, '') as side_a2,
-              coalesce(side_b1::text, '') as side_b1,
-              coalesce(side_b2::text, '') as side_b2
+              """ & gameSideColumns & """
        from session.game_results
        where community_id = $1::uuid and session_id = $2::uuid
          and status = 'played' and winner <> ''

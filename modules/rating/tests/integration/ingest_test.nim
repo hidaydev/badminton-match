@@ -12,7 +12,7 @@ proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
 proc params(): RatingParams =
   RatingParams(sessionBase: 250, scoreTarget: 21, opponentClampLow: 0.5,
-    opponentClampHigh: 1.5, windowWeeks: 12, bestN: 10, thinEvidenceN: 3)
+    opponentClampHigh: 1.5, windowWeeks: 12, bestN: 10, thinEvidenceN: 3, topBandWidth: 100)
 
 proc cleanup() =
   for statement in [

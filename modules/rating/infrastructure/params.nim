@@ -10,6 +10,7 @@ proc loadRatingParams*(snapshot: Snapshot, settings: JsonNode): RatingParams =
   result.windowWeeks = intValue(snapshot, settings, keyRatingWindowWeeks)
   result.bestN = intValue(snapshot, settings, keyRatingBestN)
   result.thinEvidenceN = intValue(snapshot, settings, keyRatingThinEvidenceN)
+  result.topBandWidth = intValue(snapshot, settings, keyRatingTopBandWidth)
 
   let clamp = jsonValue(snapshot, settings, keyRatingOpponentClamp)
   if clamp.kind != JArray or clamp.len != 2:

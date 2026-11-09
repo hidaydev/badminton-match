@@ -21,11 +21,11 @@ export default defineConfig({
       exclude: ['src/test/**', 'src/i18n/en.ts', 'src/**/*.d.ts', 'src/**/*.test.{ts,tsx}'],
       reporter: ['text', 'json-summary', 'json'],
       reportsDirectory: './coverage',
-      // Ratchet, see task.d/typescript.sh: raise this as coverage lands, never
-      // lower it. Measured on 2026-11-09 at this commit: lines 56.20,
-      // functions 46.90, branches 45.33, statements 54.11. The aggregate uses
-      // the measured totals, minus less than one point of run-to-run wobble;
-      // it is not a documented floor from an older tree.
+      // Ratchet, see task.d/typescript.sh: raise these as coverage lands, never
+      // lower them. Measured on 2026-11-10 at this commit: lines 60.25,
+      // functions 50.95, branches 47.93, statements 57.91. Each floor is the
+      // measurement minus the 0.1 point tolerance the gate publishes, so a drop
+      // bigger than noise fails here (SQ-13).
       //
       // `perFile` in the object form checks the aggregate against the four
       // numbers above and every file against its own minimum. A global per-file
@@ -34,10 +34,10 @@ export default defineConfig({
       // entries below. Deleting every test for one page drops that file to 0%
       // and fails its glob.
       thresholds: {
-        lines: 56,
-        functions: 46,
-        branches: 45,
-        statements: 54,
+        lines: 60.15,
+        functions: 50.85,
+        branches: 47.83,
+        statements: 57.81,
         perFile: {
           lines: 0,
           functions: 0,

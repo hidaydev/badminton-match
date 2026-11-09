@@ -40,6 +40,7 @@ proc registryValues(): Table[string, JsonNode] =
   result[$keyRatingWindowWeeks] = %12
   result[$keyRatingBestN] = %10
   result[$keyRatingThinEvidenceN] = %3
+  result[$keyRatingTopBandWidth] = %100
   result[$keyRatingOpponentClamp] = parseJson("[0.5,1.5]")
   result[$keyRatingTierBands] = parseJson(seededBands)
 
@@ -64,6 +65,7 @@ suite "rating params from the registry":
     check params.windowWeeks == 12
     check params.bestN == 10
     check params.thinEvidenceN == 3
+    check params.topBandWidth == 100
     check params.opponentClampLow == 0.5
     check params.opponentClampHigh == 1.5
     check params.bands.len == expectedBands.len + 1
@@ -79,6 +81,16 @@ suite "rating params from the registry":
     check top.floor == 2100.0
     check top.ceiling.isNone
     check tierStrength(params, "A+") == some(2200.0)
+
+  test "the top band width arrives from the registry":
+    ## SQ-20: the width above the open band used to be a literal, so an
+    ## operator could not move a top-band player's rating without a rebuild.
+    let narrow = loadRatingParams(seeded(), %*{"rating.top_band_width": 40})
+    check tierStrength(narrow, "A+") == some(2140.0)
+    var values = registryValues()
+    values[$keyRatingTopBandWidth] = %250
+    let wide = loadRatingParams(snapshot(values), %*{})
+    check tierStrength(wide, "A+") == some(2350.0)
 
   test "a missing key names the key it could not read":
     var values = registryValues()
