@@ -96,8 +96,8 @@ export default function ScoreboardPage() {
   }, [])
 
   // triggerPop is stable (useCallback with [] deps), safe to use without dep
-  const addRed = useCallback(() => { requestPersistence(); setRed(r => Math.min(99, r + 1)); triggerPop('red') }, [requestPersistence]) // eslint-disable-line react-hooks/exhaustive-deps
-  const addBlue = useCallback(() => { requestPersistence(); setBlue(b => Math.min(99, b + 1)); triggerPop('blue') }, [requestPersistence]) // eslint-disable-line react-hooks/exhaustive-deps
+  const addRed = useCallback(() => { setRed(r => Math.min(99, r + 1)); triggerPop('red'); requestPersistence() }, [requestPersistence]) // eslint-disable-line react-hooks/exhaustive-deps
+  const addBlue = useCallback(() => { setBlue(b => Math.min(99, b + 1)); triggerPop('blue'); requestPersistence() }, [requestPersistence]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const minusRed = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()

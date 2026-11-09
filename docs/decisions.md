@@ -329,3 +329,24 @@ day uses the new numbers.
 **Reopener:** tournaments come into scope for per-session formats, or a format
 appears that needs rules outside
 `gamesToWin/pointsToWin/winBy/deuceAt/maxPoints` (e.g. side-out scoring).
+
+---
+
+## ADR-013 · The scoreboard is display only for this release
+
+**Date:** 2026-11-09
+**Audit finding:** PWA-02
+**Status:** Deferred
+
+**Decision:** the standalone scoreboard is display only for this release. Scores
+stay in the browser. Export, share text and any queued write to the server are
+deferred.
+
+**Reason:** the app has no API client, so a queued write needs a sync contract
+that does not exist, and the destination format for an export is a product
+decision that has not been made. Requesting persistent storage on the first score
+makes eviction less likely without committing to either shape.
+
+**Reopener:** the owner chooses an export format or decides that courtside scores
+must land on the platform; at that point the app needs an API client or a
+copy/share control, plus a test that round-trips the four stored keys.

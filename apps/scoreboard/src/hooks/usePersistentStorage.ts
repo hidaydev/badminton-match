@@ -13,7 +13,7 @@ export interface PersistentStorage {
 }
 
 // Asks the browser to keep this origin's storage, at most once per page load.
-// Older Safari has no `navigator.storage`, and the call can reject or be
+// Older Safari has no `navigator.storage`, and the call can throw, reject or be
 // denied; none of that may block scoring, so every path only sets a status.
 export function usePersistentStorage(): PersistentStorage {
   const [status, setStatus] = useState<PersistenceStatus>('idle')
@@ -29,10 +29,14 @@ export function usePersistentStorage(): PersistentStorage {
       return
     }
 
-    storage.persist().then(
-      granted => setStatus(granted ? 'persisted' : 'not-persisted'),
-      () => setStatus('error'),
-    )
+    try {
+      void storage.persist().then(
+        granted => setStatus(granted ? 'persisted' : 'not-persisted'),
+        () => setStatus('error'),
+      )
+    } catch {
+      setStatus('error')
+    }
   }, [])
 
   return { status, requestPersistence }

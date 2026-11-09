@@ -300,6 +300,20 @@ describe('ScoreboardPage', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Scores may be cleared by the browser')
   })
 
+  it('keeps scoring when persist throws synchronously', async () => {
+    const persist = vi.fn(() => {
+      throw new Error('blocked')
+    })
+    Object.defineProperty(navigator, 'storage', { value: { persist }, configurable: true })
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    fireEvent.click(halfOf('Arya'))
+    await act(async () => {})
+
+    expect(within(halfOf('Arya')).getByText('1')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Scores may be cleared by the browser')
+  })
+
   it('keeps scoring and says scores may be cleared when persistence is not granted', async () => {
     const persist = vi.fn(async () => false)
     Object.defineProperty(navigator, 'storage', { value: { persist }, configurable: true })

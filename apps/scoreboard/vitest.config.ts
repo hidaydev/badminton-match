@@ -14,10 +14,10 @@ export default defineConfig({
       exclude: ['src/test/**', 'src/**/*.d.ts', 'src/**/*.test.{ts,tsx}'],
       reporter: ['text', 'json-summary', 'json'],
       reportsDirectory: './coverage',
-      // Ratchet, see task.d/typescript.sh. Raise the threshold as coverage
-      // lands, never lower it.
+      // Ratchet, see task.d/typescript.sh. Measured 97.87% lines on
+      // 2026-11-09; 97.5 leaves a small margin and only moves up.
       thresholds: {
-        lines: 97,
+        lines: 97.5,
       },
     },
   },
