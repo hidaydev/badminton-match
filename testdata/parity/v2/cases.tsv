@@ -142,3 +142,4 @@ auth_me_after_logout	getAuthMe	GET	/auth/me	Cookie: majadu_session=parity-applic
 session_standings	getSessionStandings	GET	/c/parity/sessions/40000000-0000-4000-8000-000000000001/standings	Cookie: majadu_session=parity-member-token	-
 delete_rating_source	deleteRatingSource	DELETE	/c/parity/rating-sources/80000000-0000-4000-8000-0000000000aa	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
 delete_rating_source_unknown	deleteRatingSource	DELETE	/c/parity/rating-sources/80000000-0000-4000-8000-0000000000ff	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
+pending_claims	listPendingClaims	GET	/c/parity/claims	Cookie: majadu_session=parity-owner-token	-

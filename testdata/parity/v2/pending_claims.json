@@ -1,0 +1,25 @@
+{
+  "route": "listPendingClaims",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/claims",
+    "headers": {
+      "Cookie": "majadu_session=parity-owner-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "claimId": "{uuid}",
+          "createdAt": "{timestamp}",
+          "displayName": "Member",
+          "playerId": "{uuid}",
+          "playerName": "Budi",
+          "userId": "{uuid}"
+        }
+      ]
+    }
+  }
+}
