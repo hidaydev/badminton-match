@@ -22,10 +22,13 @@ if (typeof window.matchMedia !== 'function') {
     }) as MediaQueryList
 }
 
-if (typeof globalThis.ResizeObserver === 'undefined') {
-  globalThis.ResizeObserver = class {
+if (typeof globalThis.ResizeObserver === 'undefined') {  globalThis.ResizeObserver = class {
     observe() {}
     unobserve() {}
     disconnect() {}
   } as unknown as typeof ResizeObserver
 }
+
+// jsdom reports "Not implemented" for scrollTo, which the router calls on
+// every push and pop. Tests that assert on scrolling stub it themselves.
+window.scrollTo = () => {}

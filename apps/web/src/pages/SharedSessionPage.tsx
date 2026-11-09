@@ -1,8 +1,8 @@
 import { useEffect, useId, useState } from 'react'
-import type { KeyboardEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
 import { t } from '../i18n'
+import { TabBar, tabId, tabPanelId } from '../components/TabBar'
 import type { MessageKey } from '../i18n/en'
 import { formatCompactDate } from '../utils/day'
 import { ordinal } from '../legacy/utils/ordinal'
@@ -29,8 +29,7 @@ function statusLabel(status: string): string {
   return key === undefined ? status : t(key)
 }
 
-const TABS = ['games', 'standings'] as const
-type Tab = (typeof TABS)[number]
+type Tab = 'games' | 'standings'
 
 const GAME_STATUS: Record<string, MessageKey> = {
   played: 'shared.gameStatus.played',
@@ -160,20 +159,6 @@ export default function SharedSessionPage() {
     }
   }, [code])
 
-  function handleTabKey(event: KeyboardEvent<HTMLDivElement>) {
-    const index = TABS.indexOf(tab)
-    let next: Tab | null = null
-    if (event.key === 'ArrowRight') next = TABS[(index + 1) % TABS.length]
-    else if (event.key === 'ArrowLeft') next = TABS[(index - 1 + TABS.length) % TABS.length]
-    else if (event.key === 'Home') next = TABS[0]
-    else if (event.key === 'End') next = TABS[TABS.length - 1]
-    if (next === null) return
-    event.preventDefault()
-    setTab(next)
-    const tabs = event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')
-    tabs[TABS.indexOf(next)]?.focus()
-  }
-
   const current = settled !== null && settled.code === code ? settled : null
   const loading = code !== '' && current === null
   const session = current?.value ?? null
@@ -231,34 +216,25 @@ export default function SharedSessionPage() {
 
           <div
             className="mt-4 flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3"
-            role="tablist"
-            aria-label={t('shared.tabs')}
-            onKeyDown={handleTabKey}
           >
-            <div className="flex gap-1">
-              <button
-                id={`${panelId}-games`}
-                role="tab"
-                aria-selected={tab === 'games'}
-                aria-controls={panelId}
-                tabIndex={tab === 'games' ? 0 : -1}
-                onClick={() => setTab('games')}
-                className={`inline-flex min-h-11 items-center text-xs font-semibold px-4 rounded-lg transition-colors ${tab === 'games' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
-              >
-                {t('session.games')}
-              </button>
-              <button
-                id={`${panelId}-standings`}
-                role="tab"
-                aria-selected={tab === 'standings'}
-                aria-controls={panelId}
-                tabIndex={tab === 'standings' ? 0 : -1}
-                onClick={() => setTab('standings')}
-                className={`inline-flex min-h-11 items-center text-xs font-semibold px-4 rounded-lg transition-colors ${tab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
-              >
-                {t('session.standings')}
-              </button>
-            </div>
+            <TabBar
+              items={[
+                { id: 'games', label: t('session.games') },
+                { id: 'standings', label: t('session.standings') },
+              ]}
+              value={tab}
+              onChange={setTab}
+              label={t('shared.tabs')}
+              idPrefix={panelId}
+              className="flex gap-1"
+              tabClassName={(_item, selected) =>
+                `inline-flex min-h-11 items-center text-xs font-semibold px-4 rounded-lg transition-colors ${
+                  selected
+                    ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`
+              }
+            />
             {rounds.length > 0 && (
               <span className="text-xs text-slate-400">
                 {t('shared.gamesCount', { games: session.games.length })}
@@ -267,9 +243,9 @@ export default function SharedSessionPage() {
           </div>
 
           <div
-            id={panelId}
+            id={tabPanelId(panelId)}
             role="tabpanel"
-            aria-labelledby={`${panelId}-${tab}`}
+            aria-labelledby={tabId(panelId, tab)}
             className="mt-3 flex flex-col"
           >
             {tab === 'games' &&

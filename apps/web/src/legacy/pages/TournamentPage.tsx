@@ -11,6 +11,7 @@ import { GROUP_IDS, EMPTY_GROUPS, type GroupId } from '../utils/tournament'
 import { todayWIB } from '../utils/time'
 import { formatLongDate } from '../../utils/day'
 import { t } from '../../i18n'
+import { TabBar, tabId, tabPanelId } from '../../components/TabBar'
 import { useAutoDismiss, mutationToastHandlers } from '../hooks/useAutoDismiss'
 import { useAdmin } from '../context/AdminContext'
 import ErrorBanner from '../components/ErrorBanner'
@@ -144,9 +145,9 @@ export default function TournamentPage() {
   }
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: 'groups', label: 'Groups' },
-    { id: 'bracket', label: 'Bracket' },
-    { id: 'standings', label: 'Standings' },
+    { id: 'groups', label: t('tournament.tab.groups') },
+    { id: 'bracket', label: t('tournament.tab.bracket') },
+    { id: 'standings', label: t('tournament.tab.standings') },
   ]
 
   const handleTabChange = (newTab: Tab) => setTab(newTab)
@@ -176,25 +177,30 @@ export default function TournamentPage() {
             {formatLongDate(date, false)} · {t(pairs.length === 1 ? 'classic.header.pair' : 'classic.header.pairs', { count: pairs.length })} · {t(groupCount === 1 ? 'classic.header.group' : 'classic.header.groups', { count: groupCount })}
           </p>
         )}
-        <div className="flex">
-          {tabs.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => handleTabChange(item.id)}
-              className={`hit44 flex-1 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-                tab === item.id
-                  ? 'text-accent border-accent'
-                  : 'text-fg-dim border-transparent hover:text-fg'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <TabBar
+          items={tabs}
+          value={tab}
+          onChange={handleTabChange}
+          label={t('tournament.tabs')}
+          idPrefix="tournament-tabs"
+          className="flex"
+          tabClassName={(_item, selected) =>
+            `flex-1 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+              selected
+                ? 'text-accent border-accent'
+                : 'text-fg-dim border-transparent hover:text-fg'
+            }`
+          }
+        />
       </div>
 
       {/* Tab content */}
-      <div className="px-3 pt-4 pb-8">
+      <div
+        id={tabPanelId('tournament-tabs')}
+        role="tabpanel"
+        aria-labelledby={tabId('tournament-tabs', tab)}
+        className="px-3 pt-4 pb-8"
+      >
         {tab === 'groups' && (
           isFetching && snapshot === undefined
             ? <GroupLoadingSkeleton />

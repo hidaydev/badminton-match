@@ -166,6 +166,10 @@ export const en = {
   'tournaments.error.load': 'Tournaments could not be loaded. Try again.',
   'tournaments.error.notFound': 'This community or tournament is not available.',
   'tournaments.backToList': 'Back to tournaments',
+  'tournament.tabs': 'Tournament views',
+  'tournament.tab.groups': 'Groups',
+  'tournament.tab.bracket': 'Bracket',
+  'tournament.tab.standings': 'Standings',
 
   'tournament.name': 'Tournament name',
   'tournament.date': 'Date',
