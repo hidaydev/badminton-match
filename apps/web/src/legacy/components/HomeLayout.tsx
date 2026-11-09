@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { Link, Outlet, useLocation, useNavigate } from '../router'
 import { useAdmin } from '../context/AdminContext'
@@ -8,7 +8,6 @@ import CommunityPicker from '../../community/CommunityPicker'
 import { t } from '../../i18n'
 import { SkipLink } from '../../components/SkipLink'
 import AccountSessions from './AccountSessions'
-import { useEscapeKey } from '../hooks/useEscapeKey'
 
 export default function HomeLayout() {
   const location = useLocation()
@@ -19,9 +18,58 @@ export default function HomeLayout() {
   const { memberships, current, select } = useCommunity()
   const [accountOpen, setAccountOpen] = useState(false)
   const [sessionsOpen, setSessionsOpen] = useState(false)
-  // The account menu is not a dialog: Escape closes the menu itself and nothing
-  // behind it.
-  useEscapeKey(() => setAccountOpen(false), accountOpen)
+  const accountTrigger = useRef<HTMLButtonElement>(null)
+  const accountMenu = useRef<HTMLDivElement>(null)
+
+  // `role="menu"` is a keyboard promise: focus the first item on open, move
+  // with the arrow keys, Home/End to the ends, and Escape closes the menu and
+  // hands focus back to the trigger. Tab leaves the menu and closes it, like
+  // any other popup that is not a dialog.
+  // A hidden item cannot take focus, and focusing it would leave the menu with
+  // no focused row at all. The community switch is `sm:hidden` where the header
+  // picker already shows it, so it is in the DOM but not always in view.
+  const menuItems = (): HTMLElement[] =>
+    [...(accountMenu.current?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]') ?? [])]
+      .filter((item) => item.checkVisibility?.() !== false)
+
+  const closeAccount = (refocus: boolean) => {
+    setAccountOpen(false)
+    if (refocus) accountTrigger.current?.focus()
+  }
+
+  useEffect(() => {
+    if (!accountOpen) return
+    menuItems()[0]?.focus()
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        closeAccount(true)
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [accountOpen])
+
+  const onAccountMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Tab') {
+      // Focus moves on to the page behind; an open menu there would trap the
+      // next Shift+Tab in a place the user has already left.
+      setAccountOpen(false)
+      return
+    }
+    const items = menuItems()
+    if (items.length === 0) return
+    const index = items.indexOf(document.activeElement as HTMLElement)
+    let next: HTMLElement | undefined
+    if (event.key === 'ArrowDown') next = items[(index + 1) % items.length]
+    else if (event.key === 'ArrowUp') next = items[(index - 1 + items.length) % items.length]
+    else if (event.key === 'Home') next = items[0]
+    else if (event.key === 'End') next = items[items.length - 1]
+    if (next === undefined) return
+    event.preventDefault()
+    next.focus()
+  }
 
   const roleLabel = user?.platformOwner === true
     ? t('role.owner')
@@ -69,6 +117,7 @@ export default function HomeLayout() {
               signed in and which role that account holds here. */}
           <div className="relative">
             <button
+              ref={accountTrigger}
               type="button"
               onClick={() => setAccountOpen((open) => !open)}
               aria-label={t('shell.account')}
@@ -95,7 +144,10 @@ export default function HomeLayout() {
                   className="fixed inset-0 z-20 cursor-default min-h-11"
                 />
                 <div
+                  ref={accountMenu}
                   role="menu"
+                  aria-label={t('shell.account')}
+                  onKeyDown={onAccountMenuKeyDown}
                   className="absolute right-0 mt-2 z-30 w-60 overflow-hidden rounded-xl border border-border-subtle bg-surface shadow-lg"
                 >
                   <div className="border-b border-border-subtle px-3 py-2.5">
@@ -126,6 +178,7 @@ export default function HomeLayout() {
                             key={membership.id}
                             role="menuitemradio"
                             aria-checked={selected}
+                            tabIndex={-1}
                             type="button"
                             onClick={() => {
                               setAccountOpen(false)
@@ -150,6 +203,7 @@ export default function HomeLayout() {
                     {isAdminRole && (
                       <Link
                         role="menuitem"
+                        tabIndex={-1}
                         to="/settings"
                         onClick={() => setAccountOpen(false)}
                         className="rounded-lg px-3 py-2 text-fg hover:bg-elevated"
@@ -160,6 +214,7 @@ export default function HomeLayout() {
                     {user?.platformOwner === true && (
                       <RouterLink
                         role="menuitem"
+                        tabIndex={-1}
                         to="/owner/communities"
                         onClick={() => setAccountOpen(false)}
                         className="rounded-lg px-3 py-2 text-fg hover:bg-elevated"
@@ -169,6 +224,7 @@ export default function HomeLayout() {
                     )}
                     <button
                       role="menuitem"
+                      tabIndex={-1}
                       type="button"
                       onClick={() => {
                         setAccountOpen(false)
@@ -180,6 +236,7 @@ export default function HomeLayout() {
                     </button>
                     <button
                       role="menuitem"
+                      tabIndex={-1}
                       type="button"
                       onClick={() => {
                         setAccountOpen(false)
