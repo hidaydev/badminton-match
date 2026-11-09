@@ -197,8 +197,36 @@ export default async function globalSetup() {
     version = await playGame(api, 'e2e-club', sessionId, '0-0', { scoreA: 30, scoreB: 24 }, version)
     if (version !== 3) throw new Error(`pinned session version: ${version}`)
 
+    // SEC-09 shares only an approved session, and approval is the lock, so the
+    // spectator fixture is its own session: locking the pinned one would take
+    // the continue-card off the home screen and freeze every baseline that
+    // expects a draft. The same games keep the shared page worth looking at.
+    const shareSession = await api.post('/api/c/e2e-club/sessions', {
+      data: {
+        title: 'E2E Approved Wednesday',
+        date: '2026-11-04',
+        startTime: '19:00',
+      },
+    })
+    if (shareSession.status() !== 201) {
+      throw new Error(`share session: ${shareSession.status()} ${await shareSession.text()}`)
+    }
+    const shareSessionId = ((await shareSession.json()) as { id: string }).id
+    const shareTitle = 'E2E Approved Wednesday'
+    let shareVersion = await putGames(api, 'e2e-club', shareSessionId, [
+      { round: 0, court: 0, sideA: [playerIds[0], playerIds[1]], sideB: [playerIds[2], playerIds[3]] },
+      { round: 0, court: 1, sideA: [playerIds[0], playerIds[2]], sideB: [playerIds[1], playerIds[3]] },
+    ], 1)
+    shareVersion = await playGame(api, 'e2e-club', shareSessionId, '0-0', { scoreA: 30, scoreB: 24 }, shareVersion)
+    const lock = await api.post(`/api/c/e2e-club/sessions/${shareSessionId}/lock`, {
+      headers: { 'If-Match': `"${shareVersion}"` },
+    })
+    if (lock.status() !== 200) {
+      throw new Error(`lock: ${lock.status()} ${await lock.text()}`)
+    }
+
     // The spectator spec opens this without a login; nothing else writes it.
-    const share = await api.post(`/api/c/e2e-club/sessions/${sessionId}/share`)
+    const share = await api.post(`/api/c/e2e-club/sessions/${shareSessionId}/share`)
     if (share.status() !== 201) {
       throw new Error(`share: ${share.status()} ${await share.text()}`)
     }
@@ -289,6 +317,7 @@ export default async function globalSetup() {
           playerId: playerIds[0],
           playerName: 'Ani',
           shareCode,
+          shareTitle,
           writableByProject,
           occByProject,
           writableCommunitySlug: 'e2e-writes',

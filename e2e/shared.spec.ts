@@ -7,11 +7,11 @@ import { state } from './global-setup'
  * comes from the code in the URL.
  */
 test('a share link opens without a session and shows the games', async ({ page }) => {
-  const { shareCode } = state()
+  const { shareCode, shareTitle } = state()
 
   await page.goto(`/s/${shareCode}`)
 
-  await expect(page.getByRole('heading', { name: 'E2E Wednesday' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: shareTitle })).toBeVisible()
   await expect(page.getByText('Ani & Budi')).toBeVisible()
   await expect(page.getByText('30–24')).toBeVisible()
   await expect(page.getByRole('button')).toHaveCount(0)

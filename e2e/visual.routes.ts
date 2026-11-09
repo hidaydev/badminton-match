@@ -11,8 +11,12 @@ export type E2eState = {
   sessionTitle: string
   playerId: string
   playerName: string
-  /** A live share link for the pinned session; read-only in every spec. */
+  /**
+   * A live share link. SEC-09 only shares an approved session, so this code
+   * belongs to its own locked session rather than the draft the visuals pin.
+   */
   shareCode: string
+  shareTitle: string
   /** One writable session per project: the specs mutate it, so they must not share. */
   writableByProject: Record<string, string>
   /** A second writable session per project, for the two-writer spec. */
@@ -74,12 +78,12 @@ export const visualRoutes: readonly VisualRoute[] = [
     path: (state) => `/c/${state.communitySlug}`,
     ready: (state) => `text=${state.sessionTitle}`,
   },
-  // The fixture community has no rated sessions, so the board's empty state is
-  // what its own data produces.
+  // Approving the session that backs the share link writes rating rows, so the
+  // board carries data instead of its empty state; the heading is the signal.
   {
     name: 'rankings',
     path: (state) => `/c/${state.communitySlug}/rankings`,
-    ready: () => 'text=No points yet',
+    ready: () => 'h1',
   },
   {
     name: 'tournaments',
@@ -159,7 +163,7 @@ export const a11yRoutes: readonly VisualRoute[] = [
   {
     name: 'shared',
     path: (state) => `/s/${state.shareCode}`,
-    ready: (state) => `text=${state.sessionTitle}`,
+    ready: (state) => `text=${state.shareTitle}`,
   },
   // The router keeps a stale deep link and reports it; the 404 screen is the
   // last route in both branches, so a bad segment under a community and a bad
