@@ -46,7 +46,7 @@ suite "community access":
     check second.outcome == aoOk
     check second.communityId == first.communityId
     check second.role == "host"
-    check membership.list(db, communityId).anyIt(it.userId == outsiderId and it.role == "host")
+    check membership.list(db, communityId, 100, 0).anyIt(it.userId == outsiderId and it.role == "host")
 
   test "login auto-accept reports only the memberships it created":
     # The first-admin invite is pending for this address at first login.
@@ -84,21 +84,21 @@ suite "community access":
     check join_request.request(db, communityId, outsiderId)
     # The second call is a no-op, and says so instead of reporting a write.
     check not join_request.request(db, communityId, outsiderId)
-    check join_request.listPending(db, communityId).len == 1
+    check join_request.listPending(db, communityId, 100, 0).len == 1
 
   test "approving a request adds the member and cannot be repeated":
     discard join_request.request(db, communityId, outsiderId)
-    let pending = join_request.listPending(db, communityId)[0]
+    let pending = join_request.listPending(db, communityId, 100, 0)[0]
     check join_request.decide(db, communityId, pending.id, adminId, rMember, true)
     check not join_request.decide(db, communityId, pending.id, adminId, rMember, true)
-    check membership.list(db, communityId).anyIt(it.userId == outsiderId and it.role == "member")
-    check join_request.listPending(db, communityId).len == 0
+    check membership.list(db, communityId, 100, 0).anyIt(it.userId == outsiderId and it.role == "member")
+    check join_request.listPending(db, communityId, 100, 0).len == 0
 
   test "rejecting a request does not add a member":
     discard join_request.request(db, communityId, outsiderId)
-    let pending = join_request.listPending(db, communityId)[0]
+    let pending = join_request.listPending(db, communityId, 100, 0)[0]
     check join_request.decide(db, communityId, pending.id, adminId, rMember, false)
-    check not list(db, communityId).anyIt(it.userId == outsiderId)
+    check not membership.list(db, communityId, 100, 0).anyIt(it.userId == outsiderId)
 
   test "changing and removing a role is reported":
     discard membership.add(db, communityId, outsiderId, rMember)
@@ -111,7 +111,7 @@ suite "community access":
     discard membership.add(db, communityId, outsiderId, rMember)
     discard membership.add(db, communityId, adminId, rAdmin)
     check membership.setRoleChecked(db, communityId, outsiderId, rHost) == mwOk
-    check membership.list(db, communityId).anyIt(it.userId == outsiderId and it.role == "host")
+    check membership.list(db, communityId, 100, 0).anyIt(it.userId == outsiderId and it.role == "host")
     check membership.setRoleChecked(db, communityId,
       "11111111-1111-1111-1111-111111111111", rHost) == mwNotFound
     # The only admin cannot be demoted, and re-setting the same role is allowed.

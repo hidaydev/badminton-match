@@ -133,7 +133,7 @@ suite "community HTTP":
     # Another account cannot reuse the token.
     let stolen = call(baseUrl, HttpPost, "/invites/" & token & "/accept", adminCookie)
     expectProblem(stolen, 403)
-    check membership.list(database, clubId).anyIt(it.userId == memberId)
+    check membership.list(database, clubId, 100, 0).anyIt(it.userId == memberId)
 
   test "join requests answer identically and are decided once":
     let missing = call(baseUrl, HttpPost, "/c/nope/join-requests",
@@ -177,7 +177,7 @@ suite "community HTTP":
     let twice = call(baseUrl, HttpPatch, "/c/http-closed/join-requests/" & requestId,
       adminCookie, """{"decision":"approve"}""")
     expectProblem(twice, 404)
-    check membership.list(database, closedId).anyIt(it.userId == memberId)
+    check membership.list(database, closedId, 100, 0).anyIt(it.userId == memberId)
 
   test "role changes are admin-only and never remove the last admin":
     let forbidden = call(baseUrl, HttpGet, "/c/http-club/members", memberCookie)
@@ -208,7 +208,7 @@ suite "community HTTP":
     let removed = call(baseUrl, HttpDelete, "/c/http-club/members/" & memberId,
       adminCookie)
     expectStatus(removed, 204)
-    check not membership.list(database, clubId).anyIt(it.userId == memberId)
+    check not membership.list(database, clubId, 100, 0).anyIt(it.userId == memberId)
 
   test "version reports the build without a session":
     let status = call(baseUrl, HttpGet, "/version")

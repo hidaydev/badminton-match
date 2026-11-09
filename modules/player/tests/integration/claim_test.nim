@@ -179,7 +179,7 @@ suite "player claim":
     let secondClaim = pendingClaimId(db, communityId, target)
     check submit(db, communityId, other, filer) == ceOk
 
-    let trail = list(db, communityId, target)
+    let trail = list(db, communityId, target, 100, 0)
     check trail.len == 2
     check trail[0].id == secondClaim
     check trail[0].status == "pending"

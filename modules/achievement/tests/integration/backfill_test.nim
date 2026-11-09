@@ -290,7 +290,7 @@ suite "achievement backfill":
     check added == toHashSet(["games:10"])
 
   test "the shelf reads newest first":
-    let shelf = listForPlayer(database, communityId, players[0])
+    let shelf = listForPlayer(database, communityId, players[0], 100, 0)
     check shelf.len == keysOf(players[0]).len
     check shelf[0]["key"].getStr() == "games:10"
     for entry in shelf:
@@ -300,7 +300,7 @@ suite "achievement backfill":
 
   test "the shelf carries catalog labels and the medal ladder":
     var byKey = initTable[string, JsonNode]()
-    for entry in listForPlayer(database, communityId, players[0]):
+    for entry in listForPlayer(database, communityId, players[0], 100, 0):
       byKey[entry["key"].getStr()] = entry
     let sessions = byKey["sessions:5"]
     check sessions["kind"].getStr() == "attendance"
@@ -330,7 +330,7 @@ suite "achievement backfill":
 
   test "a player with no badges gets an empty array":
     let stranger = "00000000-0000-0000-0000-000000000000"
-    check listForPlayer(database, communityId, stranger).len == 0
+    check listForPlayer(database, communityId, stranger, 100, 0).len == 0
 
   test "an imported rank-streak row carries the v1 ladder":
     discard database.execUpdate(
@@ -340,7 +340,7 @@ suite "achievement backfill":
          on conflict do nothing""",
       @[textParam(communityId), textParam(players[0])])
     var found = newJObject()
-    for entry in listForPlayer(database, communityId, players[0]):
+    for entry in listForPlayer(database, communityId, players[0], 100, 0):
       if entry["key"].getStr() == "rank_streak:11":
         found = entry
     check found["title"].getStr() == "Rank streak 11"
