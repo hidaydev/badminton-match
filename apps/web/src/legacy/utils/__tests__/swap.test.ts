@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyChange,
   applySwap,
   applyTeamSwap,
   detectTeamSwapConflict,
@@ -192,5 +193,31 @@ describe('validateChangeName', () => {
 
   it('accepts a name that is not on the schedule at all', () => {
     expect(validateChangeName(target, 'Zaki', schedule, playerMap)).toEqual({ error: null, b2b: false })
+  })
+})
+
+describe('applyChange', () => {
+  it('changes one position in one game and leaves every other game untouched', () => {
+    const schedule = [
+      game(0, 0, ['p1', 'p2'], ['p3', 'p4']),
+      game(1, 0, ['p5', 'p6'], ['p7', 'p8']),
+    ]
+    const target: SwapTarget = { slot: 0, court: 0, playerId: 'p1', team: 'A', index: 1 }
+
+    const result = applyChange(schedule, target, 'new-player')
+
+    expect(result[0]).toEqual(game(0, 0, ['p1', 'new-player'], ['p3', 'p4']))
+    // Untouched games keep their identity, so React can skip re-rendering them.
+    expect(result[1]).toBe(schedule[1])
+    expect(schedule[0]).toEqual(game(0, 0, ['p1', 'p2'], ['p3', 'p4']))
+  })
+
+  it('fills a slot on team B when the position sits there', () => {
+    const schedule = [game(2, 1, ['p1', 'p2'], ['p3', 'p4'])]
+    const target: SwapTarget = { slot: 2, court: 1, playerId: 'p3', team: 'B', index: 0 }
+
+    expect(applyChange(schedule, target, 'new-player')).toEqual([
+      game(2, 1, ['p1', 'p2'], ['new-player', 'p4']),
+    ])
   })
 })

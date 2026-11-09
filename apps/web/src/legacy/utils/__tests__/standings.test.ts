@@ -121,3 +121,61 @@ describe('computeStandings with sets', () => {
     expect(rows.every((row) => row.wins === 0 && row.losses === 0)).toBe(true)
   })
 })
+
+describe('computeStandings game filters', () => {
+  const player = (id: string, name: string): Player => ({
+    id: toPlayerId(id), name, gender: 'M', tier: 2,
+  })
+  const ani = player('p-ani', 'Ani')
+  const budi = player('p-budi', 'Budi')
+  const candra = player('p-candra', 'Candra')
+  const dewi = player('p-dewi', 'Dewi')
+  const fourPlayers = [ani, budi, candra, dewi]
+  const key = toGameKey(0, 0)
+  const schedule: ScheduleSlot[] = [{
+    slot: 0,
+    court: 0,
+    teamA: [ani.id, budi.id],
+    teamB: [candra.id, dewi.id],
+  }]
+  const gamesPlayed = (rows: ReturnType<typeof computeStandings>): number =>
+    rows.reduce((sum, row) => sum + row.wins + row.losses, 0)
+
+  it('ignores a scheduled game that has no score yet', () => {
+    const rows = computeStandings(fourPlayers, schedule, {}, [])
+
+    expect(gamesPlayed(rows)).toBe(0)
+  })
+
+  it('drops a game whose one side is only absent or placeholder players', () => {
+    const ghostA = toPlayerId('ghost-a')
+    const ghostB = toPlayerId('ghost-b')
+    const rows = computeStandings(
+      fourPlayers,
+      [{
+        slot: 0,
+        court: 0,
+        teamA: [ghostA, ghostB],
+        teamB: [candra.id, dewi.id],
+      }],
+      { [key]: { a: 30, b: 10 } },
+      [ghostA, ghostB],
+    )
+
+    // The caller's list already drops absent players, so neither side of this
+    // game has two real players left to tally.
+    expect(gamesPlayed(rows)).toBe(0)
+  })
+
+  it('drops a game where every player on both sides was skipped for it', () => {
+    const rows = computeStandings(
+      fourPlayers,
+      schedule,
+      { [key]: { a: 30, b: 10 } },
+      [],
+      { [key]: [ani.id, budi.id, candra.id, dewi.id] },
+    )
+
+    expect(gamesPlayed(rows)).toBe(0)
+  })
+})

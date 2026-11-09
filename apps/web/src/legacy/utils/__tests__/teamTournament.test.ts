@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_TEAM_COURTS,
+  buildTeamMatchFiles,
   computeTeamStandings,
   generateTeamDraw,
   teamMatchDirty,
@@ -9,6 +10,22 @@ import {
   type TeamInfo,
   type TeamMatch,
 } from '../teamTournament'
+
+const canvas = vi.hoisted(() => ({
+  drawMatchPost: vi.fn(),
+  drawTeamMatchPost: vi.fn(),
+  loadImage: vi.fn(async () => ({ width: 10, height: 10 }) as HTMLImageElement),
+  canvasToBlob: vi.fn(async () => new Blob(['jpeg'], { type: 'image/jpeg' })),
+}))
+
+vi.mock('../canvasPost', () => ({
+  drawMatchPost: canvas.drawMatchPost,
+  drawTeamMatchPost: canvas.drawTeamMatchPost,
+  loadImage: canvas.loadImage,
+  ANNIVERSARY_LABEL: 'ANNIVERSARY',
+}))
+
+vi.mock('../share', () => ({ canvasToBlob: canvas.canvasToBlob }))
 
 const team = (id: string, name: string): TeamInfo => ({ id, name, players: [] })
 
@@ -166,5 +183,68 @@ describe('teamMatchDirty', () => {
     expect(teamMatchDirty(local, match('m1', 't1', 't2', [[30, 20], [25, 30], [30, 29]]))).toBe(true)
     expect(teamMatchDirty(local, match('m1', 't1', 't2', [[30, 20], [25, 30], [30, 28]], ['Court 1', 'Court 13', 'Court 14']))).toBe(true)
     expect(teamMatchDirty(local, undefined)).toBe(true)
+  })
+})
+
+describe('buildTeamMatchFiles', () => {
+  const roster = (prefix: string): TeamInfo['players'] =>
+    (['A+', 'A', 'B+', 'B', 'C+', 'C'] as const).map((cls) => ({
+      name: `${prefix}-${cls}`,
+      cls,
+    }))
+
+  const teams: TeamInfo[] = [
+    { id: 't1', name: 'RED RAPTORS', players: roster('red') },
+    { id: 't2', name: 'NOBODY', players: roster('nobody') },
+  ]
+
+  const photo = (label: string) => ({ label }) as unknown as HTMLImageElement
+  const photoKey = (partaiIdx: number) => `photo-${partaiIdx}`
+
+  const options = (partaiScores: Array<[number | null, number | null]>) => ({
+    teams,
+    match: match('m1', 't1', 't2', partaiScores),
+    partaiPhotos: {
+      'photo-0': photo('partai-0'),
+      'photo-1': photo('partai-1'),
+      'photo-2': photo('partai-2'),
+    } as Record<string, HTMLImageElement>,
+    photoKey,
+    overlays: {},
+    matchSubtitle: 'GROUP A',
+    summarySubtitle: 'GROUP A',
+    filePrefix: 'group-a',
+  })
+
+  it('writes a post for each partai that has a photo and a score, then one summary card', async () => {
+    const { files, teamAName, teamBName } = await buildTeamMatchFiles(
+      options([[30, 20], [null, null], [25, 30]]),
+    )
+
+    // The middle partai has a photo but no score, so it earns no post.
+    expect(canvas.drawMatchPost).toHaveBeenCalledTimes(2)
+    expect(canvas.drawTeamMatchPost).toHaveBeenCalledTimes(1)
+    expect(files.map((file) => file.name)).toEqual([
+      'group-a-C+C.jpg',
+      'group-a-B+B.jpg',
+      'group-a-summary.jpg',
+    ])
+
+    const summary = canvas.drawTeamMatchPost.mock.calls[0][0]
+    expect(summary.partaiRows).toEqual([
+      { tier: 'C+C', nameA: 'red-C+/red-C', nameB: 'nobody-C+/nobody-C', scoreA: 30, scoreB: 20 },
+      { tier: 'A+A', nameA: 'red-A+/red-A', nameB: 'nobody-A+/nobody-A', scoreA: null, scoreB: null },
+      { tier: 'B+B', nameA: 'red-B+/red-B', nameB: 'nobody-B+/nobody-B', scoreA: 25, scoreB: 30 },
+    ])
+    expect(summary).toMatchObject({ teamAName, teamBName, teamAWins: 1, teamBWins: 1 })
+    expect([teamAName, teamBName]).toEqual(['RED RAPTORS', 'NOBODY'])
+  })
+
+  it('still writes the summary card when no partai has a photo or a score', async () => {
+    const empty = options([[null, null], [null, null], [null, null]])
+    const { files } = await buildTeamMatchFiles({ ...empty, partaiPhotos: {} })
+
+    expect(canvas.drawMatchPost).not.toHaveBeenCalled()
+    expect(files.map((file) => file.name)).toEqual(['group-a-summary.jpg'])
   })
 })

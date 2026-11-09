@@ -303,6 +303,19 @@ describe('usePlayerDetail', () => {
     expect(result.current.error).toBeNull()
   })
 
+  it('reports a failed player read and keeps the claims failure to itself', async () => {
+    const server = stubFetch()
+    const { result } = renderHook(() => usePlayerDetail('acme', 'p1'))
+
+    await server.deliver(0, { status: 404, body: { code: 'NOT_FOUND' } })
+    await server.deliver(1, { status: 500, body: {} })
+
+    await waitFor(() => expect(result.current.error).toBe('notFound'))
+    expect(result.current.player).toBeNull()
+    expect(result.current.claims).toBeNull()
+    expect(result.current.loading).toBe(false)
+  })
+
   it('ignores a player answer that arrives after the requested id changed', async () => {
     const server = stubFetch()
     const { result, rerender } = renderHook(

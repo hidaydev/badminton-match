@@ -82,6 +82,26 @@ describe('computeQuality', () => {
     expect(quality?.excludedPairs).toBe(1)
   })
 
+  it('reports a fixed opponent clash as excluded instead of repeated', () => {
+    const players = playerMapOf(player('p1'), player('p2'), player('p3'), player('p4'))
+    const facedBy = {
+      [toPlayerId('p1')]: { [toPlayerId('p3')]: 3 },
+      [toPlayerId('p3')]: { [toPlayerId('p1')]: 3 },
+    }
+    const fixedGame: MatchConstraint = {
+      id: 'fix-1',
+      slots: [toPlayerId('p1'), toPlayerId('p2'), toPlayerId('p3'), toPlayerId('p4')],
+      mode: 'flexible',
+    }
+
+    const quality = computeQuality(result(oneGame, { facedBy }), players, [fixedGame])
+
+    // Of the three meetings, one was forced by the constraint and is blamed on
+    // it; the two that remain are still a repetition the generator caused.
+    expect(quality?.excludedOpponents).toBe(1)
+    expect(quality?.repeatedOpponents).toBe(1)
+  })
+
   it('counts the players shared by two consecutive slots and their forced overlap', () => {
     // 7 players across two single-court slots: p1 is the only repeat, and one
     // repeat is unavoidable because 8 slots need 4 more players than exist.

@@ -1,13 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   QF_IDS,
   SF_IDS,
+  assignGroupPics,
   computeGroupStandings,
   generateGroupMatches,
   initKnockoutMatches,
   propagateBracket,
   type GroupId,
   type TournamentMatch,
+  type TournamentPair,
 } from '../tournament'
 
 const groupMatch = (
@@ -167,5 +169,51 @@ describe('propagateBracket', () => {
       scoreA: null,
       scoreB: null,
     })
+  })
+})
+
+describe('assignGroupPics', () => {
+  const pairs: TournamentPair[] = [
+    { id: 'p1', name: 'Ani & Budi' },
+    { id: 'p2', name: 'Candra & Dewi' },
+    { id: 'p3', name: 'Eka & Fajar' },
+    { id: 'p4', name: 'Gita & Hadi' },
+  ]
+  const groups = (): Record<GroupId, string[]> => ({
+    A: ['p1', 'p2', 'p3', 'p4'],
+    B: [],
+    C: [],
+    D: [],
+  })
+  const namesOf = (match: TournamentMatch): string[] =>
+    pairs
+      .filter((pair) => pair.id === match.pairAId || pair.id === match.pairBId)
+      .flatMap((pair) => pair.name.split(' & '))
+
+  it('gives each group match a photographer from the group who is not playing in it, and nobody twice', () => {
+    const matches = assignGroupPics(pairs, groups(), generateGroupMatches('A', groups().A))
+
+    expect(matches).toHaveLength(6)
+    for (const match of matches) {
+      expect(namesOf(match)).not.toContain(match.picName)
+    }
+    expect(new Set(matches.map((match) => match.picName)).size).toBe(6)
+  })
+
+  it('leaves the pictures unassigned and warns when the group has too few names to cover every match', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const crowded = generateGroupMatches('A', ['p1', 'p2']).map((match, index) => ({
+      ...match,
+      // Six matches between the same two pairs: four names cannot fill six roles.
+      id: `crowded-${index}`,
+      pairAId: 'p1',
+      pairBId: 'p2',
+    }))
+
+    const matches = assignGroupPics(pairs.slice(0, 2), { ...groups(), A: ['p1', 'p2'] }, crowded)
+
+    expect(matches.every((match) => match.picName === undefined)).toBe(true)
+    expect(warn).toHaveBeenCalledWith('assignGroupPics: could not assign all PICs for group A')
+    warn.mockRestore()
   })
 })
