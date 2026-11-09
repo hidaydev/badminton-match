@@ -51,6 +51,12 @@ jobs:
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
       # The packages in deps.lock are not vendored: a cold `~/.nimble` cache
       # must install them before anything compiles.
+      # Nim's `re` binds to the system PCRE 1 library at run time, and the
+      # runner image does not ship it.
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       - name: "Coverage: install gcov tooling"

@@ -104,6 +104,12 @@ jobs:
             echo "::error::VERSION is '$version' but the tag says '$expected'"
             exit 1
           fi
+      # Nim's `re` binds to the system PCRE 1 library at run time, and the
+      # runner image does not ship it.
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
       - name: "Release: install pinned deps"
         run: ./task deps-install
       - name: "Release: database"
@@ -183,6 +189,12 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # Nim's `re` binds to the system PCRE 1 library at run time, and the
+      # runner image does not ship it.
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       - uses: pnpm/action-setup@9bbca1e9dc2902adb87e8780fe5c98796985a62d # v6.1.1
@@ -249,6 +261,12 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # Nim's `re` binds to the system PCRE 1 library at run time, and the
+      # runner image does not ship it.
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       - name: "Coverage: install gcov tooling"
@@ -308,6 +326,12 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # Nim's `re` binds to the system PCRE 1 library at run time, and the
+      # runner image does not ship it.
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       - name: "Mutation: every mutant is killed or allowlisted"
@@ -337,6 +361,12 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # Nim's `re` binds to the system PCRE 1 library at run time, and the
+      # runner image does not ship it.
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       - name: "Database: provision the parity database"

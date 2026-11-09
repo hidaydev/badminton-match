@@ -48,6 +48,11 @@ for file in $(list_test_files); do
       rm -f "$_log"
       exit "$_code"
     fi
+    if grep -q '^SKIP ' "$_log" 2>/dev/null; then
+      # The capture would otherwise hide the per-suite skip names, which used to
+      # reach the log through stderr.
+      grep '^SKIP ' "$_log" >&2
+    fi
     rm -f "$_log"
   else
     nim_compile_check "$file" >/dev/null

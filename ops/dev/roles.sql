@@ -1,5 +1,7 @@
 -- Privileges for one bm2 database. Applied by ops/dev/pg-up.sh with
---   psql -d <db> -v db=<db> -f ops/dev/roles.sql
+--   psql -d <admin DSN> -c '\connect <db>' -v db=<db> -f ops/dev/roles.sql
+-- so the host, port and user come from the admin connection instead of the
+-- local socket.
 -- Role creation and passwords stay in pg-up.sh so no secret lands in Git.
 --
 -- bm2_owner: DDL and migrations
