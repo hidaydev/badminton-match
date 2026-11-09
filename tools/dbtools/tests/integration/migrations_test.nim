@@ -304,5 +304,48 @@ try:
         @[textParam(communityId), textParam(sessionId)]).get
       check results.get("total") == "1"
       check results.get("games_to_win") == "1"
+
+    test "deleting a rated source removes its event and sign-off":
+      migrate(scratch, migrationsDir)
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('source-cascade', 'Source Cascade', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      let sessionId = scratch.queryOne(
+        """insert into session.sessions
+             (community_id, session_date, status, source)
+           values ($1::uuid, '2026-11-02', 'locked', 'manual') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      let tournamentId = scratch.queryOne(
+        """insert into tournament.tournaments (community_id, name, status)
+           values ($1::uuid, 'Cascade Cup', 'active') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      for source in [sessionId, tournamentId]:
+        let kind = if source == sessionId: "session" else: "tournament"
+        discard scratch.execUpdate(
+          """insert into rating.events (community_id, local_date, event_type, source_id)
+             values ($1::uuid, '2026-11-02', $2, $3::uuid)""",
+          @[textParam(communityId), textParam(kind), textParam(source)])
+        discard scratch.execUpdate(
+          """insert into rating.sources (community_id, source_id, kind)
+             values ($1::uuid, $2::uuid, $3)""",
+          @[textParam(communityId), textParam(source), textParam(kind)])
+
+      discard scratch.execUpdate(
+        "delete from session.sessions where community_id = $1::uuid and id = $2::uuid",
+        @[textParam(communityId), textParam(sessionId)])
+      check scratch.queryOne(
+        "select count(*)::int as n from rating.events where source_id = $1::uuid",
+        @[textParam(sessionId)]).get.get("n") == "0"
+      check scratch.queryOne(
+        "select count(*)::int as n from rating.sources where source_id = $1::uuid",
+        @[textParam(sessionId)]).get.get("n") == "0"
+
+      discard scratch.execUpdate(
+        "delete from tournament.tournaments where community_id = $1::uuid and id = $2::uuid",
+        @[textParam(communityId), textParam(tournamentId)])
+      check scratch.queryOne(
+        "select count(*)::int as n from rating.events where source_id = $1::uuid",
+        @[textParam(tournamentId)]).get.get("n") == "0"
 finally:
   shutdown()
