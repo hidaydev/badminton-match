@@ -14,6 +14,28 @@ import { communityQueryKey } from '../queries/keys'
 import { buildPublishableSessionSnapshot } from '../utils/sessionSnapshot'
 import type { CloudSnapshot } from '../queries/types'
 
+type StoreState = ReturnType<typeof useStore.getState>
+
+/**
+ * The snapshot a publish would send. The draft's own basis wins over the
+ * cache: after a failed publish the cache holds the server's newer version,
+ * and using it would retry the same stale draft over the other editor.
+ */
+function buildSnapshot(state: StoreState, cached?: CloudSnapshot | null): CloudSnapshot {
+  const snap = buildPublishableSessionSnapshot({
+    session: state.session,
+    players: state.players,
+    fixMatches: state.fixMatches,
+    schedule: state.schedule,
+    playedGames: state.playedGames,
+    gameScores: state.gameScores,
+    existingAbsentPlayers: state.absentPlayers,
+  })
+  if (state.cloudVersion != null) snap.version = state.cloudVersion
+  else if (cached?.version != null) snap.version = cached.version
+  return snap
+}
+
 export function useDebouncedPublish(
   cloudSessionId: string | null,
   onError?: (message: string) => void,
@@ -22,7 +44,11 @@ export function useDebouncedPublish(
   const publishStartRef = useRef<number | null>(null)
   const inFlightRef = useRef<boolean>(false)
   const pendingDirtyRef = useRef<boolean>(false)
+  const failedRef = useRef<boolean>(false)
   const [isPendingQueue, setIsPendingQueue] = useState<boolean>(false)
+  // True from the first local edit until the server acknowledges the write.
+  // Only then is a tab close safe to allow without a prompt.
+  const [isDirty, setIsDirty] = useState<boolean>(false)
 
   const queryClient = useQueryClient()
   const publish = usePublishSession(cloudSessionId ?? undefined)
@@ -52,22 +78,12 @@ export function useDebouncedPublish(
 
     const state = useStore.getState()
     if (state.cloudSessionId !== cloudSessionId) return
-    const snap = buildPublishableSessionSnapshot({
-      session: state.session,
-      players: state.players,
-      fixMatches: state.fixMatches,
-      schedule: state.schedule,
-      playedGames: state.playedGames,
-      gameScores: state.gameScores,
-      existingAbsentPlayers: state.absentPlayers,
-    })
 
     // The draft's own basis wins over the cache. After a failed publish the
     // cache holds the server's newer version; using it here would retry the
     // same stale draft against the new version and overwrite the other editor.
     const cached = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', cloudSessionId))
-    if (state.cloudVersion != null) snap.version = state.cloudVersion
-    else if (cached?.version != null) snap.version = cached.version
+    const snap = buildSnapshot(state, cached)
 
     inFlightRef.current = true
     pendingDirtyRef.current = false
@@ -75,13 +91,35 @@ export function useDebouncedPublish(
 
     publishRef.current.mutate(snap, {
       onSuccess: (updated) => {
+        failedRef.current = false
         // The next publish starts from the version this one produced.
         if (useStore.getState().cloudSessionId === cloudSessionId) {
           useStore.getState().setCloudVersion(updated?.version ?? null)
+          // A beforeunload marker from a cancelled close is resolved now.
+          if (useStore.getState().pendingPublish?.cloudSessionId === cloudSessionId) {
+            useStore.getState().setPendingPublish(null)
+          }
         }
+        setIsDirty(false)
       },
       onError: async (err) => {
-        onErrorRef.current?.(getSaveErrorMessage(err))
+        // The last edit is still only local: keep the dirty flag so a tab
+        // close asks before dropping it.
+        failedRef.current = true
+        const message = getSaveErrorMessage(err)
+        onErrorRef.current?.(message)
+        // Record the unconfirmed write. A navigation can unmount the screen
+        // (and its toast) before the reviewer sees it, so the next screen
+        // reads this record and offers a retry.
+        const state = useStore.getState()
+        if (state.cloudSessionId === cloudSessionId) {
+          const cached = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', cloudSessionId))
+          useStore.getState().setPendingPublish({
+            cloudSessionId,
+            snapshot: buildSnapshot(state, cached),
+            message,
+          })
+        }
         if (cloudSessionId) {
           try {
             await queryClient.fetchQuery({
@@ -103,6 +141,7 @@ export function useDebouncedPublish(
           }, 300)
         } else {
           setIsPendingQueue(false)
+          if (!failedRef.current) setIsDirty(false)
         }
       },
     })
@@ -115,6 +154,7 @@ export function useDebouncedPublish(
   const publishToCloud = useCallback(() => {
     if (!cloudSessionId) return
 
+    setIsDirty(true)
     if (publishTimerRef.current) clearTimeout(publishTimerRef.current)
 
     if (inFlightRef.current) {
@@ -136,6 +176,27 @@ export function useDebouncedPublish(
     }, delay)
   }, [cloudSessionId, doPublish])
 
+  // A close or reload inside the debounce window drops the pending write. The
+  // draft itself is already in the persisted store; this adds the retry record
+  // to that same store and asks the browser to prompt before leaving.
+  useEffect(() => {
+    if (!cloudSessionId || !isDirty) return
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      const state = useStore.getState()
+      if (state.cloudSessionId !== cloudSessionId) return
+      const cached = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', cloudSessionId))
+      useStore.getState().setPendingPublish({
+        cloudSessionId,
+        snapshot: buildSnapshot(state, cached),
+        message: null,
+      })
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [cloudSessionId, isDirty, queryClient])
+
   // Flush pending publish on unmount
   useEffect(() => {
     return () => {
@@ -148,18 +209,25 @@ export function useDebouncedPublish(
         if (cloudSessionId) {
           const state = useStore.getState()
           if (state.cloudSessionId === cloudSessionId) {
-            const snap = buildPublishableSessionSnapshot({
-              session: state.session, players: state.players, fixMatches: state.fixMatches,
-              schedule: state.schedule, playedGames: state.playedGames, gameScores: state.gameScores,
-              existingAbsentPlayers: state.absentPlayers,
-            })
             const cached = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', cloudSessionId))
-            if (cached?.version != null) snap.version = cached.version
-            publishSession(cloudSessionId, snap).then(() => {
-              queryClient.invalidateQueries({ queryKey: communityQueryKey('session', cloudSessionId) })
+            const snap = buildSnapshot(state, cached)
+            // Write the retry record before the request: navigating away must
+            // not remove the only copy of an edit the server has not seen.
+            useStore.getState().setPendingPublish({ cloudSessionId, snapshot: snap, message: null })
+            publishSession(cloudSessionId, snap).then((updated) => {
+              if (useStore.getState().cloudSessionId === cloudSessionId) {
+                useStore.getState().setCloudVersion(updated?.version ?? null)
+                if (useStore.getState().pendingPublish?.cloudSessionId === cloudSessionId) {
+                  useStore.getState().setPendingPublish(null)
+                }
+              }
+              void queryClient.invalidateQueries({ queryKey: communityQueryKey('session', cloudSessionId) })
             }).catch((err) => {
-              console.warn('Unmount flush failed:', err)
-              onErrorRef.current?.(getSaveErrorMessage(err))
+              const message = getSaveErrorMessage(err)
+              // The screen is gone, so an inline banner cannot report this.
+              // The record stays in the store for the next screen to retry.
+              useStore.getState().setPendingPublish({ cloudSessionId, snapshot: snap, message })
+              onErrorRef.current?.(message)
             })
           }
         }
@@ -167,6 +235,7 @@ export function useDebouncedPublish(
       publishStartRef.current = null
       inFlightRef.current = false
       pendingDirtyRef.current = false
+      failedRef.current = false
     }
   }, [cloudSessionId, queryClient])
 

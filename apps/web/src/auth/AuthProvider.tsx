@@ -27,17 +27,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [loggingIn, setLoggingIn] = useState(false)
 
+  // One teardown for both ways a session ends. Logout and expiry must leave
+  // the device in the same state: the next account must not inherit the
+  // previous host's draft, cached community data or adapter slug.
+  const endLocalSession = useCallback(() => {
+    queryClient.clear()
+    clearStoreDraft()
+    // Clears the adapter's module caches (player names) as well as the slug.
+    setCommunitySlug('')
+  }, [queryClient])
+
   // The cookie can expire or be revoked while a tab stays open. Any request
   // that comes back 401 says so; treat it like a logout from the shell's angle
   // so the next screen is the login form instead of "Failed to load".
   useEffect(() => {
     const onExpired = () => {
+      endLocalSession()
       setUser(null)
       setMemberships([])
     }
     window.addEventListener(SESSION_EXPIRED_EVENT, onExpired)
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired)
-  }, [])
+  }, [endLocalSession])
 
   useEffect(() => {
     let active = true
@@ -122,14 +133,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await endSession()
-    // The next account on this device must not inherit cached community data.
-    queryClient.clear()
-    clearStoreDraft()
-    // Clears the adapter's module caches (player names) as well as the slug.
-    setCommunitySlug('')
+    endLocalSession()
     setUser(null)
     setMemberships([])
-  }, [queryClient])
+  }, [endLocalSession])
 
   const refreshMemberships = useCallback(async () => {
     const joined = await fetchMemberships()

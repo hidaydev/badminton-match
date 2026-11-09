@@ -245,6 +245,11 @@ export const en = {
   'sessions.locked': 'Locked · Rated',
   'sessions.active': 'In Progress',
   'sessions.untitled': 'Untitled Session',
+  'sessions.unsaved.title': 'Changes not saved',
+  'sessions.unsaved.body': 'The last edit did not reach the server.',
+  'sessions.unsaved.retry': 'Retry',
+  'sessions.unsaved.retrying': 'Retrying…',
+  'sessions.unsaved.dismiss': 'Dismiss',
   'home.continueSession': 'Continue Session',
 
   'session.meta': '{date} · {startTime} · {slotMinutes} min',

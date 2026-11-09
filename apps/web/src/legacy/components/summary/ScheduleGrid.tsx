@@ -5,7 +5,7 @@ import { DndContext, type DragEndEvent } from '@dnd-kit/core'
 import type { GeneratorResult } from '../../generator'
 import type { Player, GameScore, SessionScoring } from '../../types'
 import { toGameKey } from '../../types'
-import { draftFromScore, type MatchDraft } from './useScoreDraft'
+import { draftFromScore, type MatchDraft, type ScoreFailure } from './useScoreDraft'
 import { describeSets, setsWon } from '../../utils/scoring'
 import { computeBackToBackRunBySlot } from '../../utils/playerStats'
 import { courtLabel } from '../../utils/courtLabel'
@@ -34,6 +34,9 @@ interface ScheduleGridProps {
   expandedScore: string | null
   draftScores: Record<string, MatchDraft>
   scoreError: string | null
+  scoreFailures?: Record<string, ScoreFailure>
+  retryScore?: (key: string) => void
+  dismissScoreFailure?: (key: string) => void
   // Swap state
   swapSelected: SwapTarget | null
   pendingSwap: { t1: SwapTarget; t2: SwapTarget } | null
@@ -81,6 +84,9 @@ export default function ScheduleGrid({
   expandedScore,
   draftScores,
   scoreError,
+  scoreFailures = {},
+  retryScore,
+  dismissScoreFailure,
   swapSelected,
   pendingSwap,
   teamSwapSelected,
@@ -299,6 +305,37 @@ export default function ScheduleGrid({
                         </button>
                       ) : null)}
                     </div>
+
+                    {/* A failed score write stays attached to this game until
+                        it is retried or dismissed. It is never timed out. */}
+                    {scoreFailures[key] && (
+                      <div
+                        role="alert"
+                        className="ml-6 flex flex-wrap items-center gap-2 rounded-lg border border-red-700/60 bg-red-900/20 px-2 py-1.5"
+                      >
+                        <span className="text-xs text-red-300">
+                          Score not saved. {scoreFailures[key].message}
+                        </span>
+                        <span className="ml-auto flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => retryScore?.(key)}
+                            disabled={saving}
+                            className="min-h-11 rounded-md border border-red-500/70 px-2 text-xs font-bold text-red-200 transition-colors hover:bg-red-800/40 disabled:opacity-50"
+                          >
+                            Retry
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => dismissScoreFailure?.(key)}
+                            className="min-h-11 rounded-md px-2 text-xs text-red-300 underline underline-offset-2 transition-colors hover:text-red-100"
+                            aria-label={`Dismiss score error for ${teamANames} vs ${teamBNames}`}
+                          >
+                            Dismiss
+                          </button>
+                        </span>
+                      </div>
+                    )}
 
                     {/* Expandable score panel */}
                     {isOpen && (

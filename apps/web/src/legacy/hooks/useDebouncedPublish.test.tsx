@@ -86,6 +86,7 @@ beforeEach(() => {
   useStore.getState().setCloudSessionId(SESSION)
   useStore.getState().setCloudVersion(9)
   useStore.getState().setTitle('first')
+  useStore.getState().setPendingPublish(null)
   getSessionMock().mockResolvedValue(snapshot(12))
   publishMock().mockResolvedValue(snapshot(10))
 })
@@ -209,5 +210,43 @@ describe('useDebouncedPublish', () => {
     await flush()
 
     expect(publishMock()).not.toHaveBeenCalled()
+  })
+
+  it('records and reports a failed unmount flush instead of swallowing it', async () => {
+    const onError = vi.fn()
+    const { api, unmount } = setup(onError)
+    publishMock().mockRejectedValueOnce(new ApiError('offline', null, null))
+
+    act(() => api.publishToCloud())
+    // The edit is still inside the debounce window when the screen goes away.
+    unmount()
+    await flush()
+
+    expect(publishMock()).toHaveBeenCalledTimes(1)
+    const pending = useStore.getState().pendingPublish
+    expect(pending?.cloudSessionId).toBe(SESSION)
+    expect(pending?.snapshot.session.title).toBe('first')
+    expect(pending?.message).toBe(t('session.action.failed'))
+    expect(onError).toHaveBeenCalledWith(t('session.action.failed'))
+    // The retry record is persisted, not only in memory.
+    expect(window.localStorage.getItem('badminton-store')).toContain('pendingPublish')
+  })
+
+  it('warns before unload and persists the unconfirmed draft while a publish is queued', async () => {
+    const { api } = setup()
+
+    act(() => api.publishToCloud())
+    // Let the dirty state reach the beforeunload effect.
+    act(() => {})
+
+    const event = new Event('beforeunload', { cancelable: true })
+    act(() => {
+      window.dispatchEvent(event)
+    })
+
+    expect(event.defaultPrevented).toBe(true)
+    const pending = useStore.getState().pendingPublish
+    expect(pending?.cloudSessionId).toBe(SESSION)
+    expect(pending?.snapshot.session.title).toBe('first')
   })
 })

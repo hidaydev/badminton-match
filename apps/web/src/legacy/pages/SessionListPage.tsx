@@ -2,6 +2,9 @@
 import { useState } from 'react'
 import { useNavigate } from '../router'
 import { useListSessions } from '../queries'
+import { publishSession } from '../queries/endpoints'
+import { getSaveErrorMessage } from '../queries/errors'
+import { useStore } from '../store'
 import { useAdmin } from '../context/AdminContext'
 import { t } from '../../i18n'
 
@@ -12,6 +15,9 @@ export default function SessionListPage() {
   const { isAdmin } = useAdmin()
   const [query, setQuery] = useState('')
   const [dateFilter, setDateFilter] = useState('')
+  const pendingPublish = useStore((s) => s.pendingPublish)
+  const setPendingPublish = useStore((s) => s.setPendingPublish)
+  const [retryingPending, setRetryingPending] = useState(false)
 
   const hasFilter = Boolean(query.trim() || dateFilter)
   // Server-side search and paging: the query covers the whole logbook, and
@@ -30,6 +36,23 @@ export default function SessionListPage() {
     date: dateFilter || undefined,
   })
 
+  async function retryPendingPublish() {
+    if (!pendingPublish || retryingPending) return
+    setRetryingPending(true)
+    try {
+      const updated = await publishSession(pendingPublish.cloudSessionId, pendingPublish.snapshot)
+      if (useStore.getState().cloudSessionId === pendingPublish.cloudSessionId) {
+        useStore.getState().setCloudVersion(updated?.version ?? null)
+      }
+      setPendingPublish(null)
+      await refetch()
+    } catch (error) {
+      setPendingPublish({ ...pendingPublish, message: getSaveErrorMessage(error) })
+    } finally {
+      setRetryingPending(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3">
       {/* Header Title */}
@@ -39,6 +62,37 @@ export default function SessionListPage() {
           {hasFilter ? `${filtered.length} / ${total}` : total} {t('common.total')}
         </span>
       </div>
+
+      {/* A write that did not reach the server is never dropped: it stays
+          here until it is retried or dismissed. */}
+      {pendingPublish && (
+        <div role="alert" className="flex flex-col gap-2 rounded-xl border border-error/60 bg-error/10 p-3 sm:flex-row sm:items-center">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-fg">{t('sessions.unsaved.title')}</p>
+            <p className="text-xs text-fg-dim">
+              {pendingPublish.message ?? t('sessions.unsaved.body')}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void retryPendingPublish()}
+              disabled={retryingPending}
+              className="min-h-11 rounded-lg border border-accent/60 px-3 text-xs font-semibold text-accent transition-colors hover:bg-accent/10 disabled:opacity-50"
+            >
+              {retryingPending ? t('sessions.unsaved.retrying') : t('sessions.unsaved.retry')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPendingPublish(null)}
+              disabled={retryingPending}
+              className="min-h-11 rounded-lg border border-border px-3 text-xs font-mono text-fg-dim transition-colors hover:text-fg disabled:opacity-50"
+            >
+              {t('sessions.unsaved.dismiss')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Search & Date Filter Bar */}
       <div className="flex flex-col sm:flex-row gap-2">

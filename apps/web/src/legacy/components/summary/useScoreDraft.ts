@@ -3,6 +3,7 @@ import { useState } from 'react'
 import type { GameScore, SessionScoring, SetScore } from '../../types'
 import { validateScore } from '../../utils/scoreValidation'
 import { matchComplete, validateSet, validateSets } from '../../utils/scoring'
+import { getSaveErrorMessage } from '../../queries/errors'
 
 export type SetDraft = { a: string; b: string }
 export type MatchDraft = SetDraft[]
@@ -43,16 +44,46 @@ export interface ScoreDraftState {
   updateDraftSet: (key: string, index: number, side: 'a' | 'b', value: string) => void
   handleScoreSave: (key: string) => void
   handleClearScore: (key: string) => void
+  /** Writes the server refused, keyed by game. They stay until retried or dismissed. */
+  scoreFailures: Record<string, ScoreFailure>
+  retryScore: (key: string) => void
+  dismissScoreFailure: (key: string) => void
   reset: () => void
 }
 
+/** A score write the server did not confirm; `sets` is what to retry. */
+export type ScoreFailure = { message: string; sets: SetScore[] }
+
 export function useScoreDraft(
-  onSetGameScore?: (key: string, sets: SetScore[]) => void,
+  onSetGameScore?: (key: string, sets: SetScore[]) => void | Promise<void>,
   rules?: SessionScoring,
 ): ScoreDraftState {
   const [expandedScore, setExpandedScore] = useState<string | null>(null)
   const [scoreError, setScoreError] = useState<string | null>(null)
   const [draftScores, setDraftScores] = useState<Record<string, MatchDraft>>({})
+  const [scoreFailures, setScoreFailures] = useState<Record<string, ScoreFailure>>({})
+
+  function clearFailure(key: string): void {
+    setScoreFailures((prev) => {
+      if (!(key in prev)) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
+
+  async function writeScore(key: string, sets: SetScore[]): Promise<void> {
+    if (onSetGameScore === undefined) return
+    clearFailure(key)
+    try {
+      await onSetGameScore(key, sets)
+      setExpandedScore(null)
+    } catch (error) {
+      setScoreFailures((prev) => ({ ...prev, [key]: { message: getSaveErrorMessage(error), sets } }))
+      // Keep the editor open on the row that failed so the retry is in reach.
+      setExpandedScore(key)
+    }
+  }
 
   function updateDraftSet(key: string, index: number, side: 'a' | 'b', value: string): void {
     setDraftScores((prev) => {
@@ -104,21 +135,30 @@ export function useScoreDraft(
       }
     }
     setScoreError(null)
-    onSetGameScore?.(key, sets)
-    setExpandedScore(null)
+    void writeScore(key, sets)
   }
 
   function handleClearScore(key: string): void {
     if (onSetGameScore === undefined) return
     setScoreError(null)
-    onSetGameScore(key, [])
-    setExpandedScore(null)
+    void writeScore(key, [])
+  }
+
+  function retryScore(key: string): void {
+    const failure = scoreFailures[key]
+    if (!failure) return
+    void writeScore(key, failure.sets)
+  }
+
+  function dismissScoreFailure(key: string): void {
+    clearFailure(key)
   }
 
   function reset() {
     setExpandedScore(null)
     setDraftScores({})
     setScoreError(null)
+    setScoreFailures({})
   }
 
   return {
@@ -131,6 +171,9 @@ export function useScoreDraft(
     updateDraftSet,
     handleScoreSave,
     handleClearScore,
+    scoreFailures,
+    retryScore,
+    dismissScoreFailure,
     reset,
   }
 }

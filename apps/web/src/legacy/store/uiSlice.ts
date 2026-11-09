@@ -1,4 +1,17 @@
 import type { SetState } from './index'
+import type { CloudSnapshot } from '../types'
+
+/**
+ * A publish that could not be confirmed by the server. It is persisted with
+ * the draft so the next screen (or a reload) can retry instead of dropping the
+ * last edit silently.
+ */
+export interface PendingPublish {
+  cloudSessionId: string
+  snapshot: CloudSnapshot
+  /** Mapped save message; `null` while the write is still in flight. */
+  message: string | null
+}
 
 export interface UISlice {
   absentPlayers: string[]
@@ -10,10 +23,13 @@ export interface UISlice {
    * server's current version and overwrite newer scores from another editor.
    */
   cloudVersion: number | null
+  /** A write the server never confirmed; survives navigation and reload. */
+  pendingPublish: PendingPublish | null
 
   setAbsentPlayers: (ids: string[]) => void
   setCloudSessionId: (id: string) => void
   setCloudVersion: (version: number | null) => void
+  setPendingPublish: (pending: PendingPublish | null) => void
 }
 
 export const createUISlice = (
@@ -22,6 +38,7 @@ export const createUISlice = (
   absentPlayers: [],
   cloudSessionId: null,
   cloudVersion: null,
+  pendingPublish: null,
 
   setAbsentPlayers: (ids) => set(() => ({ absentPlayers: [...new Set(ids)] })),
   // A new id is a new session, so the old basis cannot describe it.
@@ -29,6 +46,8 @@ export const createUISlice = (
     set((s) => ({
       cloudSessionId: id,
       cloudVersion: s.cloudSessionId === id ? s.cloudVersion : null,
+      pendingPublish: s.cloudSessionId === id ? s.pendingPublish : null,
     })),
   setCloudVersion: (version) => set(() => ({ cloudVersion: version })),
+  setPendingPublish: (pending) => set(() => ({ pendingPublish: pending })),
 })
