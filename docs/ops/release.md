@@ -50,10 +50,6 @@ pushed.
    deploy webhook. The reverse order makes the deploy run before the image
    exists; the deploy script will fail at the `resolve-digest` step, not silently
    use another image.
-
-   Note: `./task release` prints `git push origin main` before the tag push
-   command. The correct order is the one above; that tool's output has not been
-   fixed.
 6. Wait for `release.yml` to go green and record the digest from the GitHub
    Release body. `release.yml` never creates or moves a tag; the tag always comes
    from the operator.
