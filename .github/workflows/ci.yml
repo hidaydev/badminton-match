@@ -69,8 +69,11 @@ jobs:
       # QA-25: `check` is the database-free layer. Every suite that opens a
       # database lives under `tests/integration/` and runs in `api-test`, so
       # this job has no postgres service and no DSN.
+      # QA-27: `--static` skips the suites too: `api-test` compiles and runs
+      # every one of them, and a compile here would be a second pass over the
+      # same tree in the same run. The web gates run in the `web` job.
       - name: "API: check"
-        run: ./task check
+        run: ./task check --static
       # QA-11: a red check leaves the per-suite JUnit report, the failure list
       # and the timing table on the runner; this makes them downloadable.
       - name: "API: upload failure reports"

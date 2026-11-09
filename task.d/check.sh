@@ -4,15 +4,21 @@
 
 # `--no-run` compiles the unit suites without executing them. `ci` passes it
 # because `test` runs the same files once, together with the integration set.
+# `--static` skips the suites entirely: `api-check` in CI uses it because
+# `api-test` is the job that compiles and runs every suite, and compiling them
+# here first would be a second compile of the same tree (QA-27).
 run_suites=1
-if [ "$#" -gt 1 ]; then
-  fail "usage: ./task check [--no-run]"
-fi
+compile_suites=1
+usage_text="usage: ./task check [--no-run|--static]"
 case "${1:-}" in
   "") ;;
   --no-run) run_suites=0 ;;
-  *) fail "usage: ./task check [--no-run]" ;;
+  --static) run_suites=0; compile_suites=0 ;;
+  *) fail "$usage_text" ;;
 esac
+if [ "$#" -gt 1 ]; then
+  fail "$usage_text"
+fi
 
 require_cmd nim
 
@@ -57,7 +63,9 @@ for file in $(list_test_files); do
     fi
     rm -f "$_log"
   else
-    nim_compile_check "$file" >/dev/null
+    if [ "$compile_suites" = "1" ]; then
+      nim_compile_check "$file" >/dev/null
+    fi
   fi
 done
 
@@ -82,7 +90,8 @@ sh "$REPO_ROOT/task.d/coverage-debt.sh"
 
 # QA-11: the TypeScript coverage threshold is part of this gate, not only of CI.
 # `--no-run` is the compile-only mode `ci` uses before `test`, and the TypeScript
-# half is a test run, so it stays out of that pass.
+# half is a test run, so it stays out of that pass. The `web` job runs
+# `pnpm check:web`, which is the same gate, for `--static` in CI.
 if [ "$run_suites" = "1" ]; then
   sh "$REPO_ROOT/task.d/typescript.sh"
 fi
@@ -95,6 +104,8 @@ fi
 # instead of letting `ok` imply more than that happened.
 if [ "$run_suites" = "1" ]; then
   printf 'check: ok (unit suites only; ./task test adds the integration set)\n'
-else
+elif [ "$compile_suites" = "1" ]; then
   printf 'check: ok (unit suites compiled, not run; ./task test runs them)\n'
+else
+  printf 'check: ok (static gates only; api-test compiles and runs every suite)\n'
 fi

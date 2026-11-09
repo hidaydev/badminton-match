@@ -213,11 +213,12 @@ nim_run_check() {
 }
 
 nim_compile_check() {
-  # Compile a suite without running it, so `ci` can keep the compile-only
-  # signal while `test` executes the same file once.
+  # Compile a suite without running it. It writes into the same nimcache and the
+  # same output path `nim_run` uses, so `./task ci` does not compile every suite
+  # twice: the later `test` run finds its object files already built (QA-27).
   _file=$1
   shift
-  nim c $CHECK_FLAGS --nimcache:"$NIMCACHE_CHECK" \
+  nim c $CHECK_FLAGS --nimcache:"$NIMCACHE_BUILD" \
     -o:"$(test_binary "$_file")" "$_file" "$@"
 }
 
