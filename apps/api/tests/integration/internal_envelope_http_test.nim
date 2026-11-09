@@ -63,6 +63,16 @@ if dsn().len == 0:
   echo "SKIP internal envelope (MAJADU_PG_DSN is not set)"
 else:
   bootstrap()
+
+  proc serverErrorSeries(text: string): int =
+    ## The value of the `http_requests_total` series for a 500. The pool gauges
+    ## are sampled by the request itself, so the length of the exposition moves
+    ## with a float's width and cannot be the assertion.
+    for line in text.splitLines():
+      if line.startsWith("http_requests_total{") and
+          line.contains("""status="500"}"""):
+        result += parseInt(line.splitWhitespace()[^1])
+
   suite "a defect answers the shared envelope":
     test "the body is problem+json with code INTERNAL and a request id":
       let response = call(baseUrl, HttpGet, "/boom")
@@ -75,10 +85,13 @@ else:
       check body["request_id"].getStr().len == 36
 
     test "the response is counted, so a crash is not invisible in the metrics":
-      let before = metricsText().len
+      # The 500 series, not the length of the exposition: the pool gauges are
+      # sampled by the request itself, so their text can shrink by a byte and
+      # a length comparison decides the test instead of the counter.
+      let before = serverErrorSeries(metricsText())
       discard call(baseUrl, HttpGet, "/boom")
       let text = metricsText()
-      check text.len >= before
+      check serverErrorSeries(text) == before + 1
       check text.contains("""status="500"}""")
 
     test "mummy's own lines render as the same JSON object":
