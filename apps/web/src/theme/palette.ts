@@ -14,10 +14,10 @@ export const PALETTE = {
   fg: '#eef0f3',
   fgDim: '#8b939c',
   accent: '#e3b341',
-  accentAlt: '#e3b341',
+  accentAlt: '#6d9dc8',
   success: '#43a57d',
   error: '#d65a5a',
-  warning: '#e3b341',
+  warning: '#e0985c',
   info: '#5b8fbd',
   /** Named intentional extension for team highlights, not part of the UI scale. */
   teamGreen: '#2ea865',

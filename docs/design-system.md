@@ -44,14 +44,14 @@ Both are third-party files: see `THIRD-PARTY-NOTICES.md`.
 | Token | Hex | Tailwind class | Usage |
 |-------|-----|----------------|-------|
 | `--color-accent` | `#e3b341` | `text-accent` | Brand, CTA, highlights |
-| `--color-accent-alt` | `#e3b341` | `text-accent-alt` | Interactive, links (now the same as `accent`) |
+| `--color-accent-alt` | `#6d9dc8` | `text-accent-alt` | Interactive, links |
 
 ### Status
 | Token | Hex | Tailwind class | Usage |
 |-------|-----|----------------|-------|
 | `--color-success` | `#43a57d` | `text-success` | Positive states |
 | `--color-error` | `#d65a5a` | `text-error` | Errors, destructive |
-| `--color-warning` | `#e3b341` | `text-warning` | Warnings (same as `accent`) |
+| `--color-warning` | `#e0985c` | `text-warning` | Warnings |
 | `--color-info` | `#5b8fbd` | `text-info` | Informational |
 
 ## Token Usage in Components
