@@ -1008,6 +1008,69 @@
         ]
       }
     },
+    "/c/{slug}/claims": {
+      "get": {
+        "operationId": "listPendingClaims",
+        "tags": [
+          "community"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After and the body's retryAfter are the number of seconds to wait.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/c/{slug}/config": {
       "get": {
         "operationId": "getCommunityConfig",

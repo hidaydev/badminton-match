@@ -239,6 +239,9 @@ importers:
       '@majadu/scoreboard-ui':
         specifier: workspace:*
         version: link:../../packages/scoreboard-ui
+      '@majadu/web-client':
+        specifier: workspace:*
+        version: link:../../packages/web-client
       '@tanstack/react-query':
         specifier: ^5.106.0
         version: 5.106.0(@types/react@19.3.0)(react@19.3.1)
@@ -343,6 +346,8 @@ importers:
       '@types/react':
         specifier: ^19.2.14
         version: 19.3.0
+
+  packages/web-client: {}
 
 packages:
 

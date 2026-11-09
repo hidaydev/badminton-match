@@ -68,6 +68,15 @@ export const routes: readonly RouteSpec[] = [
     isWebSocket: false,
   },
   {
+    operationId: "listPendingClaims",
+    httpMethod: "GET",
+    path: "/c/{slug}/claims",
+    tag: "community",
+    pathParams: ["slug"],
+    hasBody: false,
+    isWebSocket: false,
+  },
+  {
     operationId: "getCommunityConfig",
     httpMethod: "GET",
     path: "/c/{slug}/config",
