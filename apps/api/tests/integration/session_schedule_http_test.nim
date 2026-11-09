@@ -210,6 +210,54 @@ suite "session schedule HTTP":
     check scoreRows[0].get("game") == "0-0"
     check scoreRows[0].get("count") == "1"
 
+  test "a failed audit insert rolls the score back":
+    # DB-24: a scoring write and its evidence share one transaction now. A
+    # trigger that rejects the audit row must take the score with it, or the
+    # client would see a 500 for a result that had already landed.
+    let created = call(baseUrl, HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Audited","date":"2026-11-06"}""").body
+    let sessionId = parseJson(created)["id"].getStr()
+    let schedule = """{"games":[{"round":0,"court":0,"sideA":["""" &
+      players[0] & """","""" & players[1] & """"],"sideB":["""" &
+      players[2] & """","""" & players[3] & """"]}]}"""
+    expectStatus(call(baseUrl, HttpPut,
+      "/c/sched-club/sessions/" & sessionId & "/schedule", hostCookie, schedule,
+      ifMatch = "\"1\""), 200)
+    discard database.execUpdate(
+      """create or replace function t_sched_audit_fail() returns trigger
+         language plpgsql as $fn$
+         begin
+           if new.action = 'session.game.score' then
+             raise exception 'injected audit failure' using errcode = 'P0001';
+           end if;
+           return new;
+         end $fn$""")
+    discard database.execUpdate(
+      """create trigger t_sched_audit_fail before insert on account.audit
+         for each row execute function t_sched_audit_fail()""")
+    let failed = call(baseUrl, HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
+      """{"scoreA":30,"scoreB":15}""", ifMatch = "\"2\"")
+    expectStatus(failed, 500)
+    discard database.execUpdate("drop trigger t_sched_audit_fail on account.audit")
+    discard database.execUpdate("drop function t_sched_audit_fail()")
+    let game = database.queryOne(
+      """select g.status, s.version,
+                (select count(*)::int from session.game_sets x
+                 where x.community_id = g.community_id
+                   and x.session_id = g.session_id) as sets
+         from session.games g
+         join session.sessions s
+           on s.community_id = g.community_id and s.id = g.session_id
+         where g.session_id = $1::uuid and g.round_no = 0 and g.court_no = 0""",
+      @[textParam(sessionId)]).get
+    check game.get("status") == "scheduled"
+    check game.get("version") == "2"
+    check game.get("sets") == "0"
+    expectStatus(call(baseUrl, HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
+      """{"scoreA":30,"scoreB":15}""", ifMatch = "\"2\""), 200)
+
   test "a classic session records sets and only counts a finished match":
     let body = call(baseUrl, HttpPost, "/c/sched-club/sessions", hostCookie,
       """{"title":"Classic night","date":"2026-11-12","scoringPreset":"classic21"}""").body

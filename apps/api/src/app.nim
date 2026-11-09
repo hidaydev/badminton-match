@@ -764,9 +764,14 @@ proc listAuthSessions(request: Request, snapshot: Snapshot) =
 proc revokeOtherSessions(request: Request, snapshot: Snapshot) =
   let user = requireUser(request, snapshot)
   if user.isNone: return
-  revokeOthers(application.db, user.get.id, user.get.token)
+  # The revoke and its evidence share one transaction: a crash between them
+  # would otherwise leave a privileged write with no row in account.audit.
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    revokeOthers(tx, user.get.id, user.get.token)
+    auditConn(conn, "auth.sessions.revoke_others", "", user.get, "user",
+      user.get.id, newJObject(),
+      (if user.get.isOwner: "platform_owner" else: "member")))
   application.hub.revokePrincipal(user.get.id)
-  authAudit("auth.sessions.revoke_others", user.get)
   send(request, 204)
 
 proc me(request: Request, snapshot: Snapshot) =
@@ -782,12 +787,19 @@ proc me(request: Request, snapshot: Snapshot) =
 proc logout(request: Request, snapshot: Snapshot) =
   let token = cookieValue(request, "majadu_session")
   let user = currentUser(request, snapshot)
-  if token.len > 0:
+  # Logging out deletes rows, so the evidence belongs to that transaction too.
+  # A cookie with no live session behind it still answers 204 and writes nothing.
+  if user.isSome:
+    auditedWrite(proc(tx: Db, conn: DbConn) =
+      if token.len > 0:
+        revoke(tx, token)
+      auditConn(conn, "auth.logout", "", user.get, "user", user.get.id,
+        newJObject(), (if user.get.isOwner: "platform_owner" else: "member")))
+  elif token.len > 0:
     revoke(application.db, token)
   # Sockets and every ticket of the principal close with the session.
   if user.isSome:
     application.hub.revokePrincipal(user.get.id)
-    authAudit("auth.logout", user.get)
   send(request, 204, @[("Set-Cookie",
     "majadu_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0")], "")
 
@@ -2441,32 +2453,32 @@ proc scheduleProblem(request: Request, status: sessionSchedule.ScheduleStatus) =
   of sessionSchedule.ssNotParticipant:
     problem(request, 400, "NOT_PARTICIPANT", "player is not in this session")
 
-proc scheduleAudit(ctx: CommunityContext, user: AuthUser, action,
-                  sessionId: string, evidence: JsonNode) =
-  ## One row per mutating scoring call. The schedule store owns its own
-  ## transaction, so this row commits after the write instead of with it; a
-  ## failed insert is logged rather than turning a saved score into a 500.
-  try:
-    recordAudit(application.db, evidenceEvent(action, ctx.communityId, user,
-      "session", sessionId, evidence, $ctx.role))
-  except DbError as error:
-    logError("scoring write not audited",
-      [("error", error.msg), ("action", action)])
-
-proc scheduleDone(request: Request, ctx: CommunityContext, user: AuthUser,
-                  action: string, evidence: JsonNode, sessionId: string,
+proc scheduleDone(request: Request, ctx: CommunityContext,
+                  sessionId: string,
                   status: sessionSchedule.ScheduleStatus) =
+  ## Every scoring route commits its write and its evidence together, then
+  ## answers here. The status is all that is left to turn into a response.
   if status != sessionSchedule.ssOk:
     scheduleProblem(request, status)
     return
-  # The writes that decide ranking points are the ones with no attributable
-  # record otherwise: a host could change a score before approval and the only
-  # trace would be the final value plus a version counter.
-  scheduleAudit(ctx, user, action, sessionId, evidence)
   let version = sessionVersionNow(ctx.communityId, sessionId)
   application.hub.sessionChanged(sessionId, version)
   jsonResponse(request, 200, %*{"version": version},
     [("ETag", "\"" & $version & "\"")])
+
+proc scheduleWrite(sessionId: string, action: string, ctx: CommunityContext,
+                   user: AuthUser, evidence: JsonNode,
+                   body: proc(tx: Db): sessionSchedule.ScheduleStatus):
+                   sessionSchedule.ScheduleStatus =
+  ## One transaction for a scoring write and its audit row. The schedule stores
+  ## open their own savepoint on the facade, so a refusal rolls back exactly what
+  ## they wrote, and a failure in either the write or the audit leaves neither.
+  var outcome: sessionSchedule.ScheduleStatus
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    outcome = body(tx)
+    if outcome == sessionSchedule.ssOk:
+      auditConn(conn, action, ctx, user, "session", sessionId, evidence))
+  outcome
 
 proc putScheduleRoute(request: Request, ctx: CommunityContext, user: AuthUser,
                     sessionId: string, snapshot: Snapshot) =
@@ -2480,10 +2492,11 @@ proc putScheduleRoute(request: Request, ctx: CommunityContext, user: AuthUser,
       [("error", error.msg), ("path", request.path)])
     problem(request, 400, "INVALID_SCHEDULE", error.msg)
     return
-  scheduleDone(request, ctx, user, "session.schedule.put",
-    %*{"count": games.len}, sessionId,
-    sessionSchedule.putSchedule(application.db, ctx.communityId, sessionId,
-      version.get, games))
+  scheduleDone(request, ctx, sessionId,
+    scheduleWrite(sessionId, "session.schedule.put", ctx, user,
+      %*{"count": games.len}, proc(tx: Db): sessionSchedule.ScheduleStatus =
+        sessionSchedule.putSchedule(tx, ctx.communityId, sessionId,
+          version.get, games)))
 
 proc setAbsentRoute(request: Request, ctx: CommunityContext, user: AuthUser,
                     sessionId: string, snapshot: Snapshot) =
@@ -2497,10 +2510,11 @@ proc setAbsentRoute(request: Request, ctx: CommunityContext, user: AuthUser,
       [("error", error.msg), ("path", request.path)])
     problem(request, 400, "INVALID_SCHEDULE", error.msg)
     return
-  scheduleDone(request, ctx, user, "session.absent.set", %*{"count": playerIds.len},
-    sessionId,
-    sessionSchedule.setAbsent(application.db, ctx.communityId, sessionId,
-      version.get, playerIds))
+  scheduleDone(request, ctx, sessionId,
+    scheduleWrite(sessionId, "session.absent.set", ctx, user,
+      %*{"count": playerIds.len}, proc(tx: Db): sessionSchedule.ScheduleStatus =
+        sessionSchedule.setAbsent(tx, ctx.communityId, sessionId,
+          version.get, playerIds)))
 
 proc setVerdictProblem(request: Request, verdict: sessionScoring.SetVerdict) =
   ## The one table from a verdict to its HTTP code and message. `setSets` already
@@ -2550,12 +2564,13 @@ proc setGameScoreRoute(request: Request, ctx: CommunityContext, user: AuthUser,
     if body["played"].kind != JBool:
       problem(request, 400, "INVALID_BODY", "played must be a boolean")
       return
-    scheduleDone(request, ctx, user, "session.game.played",
-      %*{"gameKey": gameKey,
-         "status": (if body["played"].getBool(): "played" else: "scheduled")},
-      sessionId,
-      sessionSchedule.setPlayed(application.db, ctx.communityId, sessionId,
-        gameKey, version.get, body["played"].getBool()))
+    let played = body["played"].getBool()
+    scheduleDone(request, ctx, sessionId,
+      scheduleWrite(sessionId, "session.game.played", ctx, user,
+        %*{"gameKey": gameKey, "status": (if played: "played" else: "scheduled")},
+        proc(tx: Db): sessionSchedule.ScheduleStatus =
+          sessionSchedule.setPlayed(tx, ctx.communityId, sessionId,
+            gameKey, version.get, played)))
     return
   var sets: seq[sessionScoring.SetScore]
   let hasSets = body.hasKey("sets")
@@ -2576,13 +2591,19 @@ proc setGameScoreRoute(request: Request, ctx: CommunityContext, user: AuthUser,
     sets = @[sessionScoring.SetScore(a: body["scoreA"].getInt(),
                                      b: body["scoreB"].getInt())]
 
-  let outcome = sessionSchedule.setSets(application.db, ctx.communityId,
-    sessionId, gameKey, version.get, sets, flat = not hasSets)
+  var outcome: tuple[status: sessionSchedule.ScheduleStatus,
+                     verdict: sessionScoring.SetVerdict]
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    outcome = sessionSchedule.setSets(tx, ctx.communityId,
+      sessionId, gameKey, version.get, sets, flat = not hasSets)
+    if outcome.status == sessionSchedule.ssOk and
+        outcome.verdict.error == sessionScoring.seOk:
+      auditConn(conn, "session.game.score", ctx, user, "session", sessionId,
+        %*{"gameKey": gameKey, "count": sets.len}))
   if outcome.verdict.error != sessionScoring.seOk:
     setVerdictProblem(request, outcome.verdict)
     return
-  scheduleDone(request, ctx, user, "session.game.score",
-    %*{"gameKey": gameKey, "count": sets.len}, sessionId, outcome.status)
+  scheduleDone(request, ctx, sessionId, outcome.status)
 
 proc skipGameRoute(request: Request, ctx: CommunityContext, user: AuthUser,
                    sessionId, gameKey: string,
@@ -2603,15 +2624,18 @@ proc skipGameRoute(request: Request, ctx: CommunityContext, user: AuthUser,
           "playerIds must hold strings")
         return
       playerIds.add(item.getStr())
-    scheduleDone(request, ctx, user, "session.game.skip",
-      %*{"gameKey": gameKey, "count": playerIds.len}, sessionId,
-      sessionSchedule.setSkips(application.db, ctx.communityId, sessionId,
-        gameKey, version.get, playerIds))
+    scheduleDone(request, ctx, sessionId,
+      scheduleWrite(sessionId, "session.game.skip", ctx, user,
+        %*{"gameKey": gameKey, "count": playerIds.len},
+        proc(tx: Db): sessionSchedule.ScheduleStatus =
+          sessionSchedule.setSkips(tx, ctx.communityId, sessionId,
+            gameKey, version.get, playerIds)))
     return
-  scheduleDone(request, ctx, user, "session.game.skip", %*{"gameKey": gameKey},
-    sessionId,
-    sessionSchedule.skipGame(application.db, ctx.communityId, sessionId, gameKey,
-      version.get))
+  scheduleDone(request, ctx, sessionId,
+    scheduleWrite(sessionId, "session.game.skip", ctx, user,
+      %*{"gameKey": gameKey}, proc(tx: Db): sessionSchedule.ScheduleStatus =
+        sessionSchedule.skipGame(tx, ctx.communityId, sessionId, gameKey,
+          version.get)))
 
 proc getSessionStandingsRoute(request: Request, ctx: CommunityContext,
                               sessionId: string) =
