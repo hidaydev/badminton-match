@@ -87,6 +87,16 @@ suite "player store":
     check outcome.status == psDuplicate
     check aliases(db, communityId, targetId) == @["Target Alias"]
 
+  test "a patch on a missing player is not_found and writes nothing":
+    let outcome = patch(db, communityId,
+      "00000000-0000-0000-0000-000000000000", PlayerPatch(name: some("Ghost")))
+    check outcome.status == psNotFound
+    check not outcome.aliasTaken
+    check db.queryOne(
+      """select count(*) as total from player.players
+         where community_id = $1::uuid and canonical_name = 'Ghost'""",
+      @[textParam(communityId)]).get.get("total") == "0"
+
   test "a search treats LIKE wildcards literally":
     discard addPlayer(db, communityId, "Percent 100%")
     check list(db, communityId, 10, search = "100%").len == 1

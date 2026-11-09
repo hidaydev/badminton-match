@@ -366,3 +366,42 @@ suite "delivery SQL rule":
     let source = "let sql = \"select id from session.sessions where community_id = $1\"\n"
     check deliverySqlViolations("modules/session/write.nim", source).len == 0
     check deliverySqlViolations("apps/api/tests/x_test.nim", source).len == 0
+
+  test "a directory or whole-file entry exempts the tree":
+    let source = "proc handler() =\n" &
+      "  discard application.db.execUpdate(\n" &
+      "    \"update platform.x set y = 1\")\n"
+    check deliverySqlViolations("apps/api/src/app.nim", source,
+      ["apps/api/"]).len == 0
+    check deliverySqlViolations("apps/api/src/app.nim", source,
+      ["apps/api/src/app.nim"]).len == 0
+
+  test "an empty allowlist entry is ignored rather than exempting everything":
+    let source = "proc handler() =\n" &
+      "  let sql = \"select id from session.sessions where community_id = $1\"\n"
+    check deliverySqlViolations("apps/api/src/app.nim", source,
+      [""]).len == 1
+
+  test "every SQL verb is a finding":
+    for verb in ["insert into session.sessions(id)", "update session.sessions set id = 1",
+                 "with x as (select 1) select * from x"]:
+      let source = "proc handler() =\n  let sql = \"" & verb & "\"\n"
+      check deliverySqlViolations("apps/api/src/app.nim", source).len == 1
+
+  test "a statement outside any routine is named without a proc suffix":
+    let source = "let sql = \"delete from session.sessions where community_id = $1\"\n"
+    let found = deliverySqlViolations("apps/api/src/app.nim", source)
+    check found.len == 1
+    check not found[0].contains("(proc ")
+
+  test "application.db is reported once per routine":
+    let source = "proc handler() =\n" &
+      "  discard application.db.acquire()\n" &
+      "  discard application.db.release()\n"
+    let found = deliverySqlViolations("apps/api/src/app.nim", source)
+    check found.len == 1
+    check found[0].contains("application.db")
+
+  test "application.db inside a string literal is not the global pool":
+    let source = "proc handler() =\n  echo \"application.db\"\n"
+    check deliverySqlViolations("apps/api/src/app.nim", source).len == 0

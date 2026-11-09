@@ -53,6 +53,36 @@ suite "process contract":
       delEnv("MAJADU_TEST_ROUTES")
       delEnv("OIDC_REDIRECT_URI")
 
+  test "the skeleton flag also refuses a secure cookie over plain http":
+    putEnv("MAJADU_PORT", "8080")
+    putEnv("MAJADU_DRAIN_MS", "0")
+    putEnv("MAJADU_TEST_ROUTES", "1")
+    putEnv("OIDC_REDIRECT_URI", "http://127.0.0.1:5173/api/auth/callback")
+    putEnv("MAJADU_COOKIE_SECURE", "1")
+    delEnv("MAJADU_ENV")
+    try:
+      expect ValueError:
+        discard loadConfig()
+    finally:
+      delEnv("MAJADU_TEST_ROUTES")
+      delEnv("OIDC_REDIRECT_URI")
+      delEnv("MAJADU_COOKIE_SECURE")
+
+  test "the skeleton flag refuses MAJADU_ENV=prod":
+    putEnv("MAJADU_PORT", "8080")
+    putEnv("MAJADU_DRAIN_MS", "0")
+    putEnv("MAJADU_TEST_ROUTES", "1")
+    putEnv("OIDC_REDIRECT_URI", "http://127.0.0.1:5173/api/auth/callback")
+    delEnv("MAJADU_COOKIE_SECURE")
+    putEnv("MAJADU_ENV", "prod")
+    try:
+      expect ValueError:
+        discard loadConfig()
+    finally:
+      delEnv("MAJADU_TEST_ROUTES")
+      delEnv("OIDC_REDIRECT_URI")
+      delEnv("MAJADU_ENV")
+
 suite "metrics listener":
   test "is off unless a port is configured":
     delEnv("MAJADU_METRICS_PORT")
