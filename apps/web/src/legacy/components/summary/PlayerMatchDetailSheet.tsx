@@ -3,7 +3,7 @@ import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { Player, ScheduleSlot, GameScore, PlayerId, SetScore } from '../../types'
 import { toPlayerId, toGameKey } from '../../types'
 import type { PlayerStanding } from '../../utils/standings'
-import { setsWon, describeSets } from '../../utils/scoring'
+import { setsWon, describeSetsFor } from '../../utils/scoring'
 import { ordinal } from '../../utils/ordinal'
 
 interface GameRow {
@@ -155,7 +155,7 @@ export default function PlayerMatchDetailSheet({
               </div>
               {game.sets && game.sets.length > 0 ? (
                 <div className="mt-1">
-                  <div className="text-sm text-slate-300">{describeSets(game.sets)}</div>
+                  <div className="text-sm text-slate-300">{describeSetsFor(game.sets, game.onTeamA)}</div>
                   {game.sets.length > 1 && (
                     <div className="text-[11px] text-slate-400">
                       {(() => {
@@ -167,7 +167,7 @@ export default function PlayerMatchDetailSheet({
                 </div>
               ) : game.scoreFor !== null ? (
                 <div className="text-sm text-slate-300 mt-1">
-                  {game.scoreFor} - {game.scoreAgainst}
+                  {game.scoreFor}–{game.scoreAgainst}
                 </div>
               ) : null}
             </div>

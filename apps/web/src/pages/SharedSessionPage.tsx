@@ -302,13 +302,10 @@ export default function SharedSessionPage() {
                             game.scoreA !== null &&
                             game.scoreB !== null
                           const sets = game.sets ?? []
-                          const multiSet = sets.length > 1 ||
-                            (session.scoring !== undefined && session.scoring !== null &&
-                              session.scoring.gamesToWin > 1)
                           const headline = sets.length > 0
                             ? describeSets(sets)
                             : `${game.scoreA}–${game.scoreB}`
-                          const tally = multiSet && sets.length > 1
+                          const tally = sets.length > 1
                             ? `${game.setsWonA ?? 0}–${game.setsWonB ?? 0}`
                             : null
                           return (

@@ -67,8 +67,11 @@ describe('PlayerMatchDetailSheet match history', () => {
       },
     })
 
-    expect(screen.getByText('21–18 · 19–21')).toBeInTheDocument()
-    expect(screen.getByText('1 - 1')).toBeInTheDocument()
+    const points = screen.getByText('21–18 · 19–21')
+    const tally = screen.getByText('1 - 1')
+    expect(points).toHaveClass('text-sm', 'text-slate-300')
+    expect(tally).toHaveClass('text-[11px]', 'text-slate-400')
+    expect(points.compareDocumentPosition(tally) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('keeps the plain score for a game without recorded sets', () => {
@@ -76,7 +79,26 @@ describe('PlayerMatchDetailSheet match history', () => {
       [toGameKey(0, 0)]: { a: 21, b: 15 },
     })
 
-    expect(screen.getByText('21 - 15')).toBeInTheDocument()
+    expect(screen.getByText('21–15')).toBeInTheDocument()
+  })
+
+  it('orients the points and the tally to a winning team B player', () => {
+    renderSheet('Candra', {
+      [toGameKey(0, 0)]: { a: 18, b: 21, sets: [{ a: 18, b: 21 }] },
+    })
+
+    expect(screen.getByText('21–18')).toBeInTheDocument()
+    expect(screen.queryByText('18–21')).toBeNull()
+    expect(badge('Won', 'text-emerald-400')).toBeDefined()
+  })
+
+  it('orients the points and the badge to a losing team B player', () => {
+    renderSheet('Candra', {
+      [toGameKey(0, 0)]: { a: 21, b: 18, sets: [{ a: 21, b: 18 }] },
+    })
+
+    expect(screen.getByText('18–21')).toBeInTheDocument()
+    expect(badge('Lost', 'text-red-400')).toBeDefined()
   })
 
   it('still shows the Won badge for a winning match', () => {
