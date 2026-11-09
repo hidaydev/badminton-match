@@ -57,10 +57,10 @@ export default function AdminTournamentsPage() {
                       tone="red"
                       onClick={() => {
                         if (window.confirm(t('admin.tournamentDeleteConfirm', { name: t2.name || 'Untitled Tournament' }))) {
-                          run(
+                          void run(
                             () => adminRequest('POST', `/tournaments/${t2.id}/delete`),
                             t('admin.tournamentDeleted'),
-                            () => refetch(),
+                            () => { void refetch() },
                           )
                         }
                       }}

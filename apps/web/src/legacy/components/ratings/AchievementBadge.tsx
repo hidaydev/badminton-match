@@ -1,17 +1,19 @@
-// src/components/ratings/AchievementBadge.tsx, badge medal berbentuk segi enam
-// beraturan dengan visual metalik prestisius dan taktil ("ciamik").
+// src/components/ratings/AchievementBadge.tsx: a regular hexagon medal badge
+// with a prestigious, tactile metallic look.
 //
-// Alasan tiap keputusan (R-31):
-// - Segi enam beraturan (pointy-top) dipertahankan 100%:
-//   viewBox-nya persis kotak pembatas heksagon (46.8 x 54 = √3 : 2), sehingga
-//   packing sarang lebah (MedalHoneycomb) tetap rapat dan presisi tanpa celah.
-// - Visual metalik taktil bertingkat (Bronze, Silver, Gold, Platinum, Onyx):
-//   gradien metalik directional (highlight, core, rim-bounce), dual-ring beveled
-//   edge (outer chamfer + inner facet), dan relief embos pada glyph di pelat tengah.
-// - Event medals mendapat seal/emblem geometris berdimensi (faceted star, laurel,
-//   rosette, diamond crest) dengan tone warna unik per turnamen.
-// - State terkunci: siluet dark frosted / etched obsidian taktil.
-// - Micro-interaksi: hover scale springy + ambient glow senada warna tier.
+// Why each decision (R-31):
+// - The regular hexagon (pointy-top) is kept exactly:
+//   its viewBox is the exact hexagon bounding box (46.8 x 54 = √3 : 2), so the
+//   honeycomb packing (MedalHoneycomb) stays tight and precise with no gaps.
+// - Layered tactile metal (Bronze, Silver, Gold, Platinum, Onyx):
+//   a directional metallic gradient (highlight, core, rim-bounce), a dual-ring
+//   beveled edge (outer chamfer plus inner facet) and an embossed glyph on the
+//   centre plate.
+// - Event medals get a dimensional geometric seal or emblem (faceted star,
+//   laurel, rosette, diamond crest) with a unique colour tone per tournament.
+// - Locked state: a tactile dark frosted / etched obsidian silhouette.
+// - Micro-interaction: springy hover scale plus an ambient glow in the tier
+//   colour.
 
 import { useId } from 'react'
 import type { MedalIcon } from '../../utils/achievementBadge'
@@ -43,7 +45,8 @@ const CX = 23.4
 const CY = 27
 const COS30 = 0.8660254037844386
 
-// Menghitung koordinat 6 titik segi enam pointy-top untuk radius r tertentu
+// Computes the coordinates of the 6 corners of a pointy-top hexagon for a given
+// radius r
 function hexPoints(r: number, cx = CX, cy = CY): [number, number][] {
   return [
     [cx, cy - r],                  // 0: atas

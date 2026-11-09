@@ -97,9 +97,10 @@ function getUsedAtT(grid: (ScheduledGame | null)[][], t: number, slotsPerCourt: 
   const used = new Set<string>()
   for (let c = 0; c < slotsPerCourt.length; c++) {
     const offset = courtOffsets[c] ?? 0
-    if (t >= offset && t < offset + slotsPerCourt[c] && grid[c][t]) {
-      grid[c][t]!.teamA.forEach((p) => used.add(p))
-      grid[c][t]!.teamB.forEach((p) => used.add(p))
+    const cell = grid[c]?.[t] ?? null
+    if (t >= offset && t < offset + slotsPerCourt[c] && cell !== null) {
+      cell.teamA.forEach((p) => used.add(p))
+      cell.teamB.forEach((p) => used.add(p))
     }
   }
   return used
@@ -184,9 +185,9 @@ interface MergePairableResult {
   mergedSourceIds: Map<string, [string, string]>
 }
 
-// ── Shared context untuk fase-fase penempatan ─────────────────────────────
-// Menggabungkan field yang di-share antar fase (sebelumnya parameter
-// positional 11-14 buah yang rawan salah urut).
+// ── Shared context for the placement phases ────────────────────────────────
+// Groups the fields the phases share (previously 11 to 14 positional parameters
+// that were easy to pass in the wrong order).
 
 interface PhaseContext {
   grid: (ScheduledGame | null)[][]
@@ -223,10 +224,12 @@ function placePinnedMatches(
     : []
   const pinnedIds = new Set(pinnedMatches.map(fm => fm.id))
   const unplacedIds: string[] = []
+  const toSlot = timeToSlotIndexFn
 
   for (const fm of pinnedMatches) {
+    if (toSlot === undefined) break
     const c = fm.pinnedCourt
-    const t = timeToSlotIndexFn!(fm.pinnedTime)
+    const t = toSlot(fm.pinnedTime)
 
     // Validate court index is within bounds
     if (c < 0 || c >= slotsPerCourt.length) {
@@ -343,8 +346,9 @@ function spreadFixMatches(
   const fixGroups = new Map<string, MatchConstraint[]>()
   for (const fm of effectiveFixes) {
     const key = fm.slots.filter(Boolean).sort().join('|')
-    if (!fixGroups.has(key)) fixGroups.set(key, [])
-    fixGroups.get(key)!.push(fm)
+    const group = fixGroups.get(key)
+    if (group === undefined) fixGroups.set(key, [fm])
+    else group.push(fm)
   }
   const targetSlot = new Map<string, number>()
   for (const group of fixGroups.values()) {
@@ -534,7 +538,7 @@ export function generate(ctx: GenerateContext): GeneratorResult {
   }
   const fixPlayCount: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]))
 
-  // Shared context untuk semua fase penempatan
+  // Shared context for every placement phase
   const phaseCtx: PhaseContext = {
     grid,
     slotsPerCourt,
@@ -572,8 +576,8 @@ export function generate(ctx: GenerateContext): GeneratorResult {
   for (let c = 0; c < numCourts; c++) {
     const offset = courtOffsets[c] ?? 0
     for (let t = offset; t < offset + slotsPerCourt[c]; t++) {
-      if (grid[c][t]) {
-        const g = grid[c][t]!
+      const g = grid[c][t]
+      if (g) {
         schedule.push({
           slot: t,
           court: c,

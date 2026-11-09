@@ -6,7 +6,8 @@ import { isPlaceholderName } from '../../utils/placeholders'
 import { ordinal } from '../../utils/ordinal'
 import PlayerMatchDetailSheet from './PlayerMatchDetailSheet'
 
-// Objek stabil agar useMemo di bawah tidak invalid tiap render saat prop kosong.
+// A stable object so the useMemo below stays valid on every render when the
+// prop is empty.
 const EMPTY_SKIPPED: Record<string, string[]> = {}
 
 interface StandingsTabProps {
@@ -29,7 +30,7 @@ export default function StandingsTab({
   const { absentList, placeholderList, voidPlayerIds, standings } = useMemo(() => {
     const absentList = players.filter(p => absentPlayerIds.includes(p.id))
     const placeholderList = players.filter(p => isPlaceholderName(p.name))
-    // VOID = absent + placeholder (game yang memuat keduanya tidak ditallikan)
+    // VOID = absent + placeholder (a game containing either is not tallied)
     const voidPlayerIds = [...absentPlayerIds, ...placeholderList.map(p => p.id)]
     const standings = computeStandings(
       players.filter(p => !absentPlayerIds.includes(p.id) && !isPlaceholderName(p.name)),

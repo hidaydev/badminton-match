@@ -1,6 +1,6 @@
 // src/components/admin/AdminMenuGrid.tsx — grid card menu admin (home page).
-// Card mengarah ke /admin/* (pages terpisah). Settings dan rating hanya untuk
-// admin komunitas; host cukup sesi dan turnamen.
+// The cards point at /admin/* (separate pages). Settings and ratings are for
+// community admins only; a host gets sessions and tournaments.
 import { useNavigate } from '../../router'
 import { useAdmin } from '../../context/AdminContext'
 import Icon, { type IconName } from '../Icon'

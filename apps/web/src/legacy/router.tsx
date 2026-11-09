@@ -58,10 +58,10 @@ export function useNavigate(): NavigateFunction {
   return useCallback(
     (to: To | number, options?: NavigateOptions) => {
       if (typeof to === 'number') {
-        navigate(to)
+        void navigate(to)
         return
       }
-      navigate(prefixTo(slug, to), options)
+      void navigate(prefixTo(slug, to), options)
     },
     [navigate, slug],
   )

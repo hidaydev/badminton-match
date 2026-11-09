@@ -154,11 +154,10 @@ export default function HomePage() {
           {secondary.map((item) => (
             <button
               key={item.to}
-              onClick={() =>
-                item.to === '/scoreboard'
-                  ? openScoreboard(navigate)
-                  : navigate(item.to)
-              }
+              onClick={() => {
+                if (item.to === '/scoreboard') void openScoreboard((path) => { void navigate(path) })
+                else void navigate(item.to)
+              }}
               className="flex items-start gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-all text-left hit44"
             >
               <div className="w-8 h-8 rounded-lg bg-elevated border border-border-subtle flex items-center justify-center shrink-0 text-accent">

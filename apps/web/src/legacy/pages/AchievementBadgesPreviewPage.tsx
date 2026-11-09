@@ -1,6 +1,7 @@
-// src/pages/AchievementBadgesPreviewPage.tsx, pratinjau template badge medal
-// (segi enam). Halaman ini untuk melihat bentuk badge dan menguji interaksi popup detail.
-// Seluruh isi adalah CONTOH/MOCK, bukan data asli (R-38).
+// src/pages/AchievementBadgesPreviewPage.tsx: preview of the medal badge
+// template (hexagon). The page exists to look at the badge shape and to try the
+// detail popup interaction. Everything here is SAMPLE/MOCK data, not real data
+// (R-38).
 
 import { useState } from 'react'
 import AchievementBadge from '../components/ratings/AchievementBadge'

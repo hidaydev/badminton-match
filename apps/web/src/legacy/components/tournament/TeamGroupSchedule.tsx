@@ -108,7 +108,7 @@ export default function TeamGroupSchedule({
               onTogglePostMode: () => onSetPostMode(m.id, !isPostMode),
               partaiPhotos: PARTAI_CLASSES.map((_, pi) => partaiPhotos[`${m.id}-${pi}`]),
               onUploadPartai: (pi) => openUpload(`${m.id}-${pi}`),
-              onDownload: () => handleDownload(m),
+              onDownload: () => { void handleDownload(m) },
               uploadedCount: uploadedCount(m.id),
             }}
           />

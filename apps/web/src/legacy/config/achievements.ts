@@ -1,19 +1,19 @@
-// src/config/achievements.ts, palet visual achievement.
+// src/config/achievements.ts, the achievement visual palette.
 //
-// Alasan (R-31):
-// - MEDAL_TONES: tangga pangkat Bronze..Onyx. Satu hue-family metalik per
-//   tingkat supaya tingkat langsung kebaca, tanpa mengubah palet inti app.
-// - EVENT_TONES: medal event (turnamen/season) sengaja lebih variatif supaya
-//   tiap event terasa unik, meniru medal event Ingress. Ini pengecualian palet
-//   yang disengaja: warnanya redup dan tetap cocok di dark UI; indigo/violet
-//   tetap dihindari sesuai aturan redesign app.
+// Reasons (R-31):
+// - MEDAL_TONES: the Bronze..Onyx rank ladder. One metallic hue family per
+//   level so the level reads at a glance without changing the app core palette.
+// - EVENT_TONES: event medals (tournament/season) are deliberately more varied
+//   so every event feels unique, mirroring Ingress event medals. This is a
+//   deliberate palette exception: the colours are muted and still work on the
+//   dark UI; indigo/violet are still avoided per the app redesign rules.
 
 import { PALETTE } from '../../theme/palette'
 
 // Bronze, Silver, Gold, Platinum, Onyx.
 export const MEDAL_TONES = ['#c08552', '#c7ccd1', PALETTE.accent, '#a5d8e0', '#9aa4b2']
 
-// Nama tingkat 1..5, dipakai untuk tangga di popup detail.
+// Tier names 1..5, used for the ladder in the detail popup.
 export const MEDAL_TIER_NAMES = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Onyx']
 
 export const EVENT_TONES = [

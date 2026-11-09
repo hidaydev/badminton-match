@@ -188,6 +188,8 @@ export const en = {
   'tournament.error.invalid': 'The tournament could not be saved. Check the scores and names.',
   'tournament.error.conflict': 'Someone else changed this tournament. Reload and try again.',
   'tournament.error.load': 'The tournament could not be loaded. Try again.',
+  'tournament.error.overlays':
+    'Could not load the tournament artwork. Exported posts may be missing a logo or badge.',
 
   'classic.pairs': 'Pairs',
   'classic.pair': 'Pair',

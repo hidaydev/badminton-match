@@ -21,10 +21,13 @@ export function useGetPlayerStats(nameOrId: string | undefined) {
     nameOrId === undefined || nameOrId === ''
       ? null
       : knownPlayerId(nameOrId) ?? nameOrId
+  // `enabled` keeps the query from running without an id; the empty string is
+  // the inert value here so the reader does not have to trust an assertion.
+  const id = playerId ?? ''
 
   return useQuery<V2PlayerStats, Error, PlayerStats>({
-    queryKey: communityQueryKey('playerStats', playerId ?? ''),
-    queryFn: ({ signal }) => getPlayerStatsRaw(playerId!, signal),
+    queryKey: communityQueryKey('playerStats', id),
+    queryFn: ({ signal }) => getPlayerStatsRaw(id, signal),
     select: toPlayerStats,
     enabled: playerId !== null,
     staleTime: 1000 * 60,

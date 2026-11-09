@@ -8,6 +8,12 @@ const MOCK_PARTAI: TeamMatchPartaiRow[] = [
   { tier: 'B+B', nameA: 'Rizky / Fachri', scoreA: 21, scoreB: 16, nameB: 'Azzam / Ega'  },
 ]
 
+/** A team logo when the team has one; the drawing functions accept undefined. */
+function logoFor(team: string): Promise<HTMLImageElement | undefined> {
+  const path = teamLogoPath(team)
+  return path ? loadImage(path).catch(() => undefined) : Promise.resolve(undefined)
+}
+
 const MATCHES = [
   { teamA: 'BLUE WAVES',      teamB: 'RED RAPTORS',     winsA: 3, winsB: 0 },
   { teamA: 'PURPLE PHANTOMS', teamB: 'GREEN GROVE',     winsA: 0, winsB: 3 },
@@ -20,7 +26,7 @@ function MatchCanvas({ teamA, teamB, winsA, winsB }: { teamA: string; teamB: str
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    async function render() {
+    const render = async () => {
       const loadTeamPhoto = (name: string) => {
         const path = teamPhotoPath(name)
         if (path) return loadImage(path).catch(() => loadImage('/team-photo-placeholder.png').catch(() => undefined))
@@ -31,13 +37,13 @@ function MatchCanvas({ teamA, teamB, winsA, winsB }: { teamA: string; teamB: str
         loadImage('/majadu-logo.png').catch(() => undefined),
         loadImage('/anniversary-card-logo.png').catch(() => undefined),
         loadImage('/team-sponsor-logo.png').catch(() => undefined),
-        teamLogoPath(teamA) ? loadImage(teamLogoPath(teamA)!).catch(() => undefined) : Promise.resolve(undefined),
-        teamLogoPath(teamB) ? loadImage(teamLogoPath(teamB)!).catch(() => undefined) : Promise.resolve(undefined),
+        logoFor(teamA),
+        logoFor(teamB),
         loadTeamPhoto(teamA),
         loadTeamPhoto(teamB),
       ])
       drawTeamMatchPost({
-        canvas: canvas!,
+        canvas,
         teamAName: teamA,
         teamBName: teamB,
         teamAWins: winsA,
@@ -56,7 +62,7 @@ function MatchCanvas({ teamA, teamB, winsA, winsB }: { teamA: string; teamB: str
         teamBColor: teamColor(teamB),
       })
     }
-    render()
+    void render()
   }, [teamA, teamB, winsA, winsB])
 
   return (
@@ -72,18 +78,18 @@ function PartaiCanvas() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    async function render() {
+    const render = async () => {
       const [photo, logo, cardLogo, sponsor, teamALogo, teamBLogo] = await Promise.all([
         loadImage('/court-bg.png').catch(() => undefined),
         loadImage('/majadu-logo.png').catch(() => undefined),
         loadImage('/anniversary-card-logo.png').catch(() => undefined),
         loadImage('/team-sponsor-logo.png').catch(() => undefined),
-        teamLogoPath('BLUE WAVES') ? loadImage(teamLogoPath('BLUE WAVES')!).catch(() => undefined) : Promise.resolve(undefined),
-        teamLogoPath('RED RAPTORS') ? loadImage(teamLogoPath('RED RAPTORS')!).catch(() => undefined) : Promise.resolve(undefined),
+        logoFor('BLUE WAVES'),
+        logoFor('RED RAPTORS'),
       ])
       if (!photo) return
       drawMatchPost({
-        canvas: canvas!,
+        canvas,
         photo,
         pairAName: 'Fahmi / Tari',
         pairBName: 'Dimas / Sarah',
@@ -97,7 +103,7 @@ function PartaiCanvas() {
         teamBLogo,
       })
     }
-    render()
+    void render()
   }, [])
   return (
     <div className="flex flex-col items-center gap-2">
@@ -112,18 +118,18 @@ function PositionCanvas({ positionLabel, teamName }: { positionLabel: string; te
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    async function render() {
+    const render = async () => {
       const [photo, logo, cardLogo, sponsor, chevrons, teamLogo] = await Promise.all([
         loadImage('/court-bg.png').catch(() => undefined),
         loadImage('/majadu-logo.png').catch(() => undefined),
         loadImage('/anniversary-card-logo.png').catch(() => undefined),
         loadImage('/team-sponsor-logo.png').catch(() => undefined),
         loadImage('/chevrons.png').catch(() => undefined),
-        teamLogoPath(teamName) ? loadImage(teamLogoPath(teamName)!).catch(() => undefined) : Promise.resolve(undefined),
+        logoFor(teamName),
       ])
       if (!photo) return
       drawPositionPost({
-        canvas: canvas!,
+        canvas,
         photo,
         positionLabel,
         name: teamName,
@@ -134,7 +140,7 @@ function PositionCanvas({ positionLabel, teamName }: { positionLabel: string; te
         teamLogo,
       })
     }
-    render()
+    void render()
   }, [positionLabel, teamName])
 
   return (

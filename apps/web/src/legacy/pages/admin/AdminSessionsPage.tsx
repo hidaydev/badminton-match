@@ -66,10 +66,10 @@ export default function AdminSessionsPage() {
                           tone="amber"
                           onClick={() => {
                             setUnlockConfirmId(null)
-                            run(
+                            void run(
                               () => adminRequest('POST', `/sessions/${s.id}/unlock`),
                               t('admin.unlocked'),
-                              () => refetch(),
+                              () => { void refetch() },
                             )
                           }}
                         >
@@ -89,10 +89,10 @@ export default function AdminSessionsPage() {
                         tone="red"
                         onClick={() => {
                           if (window.confirm(t('admin.sessionDeleteConfirm', { title: s.title || 'Untitled', date: s.date }))) {
-                            run(
+                            void run(
                               () => adminRequest('POST', `/sessions/${s.id}/delete`),
                               t('admin.sessionDeleted'),
-                              () => refetch(),
+                              () => { void refetch() },
                             )
                           }
                         }}

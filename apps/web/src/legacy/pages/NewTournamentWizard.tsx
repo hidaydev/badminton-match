@@ -109,7 +109,7 @@ function TeamWizard() {
         matches: [], // undian menyusul (hari-H)
       },
       {
-        onSuccess: ({ id }) => navigate(`/tournaments/${id}`),
+        onSuccess: ({ id }) => void navigate(`/tournaments/${id}`),
         onError: (err) => {
           console.error('create team tournament failed', err)
           alert('Failed to create tournament. Please try again.')
@@ -299,7 +299,7 @@ function ClassicWizard() {
     }
     create(snapshot, {
       onSuccess: ({ id }) => {
-        navigate(`/tournaments/${id}`)
+        void navigate(`/tournaments/${id}`)
       },
       onError: (err) => {
         console.error('create tournament failed', err)

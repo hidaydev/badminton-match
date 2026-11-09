@@ -1,4 +1,5 @@
-// src/utils/nameParser.ts — Parser nama pemain dengan anotasi penjelas dalam kurung (...).
+// src/utils/nameParser.ts: player name parser with a clarifying note in
+// parentheses (...).
 
 export interface ParsedPlayerName {
   baseName: string
@@ -48,11 +49,12 @@ export function collectAmbiguousBaseNames(names: Iterable<string>): Set<string> 
   return out
 }
 
-// combineAmbiguous — gabungkan set ambigu global (populasi) dengan set konteks
-// lokal. Halaman TIDAK boleh mengganti set global: nama yang ambigu di seluruh
-// populasi tetap ambigu walau di halaman ini hanya muncul sekali (mis. riwayat
-// satu pemain memuat lawan "Arya (Dika)" sementara "Arya (Shania)" tidak
-// tampil). Union = benar untuk keduanya.
+// combineAmbiguous: union the global (population) ambiguous set with the local
+// context sets. A page must NOT replace the global set: a name that is
+// ambiguous across the population stays ambiguous even when it appears once on
+// this page (for example a single player's history lists the opponent
+// "Arya (Dika)" while "Arya (Shania)" is not shown). The union is correct for
+// both.
 export function combineAmbiguous(
   global: ReadonlySet<string>,
   ...locals: ReadonlySet<string>[]

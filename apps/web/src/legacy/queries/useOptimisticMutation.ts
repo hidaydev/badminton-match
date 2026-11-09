@@ -1,7 +1,7 @@
 // src/queries/useOptimisticMutation.ts
-// Factory hook untuk mutations dengan optimistic updates — generik untuk
-// session & tournament (dua-duanya pakai pola: read cache → optimistic set →
-// publish snapshot → refetch/invalidate → rollback + version-mismatch refetch).
+// Factory hook for mutations with optimistic updates. Generic over sessions and
+// tournaments, which both follow the same pattern: read cache, optimistic set,
+// publish snapshot, refetch/invalidate, rollback plus version-mismatch refetch.
 
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, getTournament, publishTournament } from './endpoints'
@@ -68,7 +68,8 @@ export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
 
   return useMutation({
     mutationFn: async (vars: TVars) => {
-      // Read dari cache (sudah di-update oleh onMutate) — JANGAN apply optimistic lagi!
+      // Read from the cache (onMutate already updated it). Do NOT apply the
+      // optimistic write again!
       const current = queryClient.getQueryData<TData>(queryKey)
       if (!current) throw new Error('no data')
       try {
@@ -117,8 +118,8 @@ export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
       }
     },
     onSuccess: async (data) => {
-      // Commit response dari server (berisi version + 1 terbaru) secara sinkron ke cache
-      // untuk mencegah race window saat mutasi berurutan / cepat.
+      // Commit the server response (the newest version + 1) to the cache
+      // synchronously, so back-to-back or fast mutations cannot race.
       if (data) {
         queryClient.setQueryData(queryKey, data)
       } else {
@@ -133,7 +134,7 @@ export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
 }
 
 // ── Session-specific wrapper (backward compatible) ─────────────────────────
-// Mempertahankan API useOptimisticSessionMutation yang sudah dipakai banyak hook.
+// Keeps the useOptimisticSessionMutation API that many hooks already use.
 
 export function useOptimisticSessionMutation(
   sessionId: string,

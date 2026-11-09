@@ -130,7 +130,7 @@ export const useStore = create<AppState>()(
  */
 export function prepareCommunityDraft(slug: string): void {
   if (draftCommunitySlug === slug) return
-  useStore.persist.rehydrate()
+  void useStore.persist.rehydrate()
   if (draftCommunitySlug === slug) return
   useStore.getState().resetSession()
   draftCommunitySlug = slug

@@ -1,4 +1,4 @@
-// src/components/admin/AdminPageShell.tsx — Shared layout untuk semua admin pages.
+// src/components/admin/AdminPageShell.tsx: shared layout for every admin page.
 // Auth guard + banner + flash messages + run() helper.
 import { useState, useCallback } from 'react'
 import { useNavigate } from '../../router'

@@ -1,4 +1,5 @@
-// src/components/admin/ActionButton.tsx — Tombol aksi kecil untuk admin pages.
+// src/components/admin/ActionButton.tsx: the small action button used by the
+// admin pages.
 import type { ReactNode } from 'react'
 
 interface ActionButtonProps {

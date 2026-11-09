@@ -114,9 +114,9 @@ export function computeGroupStandings(
         (m.pairAId === a.pairId && m.pairBId === b.pairId) ||
         (m.pairAId === b.pairId && m.pairBId === a.pairId)
     )
-    if (h2h?.scoreA !== null && h2h?.scoreB !== null && h2h?.pairAId) {
+    if (h2h && h2h.scoreA !== null && h2h.scoreB !== null && h2h.pairAId) {
       const aWon =
-        h2h.pairAId === a.pairId ? h2h.scoreA! > h2h.scoreB! : h2h.scoreB! > h2h.scoreA!
+        h2h.pairAId === a.pairId ? h2h.scoreA > h2h.scoreB : h2h.scoreB > h2h.scoreA
       return aWon ? -1 : 1
     }
     return 0

@@ -1,4 +1,4 @@
-import { drawCoverFill, type PostCanvasOptions } from '../../canvasPost'
+import { context2d, drawCoverFill, type PostCanvasOptions } from '../../canvasPost'
 
 const FONT_STACK   = '"Anton", Impact, sans-serif'
 const FONT_WEIGHT  = '400'
@@ -132,7 +132,7 @@ function drawDateV2(
 
 export function drawPostCanvas(options: PostCanvasOptions) {
   const { canvas, userPhoto, photoOffset, photoZoom, overlays, date } = options
-  const ctx = canvas.getContext('2d')!
+  const ctx = context2d(canvas)
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
   // Layer 1: user photo

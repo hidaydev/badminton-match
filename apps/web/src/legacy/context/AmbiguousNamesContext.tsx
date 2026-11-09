@@ -1,15 +1,15 @@
-// AmbiguousNamesContext — himpunan baseName yang ambigu (muncul >1x) dalam
-// daftar pemain yang sedang ditampilkan. Dipakai AnnotatedPlayerName untuk
-// memutuskan apakah badge "(i)" perlu tampil.
+// AmbiguousNamesContext: the set of baseNames that are ambiguous (appear more
+// than once) in the player list currently on screen. AnnotatedPlayerName reads
+// it to decide whether the "(i)" badge has to be shown.
 //
-// Default global disediakan GlobalAmbiguousNames (dari seluruh populasi
-// pemain) sehingga badge bekerja di semua layar. Halaman yang punya konteks
-// lebih sempit boleh menimpa lewat AmbiguousNamesProvider.
+// GlobalAmbiguousNames supplies the global default (the whole player
+// population), so the badge works on every screen. A page with a narrower
+// context may override it through AmbiguousNamesProvider.
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext } from 'react'
 
-// combineAmbiguous tinggal di utils/nameParser (tanpa JSX) supaya bisa diuji
-// runner node --test yang tidak menyetel --jsx.
+// combineAmbiguous lives in utils/nameParser (no JSX) so a node --test runner
+// without --jsx can exercise it.
 export { combineAmbiguous } from '../utils/nameParser'
 
 const AmbiguousNamesContext = createContext<ReadonlySet<string>>(new Set())

@@ -27,9 +27,10 @@ async function invalidateSessionQueries(queryClient: ReturnType<typeof useQueryC
 }
 
 // ── Granular optimistic lifecycle (shared) ───────────────────────────────────
-// Satu sumber untuk pola onMutate/onError/onSuccess yang dipakai mutation
-// granular: cancel query → snapshot cache → optimistic; rollback + refetch
-// saat version mismatch/lock/contention; commit respons server lalu invalidate.
+// One source for the onMutate/onError/onSuccess pattern the granular mutations
+// use: cancel the query, snapshot the cache, apply the optimistic write; roll
+// back and refetch on a version mismatch, a lock or contention; commit the
+// server response and invalidate.
 function withGranularOptimisticLifecycle<TVars>(
   queryClient: QueryClient,
   sessionId: string,
@@ -68,9 +69,10 @@ function withGranularOptimisticLifecycle<TVars>(
 // holds it, so a game edit does not re-read the whole session to learn the
 // number (FE-31). A stale cache still costs one refetch inside the retry.
 
-// Retry 1x on session-level OCC conflict: baca version dari cache → patch →
-// saat mismatch refetch fresh lalu ulangi sekali. `requireFreshVersion` = true
-// hanya lanjut kalau snapshot fresh punya version (dipakai patchAbsentPlayers).
+// Retry once on a session-level OCC conflict: read the version from the cache,
+// patch, and on a mismatch refetch fresh data then retry once.
+// `requireFreshVersion` = true only proceeds when the fresh snapshot carries a
+// version (used by patchAbsentPlayers).
 async function withSnapshotVersionRetry<T>(
   queryClient: QueryClient,
   sessionId: string,
@@ -214,8 +216,8 @@ export function useSetSessionLock(sessionId: string) {
     mutationFn: ({ locked, version }: { locked: boolean; version: number }) =>
       setSessionLock(sessionId, locked, version),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: communityQueryKey('session', sessionId) })
-      queryClient.invalidateQueries({ queryKey: communityQueryKey('sessions') })
+      void queryClient.invalidateQueries({ queryKey: communityQueryKey('session', sessionId) })
+      void queryClient.invalidateQueries({ queryKey: communityQueryKey('sessions') })
     },
   })
 }
@@ -226,13 +228,16 @@ export function useGetSession(
 ) {
   const queryClient = useQueryClient()
   const queryKey = communityQueryKey('session', sessionId)
+  // `enabled` keeps the query from running without an id; the empty string is
+  // the inert value here so the reader does not have to trust an assertion.
+  const id = sessionId ?? ''
   return useQuery<CloudSnapshot | null>({
     queryKey,
     // The poll asks the API "still version N?" and keeps the cached snapshot on
     // a 304, so a five-second interval does not re-download and re-render the
     // whole session when nothing changed.
     queryFn: ({ signal }) =>
-      getSession(sessionId!, signal, () =>
+      getSession(id, signal, () =>
         queryClient.getQueryData<CloudSnapshot | null>(queryKey),
       ),
     enabled: !!sessionId,
@@ -387,13 +392,14 @@ export function usePublishSession(sessionId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (snap: CloudSnapshot) => {
+      if (sessionId === undefined) throw new Error('A session id is required to publish')
       const current = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', sessionId))
       const next: CloudSnapshot = {
         ...snap,
         version: snap.version ?? current?.version,
         absentPlayers: snap.absentPlayers ?? current?.absentPlayers,
       }
-      return publishSession(sessionId!, next)
+      return publishSession(sessionId, next)
     },
     onMutate: async () => {
       if (!sessionId) return undefined
@@ -444,9 +450,9 @@ export function useTogglePlayed(sessionId: string) {
       if (typeof v.nextPlayed === 'boolean') nextPlayed = v.nextPlayed
       else if (Array.isArray(v.nextPlayed)) nextPlayed = (v.nextPlayed as string[]).includes(key)
       if (typeof nextPlayed !== 'boolean') {
-        // Legacy toggle caller (tanpa nextPlayed): onMutate sudah set intent absolut
-        // ke cache — baca dari sana (bukan invert dari post-mutate cache, yang
-        // akan membalik intent karena onMutate sudah mengubahnya).
+        // Legacy toggle caller (without nextPlayed): onMutate already wrote the
+        // absolute intent to the cache, so read it from there. Inverting the
+        // post-mutate cache instead would flip the intent back.
         const cur = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', sessionId))
         nextPlayed = (cur?.playedGames ?? []).includes(key)
       }

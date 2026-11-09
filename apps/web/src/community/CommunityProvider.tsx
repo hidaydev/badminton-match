@@ -32,7 +32,7 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       writeStoredSlug(slug)
       const target = communityPath(location.pathname, slug)
       if (target === location.pathname) return
-      navigate({ pathname: target, search: location.search, hash: location.hash })
+      void navigate({ pathname: target, search: location.search, hash: location.hash })
     },
     [location.pathname, location.search, location.hash, navigate],
   )

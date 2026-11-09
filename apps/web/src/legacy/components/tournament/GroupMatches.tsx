@@ -9,6 +9,7 @@ import ScoreModal from './ScoreModal'
 import { drawMatchPost, drawGroupSummary } from '../../utils/canvasPost'
 import { canvasToBlob, shareOrDownload } from '../../utils/share'
 import { loadOverlayImages } from '../../utils/overlays'
+import { t } from '../../../i18n'
 
 interface GroupMatchesProps {
   pairs: TournamentPair[]
@@ -28,8 +29,10 @@ export default function GroupMatches({ pairs, groups, matches, canEdit, onSetMat
   const { images: matchPhotos, fileInputRef: matchFileInputRef, openUpload: openMatchUpload, onFileChange: onMatchFileChange } = useImageUploadMap()
 
   const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement; summaryBg?: HTMLImageElement; chevrons?: HTMLImageElement; sponsor?: HTMLImageElement }>({})
+  const [overlayError, setOverlayError] = useState(false)
 
   useEffect(() => {
+    let active = true
     loadOverlayImages({
       logo: '/instagram-logo.png',
       badge: '/tournament-badge.png',
@@ -37,7 +40,18 @@ export default function GroupMatches({ pairs, groups, matches, canEdit, onSetMat
       summaryBg: '/summary-bg.png',
       chevrons: '/chevrons.png',
       sponsor: '/sponsor-logo.png',
-    }).then(setOverlays)
+    })
+      .then((loaded) => {
+        if (active) setOverlays(loaded)
+      })
+      .catch(() => {
+        // A missing file leaves the overlays empty: the post still exports,
+        // without its artwork. Say so instead of losing it silently.
+        if (active) setOverlayError(true)
+      })
+    return () => {
+      active = false
+    }
   }, [])
 
   const getPairName = (id: string | null) =>
@@ -90,6 +104,11 @@ export default function GroupMatches({ pairs, groups, matches, canEdit, onSetMat
 
   return (
     <div className="space-y-4">
+      {overlayError && (
+        <p role="status" className="text-xs text-error">
+          {t('tournament.error.overlays')}
+        </p>
+      )}
       {GROUP_IDS.map((g) => {
         const groupMatches = matches.filter((m) => m.phase === 'group' && m.groupId === g)
         const standings = computeGroupStandings(g, groups[g], matches)

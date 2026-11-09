@@ -16,22 +16,22 @@ export function computeStandings(
   playedGames?: string[],
 ): PlayerStanding[] {
   const map = new Map<string, PlayerStanding>()
-  // Semantik skip_player (MIRROR rating engine — domain.MatchRateable):
-  // game dengan pemain absent/skipped TETAP dihitung untuk pemain yang
-  // benar-benar main — hanya pemain void (absent/placeholder) yang di-exclude
-  // dari tally. Skip per-game ditambah sebagai void per game (union dengan
-  // void global).
+  // skip_player semantics (MIRRORS the rating engine, domain.MatchRateable):
+  // a game with absent/skipped players still counts for the players who
+  // actually played; only void players (absent/placeholder) are excluded from
+  // the tally. A per-game skip is added as a void for that game (union with the
+  // global void set).
   //
-  // Satu tim BOLEH kosong di tally selama ia masih punya pemain real: kasus
-  // nyata "dua pemain di-skip" = mereka digantikan orang lain dan skornya tetap
-  // sah, jadi tim lawan tetap mendapat game-nya. Game dibuang bila salah satu
-  // tim tidak punya pemain real sama sekali (mis. seluruhnya placeholder /
-  // absent global), atau kedua tim tidak punya pemain eligible (mis. semua
-  // pemain di-skip).
+  // A team MAY be empty in the tally as long as it still has a real player: the
+  // real case is "two players skipped", where they were replaced by others and
+  // the score still stands, so the opposing team keeps the game. A game is
+  // dropped when either side has no real player at all (for example all
+  // placeholders or globally absent), or when both teams have no eligible
+  // player (for example every player skipped).
   const voidSet = voidPlayerIds ? new Set(voidPlayerIds) : null
-  // Pemain real yang hadir. Daftar `players` dari pemanggil sudah tidak memuat
-  // pemain absent global & placeholder; pemain yang di-skip per game tetap ada
-  // di sini (mereka hadir, hanya digantikan di game tersebut).
+  // The real players present. The caller's `players` list already excludes
+  // globally absent players and placeholders; players skipped for one game are
+  // still here (they attended, they were only replaced in that game).
   const realIds = new Set<string>(players.map((p) => p.id))
   // A partial match has sets but is not a result yet; the server reports that as
   // `scheduled`, and only the played list is tallied.
@@ -52,18 +52,20 @@ export function computeStandings(
     if (skippedPlayers?.[key]?.length) skipSet = new Set(skippedPlayers[key])
 
     const teamA = (() => {
+      const skip = skipSet
       let a = voidSet ? slot.teamA.filter((id) => !voidSet.has(id)) : [...slot.teamA]
-      if (skipSet) a = a.filter((id) => !skipSet!.has(id))
+      if (skip !== null) a = a.filter((id) => !skip.has(id))
       return a
     })()
     const teamB = (() => {
+      const skip = skipSet
       let b = voidSet ? slot.teamB.filter((id) => !voidSet.has(id)) : [...slot.teamB]
-      if (skipSet) b = b.filter((id) => !skipSet!.has(id))
+      if (skip !== null) b = b.filter((id) => !skip.has(id))
       return b
     })()
-    // Tanpa pemain real di salah satu sisi (placeholder/absent semua) → drop.
+    // No real player on one side (all placeholders/absent), so drop the game.
     if (!slot.teamA.some((id) => realIds.has(id)) || !slot.teamB.some((id) => realIds.has(id))) continue
-    // Kedua sisi kosong setelah void/skip → tidak ada yang bisa ditallikan.
+    // Both sides are empty after void/skip, so there is nothing to tally.
     if (teamA.length === 0 && teamB.length === 0) continue
 
     const { a, b } = score

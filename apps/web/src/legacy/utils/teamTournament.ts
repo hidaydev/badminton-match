@@ -328,9 +328,11 @@ export async function buildTeamMatchFiles({
     return loadImage('/team-photo-placeholder.png').catch(() => undefined)
   }
 
+  const teamALogoPath = teamLogoPath(teamAName)
+  const teamBLogoPath = teamLogoPath(teamBName)
   const [teamALogoImg, teamBLogoImg, teamAPhotoImg, teamBPhotoImg] = await Promise.all([
-    teamLogoPath(teamAName) ? loadImage(teamLogoPath(teamAName)!).catch(() => undefined) : Promise.resolve(undefined),
-    teamLogoPath(teamBName) ? loadImage(teamLogoPath(teamBName)!).catch(() => undefined) : Promise.resolve(undefined),
+    teamALogoPath ? loadImage(teamALogoPath).catch(() => undefined) : Promise.resolve(undefined),
+    teamBLogoPath ? loadImage(teamBLogoPath).catch(() => undefined) : Promise.resolve(undefined),
     loadTeamPhoto(teamAName),
     loadTeamPhoto(teamBName),
   ])

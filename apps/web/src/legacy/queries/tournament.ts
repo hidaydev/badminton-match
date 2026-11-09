@@ -114,7 +114,8 @@ export function usePublishTeamTournament(id: string) {
         if (!current) return null
         return { ...current, ...patch, version: current.version }
       },
-      // Editor tim harus selalu selaras server saat save gagal (perilaku lama).
+      // The team editor must always line up with the server when a save fails
+      // (legacy behaviour).
       refetchOnAnyError: true,
     },
   )

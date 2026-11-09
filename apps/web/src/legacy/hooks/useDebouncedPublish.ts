@@ -59,8 +59,9 @@ export function useDebouncedPublish(
     publishRef.current = publish
   }, [publish])
 
-  // onError disimpan di ref supaya identitas inline dari caller (arrow baru tiap
-  // render) tidak membuat effect cleanup berjalan tiap render — bug write-storm.
+  // onError is kept in a ref so an inline caller (a new arrow on every render)
+  // does not make the effect cleanup run on every render, which caused a write
+  // storm.
   const onErrorRef = useRef(onError)
   useEffect(() => {
     onErrorRef.current = onError
@@ -110,7 +111,7 @@ export function useDebouncedPublish(
         }
         onSavedRef.current?.()
       },
-      onError: async (err) => {
+      onError: (err) => {
         // The last edit is still only local: keep the dirty flag so a tab
         // close asks before dropping it.
         failedRef.current = true
@@ -131,14 +132,15 @@ export function useDebouncedPublish(
           })
         }
         if (cloudSessionId) {
-          try {
-            await queryClient.fetchQuery({
+          void queryClient
+            .fetchQuery({
               queryKey: communityQueryKey('session', cloudSessionId),
               queryFn: () => getSession(cloudSessionId),
             })
-          } catch {
-            // Ignore network fail
-          }
+            .catch(() => {
+              // Ignore network fail: the pending record already names the
+              // failure, and the next screen retries the read.
+            })
         }
       },
       onSettled: () => {

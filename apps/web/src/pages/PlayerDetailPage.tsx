@@ -505,7 +505,7 @@ export function DeletePanel({
       // The page it would reload is gone, so the list is the way back. The
       // panel deliberately stays pending: the row no longer exists and a
       // second request would only report a 404 for the delete that worked.
-      navigate(`/c/${encodeURIComponent(slug)}/players`)
+      void navigate(`/c/${encodeURIComponent(slug)}/players`)
     } catch (problem) {
       setError(describePlayerError(problem))
       inFlight.current = false

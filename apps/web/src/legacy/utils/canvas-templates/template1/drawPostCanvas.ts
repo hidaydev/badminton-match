@@ -1,9 +1,9 @@
-import { drawCoverFill, drawDate, drawHeader, type PostCanvasOptions } from '../../canvasPost'
+import { context2d, drawCoverFill, drawDate, drawHeader, type PostCanvasOptions } from '../../canvasPost'
 import { CANVAS_COLORS as C } from '@/legacy/config/canvas'
 
 export function drawPostCanvas(options: PostCanvasOptions) {
   const { canvas, userPhoto, photoOffset, photoZoom, overlays, date } = options
-  const ctx = canvas.getContext('2d')!
+  const ctx = context2d(canvas)
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
   // Layer 1: user photo

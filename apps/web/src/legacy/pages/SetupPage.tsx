@@ -283,7 +283,7 @@ export default function SetupPage() {
 
   function handleLock() {
     lockSession()
-    navigate('/session/players')
+    void navigate('/session/players')
   }
 
   return (

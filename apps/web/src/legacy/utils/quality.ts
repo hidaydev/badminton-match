@@ -35,8 +35,9 @@ export function computeQuality(
   for (const g of result.schedule) {
     const tierA = (playerMap.get(g.teamA[0])?.tier ?? DEFAULT_TIER) + (playerMap.get(g.teamA[1])?.tier ?? DEFAULT_TIER)
     const tierB = (playerMap.get(g.teamB[0])?.tier ?? DEFAULT_TIER) + (playerMap.get(g.teamB[1])?.tier ?? DEFAULT_TIER)
-    // Threshold skala 8-tier (TIER_8_UNIFICATION): dulu >=2 untuk range 1-4
-    // (≈ setengah tier per pemain), sekarang >=4 untuk range 1-8 (proporsi sama).
+    // 8-tier scale threshold (TIER_8_UNIFICATION): it used to be >= 2 for the
+    // 1..4 range (about half a tier per player), now >= 4 for 1..8 (same
+    // proportion).
     if (Math.abs(tierA - tierB) >= 4) unevenGames++
   }
 
@@ -54,14 +55,14 @@ export function computeQuality(
   let backToBackFloor = 0
   for (let i = 0; i < slots.length - 1; i++) {
     if (slots[i + 1] !== slots[i] + 1) continue
-    const cur = slotPlayers.get(slots[i])!
-    const nxt = slotPlayers.get(slots[i + 1])!
-    for (const id of cur) if (nxt.has(id)) backToBackCount++
+    const cur = slotPlayers.get(slots[i])
+    const nxt = slotPlayers.get(slots[i + 1])
+    if (cur !== undefined) for (const id of cur) if (nxt?.has(id)) backToBackCount++
     // Mathematical minimum overlap between consecutive slots: players playing in
     // both slots must be at least (players needed in both) − (total players).
     // Each court contributes 4 players, so: max(0, 4·(Ci + Cj) − P).
     // Verified empirically against the generator (see HANDOFF §3b).
-    const forcedOverlap = 4 * (courtsPerSlot.get(slots[i])! + courtsPerSlot.get(slots[i + 1])!) - players.length
+    const forcedOverlap = 4 * ((courtsPerSlot.get(slots[i]) ?? 0) + (courtsPerSlot.get(slots[i + 1]) ?? 0)) - players.length
     if (forcedOverlap > 0) backToBackFloor += forcedOverlap
   }
 
