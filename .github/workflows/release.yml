@@ -114,6 +114,11 @@ jobs:
         run: ./task deps-install
       - name: "Release: every action is pinned to a 40-hex SHA"
         run: ./task ci-guards
+      # OPS-15: the RC branch rewrites the SPA to /majadu-rc. A tag that still
+      # carries that line would ship production against the RC API, so the tag
+      # fails before the image is built.
+      - name: "Release: the SPA must not rewrite to the RC API"
+        run: ./task ci-guards --release
       - name: "Release: database"
         env:
           MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres

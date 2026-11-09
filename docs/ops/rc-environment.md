@@ -105,7 +105,9 @@ the Google Cloud Console.
 `Content-Security-Policy` does not change because the origin is still
 `api.qouver.com`. This line must be reverted to `majadu` before merge. The safety
 net: after cutover, `/majadu-rc/*` still points at the same service, so
-forgetting the revert does not break production.
+forgetting the revert does not break production. A tag is stricter: `release.yml`
+runs `./task ci-guards --release`, which fails while `apps/web/vercel.json`
+contains `majadu-rc`.
 
 ---
 

@@ -107,6 +107,19 @@ suite "task target guards":
     check result.exitCode == 1
     check result.stderr.contains("README.md says 3 migrations")
 
+  test "ci-guards --release rejects an SPA rewrite to the RC API":
+    let fixture = newFixture("ci-guards-rc-spa")
+    defer: removeDir(fixture.root)
+    createDir(fixture.root / "apps" / "web")
+    writeFile(fixture.root / "apps" / "web" / "vercel.json",
+      "{\"rewrites\":[{\"source\":\"/api/:path*\",\"destination\":" &
+      "\"https://api.qouver.com/majadu-rc/:path*\"}]}\n")
+    let normal = fixture.runTask(@["ci-guards"])
+    check normal.exitCode == 0
+    let release = fixture.runTask(@["ci-guards", "--release"])
+    check release.exitCode == 1
+    check release.stderr.contains("still rewrites /api to the RC backend")
+
   test "ci-guards rejects a mutable action tag":
     let fixture = newFixture("ci-guards-tag")
     defer: removeDir(fixture.root)

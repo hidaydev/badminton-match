@@ -12,6 +12,13 @@
 set -eu
 . "$(dirname "$0")/lib.sh"
 
+release=0
+case "${1:-}" in
+  "") ;;
+  --release) release=1 ;;
+  *) fail "usage: ./task ci-guards [--release]" ;;
+esac
+
 problems=0
 report() {
   printf 'ci-guards: %s\n' "$*" >&2
@@ -47,6 +54,16 @@ for workflow in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
     fi
   done <"$workflow"
 done
+
+# The RC branch points the SPA at the RC backend through apps/web/vercel.json.
+# That line must be reverted before a tag: a tag built with it ships production
+# against the RC API and the RC database. Only a release run enforces this; a
+# normal pull request against the RC branch is expected to carry it.
+if [ "$release" -eq 1 ]; then
+  if grep -q 'majadu-rc' "$REPO_ROOT/apps/web/vercel.json" 2>/dev/null; then
+    report "apps/web/vercel.json still rewrites /api to the RC backend; revert it to /majadu/* before tagging"
+  fi
+fi
 
 if [ "$problems" -ne 0 ]; then
   printf 'ci-guards: %d problem(s)\n' "$problems" >&2
