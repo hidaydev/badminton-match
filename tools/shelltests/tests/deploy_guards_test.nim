@@ -893,9 +893,11 @@ suite "cutover.sh":
     fixture.installFake("caddy", okFake)
     for tool in ["psql", "pg_dump", "pg_restore"]:
       removeFile(fixture.binDir / tool)
+    fixture.hermeticBin(["psql", "pg_dump", "pg_restore"])
     touch(fixture.root / "env" / "majadu-prod.env.v2", "")
     let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
-      @["--check", "--version", "2.0.0"], appDir(fixture))
+      @["--check", "--version", "2.0.0"],
+      appDir(fixture) & @[("PATH", fixture.binDir)])
     check result.exitCode == 0
     check result.stdout.contains(
       "database tools via podman exec qouver-postgres")
@@ -906,9 +908,11 @@ suite "cutover.sh":
     defer: removeDir(fixture.root)
     simFakes(fixture)
     removeFile(fixture.binDir / "podman")
+    fixture.hermeticBin(["podman"])
     touch(fixture.root / "env" / "majadu-prod.env.v2", "")
     let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
-      @["--check", "--version", "2.0.0"], appDir(fixture))
+      @["--check", "--version", "2.0.0"],
+      appDir(fixture) & @[("PATH", fixture.binDir)])
     check result.exitCode == 2
     check result.stderr.contains("cutover --check: podman is required")
 

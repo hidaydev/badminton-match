@@ -253,6 +253,6 @@ try:
       migrate(scratch, migrationsDir)
       let last = scratch.queryOne(
         "select version from dbtools.schema_migrations order by version desc limit 1").get
-      check last.get("version") == "0034_etl_grants"
+      check last.get("version") == "0036_oauth_flow_key_id"
 finally:
   shutdown()

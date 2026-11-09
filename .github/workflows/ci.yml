@@ -324,10 +324,12 @@ jobs:
           # gitleaks scans the commits in this run, not only the working tree.
           fetch-depth: 0
       - uses: pnpm/action-setup@9bbca1e9dc2902adb87e8780fe5c98796985a62d # v6.1.1
+      # No pnpm cache here: the job audits the lockfile without installing, so
+      # the store directory never exists and setup-node's post step failed the
+      # job trying to save it.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
-          cache: pnpm
       # A tag ref is mutable and a 41-character SHA is a different commit that
       # GitHub still resolves; the guard fails on both before the scanners run.
       - name: "Supply chain: every action is pinned to a 40-hex SHA"

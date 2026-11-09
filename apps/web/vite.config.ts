@@ -46,7 +46,7 @@ export default defineConfig({
         // Precaching is the app shell only. Anything heavier than this (the
         // social-export backgrounds, team photos) is fetched on demand by the
         // runtime rules below instead of on the first install.
-        maximumFileSizeToCacheInBytes: 200 * 1024,
+        maximumFileSizeToCacheInBytes: 320 * 1024,
         navigateFallback: '/index.html',
         // The API shares this origin under /api: a navigation there (the OIDC
         // callback) must reach the server, never the cached app shell.
