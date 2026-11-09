@@ -112,7 +112,7 @@ rewrites it in production, so the session cookie stays first-party. Set
 | `./task check` | `nim check`, archcheck, unit and database-backed suites; needs `MAJADU_PG_DSN` |
 | `./task test` | unit + integration (needs `MAJADU_PG_DSN`); every suite gets its own database, `--timing` writes per-suite wall time, `--shard I/N` runs one slice, `WORKERS=N` farms the slices across worker databases |
 | `./task ci` | check + build + test + contract fingerprint |
-| `./task coverage` | line coverage per module, ratcheted against `coverage-baseline.json` |
+| `./task coverage` | line coverage per module, ratcheted against `coverage-baseline-<platform>.json` |
 | `./task mutation` | applies each mutant in `tools/mutation/manifest.txt` and fails on an unlisted survivor |
 | `./task parity v2 verify` | 143 recorded v2 cases; `parity verify` replays the frozen v1 corpus; `v2 canary` proves replay still rejects a wrong body |
 | `./task e2e` | Playwright on iPhone 17 (WebKit) and POCO F5 (Chromium) |

@@ -80,7 +80,7 @@ fails if one is missing.
 ```sh
 ./task check            # nim check, unit tests, archcheck (no database)
 ./task test             # + integration (requires MAJADU_PG_DSN)
-./task coverage         # lines per module, ratchet against coverage-baseline.json
+./task coverage         # lines per module, ratchet against coverage-baseline-<platform>.json
 ./task parity verify    # frozen v1 corpus (71 cases, 48 routes)
 ```
 
