@@ -15,7 +15,7 @@ list of access holders; adding a row means adding attack surface.
 | Google account `platform_owner` | Logging in to the app as the platform owner | Repo owner | MFA required, device separate from the social account |
 | GitHub `hidaydev` | Repo, Actions, CI secrets, security advisories | Repo owner | MFA required (passkey/TOTP), no password-only login |
 | VPS Qouver (`qouver.com`) | SSH to the host, `systemctl --user`, rootless Podman, `/srv/qouver/apps/majadu` | Repo owner | SSH keys only, password login disabled, MFA on the provider panel |
-| GHCR (`ghcr.io`) | Release image registry | Repo owner | Scoped access token `read:packages`, stored in a CI secret |
+| GHCR (`ghcr.io`) | Release image registry | Repo owner | Scoped `read:packages` token in `/srv/qouver/apps/majadu/env/ghcr-token`, mode 600; the release workflow pushes with the built-in `GITHUB_TOKEN` |
 | Database `bm2` | Production data | API process (`bm2_app`), ETL (`bm2_etl`), schema owner (`bm2_owner`) | Password only in `/srv/qouver/apps/majadu/env/`, directory mode `700` |
 
 Rules that bind this list:
@@ -89,8 +89,8 @@ Filling rules:
 |---|---|---|
 | Every deploy | Process health; `deploy-vps.sh` runs migrations before the restart | `curl -fsS http://127.0.0.1:8080/readyz` |
 | Every 5 minutes | `/readyz` is watched by `majadu-readyz.timer`; a failure triggers `majadu-alert@` | `systemctl --user list-timers majadu-readyz.timer` |
-| Every hour | Logs are rotated by `majadu-rotate-log.timer` (rename + delete >14 days) | `ls -l /srv/qouver/apps/majadu/logs` |
-| Daily | The deploy log grows without rotation | `ls -l /srv/qouver/apps/majadu/logs` |
+| Every ten minutes | Logs are rotated by `majadu-rotate-log.timer` (rename, gzip, delete >14 days, disk guard) | `ls -l /srv/qouver/apps/majadu/logs` |
+| Daily | Disk and memory headroom; no undelivered alerts | `df -h /srv && systemctl --user show majadu-api -p NRestarts && ls -l /srv/qouver/apps/majadu/logs/alert-dead-letter.log` |
 | Monthly | Migrations and seeds still match the schema | `./task ci` on a dev machine with `MAJADU_PG_DSN` |
 | Yearly | The access list above is still accurate | review by hand, revoke what is unused |
 
