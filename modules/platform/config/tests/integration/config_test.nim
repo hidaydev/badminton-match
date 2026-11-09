@@ -98,8 +98,12 @@ suite "platform config":
       @[textParam($keyWsTicketTtlSeconds)])
     check caught
 
-  test "value outside bounds refuses to load":
-    discard db.execUpdate("update platform.config set value = '0' where key = $1",
+  test "value outside the registry bounds refuses to load":
+    # The database now rejects a value outside its own bounds, so the row is
+    # made legal there (min_value 0) while the compiled registry still says 5:
+    # the loader stays the final guard for a row the SQL could not see.
+    discard db.execUpdate(
+      "update platform.config set min_value = 0, value = '0' where key = $1",
       @[textParam($keyWsTicketTtlSeconds)])
     var caught = false
     try:
