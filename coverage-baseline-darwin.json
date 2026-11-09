@@ -1,6 +1,7 @@
 {
   "measured": "2026-11-09",
   "floor": 92.51,
+  "lowFiles": 0,
   "total": {"lines": 19195, "covered": 17757, "branches": 34678, "coveredBranches": 19280},
   "domains": {
     "apps/api": {"lines": 4413, "covered": 4272, "branches": 7504, "coveredBranches": 4291},

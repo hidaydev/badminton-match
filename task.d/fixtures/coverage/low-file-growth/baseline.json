@@ -1,0 +1,12 @@
+{
+  "measured": "2026-11-10",
+  "floor": 40.00,
+  "lowFiles": 0,
+  "total": {"lines": 10000, "covered": 5001},
+  "domains": {
+    "modules/eta": {"lines": 10000, "covered": 5001}
+  },
+  "files": {
+    "modules/eta/domain/a.nim": {"lines": 10000, "covered": 5001}
+  }
+}

@@ -1,6 +1,7 @@
 {
   "measured": "2026-11-08",
   "floor": 75.00,
+  "lowFiles": 0,
   "total": {"lines": 200, "covered": 160},
   "domains": {
     "modules/alpha": {"lines": 200, "covered": 160}

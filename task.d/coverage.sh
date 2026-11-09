@@ -23,6 +23,11 @@
 #   file    a file may not fall. A file absent from the baseline must be at least
 #           80% covered, and a new file at 0% is named as such. Per-file rows are
 #           what stop a domain from hiding one regressed file behind another.
+#   low     the number of files below the per-file floor (50% of a file with
+#           more than 20 executable lines) may not grow. A file listed in
+#           docs/handbook/coverage-debt.json is acknowledged debt and is counted
+#           separately; the count is recorded in the baseline as "lowFiles".
+#           Without it a 0% entrypoint hides behind a large covered module (SQ-14).
 #   diff    90% of the changed executable lines must be covered (D-15). The
 #           changed hunks come from `git diff --unified=0` against
 #           COVERAGE_DIFF_BASE, the merge base with origin/$GITHUB_BASE_REF on a
@@ -81,6 +86,12 @@ TARGET_DEFAULT=95
 NEW_FILE_MIN=80
 DIFF_MIN=90
 TOLERANCE=0.1
+# SQ-14: a file-level floor so the total cannot be held up by a few large
+# covered files while the operator-facing entrypoints stay at zero. A file with
+# more than PER_FILE_MIN_LINES executable lines is low when it is under
+# PER_FILE_FLOOR and has no dated exception in the low-coverage manifest.
+PER_FILE_FLOOR=50
+PER_FILE_MIN_LINES=20
 
 usage() {
   cat <<'EOF'
@@ -247,8 +258,8 @@ print_report() {
       bpct = (tbf == 0) ? 0 : (tbh * 100 / tbf)
       gap = (pct < total_target) ? int((lf * (total_target - pct) / 100) + 0.999) : 0
       while ((getline row < files) > 0) count++
-      printf "coverage: %d files, %d executable lines, %d covered (%.2f%%)\n", count, lf, lh, pct
-      printf "coverage: branches BRF %d, BRH %d (%.2f%%)\n", tbf, tbh, bpct
+      printf "coverage: %d files, %d executable lines, %d covered (%.2f%%; line coverage only)\n", count, lf, lh, pct
+      printf "coverage: branches BRF %d, BRH %d (%.2f%%), reported next to the lines but not part of the ratchet\n", tbf, tbh, bpct
       # QA-14: a target met inside the noise band of this gate is not a
       # milestone. Publish the tolerance and the lower bound with the number, so
       # a run at 91.99 reads as indistinguishable from 92.09 instead of as a
@@ -257,6 +268,12 @@ print_report() {
         total_target, total_target - tol, tol, gap
     }
   ' "$COV/total.tsv"
+  # SQ-14: the per-file floor is a separate axis from the ratchet. A file that
+  # was never covered is not a regression, but it is still a file the total
+  # carries; the count is printed so the headline cannot hide it.
+  count_low_files
+  printf 'coverage: %d file(s) below the %d%% per-file floor over %d lines (%d more with a dated exception)\n' \
+    "$LOW_COUNT" "$PER_FILE_FLOOR" "$PER_FILE_MIN_LINES" "$LOW_EXEMPT_COUNT"
   # QA-05: the branch axis per file, so a file at 100 percent lines with half
   # its branches untested is visible next to the file that carries it.
   printf '%-60s %8s %8s %9s\n' "branch coverage by file" "BRF" "BRH" "branch"
@@ -266,6 +283,43 @@ print_report() {
       printf "%-60s %8d %8d %8.2f%%\n", $1, $4, $5, bpct
     }
   ' "$COV/files.tsv"
+}
+
+# SQ-14: count the files below the per-file floor. A file listed in the
+# low-coverage manifest is acknowledged debt, not news, so it is counted
+# separately; the report prints both. The manifest is the same one
+# `./task coverage-debt` validates on every `./task check`, which is where an
+# owner and an expiry are enforced.
+count_low_files() {
+  _manifest="$REPO_ROOT/docs/handbook/coverage-debt.json"
+  : >"$COV/exceptions.list"
+  if [ -f "$_manifest" ]; then
+    awk '
+      {
+        if (!match($0, /"path"[[:space:]]*:[[:space:]]*"/)) next
+        rest = substr($0, RSTART + RLENGTH)
+        if (!match(rest, /"/)) next
+        print substr(rest, 1, RSTART - 1)
+      }
+    ' "$_manifest" >>"$COV/exceptions.list"
+  fi
+  : >"$COV/low.txt"
+  : >"$COV/low-exempt.txt"
+  awk -F'\t' -v list="$COV/low.txt" -v exemptlist="$COV/low-exempt.txt" \
+      -v floor="$PER_FILE_FLOOR" -v min="$PER_FILE_MIN_LINES" \
+      -v excfile="$COV/exceptions.list" '
+    BEGIN {
+      while ((getline line < excfile) > 0) {
+        if (line != "") exempt[line] = 1
+      }
+    }
+    ($2 + 0 > min) && ($3 * 100 < floor * $2) {
+      if ($1 in exempt) print $1 >> exemptlist
+      else print $1 >> list
+    }
+  ' "$COV/files.tsv"
+  LOW_COUNT=$(wc -l <"$COV/low.txt" | tr -d ' ')
+  LOW_EXEMPT_COUNT=$(wc -l <"$COV/low-exempt.txt" | tr -d ' ')
 }
 
 baseline_rows() {
@@ -308,6 +362,11 @@ baseline_floor() {
   sed -n 's/^[[:space:]]*"floor":[[:space:]]*\([0-9][0-9.]*\).*/\1/p' "$1" | head -1
 }
 
+baseline_low_files() {
+  [ -f "$1" ] || return 0
+  sed -n 's/^[[:space:]]*"lowFiles":[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$1" | head -1
+}
+
 current_rows() {
   awk -F'\t' '{ printf "total\ttotal\t%d\t%d\t%d\t%d\n", $1, $2, $3, $4 }' "$COV/total.tsv"
   awk -F'\t' '{ printf "domain\t%s\t%d\t%d\t%d\t%d\n", $1, $2, $3, $4, $5 }' "$COV/domains.tsv"
@@ -324,6 +383,7 @@ baseline_block() {
 write_baseline() {
   _out=$1
   _floor=$2
+  _low=$3
   _lf=$(cut -f1 "$COV/total.tsv")
   _lh=$(cut -f2 "$COV/total.tsv")
   _bf=$(cut -f3 "$COV/total.tsv")
@@ -333,6 +393,7 @@ write_baseline() {
     printf '{\n'
     printf '  "measured": "%s",\n' "$(date -u '+%Y-%m-%d')"
     printf '  "floor": %s,\n' "$_floor"
+    printf '  "lowFiles": %s,\n' "$_low"
     printf '  "total": {"lines": %s, "covered": %s, "branches": %s, "coveredBranches": %s},\n' "$_lf" "$_lh" "$_bf" "$_bh"
     printf '  "domains": {\n'
     baseline_block "$COV/domains.tsv"
@@ -452,6 +513,12 @@ run_gate() {
   _floor=$(baseline_floor "$BASELINE")
   [ -n "$_floor" ] ||
     fail "${BASELINE#$REPO_ROOT/} has no floor; run ./task coverage --update to seed the v2 baseline"
+  _low_floor=$(baseline_low_files "$BASELINE")
+  if [ -z "$_low_floor" ]; then
+    _low_floor=0
+    printf 'coverage: warning: %s has no lowFiles count; the per-file floor ratchets from 0 (record it with ./task coverage --update)\n' \
+      "${BASELINE#"$REPO_ROOT"/}" >&2
+  fi
 
   baseline_rows "$BASELINE" >"$COV/baseline.tsv"
   # QA-05: a baseline recorded before the branch axis existed has no BRF/BRH, so
@@ -516,8 +583,21 @@ run_gate() {
     }
   ' "$COV/baseline.tsv" "$COV/current.tsv" || fail "coverage fell below the baseline"
 
+  # SQ-14: the per-file floor is a ceiling on the number of low files, not a
+  # percentage: a file that was already low is the manifest's problem, while an
+  # extra one is a new hole the total can hide. The count may fall without an
+  # --update (a raised file is progress); only growth fails.
+  if [ "${LOW_COUNT:-0}" -gt "$_low_floor" ]; then
+    printf 'coverage: %s file(s) below the %d%% per-file floor, up from %s in the baseline\n' \
+      "$LOW_COUNT" "$PER_FILE_FLOOR" "$_low_floor" >&2
+    sed 's/^/coverage:   /' "$COV/low.txt" >&2
+    fail "the per-file floor regressed (raise the files, or add a dated entry to docs/handbook/coverage-debt.json)"
+  fi
+
   check_diff
   printf 'coverage: ok (per-file ratchet held)\n'
+  printf 'coverage: %s file(s) below the %d%% per-file floor (baseline %s)\n' \
+    "${LOW_COUNT:-0}" "$PER_FILE_FLOOR" "$_low_floor"
 }
 
 run_update() {
@@ -575,9 +655,11 @@ run_update() {
     fi
   fi
   _floor=$_pct
+  [ -f "$COV/low.txt" ] || count_low_files
 
-  write_baseline "$_out" "$_floor"
-  printf 'coverage: baseline written to %s\n' "${_out#$REPO_ROOT/}"
+  write_baseline "$_out" "$_floor" "${LOW_COUNT:-0}"
+  printf 'coverage: baseline written to %s (%s file(s) below the %d%% per-file floor)\n' \
+    "${_out#$REPO_ROOT/}" "${LOW_COUNT:-0}" "$PER_FILE_FLOOR"
 }
 
 # ---------------------------------------------------------------------------
