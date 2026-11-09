@@ -17,7 +17,7 @@ The full plan and its design rationale are in
 | Container | `majadu-rc-api`, `127.0.0.1:8081 -> 8080` |
 | Image | `localhost/majadu-rc-api:local` (+ `:prev`) |
 | Database | `bm2_rc`, role `bm2_owner` / `bm2_app` |
-| Env | `/srv/qouver/apps/majadu-rc/env/majadu-rc.env` (600, dir 700) |
+| Env | `/srv/qouver/apps/majadu-rc/env/majadu-rc.env` for the API, plus `majadu-rc-tools.env` for deploy and bootstrap (both 600, dir 700) |
 | Caddy | `import /etc/caddy/site-rc.caddy` |
 | Public URL | `https://api.qouver.com/majadu-rc/*` |
 | Webhook | hook `majadu-monorepo` → `/srv/qouver/apps/majadu/scripts/deploy-dispatch.sh` |
@@ -27,8 +27,9 @@ repo. Do not touch it and do not use it for this RC.
 
 ## 2. One time only: bootstrap
 
-Prerequisites: the env file is filled in (DSN, OIDC, share keys), and `bm` is not
-currently being written by another process.
+Prerequisites: `majadu-rc.env` is filled in (app DSN, OIDC, share keys),
+`majadu-rc-tools.env` holds the owner DSN, and `bm` is not currently being
+written by another process.
 
 ```sh
 # from the checkout on the server

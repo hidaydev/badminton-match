@@ -39,6 +39,7 @@ HEALTH_URL="${MAJADU_RC_HEALTH_URL:-http://127.0.0.1:8081}"
 NETWORK="${MAJADU_RC_NETWORK:-qouver}"
 MONO_DIR="$APP_DIR/repo"
 ENV_FILE="$APP_DIR/env/majadu-rc.env"
+TOOLS_ENV="$APP_DIR/env/majadu-rc-tools.env"
 CI_TOKEN_FILE="$APP_DIR/env/github-token"
 STATE_DIR="$APP_DIR/deploy"
 LOG="$APP_DIR/logs/deploy.log"
@@ -182,14 +183,19 @@ fi
 # ---------------------------------------------------------------------------
 STEP="env-check"
 [ -f "$ENV_FILE" ] || fail "env file $ENV_FILE is missing"
-MODE=$(file_mode "$ENV_FILE")
-case "$MODE" in
-  600|400) ;;
-  *) fail "$ENV_FILE must be mode 600 (found $MODE)" ;;
-esac
-OWNER_DSN=$(sed -n 's/^MAJADU_OWNER_DSN=//p' "$ENV_FILE" | tail -1)
+[ -f "$TOOLS_ENV" ] || fail "tool env file $TOOLS_ENV is missing"
+for file in "$ENV_FILE" "$TOOLS_ENV"; do
+  MODE=$(file_mode "$file")
+  case "$MODE" in
+    600|400) ;;
+    *) fail "$file must be mode 600 (found $MODE)" ;;
+  esac
+done
+# The unit loads only ENV_FILE; the owner DSN is a deploy secret and lives in
+# the tool env, which the unit never reads.
+OWNER_DSN=$(sed -n 's/^MAJADU_OWNER_DSN=//p' "$TOOLS_ENV" | tail -1)
 APP_DSN=$(sed -n 's/^MAJADU_PG_DSN=//p' "$ENV_FILE" | tail -1)
-[ -n "$OWNER_DSN" ] || fail "MAJADU_OWNER_DSN is missing from $ENV_FILE"
+[ -n "$OWNER_DSN" ] || fail "MAJADU_OWNER_DSN is missing from $TOOLS_ENV"
 [ -n "$APP_DSN" ] || fail "MAJADU_PG_DSN is missing from $ENV_FILE"
 # The role names are shared with the future bm2, so the database name is the
 # only thing that keeps this instance away from production data. Refuse a file

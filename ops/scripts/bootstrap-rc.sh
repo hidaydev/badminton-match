@@ -35,6 +35,9 @@ PG="${MAJADU_RC_PG:-qouver-postgres}"
 PG_SUPER="${MAJADU_RC_PG_SUPER:-qouver}"
 NETWORK="${MAJADU_RC_NETWORK:-qouver}"
 ENV_FILE="$APP_DIR/env/majadu-rc.env"
+# The RC API unit loads only ENV_FILE. The owner DSN is a tool secret and lives
+# in a second file that the unit never reads.
+TOOLS_ENV="$APP_DIR/env/majadu-rc-tools.env"
 MONO_DIR="$APP_DIR/repo"
 STATE_DIR="$APP_DIR/deploy"
 BACKUP_DIR="$APP_DIR/backups"
@@ -46,12 +49,15 @@ die() { printf 'bootstrap-rc: %s\n' "$*" >&2; exit 1; }
 mkdir -p "$APP_DIR/logs" "$STATE_DIR" "$BACKUP_DIR"
 
 [ -f "$ENV_FILE" ] || die "$ENV_FILE is missing; copy ops/env/rc.env.example and fill it in"
-MODE=$(stat -c '%a' "$ENV_FILE" 2>/dev/null || stat -f '%Lp' "$ENV_FILE")
-case "$MODE" in 600|400) ;; *) die "$ENV_FILE must be mode 600 (found $MODE)" ;; esac
+[ -f "$TOOLS_ENV" ] || die "$TOOLS_ENV is missing; copy ops/env/rc-tools.env.example and fill it in"
+for file in "$ENV_FILE" "$TOOLS_ENV"; do
+  MODE=$(stat -c '%a' "$file" 2>/dev/null || stat -f '%Lp' "$file")
+  case "$MODE" in 600|400) ;; *) die "$file must be mode 600 (found $MODE)" ;; esac
+done
 
-OWNER_DSN=$(sed -n 's/^MAJADU_OWNER_DSN=//p' "$ENV_FILE" | tail -1)
+OWNER_DSN=$(sed -n 's/^MAJADU_OWNER_DSN=//p' "$TOOLS_ENV" | tail -1)
 APP_DSN=$(sed -n 's/^MAJADU_PG_DSN=//p' "$ENV_FILE" | tail -1)
-[ -n "$OWNER_DSN" ] || die "MAJADU_OWNER_DSN is missing from $ENV_FILE"
+[ -n "$OWNER_DSN" ] || die "MAJADU_OWNER_DSN is missing from $TOOLS_ENV"
 [ -n "$APP_DSN" ] || die "MAJADU_PG_DSN is missing from $ENV_FILE"
 
 dsn_part() { # dsn_part <dsn> <user|password|database>

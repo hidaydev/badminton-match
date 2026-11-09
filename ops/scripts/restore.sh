@@ -21,6 +21,10 @@
 # is refused before the lock is taken. The write also takes the same deploy lock
 # deploy-vps.sh and cutover.sh use, so a restore cannot run while a deploy is
 # swapping the release.
+#
+# cutover.sh passes MAJADU_CUTOVER_RESTORE_DSN here for the bm_staging restore.
+# That role has to own bm_staging or have CREATEDB because --recreate drops and
+# creates the database; it is not the ETL role, which may only write bm2.
 set -euo pipefail
 
 APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"

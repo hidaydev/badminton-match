@@ -133,8 +133,9 @@ proc rcGateFixture(fixture: Fixture, token = true): string =
   copyFile(opsScriptsDir / "deploy-vps-rc.sh", source)
   touch(rcDir / "scripts" / "deploy-vps-rc.sh", "old copy\n")
   privateFile(rcDir / "env" / "majadu-rc.env",
-    "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2_rc\n" &
     "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2_rc\n")
+  privateFile(rcDir / "env" / "majadu-rc-tools.env",
+    "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2_rc\n")
   if token:
     privateFile(rcDir / "env" / "github-token", "secret-token\n")
   rcDir
@@ -209,7 +210,8 @@ suite "deploy-vps.sh":
     createDir(mono / "ops" / "systemd")
     createDir(mono / "ops" / "scripts")
     privateFile(fixture.root / "env" / "majadu-prod.env",
-      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n" &
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
       "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
     # A token file keeps AUTH non-empty (bash 3.2 treats "${AUTH[@]}" on an
     # empty array as unbound under set -u) and the podman fake answers login.
@@ -230,6 +232,29 @@ suite "deploy-vps.sh":
     check readFile(fixture.root / "deploy" / "last-release.json")
       .contains("\"step\":\"restart\"")
     check readFile(systemctlLog).contains("start majadu-alert@deploy.service")
+
+  test "an owner DSN left in the API env stops the deploy":
+    let fixture = newFixture("deploy-api-env-owner")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    createDir(fixture.root / "monorepo")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n" &
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    check result.exitCode == 1
+    let envFile = fixture.root / "env" / "majadu-prod.env"
+    let toolsFile = fixture.root / "env" / "majadu-tools.env"
+    check result.stdout.contains(
+      envFile & " must not contain MAJADU_OWNER_DSN; move it to " & toolsFile)
+    check readFile(fixture.root / "deploy" / "last-release.json")
+      .contains("\"step\":\"env-split\"")
 
 suite "deploy-vps-rc.sh":
   test "a ref other than the RC branch is ignored":
@@ -692,11 +717,107 @@ suite "cutover.sh":
     let envFile = fixture.root / "env" / "majadu-prod.env.v2"
     privateFile(envFile,
       "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n" &
+      "MAJADU_ETL_SOURCE_DSN=postgres://bm2_owner@127.0.0.1:5432/bm_staging\n" &
+      "MAJADU_CUTOVER_RESTORE_DSN=postgres://bm2_owner@127.0.0.1:5432/bm_staging\n")
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--version", "2.0.0"], appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains("cutover: MAJADU_ETL_DSN is not set in " & envFile)
+
+  test "a missing restore DSN is refused by name":
+    let fixture = newFixture("cutover-restore-dsn")
+    defer: removeDir(fixture.root)
+    for tool in ["pg_dump", "pg_restore", "curl", "flock", "caddy"]:
+      fixture.installFake(tool, okFake)
+    let envFile = fixture.root / "env" / "majadu-prod.env.v2"
+    privateFile(envFile,
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n" &
+      "MAJADU_ETL_DSN=postgres://bm2_etl@127.0.0.1:5432/bm2\n" &
       "MAJADU_ETL_SOURCE_DSN=postgres://bm2_owner@127.0.0.1:5432/bm_staging\n")
     let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
       @["--version", "2.0.0"], appDir(fixture))
     check result.exitCode == 2
-    check result.stderr.contains("cutover: ETL_DSN is not set in " & envFile)
+    check result.stderr.contains(
+      "cutover: MAJADU_CUTOVER_RESTORE_DSN is not set in " & envFile)
+
+  test "the import gets the ETL DSN as target and the source DSN as source":
+    let fixture = newFixture("cutover-import-dsn")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    for tool in ["pg_dump", "pg_restore", "caddy"]:
+      fixture.installFake(tool, okFake)
+    createDir(fixture.root / "scripts")
+    writeExecutable(fixture.root / "scripts" / "smoke.sh",
+      "#!/bin/sh\nexit 0\n")
+    let owner = "postgres://bm2_owner@127.0.0.1:5432/bm2"
+    let etl = "postgres://bm2_etl@127.0.0.1:5432/bm2"
+    let source = "postgres://staging_reader@127.0.0.1:5432/bm_staging"
+    let restore = "postgres://bm2_owner@127.0.0.1:5432/bm_staging"
+    privateFile(fixture.root / "env" / "majadu-prod.env.v2",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=" & owner & "\n" &
+      "MAJADU_ETL_DSN=" & etl & "\n" &
+      "MAJADU_ETL_SOURCE_DSN=" & source & "\n" &
+      "MAJADU_CUTOVER_RESTORE_DSN=" & restore & "\n")
+    touch(fixture.root / "cutover" / "snapshot.sha256", "abc\n")
+    touch(fixture.root / "cutover" / "snapshot.taken_at", "2026-11-09T00:00:00Z\n")
+    let podmanLog = fixture.root / "podman.log"
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--version", "2.0.0", "--from", "import"], appDir(fixture) & @[
+        ("FAKE_PODMAN_LOG", podmanLog),
+        ("MAJADU_CADDY_VALIDATE", "true"),
+        ("MAJADU_CADDY_RELOAD", "true"),
+      ])
+    check result.exitCode == 0
+    let calls = readFile(podmanLog)
+    check calls.contains("majadu-import")
+    check calls.contains("etl --source " & source & " --target " & etl)
+    check calls.contains("verify --source " & source & " --target " & etl)
+    check calls.contains("-e MAJADU_PG_DSN=" & etl)
+    check not calls.contains("--target " & source)
+
+  test "the staging restore gets the restore DSN, never the ETL DSN":
+    let fixture = newFixture("cutover-restore-dsn-wiring")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    for tool in ["pg_dump", "pg_restore", "caddy"]:
+      fixture.installFake(tool, okFake)
+    createDir(fixture.root / "scripts")
+    writeExecutable(fixture.root / "scripts" / "smoke.sh",
+      "#!/bin/sh\nexit 0\n")
+    let restoreLog = fixture.root / "restore.log"
+    writeExecutable(fixture.root / "scripts" / "restore.sh",
+      "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$FAKE_RESTORE_LOG\"\nexit 0\n")
+    let owner = "postgres://bm2_owner@127.0.0.1:5432/bm2"
+    let etl = "postgres://bm2_etl@127.0.0.1:5432/bm2"
+    let source = "postgres://staging_reader@127.0.0.1:5432/bm_staging"
+    let restore = "postgres://bm2_owner@127.0.0.1:5432/bm_staging"
+    privateFile(fixture.root / "env" / "majadu-prod.env.v2",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=" & owner & "\n" &
+      "MAJADU_ETL_DSN=" & etl & "\n" &
+      "MAJADU_ETL_SOURCE_DSN=" & source & "\n" &
+      "MAJADU_CUTOVER_RESTORE_DSN=" & restore & "\n")
+    touch(fixture.root / "cutover" / "snapshot.path", "dump.bin\n")
+    touch(fixture.root / "cutover" / "snapshot.sha256", "abc\n")
+    touch(fixture.root / "cutover" / "snapshot.taken_at", "2026-11-09T00:00:00Z\n")
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--version", "2.0.0", "--from", "restore-staging"],
+      appDir(fixture) & @[
+        ("FAKE_RESTORE_LOG", restoreLog),
+        ("MAJADU_OWNER_SUB", "owner-sub"),
+        ("MAJADU_CADDY_VALIDATE", "true"),
+        ("MAJADU_CADDY_RELOAD", "true"),
+        ("MAJADU_STEP_LOG", fixture.root / "cutover" / "timings.tsv"),
+      ])
+    check result.exitCode == 0
+    let call = readFile(restoreLog)
+    check call.contains("--target bm_staging")
+    check call.contains("--dsn " & restore)
+    check call.contains("--recreate")
+    check not call.contains(etl)
 
   test "a failing step logs an ERROR line and stops the sequence":
     let fixture = newFixture("cutover-failing-step")
@@ -708,7 +829,8 @@ suite "cutover.sh":
     privateFile(fixture.root / "env" / "majadu-prod.env.v2",
       "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n" &
       "MAJADU_ETL_DSN=postgres://bm2_etl@127.0.0.1:5432/bm2\n" &
-      "MAJADU_ETL_SOURCE_DSN=postgres://bm2_etl@127.0.0.1:5432/bm_staging\n")
+      "MAJADU_ETL_SOURCE_DSN=postgres://bm2_owner@127.0.0.1:5432/bm_staging\n" &
+      "MAJADU_CUTOVER_RESTORE_DSN=postgres://bm2_owner@127.0.0.1:5432/bm_staging\n")
     # The maintenance step succeeds; the Caddy check in the next one fails, so
     # the ERR trap has to fire inside the step function and stop the sequence.
     let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
@@ -858,9 +980,11 @@ suite "bootstrap-rc.sh":
     defer: removeDir(fixture.root)
     let rcDir = fixture.root / "rc"
     let envFile = rcDir / "env" / "majadu-rc.env"
-    touch(envFile, "MAJADU_OWNER_DSN=x\n")
+    touch(envFile, "MAJADU_PG_DSN=x\n")
     setFilePermissions(envFile, {fpUserRead, fpUserWrite, fpGroupRead,
       fpOthersRead})
+    privateFile(rcDir / "env" / "majadu-rc-tools.env",
+      "MAJADU_OWNER_DSN=x\n")
     let result = fixture.runShell(fixture.installOpsScript("bootstrap-rc.sh"),
       @[], @[("MAJADU_RC_APP_DIR", rcDir)])
     check result.exitCode == 1
@@ -872,14 +996,17 @@ suite "bootstrap-rc.sh":
     defer: removeDir(fixture.root)
     let rcDir = fixture.root / "rc"
     let envFile = rcDir / "env" / "majadu-rc.env"
+    let toolsFile = rcDir / "env" / "majadu-rc-tools.env"
     privateFile(envFile,
       "MAJADU_PG_DSN=postgres://bm2_app:secret@127.0.0.1:5432/bm2_rc\n")
+    privateFile(toolsFile, "MAJADU_OWNER_DSN=\n")
     let script = fixture.installOpsScript("bootstrap-rc.sh")
     let noOwner = fixture.runShell(script, @[],
       @[("MAJADU_RC_APP_DIR", rcDir)])
     check noOwner.exitCode == 1
-    check noOwner.stderr.contains("MAJADU_OWNER_DSN is missing from " & envFile)
-    privateFile(envFile,
+    check noOwner.stderr.contains("MAJADU_OWNER_DSN is missing from " & toolsFile)
+    privateFile(envFile, "MAJADU_PG_DSN=\n")
+    privateFile(toolsFile,
       "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2_rc\n")
     let noApp = fixture.runShell(script, @[],
       @[("MAJADU_RC_APP_DIR", rcDir)])
@@ -897,8 +1024,9 @@ suite "bootstrap-rc.sh":
     createDir(rcDir / "repo" / ".git")
     for name in ["bm", "bm2", "majadu", "postgres"]:
       privateFile(envFile,
-        "MAJADU_OWNER_DSN=postgres://bm2_owner:secret@127.0.0.1:5432/" & name & "\n" &
         "MAJADU_PG_DSN=postgres://bm2_app:secret@127.0.0.1:5432/" & name & "\n")
+      privateFile(rcDir / "env" / "majadu-rc-tools.env",
+        "MAJADU_OWNER_DSN=postgres://bm2_owner:secret@127.0.0.1:5432/" & name & "\n")
       let result = fixture.runShell(script, @[],
         @[("MAJADU_RC_APP_DIR", rcDir)])
       check result.exitCode == 1
@@ -910,8 +1038,9 @@ suite "bootstrap-rc.sh":
     defer: removeDir(fixture.root)
     let rcDir = fixture.root / "rc"
     privateFile(rcDir / "env" / "majadu-rc.env",
-      "MAJADU_OWNER_DSN=postgres://bm2_owner:secret@127.0.0.1:5432/bm2_rc\n" &
       "MAJADU_PG_DSN=postgres://bm2_app:secret@127.0.0.1:5432/bm2_rc\n")
+    privateFile(rcDir / "env" / "majadu-rc-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner:secret@127.0.0.1:5432/bm2_rc\n")
     let podmanLog = fixture.root / "podman.log"
     fixture.installFake("podman", podmanFake)
     let result = fixture.runShell(fixture.installOpsScript("bootstrap-rc.sh"),
@@ -928,8 +1057,9 @@ suite "bootstrap-rc.sh":
     defer: removeDir(fixture.root)
     let rcDir = fixture.root / "rc"
     privateFile(rcDir / "env" / "majadu-rc.env",
-      "MAJADU_OWNER_DSN=postgres://bm2_owner:secret@127.0.0.1:5432/bm2_rc\n" &
       "MAJADU_PG_DSN=postgres://bm2_app:secret@127.0.0.1:5432/bm2_rc\n")
+    privateFile(rcDir / "env" / "majadu-rc-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner:secret@127.0.0.1:5432/bm2_rc\n")
     touch(rcDir / "repo" / "VERSION", "2.0.0\n")
     let podmanLog = fixture.root / "podman.log"
     fixture.installFake("podman", podmanFake)
@@ -946,8 +1076,9 @@ suite "bootstrap-rc.sh":
     defer: removeDir(fixture.root)
     let rcDir = fixture.root / "rc"
     privateFile(rcDir / "env" / "majadu-rc.env",
-      "MAJADU_OWNER_DSN=postgres://bm2_owner:secret@127.0.0.1:5432/bm2_rc\n" &
       "MAJADU_PG_DSN=postgres://bm2_app:secret@127.0.0.1:5432/bm2_rc\n")
+    privateFile(rcDir / "env" / "majadu-rc-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner:secret@127.0.0.1:5432/bm2_rc\n")
     touch(rcDir / "repo" / "VERSION", "2.0.0\n")
     let podmanLog = fixture.root / "podman.log"
     fixture.installFake("podman", podmanFake)
@@ -961,3 +1092,53 @@ suite "bootstrap-rc.sh":
     check result.stdout.contains("dropping bm2_rc")
     check readFile(podmanLog).contains(
       "drop database if exists bm2_rc with (force)")
+suite "systemd units":
+  # A macOS checkout cannot run systemd, so these cases read the unit files as
+  # the deploy script installs them. The host-side proof is
+  # `systemd-analyze verify` after a deploy; that is documented in
+  # docs/ops/operations.md.
+  let unitsDir = repoDir / "ops" / "systemd"
+
+  test "every OnFailure names the alert template with %N":
+    var found = 0
+    for kind, path in walkDir(unitsDir):
+      if not (path.endsWith(".service") or path.endsWith(".container")):
+        continue
+      for line in readFile(path).splitLines:
+        if line.startsWith("OnFailure="):
+          check line == "OnFailure=majadu-alert@%N.service"
+          inc found
+    check found > 0
+    check fileExists(unitsDir / "majadu-alert@.service")
+
+  test "no unit keeps the %n specifier":
+    for kind, path in walkDir(unitsDir):
+      check not readFile(path).contains("majadu-alert@%n.service")
+
+  test "the API unit loads an env file without the owner or ETL DSN":
+    var envPath = ""
+    for line in readFile(unitsDir / "majadu-api.container").splitLines:
+      if line.startsWith("EnvironmentFile="):
+        envPath = line.split("=", maxsplit = 1)[1]
+    check envPath == "/srv/qouver/apps/majadu/env/majadu-prod.env"
+    let apiEnv = readFile(repoDir / "ops" / "env" / "prod.env.example")
+    check apiEnv.contains("MAJADU_PG_DSN=")
+    check not apiEnv.contains("MAJADU_OWNER_DSN=")
+    check not apiEnv.contains("MAJADU_ETL_DSN=")
+    let toolsEnv = readFile(repoDir / "ops" / "env" / "prod-tools.env.example")
+    check toolsEnv.contains("MAJADU_OWNER_DSN=")
+    check toolsEnv.contains("MAJADU_ETL_DSN=")
+    check toolsEnv.contains("MAJADU_ETL_SOURCE_DSN=")
+    check toolsEnv.contains("MAJADU_CUTOVER_RESTORE_DSN=")
+
+  test "the RC API unit loads an env file without the owner DSN":
+    var envPath = ""
+    for line in readFile(unitsDir / "majadu-rc-api.container").splitLines:
+      if line.startsWith("EnvironmentFile="):
+        envPath = line.split("=", maxsplit = 1)[1]
+    check envPath == "/srv/qouver/apps/majadu-rc/env/majadu-rc.env"
+    let apiEnv = readFile(repoDir / "ops" / "env" / "rc.env.example")
+    check apiEnv.contains("MAJADU_PG_DSN=")
+    check not apiEnv.contains("MAJADU_OWNER_DSN=")
+    let toolsEnv = readFile(repoDir / "ops" / "env" / "rc-tools.env.example")
+    check toolsEnv.contains("MAJADU_OWNER_DSN=")

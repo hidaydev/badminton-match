@@ -59,7 +59,9 @@ the sequence is:
 1. `git fetch origin main` + `git reset --hard origin/main`.
 2. Resolve the digest from the GitHub Release, `podman pull` that digest.
 3. **`dbtools migrate` + `dbtools verify`** from the newly pulled image, using
-   `MAJADU_OWNER_DSN`. A failure here = the release is not installed,
+   `MAJADU_OWNER_DSN` from `env/majadu-tools.env` (the API unit loads only
+   `env/majadu-prod.env` and never sees that credential). A failure here = the
+   release is not installed,
    `:local`/`:prev` are not touched, the old service keeps running.
 4. Tag rotation: `:local` → `:prev`, the new image → `:local`.
 5. Sync the systemd units and operator scripts from the repo.

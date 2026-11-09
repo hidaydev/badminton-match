@@ -24,6 +24,13 @@
 #   MAJADU_STAGING_DB       database the dump is restored into (default: bm_staging)
 #   MAJADU_BM2_DB           database the ETL writes to (default: bm2)
 #   MAJADU_STEP_LOG         per-step timing log (default: <app>/cutover/cutover.timings.tsv)
+#   MAJADU_TOOLS_ENV        tool DSN file (default: <app>/env/majadu-tools.env)
+#
+# The four DSNs come from the tool env, never from the file the API loads:
+#   MAJADU_OWNER_DSN             bm2_owner on bm2 (DDL, migrations, state)
+#   MAJADU_ETL_DSN               bm2_etl on bm2 (import target only)
+#   MAJADU_ETL_SOURCE_DSN        a reader on bm_staging (import source only)
+#   MAJADU_CUTOVER_RESTORE_DSN   a role that owns or can recreate bm_staging
 #
 # The *_CMD/*_VALIDATE overrides exist for the rehearsal harness (T-063), which
 # runs the same sequence against a sandbox app dir and a rehearsal unit.
@@ -51,6 +58,7 @@ CADDY_ACTIVE="$CADDY_DIR/active.caddy"
 ENV_LINK="$APP_DIR/env/majadu-prod.env"
 ENV_V1="$APP_DIR/env/majadu-prod.env.v1"
 ENV_V2="$APP_DIR/env/majadu-prod.env.v2"
+TOOLS_ENV="${MAJADU_TOOLS_ENV:-$APP_DIR/env/majadu-tools.env}"
 MONO_DIR="$APP_DIR/monorepo"
 CUTOVER_DIR="$APP_DIR/cutover"
 LOCK_FILE="$APP_DIR/.deploy.lock"
@@ -132,7 +140,8 @@ step_marker() {
 }
 
 env_value() {
-  sed -n "s/^$1=//p" "$ENV_V2" 2>/dev/null | tail -1
+  local file=$1 key=$2
+  sed -n "s/^$key=//p" "$file" 2>/dev/null | tail -1
 }
 
 run_tool() {
@@ -161,12 +170,36 @@ for tool in podman psql pg_dump pg_restore curl caddy flock; do
 done
 [ -f "$ENV_V2" ] || { echo "cutover: $ENV_V2 is missing (the post-cutover env)" >&2; exit 2; }
 
-OWNER_DSN=$(env_value MAJADU_OWNER_DSN)
-ETL_DSN=$(env_value MAJADU_ETL_DSN)
-SOURCE_DSN=$(env_value MAJADU_ETL_SOURCE_DSN)
-for name in OWNER_DSN ETL_DSN SOURCE_DSN; do
-  [ -n "${!name}" ] || { echo "cutover: $name is not set in $ENV_V2" >&2; exit 2; }
-done
+# The tool DSNs live in a file the API unit never loads. The T-063 rehearsal
+# sandbox installs a single v2 env, so when the tool file is absent the v2 env
+# is read instead; a production host must have the tool file and fails closed
+# below when a variable is missing from whichever file was chosen.
+DSN_FILE="$TOOLS_ENV"
+if [ ! -f "$TOOLS_ENV" ] && [ -f "$ENV_V2" ]; then
+  DSN_FILE="$ENV_V2"
+fi
+
+if [ -f "$TOOLS_ENV" ]; then
+  mode=$(stat -c '%a' "$TOOLS_ENV" 2>/dev/null || stat -f '%Lp' "$TOOLS_ENV" 2>/dev/null || echo "?")
+  case "$mode" in
+    600|400) ;;
+    *) echo "cutover: $TOOLS_ENV must be mode 600 (found $mode)" >&2; exit 2 ;;
+  esac
+fi
+
+missing_dsn() {
+  echo "cutover: $1 is not set in $DSN_FILE" >&2
+  exit 2
+}
+
+OWNER_DSN=$(env_value "$DSN_FILE" MAJADU_OWNER_DSN)
+ETL_DSN=$(env_value "$DSN_FILE" MAJADU_ETL_DSN)
+SOURCE_DSN=$(env_value "$DSN_FILE" MAJADU_ETL_SOURCE_DSN)
+RESTORE_DSN=$(env_value "$DSN_FILE" MAJADU_CUTOVER_RESTORE_DSN)
+[ -n "$OWNER_DSN" ] || missing_dsn MAJADU_OWNER_DSN
+[ -n "$ETL_DSN" ] || missing_dsn MAJADU_ETL_DSN
+[ -n "$SOURCE_DSN" ] || missing_dsn MAJADU_ETL_SOURCE_DSN
+[ -n "$RESTORE_DSN" ] || missing_dsn MAJADU_CUTOVER_RESTORE_DSN
 V1_DSN="${MAJADU_CUTOVER_V1_DSN:-postgresql:///bm}"
 
 exec 9>"$LOCK_FILE"
@@ -292,8 +325,10 @@ step_snapshot() {
 step_restore_staging() {
   local dump
   dump=$(cat "$CUTOVER_DIR/snapshot.path")
+  # The ETL role cannot drop or create bm_staging, so the restore uses its own
+  # DSN: a role that owns the staging database or has CREATEDB.
   "$APP_DIR/scripts/restore.sh" --file "$dump" --target "$STAGING_DB" \
-    --dsn "$SOURCE_DSN" --recreate
+    --dsn "$RESTORE_DSN" --recreate
 }
 
 step_prepare_bm2() {
