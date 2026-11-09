@@ -15,6 +15,8 @@ on:
 
 permissions:
   contents: read
+  # The gate reads the Coverage workflow result for this commit.
+  actions: read
 
 # One run per commit within an event class. Pull requests group by head SHA, so
 # two PR runs for the same commit dedupe; pushes and dispatch runs group by
@@ -56,6 +58,17 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # OPS-19: a warm run reuses the compiler cache instead of rebuilding the
+      # whole Nim tree. The key carries the sources, so a changed file gets a
+      # fresh cache and restore-keys supplies the unchanged remainder.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cache/*/check
+            .cache/*/build
+          key: nimcache-${{ runner.os }}-${{ hashFiles('deps.lock', 'config.nims', 'majadu.nimble', 'apps/**/*.nim', 'modules/**/*.nim', 'shared/**/*.nim', 'tools/**/*.nim') }}
+          restore-keys: |
+            nimcache-${{ runner.os }}-
       # QA-11: `./task check` runs the TypeScript coverage gate, so this job
       # needs the workspace installed as well as Nim.
       - uses: pnpm/action-setup@9bbca1e9dc2902adb87e8780fe5c98796985a62d # v6.1.1
@@ -175,6 +188,17 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # OPS-19: a warm run reuses the compiler cache instead of rebuilding the
+      # whole Nim tree. The key carries the sources, so a changed file gets a
+      # fresh cache and restore-keys supplies the unchanged remainder.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cache/*/check
+            .cache/*/build
+          key: nimcache-${{ runner.os }}-${{ hashFiles('deps.lock', 'config.nims', 'majadu.nimble', 'apps/**/*.nim', 'modules/**/*.nim', 'shared/**/*.nim', 'tools/**/*.nim') }}
+          restore-keys: |
+            nimcache-${{ runner.os }}-
       # The packages in deps.lock are not vendored: a cold `~/.nimble` cache
       # must install them before anything compiles.
       # Nim's `re` binds to the system PCRE 1 library at run time, and the
@@ -287,6 +311,17 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # OPS-19: a warm run reuses the compiler cache instead of rebuilding the
+      # whole Nim tree. The key carries the sources, so a changed file gets a
+      # fresh cache and restore-keys supplies the unchanged remainder.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cache/*/check
+            .cache/*/build
+          key: nimcache-${{ runner.os }}-${{ hashFiles('deps.lock', 'config.nims', 'majadu.nimble', 'apps/**/*.nim', 'modules/**/*.nim', 'shared/**/*.nim', 'tools/**/*.nim') }}
+          restore-keys: |
+            nimcache-${{ runner.os }}-
       # The packages in deps.lock are not vendored: a cold `~/.nimble` cache
       # must install them before anything compiles.
       # Nim's `re` binds to the system PCRE 1 library at run time, and the
@@ -401,6 +436,17 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # OPS-19: a warm run reuses the compiler cache instead of rebuilding the
+      # whole Nim tree. The key carries the sources, so a changed file gets a
+      # fresh cache and restore-keys supplies the unchanged remainder.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cache/*/check
+            .cache/*/build
+          key: nimcache-${{ runner.os }}-${{ hashFiles('deps.lock', 'config.nims', 'majadu.nimble', 'apps/**/*.nim', 'modules/**/*.nim', 'shared/**/*.nim', 'tools/**/*.nim') }}
+          restore-keys: |
+            nimcache-${{ runner.os }}-
       # The packages in deps.lock are not vendored: a cold `~/.nimble` cache
       # must install them before anything compiles.
       # Nim's `re` binds to the system PCRE 1 library at run time, and the
@@ -544,6 +590,17 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # OPS-19: a warm run reuses the compiler cache instead of rebuilding the
+      # whole Nim tree. The key carries the sources, so a changed file gets a
+      # fresh cache and restore-keys supplies the unchanged remainder.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cache/*/check
+            .cache/*/build
+          key: nimcache-${{ runner.os }}-${{ hashFiles('deps.lock', 'config.nims', 'majadu.nimble', 'apps/**/*.nim', 'modules/**/*.nim', 'shared/**/*.nim', 'tools/**/*.nim') }}
+          restore-keys: |
+            nimcache-${{ runner.os }}-
       - name: "Dependencies: install the runtime C libraries"
         run: |
           sudo apt-get update
@@ -605,11 +662,49 @@ jobs:
             --data "{\"text\":\"majadu: main CI failed at $SHA $RUN_URL\"}" \
             "$WEBHOOK"
 
+  # OPS-19 and OPS-20: Coverage is its own workflow, so a cross-workflow
+  # dependency is the only way the gate can require it. The job waits for the
+  # Coverage run of this exact commit and fails closed on a red result or on a
+  # run that never finishes inside the job's cap. A cancelled Coverage run is a
+  # failure here, not a pass.
+  coverage-gate:
+    name: "Coverage: required result"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: "Coverage: wait for the run of this commit"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          deadline=$((SECONDS + 720))
+          while :; do
+            body=$(gh api \
+              "repos/$REPO/actions/workflows/coverage.yml/runs?head_sha=$SHA&per_page=1" \
+              2>/dev/null || true)
+            status=$(printf '%s' "$body" | jq -r '.workflow_runs[0].status // ""')
+            conclusion=$(printf '%s' "$body" | jq -r '.workflow_runs[0].conclusion // ""')
+            if [ "$status" = "completed" ]; then
+              if [ "$conclusion" = "success" ]; then
+                echo "coverage: the run for $SHA succeeded"
+                exit 0
+              fi
+              echo "::error::the Coverage run for $SHA ended as '${conclusion:-none}'"
+              exit 1
+            fi
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::no completed Coverage run for $SHA within 12 minutes (last status: '${status:-none}')"
+              exit 1
+            fi
+            sleep 20
+          done
+
   gate:
     name: "Gate"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    needs: [api-check, api-test, contract, supply-chain, web, e2e, mutation, image]
+    needs: [api-check, api-test, contract, supply-chain, web, e2e, mutation, image, coverage-gate]
     if: always()
     steps:
       - name: "Gate: require every job"
