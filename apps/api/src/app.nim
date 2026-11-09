@@ -912,6 +912,11 @@ proc claimWrite(request: Request, ctx: CommunityContext, user: AuthUser,
   of idempotencyReplay:
     jsonResponse(request, entry.statusCode, entry.response)
     none(WriteKey)
+  of idempotencyInProgress:
+    problem(request, 409, "IDEMPOTENCY_IN_PROGRESS",
+      "this key is still being processed; retry shortly",
+      %*{"retryAfter": 2}, [("Retry-After", "2")])
+    none(WriteKey)
   of idempotencyConflict:
     problem(request, 409, "IDEMPOTENCY_CONFLICT",
       "this key was used with a different body")
@@ -2943,13 +2948,15 @@ proc listTournamentsRoute(request: Request, ctx: CommunityContext,
 
 proc createTournamentRoute(request: Request, ctx: CommunityContext,
                            user: AuthUser) =
+  # Parse before claiming: a malformed body must not own the key, or the
+  # corrected retry answers 409 for the rest of the TTL.
+  var body: JsonNode
+  if not jsonBody(request, body):
+    return
   let claimed = claimWrite(request, ctx, user)
   if claimed.isNone:
     return
   let w = claimed.get
-  var body: JsonNode
-  if not jsonBody(request, body):
-    return
   var status: tournamentStore.SaveStatus
   var snapshot: JsonNode
   auditedWrite(proc(tx: Db, conn: DbConn) =
@@ -2985,13 +2992,14 @@ proc putTournamentRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   let version = requireIfMatch(request)
   if version.isNone:
     return
+  # The body is parsed before the key is claimed, so a 400 leaves no owner.
+  var body: JsonNode
+  if not jsonBody(request, body):
+    return
   let claimed = claimWrite(request, ctx, user, "tournament/" & id)
   if claimed.isNone:
     return
   let w = claimed.get
-  var body: JsonNode
-  if not jsonBody(request, body):
-    return
   var status: tournamentStore.SaveStatus
   var snapshot: JsonNode
   auditedWrite(proc(tx: Db, conn: DbConn) =
@@ -3093,14 +3101,15 @@ proc patchTournamentMatchRoute(request: Request, ctx: CommunityContext,
   let version = requireIfMatch(request)
   if version.isNone:
     return
+  # Same order as the other two: parse, then claim.
+  var body: JsonNode
+  if not jsonBody(request, body):
+    return
   let claimed = claimWrite(request, ctx, user,
     "tournament/" & id & "/match/" & matchId)
   if claimed.isNone:
     return
   let w = claimed.get
-  var body: JsonNode
-  if not jsonBody(request, body):
-    return
   var status: tournamentStore.PatchStatus
   var snapshot: JsonNode
   auditedWrite(proc(tx: Db, conn: DbConn) =
