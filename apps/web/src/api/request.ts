@@ -16,7 +16,6 @@ export const API_BASE: string = import.meta.env.VITE_API_BASE || '/api'
 
 const API_VERSION = '2'
 const API_TIMEOUT_MS = 30_000
-const MAX_RETRIES = 3
 const RETRY_BASE_DELAY_MS = 1_000
 const RETRY_MAX_DELAY_MS = 4_000
 
@@ -77,7 +76,9 @@ export async function request<T>(
   options: RequestOptions = {},
 ): Promise<RequestResult<T>> {
   const method = (init.method ?? 'GET').toUpperCase()
-  const maxRetries = options.maxRetries ?? MAX_RETRIES
+  // The legacy adapter opts into retries explicitly; a v2 screen keeps the
+  // one-shot behaviour it had before the transport was unified.
+  const maxRetries = options.maxRetries ?? 0
   const timeoutMs = options.timeoutMs ?? API_TIMEOUT_MS
   const retryBaseDelayMs = options.retryBaseDelayMs ?? RETRY_BASE_DELAY_MS
   let lastError: unknown

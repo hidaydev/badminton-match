@@ -143,7 +143,9 @@ export default function PlayersPage() {
                 onClick={() => {
                   if (addPanel.current !== null) {
                     addPanel.current.open = true
-                    addPanel.current.scrollIntoView()
+                    if (typeof addPanel.current.scrollIntoView === 'function') {
+                      addPanel.current.scrollIntoView()
+                    }
                   }
                 }}
               >

@@ -19,7 +19,7 @@ describe('shared request transport', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const promise = request<{ ok: boolean }>('/flaky', {}, { retryBaseDelayMs: 10 })
+    const promise = request<{ ok: boolean }>('/flaky', {}, { retryBaseDelayMs: 10, maxRetries: 3 })
     await vi.advanceTimersByTimeAsync(100)
 
     await expect(promise).resolves.toEqual({ ok: true })

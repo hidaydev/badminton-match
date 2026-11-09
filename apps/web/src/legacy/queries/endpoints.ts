@@ -120,9 +120,9 @@ export async function request<T>(
     headers,
   }
   if (includeHeaders === true) {
-    return await transport<T>(path, init, { includeHeaders: true })
+    return await transport<T>(path, init, { includeHeaders: true, maxRetries: 3 })
   }
-  return await transport<T>(path, init)
+  return await transport<T>(path, init, { maxRetries: 3 })
 }
 
 const enc = encodeURIComponent
