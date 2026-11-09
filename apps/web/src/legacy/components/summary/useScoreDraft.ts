@@ -1,5 +1,5 @@
 // useScoreDraft — state draft skor inline (expand input, validasi, simpan).
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { GameScore, SessionScoring, SetScore } from '../../types'
 import { validateScore } from '../../utils/scoreValidation'
 import { matchComplete, validateSet, validateSets } from '../../utils/scoring'
@@ -62,6 +62,9 @@ export function useScoreDraft(
   const [scoreError, setScoreError] = useState<string | null>(null)
   const [draftScores, setDraftScores] = useState<Record<string, MatchDraft>>({})
   const [scoreFailures, setScoreFailures] = useState<Record<string, ScoreFailure>>({})
+  // One write per game at a time: a double tap on Retry must not send two
+  // PATCHes for the same row.
+  const writingRef = useRef<Set<string>>(new Set())
 
   function clearFailure(key: string): void {
     setScoreFailures((prev) => {
@@ -74,6 +77,8 @@ export function useScoreDraft(
 
   async function writeScore(key: string, sets: SetScore[]): Promise<void> {
     if (onSetGameScore === undefined) return
+    if (writingRef.current.has(key)) return
+    writingRef.current.add(key)
     clearFailure(key)
     try {
       await onSetGameScore(key, sets)
@@ -82,6 +87,8 @@ export function useScoreDraft(
       setScoreFailures((prev) => ({ ...prev, [key]: { message: getSaveErrorMessage(error), sets } }))
       // Keep the editor open on the row that failed so the retry is in reach.
       setExpandedScore(key)
+    } finally {
+      writingRef.current.delete(key)
     }
   }
 

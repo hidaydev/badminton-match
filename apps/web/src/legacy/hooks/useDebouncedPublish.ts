@@ -6,7 +6,7 @@
 
 import { useRef, useEffect, useCallback, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useStore } from '../store'
+import { useStore, recordPendingPublish } from '../store'
 import { usePublishSession } from '../queries'
 import { publishSession, getSession } from '../queries/endpoints'
 import { getSaveErrorMessage } from '../queries/errors'
@@ -39,6 +39,7 @@ function buildSnapshot(state: StoreState, cached?: CloudSnapshot | null): CloudS
 export function useDebouncedPublish(
   cloudSessionId: string | null,
   onError?: (message: string) => void,
+  onSaved?: () => void,
 ) {
   const publishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const publishStartRef = useRef<number | null>(null)
@@ -64,6 +65,13 @@ export function useDebouncedPublish(
   useEffect(() => {
     onErrorRef.current = onError
   }, [onError])
+
+  // A successful publish is the acknowledgement that clears the wizard's
+  // failure banner; nothing else may remove it.
+  const onSavedRef = useRef(onSaved)
+  useEffect(() => {
+    onSavedRef.current = onSaved
+  }, [onSaved])
 
   const doPublishRef = useRef<() => void>(() => {})
 
@@ -100,7 +108,7 @@ export function useDebouncedPublish(
             useStore.getState().setPendingPublish(null)
           }
         }
-        setIsDirty(false)
+        onSavedRef.current?.()
       },
       onError: async (err) => {
         // The last edit is still only local: keep the dirty flag so a tab
@@ -110,11 +118,12 @@ export function useDebouncedPublish(
         onErrorRef.current?.(message)
         // Record the unconfirmed write. A navigation can unmount the screen
         // (and its toast) before the reviewer sees it, so the next screen
-        // reads this record and offers a retry.
+        // reads this record and offers a retry. The helper refuses after
+        // expiry, when the draft no longer belongs to this account.
         const state = useStore.getState()
         if (state.cloudSessionId === cloudSessionId) {
           const cached = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', cloudSessionId))
-          useStore.getState().setPendingPublish({
+          recordPendingPublish({
             cloudSessionId,
             snapshot: buildSnapshot(state, cached),
             message,
@@ -136,6 +145,8 @@ export function useDebouncedPublish(
         if (pendingDirtyRef.current) {
           pendingDirtyRef.current = false
           setIsPendingQueue(true)
+          // Work is still queued, so the close prompt must stay armed.
+          setIsDirty(true)
           publishTimerRef.current = setTimeout(() => {
             doPublishRef.current()
           }, 300)
@@ -185,11 +196,12 @@ export function useDebouncedPublish(
       const state = useStore.getState()
       if (state.cloudSessionId !== cloudSessionId) return
       const cached = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', cloudSessionId))
-      useStore.getState().setPendingPublish({
+      const recorded = recordPendingPublish({
         cloudSessionId,
         snapshot: buildSnapshot(state, cached),
         message: null,
       })
+      if (!recorded) return
       event.preventDefault()
       event.returnValue = ''
     }
@@ -211,9 +223,8 @@ export function useDebouncedPublish(
           if (state.cloudSessionId === cloudSessionId) {
             const cached = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', cloudSessionId))
             const snap = buildSnapshot(state, cached)
-            // Write the retry record before the request: navigating away must
-            // not remove the only copy of an edit the server has not seen.
-            useStore.getState().setPendingPublish({ cloudSessionId, snapshot: snap, message: null })
+            // A normal navigation must not show "Changes not saved" before the
+            // write is even answered, so the record is written only on failure.
             publishSession(cloudSessionId, snap).then((updated) => {
               if (useStore.getState().cloudSessionId === cloudSessionId) {
                 useStore.getState().setCloudVersion(updated?.version ?? null)
@@ -225,8 +236,9 @@ export function useDebouncedPublish(
             }).catch((err) => {
               const message = getSaveErrorMessage(err)
               // The screen is gone, so an inline banner cannot report this.
-              // The record stays in the store for the next screen to retry.
-              useStore.getState().setPendingPublish({ cloudSessionId, snapshot: snap, message })
+              // The record stays in the store for the next screen to retry,
+              // unless expiry already detached it from this account.
+              recordPendingPublish({ cloudSessionId, snapshot: snap, message })
               onErrorRef.current?.(message)
             })
           }

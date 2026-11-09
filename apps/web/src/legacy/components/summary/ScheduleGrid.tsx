@@ -15,6 +15,7 @@ import type { PlayerChipMode } from './PlayerChipRenderer'
 import PlayerChipRenderer from './PlayerChipRenderer'
 import { hit44 } from '../hitTarget'
 import SlotGameCard from './SlotGameCard'
+import { t } from '../../../i18n'
 
 interface ScheduleGridProps {
   result: GeneratorResult
@@ -314,7 +315,7 @@ export default function ScheduleGrid({
                         className="ml-6 flex flex-wrap items-center gap-2 rounded-lg border border-red-700/60 bg-red-900/20 px-2 py-1.5"
                       >
                         <span className="text-xs text-red-300">
-                          Score not saved. {scoreFailures[key].message}
+                          {t('session.score.notSaved')} {scoreFailures[key].message}
                         </span>
                         <span className="ml-auto flex items-center gap-1">
                           <button
@@ -323,15 +324,15 @@ export default function ScheduleGrid({
                             disabled={saving}
                             className="min-h-11 rounded-md border border-red-500/70 px-2 text-xs font-bold text-red-200 transition-colors hover:bg-red-800/40 disabled:opacity-50"
                           >
-                            Retry
+                            {t('session.action.retry')}
                           </button>
                           <button
                             type="button"
                             onClick={() => dismissScoreFailure?.(key)}
                             className="min-h-11 rounded-md px-2 text-xs text-red-300 underline underline-offset-2 transition-colors hover:text-red-100"
-                            aria-label={`Dismiss score error for ${teamANames} vs ${teamBNames}`}
+                            aria-label={t('session.score.dismiss', { teams: `${teamANames} vs ${teamBNames}` })}
                           >
-                            Dismiss
+                            {t('session.action.dismiss')}
                           </button>
                         </span>
                       </div>

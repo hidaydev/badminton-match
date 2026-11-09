@@ -11,7 +11,7 @@ import type { ScheduleSlice } from './scheduleSlice'
 import { createScheduleSlice } from './scheduleSlice'
 import type { FixMatchesSlice } from './fixMatchesSlice'
 import { createFixMatchesSlice } from './fixMatchesSlice'
-import type { UISlice } from './uiSlice'
+import type { PendingPublish, UISlice } from './uiSlice'
 import { createUISlice } from './uiSlice'
 
 // Combined state type
@@ -139,4 +139,18 @@ export function clearStoreDraft(): void {
   useStore.getState().resetSession()
   useStore.persist.clearStorage()
   draftCommunitySlug = null
+}
+
+/**
+ * Persist a failed publish, but only while the draft it belongs to is still
+ * the active one. Expiry clears the draft synchronously, and the 401 handler
+ * can run before the failing request's catch block; an unguarded write would
+ * then recreate the previous account's record for the next account on this
+ * device.
+ */
+export function recordPendingPublish(pending: PendingPublish): boolean {
+  if (currentCommunitySlug() === '') return false
+  if (useStore.getState().cloudSessionId !== pending.cloudSessionId) return false
+  useStore.getState().setPendingPublish(pending)
+  return true
 }

@@ -1,3 +1,5 @@
+import { t } from '../../i18n'
+
 /**
  * Toast error yang dipakai di beberapa halaman. `role="alert"` sudah membawa
  * `aria-live="assertive"` implisit; menambahkan aria-live lain membuat
@@ -24,7 +26,7 @@ export default function ErrorBanner({
           onClick={onRetry}
           className="min-h-11 shrink-0 rounded-md border border-red-500 px-2 font-bold text-red-100 transition-colors hover:bg-red-800"
         >
-          Retry
+          {t('session.action.retry')}
         </button>
       )}
       {onDismiss && (
@@ -33,7 +35,7 @@ export default function ErrorBanner({
           onClick={onDismiss}
           className="min-h-11 shrink-0 rounded-md px-2 text-red-300 underline underline-offset-2 transition-colors hover:text-red-100"
         >
-          Dismiss
+          {t('session.action.dismiss')}
         </button>
       )}
     </div>

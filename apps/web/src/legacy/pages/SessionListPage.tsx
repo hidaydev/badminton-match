@@ -2,9 +2,9 @@
 import { useState } from 'react'
 import { useNavigate } from '../router'
 import { useListSessions } from '../queries'
-import { publishSession } from '../queries/endpoints'
+import { getSession, publishSession, currentCommunitySlug } from '../queries/endpoints'
 import { getSaveErrorMessage } from '../queries/errors'
-import { useStore } from '../store'
+import { useStore, recordPendingPublish } from '../store'
 import { useAdmin } from '../context/AdminContext'
 import { t } from '../../i18n'
 
@@ -38,16 +38,30 @@ export default function SessionListPage() {
 
   async function retryPendingPublish() {
     if (!pendingPublish || retryingPending) return
+    const { cloudSessionId } = pendingPublish
+    // Expiry can clear the draft while this screen is open. A record that no
+    // longer belongs to the active session must not travel to its next user.
+    if (currentCommunitySlug() === '' || useStore.getState().cloudSessionId !== cloudSessionId) return
     setRetryingPending(true)
     try {
-      const updated = await publishSession(pendingPublish.cloudSessionId, pendingPublish.snapshot)
-      if (useStore.getState().cloudSessionId === pendingPublish.cloudSessionId) {
+      // The stored basis may be older than the server, for example after a
+      // 412. Retry is an explicit save of this draft, so read the current
+      // version once and apply the draft on top of it instead of failing the
+      // same conditional request forever.
+      const fresh = await getSession(cloudSessionId)
+      const snapshot = fresh?.version != null
+        ? { ...pendingPublish.snapshot, version: fresh.version }
+        : pendingPublish.snapshot
+      const updated = await publishSession(cloudSessionId, snapshot)
+      if (useStore.getState().cloudSessionId === cloudSessionId) {
         useStore.getState().setCloudVersion(updated?.version ?? null)
+        useStore.getState().setPendingPublish(null)
+        await refetch()
       }
-      setPendingPublish(null)
-      await refetch()
     } catch (error) {
-      setPendingPublish({ ...pendingPublish, message: getSaveErrorMessage(error) })
+      // Refuse to write after expiry: the 401 handler may already have cleared
+      // the store for the next account on this device.
+      recordPendingPublish({ ...pendingPublish, message: getSaveErrorMessage(error) })
     } finally {
       setRetryingPending(false)
     }

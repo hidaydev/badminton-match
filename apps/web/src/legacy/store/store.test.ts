@@ -90,4 +90,35 @@ describe('legacy store persistence', () => {
     expect(window.localStorage.getItem('badminton-store')).toBeNull()
     expect(useStore.getState().session.title).toBe('')
   })
+
+  it('refuses a pending publish once its draft is no longer active', async () => {
+    const { useStore, prepareCommunityDraft, clearStoreDraft, recordPendingPublish } = await loadStore()
+    const { setCommunitySlug } = await import('../queries/endpoints')
+    setCommunitySlug('a')
+    prepareCommunityDraft('a')
+    useStore.getState().setCloudSessionId('s1')
+    const pending = {
+      cloudSessionId: 's1',
+      snapshot: {
+        version: 1,
+        session: useStore.getState().session,
+        players: [],
+        fixMatches: [],
+        schedule: [],
+        playedGames: [],
+        gameScores: {},
+        absentPlayers: [],
+      },
+      message: 'offline',
+    }
+
+    expect(recordPendingPublish(pending)).toBe(true)
+
+    // The expiry teardown clears the draft and the adapter slug synchronously.
+    clearStoreDraft()
+    setCommunitySlug('')
+
+    expect(recordPendingPublish(pending)).toBe(false)
+    expect(useStore.getState().pendingPublish).toBeNull()
+  })
 })

@@ -16,6 +16,7 @@ import { ScheduleView, QualityBanner } from '../components/generate/ScheduleComp
 import { useDebouncedPublish } from '../hooks/useDebouncedPublish'
 import { collectAmbiguousBaseNames } from '../utils/nameParser'
 import { AmbiguousNamesProvider, combineAmbiguous, useAmbiguousNames } from '../context/AmbiguousNamesContext'
+import { t } from '../../i18n'
 
 export default function GeneratePage() {
   const { isSharedView, snapshot, exitSharedView } = useSharedView()
@@ -78,7 +79,11 @@ export default function GeneratePage() {
   )
   const slotsPerCourt = useMemo(() => selectSlotsPerCourt(session), [session])
 
-  const { publishToCloud, isSaving } = useDebouncedPublish(cloudSessionId, (msg) => setSaveError(msg))
+  const { publishToCloud, isSaving } = useDebouncedPublish(
+    cloudSessionId,
+    (msg) => setSaveError(msg),
+    () => setSaveError(null),
+  )
 
   // A shared link is a spectator view: the snapshot it decoded is the only
   // owner of the session, so an edit must never reach the draft store (another
@@ -283,14 +288,14 @@ export default function GeneratePage() {
               onClick={() => { setSaveError(null); publishToCloud() }}
               className="min-h-11 rounded-lg border border-red-600 px-3 text-xs font-bold text-red-200 transition-colors hover:bg-red-900/40"
             >
-              Retry
+              {t('session.action.retry')}
             </button>
             <button
               type="button"
               onClick={() => setSaveError(null)}
               className="min-h-11 rounded-lg border border-border px-3 text-xs text-red-300 transition-colors hover:text-red-100"
             >
-              Dismiss
+              {t('session.action.dismiss')}
             </button>
           </span>
         </div>
