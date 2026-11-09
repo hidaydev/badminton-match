@@ -724,6 +724,9 @@ else
   fi
 
   if [ -z "$(ls "$PARTS_DIR"/*.info 2>/dev/null)" ]; then
+    if [ "$ran" -eq 0 ]; then
+      fail "shard $shard_index/$shard_total kept no suite; check --shard"
+    fi
     fail "no gcov data was produced; the compiler did not accept --coverage"
   fi
 

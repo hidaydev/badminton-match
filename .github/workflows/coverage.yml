@@ -135,6 +135,9 @@ jobs:
         with:
           name: coverage-parts-${{ matrix.shard }}
           path: .cache/*/coverage/parts-${{ matrix.shard }}-of-4
+          # The parts live under a dot directory, and the action skips hidden
+          # paths unless this is set.
+          include-hidden-files: true
           if-no-files-found: error
 
   ratchet:
