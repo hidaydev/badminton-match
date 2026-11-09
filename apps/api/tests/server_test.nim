@@ -1,4 +1,4 @@
-import std/[os, strutils, unittest]
+import std/[json, os, strutils, unittest]
 import ../src/server
 
 suite "process contract":
@@ -36,6 +36,22 @@ suite "process contract":
     check config.shutdownTimeoutMs == 30000
     check config.testRoutes == false
     check config.metricsPort == 0
+
+  test "the skeleton flag refuses a release configuration":
+    # SQ-04: MAJADU_TEST_ROUTES swaps the whole API for the stub, so an https
+    # redirect (or an explicit production signal) must stop the process instead
+    # of leaving a healthy-looking 404.
+    putEnv("MAJADU_PORT", "8080")
+    putEnv("MAJADU_DRAIN_MS", "0")
+    putEnv("MAJADU_TEST_ROUTES", "1")
+    putEnv("OIDC_REDIRECT_URI", "https://majadu.test/api/auth/callback")
+    delEnv("MAJADU_METRICS_PORT")
+    try:
+      expect ValueError:
+        discard loadConfig()
+    finally:
+      delEnv("MAJADU_TEST_ROUTES")
+      delEnv("OIDC_REDIRECT_URI")
 
 suite "metrics listener":
   test "is off unless a port is configured":
@@ -97,3 +113,8 @@ suite "healthz":
   test "test route is reachable when enabled":
     let outcome = route("/__test/slow", testRoutes = true)
     check outcome.status == 200
+
+  test "the skeleton health names the stub":
+    let outcome = route("/healthz", testRoutes = true)
+    check outcome.status == 200
+    check parseJson(outcome.body)["status"].getStr() == "stub"

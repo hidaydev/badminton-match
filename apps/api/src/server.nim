@@ -58,6 +58,16 @@ proc loadConfig*(): ServerConfig =
   else:
     result.shutdownTimeoutMs = requirePositiveInt("MAJADU_SHUTDOWN_TIMEOUT_MS")
   result.testRoutes = getEnv("MAJADU_TEST_ROUTES") == "1"
+  if result.testRoutes:
+    # The flag replaces the whole router with a stub that answers 200 on
+    # /healthz for every real endpoint returning 404. It must never reach a
+    # release configuration, so any production signal refuses startup.
+    let redirect = getEnv("OIDC_REDIRECT_URI")
+    if redirect.startsWith("https://") or
+        getEnv("MAJADU_COOKIE_SECURE") == "1" or
+        getEnv("MAJADU_ENV") == "prod":
+      raise newException(ValueError,
+        "MAJADU_TEST_ROUTES=1 refuses a release configuration")
   result.metricsPort = loadMetricsPort()
 
 var
@@ -142,7 +152,12 @@ proc metricsHandler*(): RequestHandler =
 proc route*(path: string, testRoutes: bool): RouteResult =
   case path
   of "/healthz":
-    RouteResult(status: 200, body: """{"status":"ok"}""")
+    # A stub that answered plain `ok` made every probe report a healthy API
+    # while each real endpoint was 404. The status field names the skeleton.
+    if testRoutes:
+      RouteResult(status: 200, body: """{"status":"stub"}""")
+    else:
+      RouteResult(status: 200, body: """{"status":"ok"}""")
   of "/__test/slow":
     if testRoutes:
       RouteResult(status: 200, body: """{"slept":700}""")
