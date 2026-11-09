@@ -114,6 +114,21 @@ describe('community settings', () => {
     expect(panel.open).toBe(true)
   })
 
+  it('renders a join instant in the community timezone', async () => {
+    base({
+      // 23:30 UTC is already the 4th in Jakarta; slicing the string shows the
+      // 3rd, which is the day the audit was chasing.
+      'GET /api/c/acme/members': () => ({
+        body: { items: [{ ...members.items[0], joinedAt: '2026-11-03T23:30:00Z' }] },
+      }),
+    })
+
+    renderAt('/c/acme/settings')
+
+    expect(await screen.findByText('4 Nov 2026')).toBeInTheDocument()
+    expect(screen.queryByText('2026-11-03')).not.toBeInTheDocument()
+  })
+
   it('reads the config and the format list from one request', async () => {
     const fetchMock = base({
       'GET /api/c/acme/config': () => ({
@@ -389,7 +404,7 @@ describe('community settings', () => {
     expect(
       screen.getByText(t('admin.claims.claimant', { name: 'Citra' })),
     ).toBeInTheDocument()
-    expect(screen.getByText('2026-11-03')).toBeInTheDocument()
+    expect(screen.getByText('3 Nov 2026')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: t('admin.claims.approve') }))
 

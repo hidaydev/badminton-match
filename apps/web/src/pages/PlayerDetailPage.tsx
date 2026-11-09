@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { listMembers } from '../community/adminApi'
 import { useCommunity } from '../community/CommunityContext'
+import { communityTimeZone, useCommunityConfig } from '../community/useCommunityConfig'
 import { t } from '../i18n'
 import { TIERS } from '../players/api'
 import {
@@ -16,7 +17,7 @@ import {
 import type { PlayerClaim } from '../players/api'
 import { usePlayerDetail, usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
-import { formatDay } from '../utils/day'
+import { formatInstantDate } from '../utils/day'
 import { Button } from '../components/Button'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input, Select } from '../components/Field'
@@ -44,6 +45,10 @@ export default function PlayerDetailPage() {
     slug === '' ? null : slug,
     playerId === '' ? null : playerId,
   )
+  // The claim history is a list of instants, so it is read in the community's
+  // zone; the config also carries the formats, which the list screen reads.
+  const { config } = useCommunityConfig(slug === '' ? null : slug)
+  const timeZone = communityTimeZone(config)
 
   // A claim only carries the claimant's user id. Hosts and admins need a name
   // to decide it, so resolve the ids against the member list they may read;
@@ -204,6 +209,7 @@ export default function PlayerDetailPage() {
                   own={claim.userId === user?.id}
                   busy={busy}
                   onRun={run}
+                  timeZone={timeZone}
                 />
               ))}
             </ul>
@@ -318,9 +324,20 @@ type ClaimRowProps = {
   own: boolean
   busy: boolean
   onRun: Run
+  timeZone: string
 }
 
-function ClaimRow({ slug, playerId, claim, claimant, admin, own, busy, onRun }: ClaimRowProps) {
+function ClaimRow({
+  slug,
+  playerId,
+  claim,
+  claimant,
+  admin,
+  own,
+  busy,
+  onRun,
+  timeZone,
+}: ClaimRowProps) {
   const [reason, setReason] = useState('')
 
   return (
@@ -331,7 +348,7 @@ function ClaimRow({ slug, playerId, claim, claimant, admin, own, busy, onRun }: 
           {t(CLAIM_STATUS_KEY[claim.status])}
         </span>
       </p>
-      <p className="mt-1 font-mono text-[10px] text-fg-dim">{formatDay(claim.createdAt)}</p>
+      <p className="mt-1 font-mono text-[10px] text-fg-dim">{formatInstantDate(claim.createdAt, timeZone)}</p>
       {claim.reason !== '' && <p className="mt-1 text-xs text-fg-dim">{claim.reason}</p>}
 
       {admin && !own && claim.status === 'pending' && (

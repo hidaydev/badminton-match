@@ -3,7 +3,8 @@ import { useStore } from '../store'
 import { selectTotalGames } from '../store/selectors'
 import { PLAYERS_PER_GAME } from '../types'
 import type { SessionScoring } from '../types'
-import { timeToMinutes, minutesToTime } from '../utils/time'
+import { timeToMinutes, minutesToTime, todayLocal } from '../utils/time'
+import { setActiveTimeZone } from '../../utils/day'
 import { courtLabel } from '../utils/courtLabel'
 import { useLegacySlug, useNavigate } from '../router'
 import { fetchCommunityConfigBundle } from '../../community/api'
@@ -227,8 +228,13 @@ export default function SetupPage() {
 
   const [presets, setPresets] = useState<ScoringPreset[]>([])
   const [defaultPreset, setDefaultPreset] = useState('')
+  // The date the draft opened with. The store builds it before the community's
+  // zone is known, so a zone that is not the default is applied only while the
+  // field still holds that value: a date the host typed stays theirs.
+  const [openedOn] = useState(() => useStore.getState().session.date)
 
-  // The list and the community default arrive together from the config read.
+  // The list, the community default and the community timezone arrive together
+  // from the config read.
   useEffect(() => {
     if (slug === '') return
     let active = true
@@ -238,10 +244,13 @@ export default function SetupPage() {
         setPresets(list)
         const fallback = config['session.default_scoring_preset']?.value
         setDefaultPreset(typeof fallback === 'string' ? fallback : '')
+        const zone = config['community.default_timezone']?.value
+        setActiveTimeZone(typeof zone === 'string' ? zone : null)
+        if (useStore.getState().session.date === openedOn) setDate(todayLocal())
       })
       .catch(() => { if (active) setPresets([]) })
     return () => { active = false }
-  }, [slug])
+  }, [slug, openedOn, setDate])
 
   // A draft with no format opens on the community default; once a format is
   // chosen the effect must not overwrite it.

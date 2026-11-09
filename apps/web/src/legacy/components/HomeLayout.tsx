@@ -37,7 +37,7 @@ export default function HomeLayout() {
           {!isHome && (
             <button
               onClick={() => navigate(-1)}
-              className="p-1.5 -ml-1.5 rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all shrink-0 hit44"
+              className="flex h-11 w-11 -ml-[13px] -mr-[7px] -my-[7px] items-center justify-center rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all shrink-0"
               aria-label={t('shell.back')}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -45,7 +45,7 @@ export default function HomeLayout() {
               </svg>
             </button>
           )}
-          <Link to="/" className="flex items-center gap-2 flex-1">
+          <Link to="/" className="flex min-h-11 -my-[10px] items-center gap-2 flex-1">
             <img src="/logo-192.png" alt="" className="w-6 h-6 shrink-0 object-contain" />
             <span className="text-sm font-bold text-fg tracking-tight">MAJADU</span>
           </Link>
@@ -54,7 +54,7 @@ export default function HomeLayout() {
           </div>
           <button
             onClick={() => window.location.reload()}
-            className="p-1.5 rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all hit44"
+            className="flex h-11 w-11 -m-[7.5px] items-center justify-center rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all"
             aria-label={t('shell.refresh')}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -74,9 +74,16 @@ export default function HomeLayout() {
               aria-label={t('shell.account')}
               aria-haspopup="menu"
               aria-expanded={accountOpen}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-elevated text-xs font-bold text-fg hover:border-accent active:scale-95 transition-all hit44"
+              className="group flex h-11 w-11 -m-[6px] items-center justify-center active:scale-95 transition-all"
             >
-              {(user?.displayName ?? '?').trim().charAt(0).toUpperCase()}
+              {/* The hit box grew to 44px; the circle itself keeps its 32px
+                  size, so nothing on screen moved. */}
+              <span
+                aria-hidden="true"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-elevated text-xs font-bold text-fg group-hover:border-accent"
+              >
+                {(user?.displayName ?? '?').trim().charAt(0).toUpperCase()}
+              </span>
             </button>
             {accountOpen && (
               <>

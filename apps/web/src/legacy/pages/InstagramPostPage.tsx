@@ -10,7 +10,7 @@ import type { SessionMeta } from '../queries'
 import { loadImage, drawStandingsCanvas, type OverlayImages } from '../utils/canvasPost'
 import { drawPostCanvas } from '../utils/canvas-templates'
 import { loadOverlayImages } from '../utils/overlays'
-import { todayWIB } from '../utils/time'
+import { todayLocal } from '../utils/time'
 import { Overlay } from '../../components/Overlay'
 import { t } from '../../i18n'
 
@@ -31,7 +31,7 @@ export default function InstagramPostPage() {
   const [overlays, setOverlays] = useState<OverlayImages>({})
   const [isDragging, setIsDragging] = useState(false)
   const [fontReady, setFontReady] = useState(false) // true once browser fonts are loaded
-  const [dateValue, setDateValue] = useState(() => todayWIB())
+  const [dateValue, setDateValue] = useState(() => todayLocal())
   const [exportError, setExportError] = useState<string | null>(null)
   const [overlayError, setOverlayError] = useState<string | null>(null)
   const dragStart = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)

@@ -8,7 +8,7 @@ import {
 } from '../queries'
 import { communityQueryKey } from '../queries/keys'
 import { GROUP_IDS, EMPTY_GROUPS, type GroupId } from '../utils/tournament'
-import { todayWIB } from '../utils/time'
+import { todayLocal } from '../utils/time'
 import { formatLongDate } from '../../utils/day'
 import { t } from '../../i18n'
 import { TabBar, tabId, tabPanelId } from '../../components/TabBar'
@@ -105,7 +105,7 @@ export default function TournamentPage() {
       D: toSlots(committedGroups.D),
     })
   }
-  const date = classic?.date ?? todayWIB()
+  const date = classic?.date ?? todayLocal()
 
   const groupsFull = GROUP_IDS.every((g) => committedGroups[g].length === 4)
 

@@ -2,23 +2,32 @@
 // Pure time/scheduling utilities — zero dependencies ke store atau framework.
 
 import type { CourtTime, SessionConfig } from '../types'
+import { activeTimeZoneId } from '../../utils/day'
 
 /**
- * Tanggal hari ini dalam zona WIB (Asia/Jakarta) format yyyy-mm-dd.
- * Backend membandingkan session_date terhadap tanggal WIB
- * (`now() AT TIME ZONE 'Asia/Jakarta'`) untuk auto-lock — default tanggal
- * harus pakai zona yang sama, bukan UTC (toISOString bisa mundur 1 hari di
- * jam 00:00–06:59 WIB dan bikin sesi langsung ke-lock).
+ * The community's calendar day as yyyy-mm-dd, in the zone the community set
+ * (`community.default_timezone`, Jakarta by default).
+ *
+ * The backend compares `session_date` against the community's zone for
+ * auto-lock, so a default computed in UTC (or fixed to Jakarta for a community
+ * in another zone) can be a day off and lock a session the moment it is
+ * created. `setCommunityTimeZone` publishes the effective value once the
+ * config read returns.
  */
-export function todayWIB(): string {
+export function dayInZone(timeZone: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jakarta',
+    timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   }).formatToParts(new Date())
   const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? ''
   return `${get('year')}-${get('month')}-${get('day')}`
+}
+
+/** Today in the active community's zone. */
+export function todayLocal(): string {
+  return dayInZone(activeTimeZoneId())
 }
 
 export function timeToMinutes(t: string): number {

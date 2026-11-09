@@ -1,6 +1,6 @@
 import type { SessionConfig, CourtTime, SessionScoring } from '../types'
 import { toTimeString, createCourtTime } from '../types'
-import { timeToMinutes, minutesToTime, todayWIB } from '../utils/time'
+import { timeToMinutes, minutesToTime, todayLocal } from '../utils/time'
 import type { SetState } from './index'
 import { RESET_GENERATED } from './reset'
 
@@ -17,7 +17,7 @@ function makeDefaultSession(): SessionConfig {
     title: '',
     // WIB (bukan UTC) — sinkron dengan auto-lock backend yang pakai
     // Asia/Jakarta; toISOString bisa mundur 1 hari jam 00:00–06:59 WIB.
-    date: todayWIB(),
+    date: todayLocal(),
     courts: 2,
     sessionStart: toTimeString(DEFAULT_START),
     slotMinutes: DEFAULT_SLOT_MINUTES,
