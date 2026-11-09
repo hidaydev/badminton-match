@@ -1,0 +1,5 @@
+# Function length baseline (SQ-18).
+#
+# The number of production procs over 100 lines. Recorded 2026-11-10.
+# Lower it when a routine is split; a raise needs a reason here.
+max: 15

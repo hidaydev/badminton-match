@@ -29,6 +29,10 @@ layer_counts
 
 nim_check "$(api_entrypoint)"
 sh "$REPO_ROOT/task.d/deadcode.sh"
+# SQ-18: a routine that grows past 100 lines is a review problem the compiler
+# cannot see. The gate prints the count and fails when it grows past the
+# recorded baseline; splitting one is how the number comes down.
+sh "$REPO_ROOT/task.d/proc-length.sh"
 
 # QA-11: the JUnit report is written even when the first failing suite stops
 # the loop, so a red run leaves a machine-readable result behind.
