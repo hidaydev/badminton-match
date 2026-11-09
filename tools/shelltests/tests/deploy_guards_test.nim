@@ -44,6 +44,20 @@ esac
 exit 0
 """
 
+# The release API plus the health probes: deploy-vps.sh reads the digest from
+# the release body and treats any curl exit 0 as a ready endpoint.
+const releaseCurlFake = """#!/bin/sh
+case "$*" in
+  *api.github.com*) printf '%s' '{"body":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}' ;;
+esac
+exit 0
+"""
+
+const systemctlLogFake = """#!/bin/sh
+printf '%s\n' "$*" >> "$FAKE_SYSTEMCTL_LOG"
+exit 0
+"""
+
 proc touch(path: string, body = "") =
   createDir(path.parentDir)
   writeFile(path, body)
@@ -112,6 +126,42 @@ suite "deploy-vps.sh":
     check not result.stdout.contains("deploy trigger")
     check not fileExists(podmanLog)
 
+  test "a failure inside the restart step logs, records and alerts":
+    let fixture = newFixture("deploy-restart-trap")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    fixture.installFake("curl", releaseCurlFake)
+    let systemctlLog = fixture.root / "systemctl.log"
+    fixture.installFake("systemctl", systemctlLogFake)
+    let mono = fixture.root / "monorepo"
+    touch(mono / "VERSION", "2.0.0\n")
+    touch(mono / "db" / "migrations" / "0001_init.sql", "select 1;\n")
+    createDir(mono / "ops" / "systemd")
+    createDir(mono / "ops" / "scripts")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n" &
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    # A token file keeps AUTH non-empty (bash 3.2 treats "${AUTH[@]}" on an
+    # empty array as unbound under set -u) and the podman fake answers login.
+    privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+    # Everything before the restart succeeds; `false` stands in for a systemctl
+    # that refuses the restart, which used to exit through set -e without a log
+    # line, an alert or a state record.
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("MAJADU_SERVICE_CMD", "false"),
+        ("FAKE_SYSTEMCTL_LOG", systemctlLog),
+      ])
+    check result.exitCode != 0
+    let deployLog = readFile(fixture.root / "logs" / "deploy.log")
+    check deployLog.contains("ERROR: command failed at line")
+    check deployLog.contains("(step: restart)")
+    check readFile(fixture.root / "deploy" / "last-release.json")
+      .contains("\"step\":\"restart\"")
+    check readFile(systemctlLog).contains("start majadu-alert@deploy.service")
+
 suite "deploy-vps-rc.sh":
   test "a ref other than the RC branch is ignored":
     let fixture = newFixture("rc-other-ref")
@@ -161,6 +211,47 @@ suite "deploy-vps-rc.sh":
     check oldRef.exitCode == 0
     check oldRef.stdout.contains(
       "deploy ignored: ref 'refs/heads/release/2.0.0-rc.1' is not refs/heads/release/3.0.0")
+
+  test "an incoming script that fails bash -n is not installed":
+    let fixture = newFixture("rc-install-syntax")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    let rcDir = fixture.root / "rc"
+    let mono = rcDir / "repo"
+    touch(mono / "VERSION", "2.0.0\n")
+    touch(mono / "ops" / "scripts" / "deploy-vps-rc.sh", "if true; then\n")
+    let installed = rcDir / "scripts" / "deploy-vps-rc.sh"
+    touch(installed, "old copy\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps-rc.sh"),
+      @["badminton-match", "refs/heads/release/2.0.0-rc.1"],
+      @[("MAJADU_RC_APP_DIR", rcDir), ("MAJADU_RC_SKIP_GIT_SYNC", "1")])
+    check result.exitCode != 0
+    check result.stdout.contains("does not pass bash -n")
+    check readFile(installed) == "old copy\n"
+
+  test "a valid incoming script replaces the installed copy":
+    let fixture = newFixture("rc-install-valid")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    let rcDir = fixture.root / "rc"
+    let mono = rcDir / "repo"
+    touch(mono / "VERSION", "2.0.0\n")
+    let source = mono / "ops" / "scripts" / "deploy-vps-rc.sh"
+    createDir(source.parentDir)
+    copyFile(opsScriptsDir / "deploy-vps-rc.sh", source)
+    let installed = rcDir / "scripts" / "deploy-vps-rc.sh"
+    touch(installed, "old copy\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps-rc.sh"),
+      @["badminton-match", "refs/heads/release/2.0.0-rc.1"],
+      @[("MAJADU_RC_APP_DIR", rcDir), ("MAJADU_RC_SKIP_GIT_SYNC", "1")])
+    # The refresh happens before the env guard, which stops the run; the case is
+    # about the install, not the deploy that follows.
+    check result.exitCode != 0
+    check readFile(installed) == readFile(source)
+    check readFile(rcDir / "deploy" / "last-release.json")
+      .contains("\"step\":\"env-check\"")
 
 suite "cutover.sh":
   test "--from an unknown step exits 2 and names it":
@@ -313,6 +404,31 @@ suite "rollback.sh":
     check result.stdout.contains(
       "WARNING: abandoning 3 row(s) written since the cutover")
     check result.stdout.contains("rollback complete")
+
+  test "a Caddy reload failure ends with v1 running and one alert":
+    let fixture = newFixture("rollback-caddy")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    let systemctlLog = fixture.root / "systemctl.log"
+    fixture.installFake("systemctl", systemctlLogFake)
+    createDir(fixture.root / "caddy")
+    let result = fixture.runShell(fixture.installOpsScript("rollback.sh"),
+      @[], appDir(fixture) & @[
+        ("MAJADU_CADDY_VALIDATE", "true"),
+        ("MAJADU_CADDY_RELOAD", "false"),
+        ("FAKE_SYSTEMCTL_LOG", systemctlLog),
+      ])
+    check result.exitCode != 0
+    let rollbackLog = readFile(fixture.root / "logs" / "rollback.log")
+    # The service is back before Caddy is touched, and the failure names the
+    # state the site is left in.
+    check rollbackLog.contains("v1 answers /healthz")
+    check rollbackLog.contains("ERROR: Caddy reload failed")
+    check rollbackLog.find("v1 answers /healthz") <
+      rollbackLog.find("ERROR: Caddy reload failed")
+    let calls = readFile(systemctlLog)
+    check calls.contains("restart majadu-api")
+    check calls.contains("start majadu-alert@rollback.service")
 
 suite "bootstrap-rc.sh":
   test "a missing env file is refused":

@@ -18,7 +18,7 @@
 # Env (in addition to MAJADU_APP_DIR): MAJADU_SYSTEMCTL_CMD, MAJADU_CADDY_VALIDATE
 # and MAJADU_BM2_DB exist for the rehearsal harness (T-063), the same overrides
 # cutover.sh takes.
-set -euo pipefail
+set -Eeuo pipefail
 
 APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"
 SERVICE="${MAJADU_SERVICE:-majadu-api}"
@@ -68,6 +68,10 @@ usage_fail() {
   log "ERROR: $1"
   exit 1
 }
+
+# Every step below either succeeds or pages: a rollback that stops halfway
+# leaves production in the state the cutover created.
+trap 'fail "command failed at line $LINENO"' ERR
 
 for arg in "$@"; do
   case "$arg" in
@@ -149,20 +153,20 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Caddy first, so the site is answered by the process that is about to start.
+# Service first: v1 has to answer before anything optional is touched.
+# cutover.sh stopped and disabled the unit, so until this restart nothing is
+# serving. Every command here is idempotent, so a retry after a partial run is
+# safe.
 # ---------------------------------------------------------------------------
-ln -sfn "$CADDY_DIR/site-v1.caddy" "$CADDY_ACTIVE"
-$CADDY_VALIDATE --config "$CADDY_CONFIG" --adapter caddyfile >/dev/null ||
-  fail "Caddy rejected the v1 snippet"
-$CADDY_RELOAD
-log "caddy serves the v1 site again"
-
-$SYSTEMCTL enable "$SERVICE" >/dev/null 2>&1
+if ! $SYSTEMCTL enable "$SERVICE" >/dev/null 2>&1; then
+  log "WARNING: could not enable $SERVICE; it runs but will not start after a reboot"
+fi
 $SYSTEMCTL restart "$SERVICE"
 log "v1 unit enabled and started"
 
 # ---------------------------------------------------------------------------
-# v1 has no /readyz; liveness is the strongest signal it offers.
+# v1 has no /readyz; liveness is the strongest signal it offers. A service that
+# does not answer is a failed rollback, and it pages.
 # ---------------------------------------------------------------------------
 deadline=$((SECONDS + 60))
 healthy=0
@@ -176,8 +180,23 @@ done
 if [ "$healthy" -eq 1 ]; then
   log "v1 answers /healthz"
 else
-  log "ERROR: v1 did not answer /healthz within 60s"
+  fail "v1 did not answer /healthz within 60s after the restart"
 fi
+
+# ---------------------------------------------------------------------------
+# Caddy last: the site snippet is optional relative to a running service, and
+# the live server runs Caddy with `admin off`, which makes `systemctl reload`
+# fail. Point the active snippet at v1 and try to reload, but a failure here is
+# a paged partial rollback, not a dead site.
+# ---------------------------------------------------------------------------
+ln -sfn "$CADDY_DIR/site-v1.caddy" "$CADDY_ACTIVE"
+if ! $CADDY_VALIDATE --config "$CADDY_CONFIG" --adapter caddyfile >/dev/null; then
+  fail "Caddy rejected the v1 snippet; v1 is running and healthy, the site is not switched"
+fi
+if ! $CADDY_RELOAD; then
+  fail "Caddy reload failed (admin off?); v1 is running and healthy, the site is not switched"
+fi
+log "caddy serves the v1 site again"
 
 # ---------------------------------------------------------------------------
 # Archive the cutover row, then delete it so a new cutover is not blocked.
@@ -206,8 +225,4 @@ fi
 printf '{"step":"rollback","state":"done","at":"%s"}\n' \
   "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >"$STEP_FILE"
 
-if [ "$healthy" -eq 1 ]; then
-  log "rollback complete"
-else
-  exit 1
-fi
+log "rollback complete"

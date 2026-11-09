@@ -16,7 +16,7 @@
 # Overridable for a rehearsal host: MAJADU_RC_APP_DIR, MAJADU_RC_SERVICE,
 # MAJADU_RC_IMAGE, MAJADU_RC_HEALTH_URL, MAJADU_RC_NETWORK, MAJADU_RC_BRANCH,
 # MAJADU_RC_SKIP_GIT_SYNC, MAJADU_SERVICE_CMD.
-set -euo pipefail
+set -Eeuo pipefail
 
 REPO_NAME="${1:-badminton-match}"
 REF="${2:-}"
@@ -55,6 +55,10 @@ trap 'fail "command failed at line $LINENO"' ERR
 
 file_mode() {
   stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null || echo "?"
+}
+
+file_owner() {
+  stat -c '%u' "$1" 2>/dev/null || stat -f '%u' "$1" 2>/dev/null || echo "?"
 }
 
 service() {
@@ -124,11 +128,35 @@ VERSION=$(tr -d '[:space:]' <VERSION)
 [ -n "$VERSION" ] || fail "VERSION is empty"
 
 # The webhook runs the installed copy, so refresh it from the checkout it just
-# synced. Bash keeps reading the old inode, which is why the replace is atomic:
-# this run keeps its own code and the next one starts from the branch.
+# synced. The incoming copy is host code on the next push, so it is checked
+# before it becomes live: `bash -n` first, then an ownership check that refuses
+# to replace a script (or a directory) the deploy user does not own. A failed
+# check keeps the installed copy. Bash keeps reading the old inode, which is why
+# the replace is atomic: this run keeps its own code and the next one starts
+# from the branch.
+STEP="self-install"
 SELF_INSTALL="$APP_DIR/scripts/deploy-vps-rc.sh"
-install -m 755 "$MONO_DIR/ops/scripts/deploy-vps-rc.sh" "$SELF_INSTALL.new"
-mv -f "$SELF_INSTALL.new" "$SELF_INSTALL"
+SELF_SRC="$MONO_DIR/ops/scripts/deploy-vps-rc.sh"
+[ -f "$SELF_SRC" ] || fail "$SELF_SRC is missing from the checkout"
+bash -n "$SELF_SRC" ||
+  fail "$SELF_SRC does not pass bash -n; keeping the installed deploy script"
+SELF_DIR=$(dirname "$SELF_INSTALL")
+mkdir -p "$SELF_DIR"
+[ "$(file_owner "$SELF_DIR")" = "$(id -u)" ] ||
+  fail "$SELF_DIR is not owned by the deploy user; refusing to install $SELF_SRC"
+if [ -f "$SELF_INSTALL" ]; then
+  [ "$(file_owner "$SELF_INSTALL")" = "$(id -u)" ] ||
+    fail "$SELF_INSTALL is not owned by the deploy user; refusing to replace it"
+  cmp -s "$SELF_SRC" "$SELF_INSTALL" || {
+    install -m 755 "$SELF_SRC" "$SELF_INSTALL.new.$$"
+    mv -f "$SELF_INSTALL.new.$$" "$SELF_INSTALL"
+    log "deploy script refreshed from the checkout; the next push runs it"
+  }
+else
+  install -m 755 "$SELF_SRC" "$SELF_INSTALL.new.$$"
+  mv -f "$SELF_INSTALL.new.$$" "$SELF_INSTALL"
+  log "deploy script installed from the checkout; the next push runs it"
+fi
 
 # ---------------------------------------------------------------------------
 # The env file is the only place the DSN lives. A missing or world-readable file

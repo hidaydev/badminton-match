@@ -22,6 +22,15 @@ printf '%s\n' "$*" >> "$FAKE_PSQL_LOG"
 exit 0
 """
 
+const flockFake = """#!/bin/sh
+# Stand-in for flock(1): a case sets FAKE_LOCK_HELD=1 to stand in for another
+# deploy or cutover holding .deploy.lock.
+if [ "${FAKE_LOCK_HELD:-0}" = "1" ]; then
+  exit 1
+fi
+exit 0
+"""
+
 const smokeCurl = """#!/bin/sh
 status=0
 url=
@@ -187,6 +196,7 @@ suite "restore.sh":
     let fixture = newFixture("restore-force-ok")
     defer: removeDir(fixture.root)
     fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
     let dump = fixture.root / "dump.bin"
     touch(dump, "dump")
     let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
@@ -195,10 +205,55 @@ suite "restore.sh":
     check result.stdout.contains("restore: writing " & dump & " into bm2")
     check result.stdout.contains("restore: done")
 
+  test "a --dsn that names another database is refused":
+    let fixture = newFixture("restore-dsn-mismatch")
+    defer: removeDir(fixture.root)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://bm2_owner@db.example:5432/bm2"], appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains(
+      "restore: --target 'bm_staging' does not match the database 'bm2' in --dsn")
+    check result.stderr.contains("refusing to write into 'bm2'")
+
+  test "a matching --dsn with --force is still accepted":
+    let fixture = newFixture("restore-dsn-match")
+    defer: removeDir(fixture.root)
+    fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm2", "--force",
+        "--dsn", "postgres://bm2_owner@db.example:5432/bm2?sslmode=require"],
+      appDir(fixture))
+    check result.exitCode == 0
+    check result.stdout.contains("restore: writing " & dump & " into bm2")
+
+  test "a held deploy lock stops the write before pg_restore":
+    let fixture = newFixture("restore-lock-held")
+    defer: removeDir(fixture.root)
+    fixture.installFake("flock", flockFake)
+    let pgLog = fixture.root / "pg_restore.log"
+    fixture.installFake("pg_restore",
+      "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " & pgLog & "\nexit 0\n")
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://bm2_owner@db.example:5432/bm_staging"],
+      appDir(fixture) & @[("FAKE_LOCK_HELD", "1")])
+    check result.exitCode == 1
+    check result.stderr.contains("another deploy or cutover holds")
+    check not fileExists(pgLog)
+
   test "--recreate keeps the authority and query and drops the database":
     let fixture = newFixture("restore-recreate")
     defer: removeDir(fixture.root)
     fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
     let log = fixture.root / "psql.log"
     fixture.installFake("psql", psqlLogFake)
     let dump = fixture.root / "dump.bin"
@@ -221,6 +276,7 @@ suite "restore.sh":
     let fixture = newFixture("restore-socket")
     defer: removeDir(fixture.root)
     fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
     let log = fixture.root / "psql.log"
     fixture.installFake("psql", psqlLogFake)
     let dump = fixture.root / "dump.bin"

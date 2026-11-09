@@ -27,7 +27,12 @@
 #
 # After readiness, `scripts/smoke.sh` asserts that `/version` reports the release
 # that was just pulled, not just that a process is up.
-set -euo pipefail
+#
+# The ERR trap is installed at the top level, so `set -E` is what carries it into
+# functions and command substitutions. Without it a failure inside `service` or
+# `wait_ready` exits through `set -e` with no ERROR line, no alert and no
+# last-release.json.
+set -Eeuo pipefail
 
 REPO_NAME="${1:-badminton-match}"
 REF="${2:-}"
@@ -215,7 +220,7 @@ elif [ -n "${GITHUB_TOKEN:-}" ]; then
 fi
 RELEASE=$(curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
   "${AUTH[@]}" "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" 2>/dev/null || true)
-DIGEST=$(printf '%s' "$RELEASE" | grep -oE 'sha256:[0-9a-f]{64}' | head -1)
+DIGEST=$(printf '%s' "$RELEASE" | grep -oE 'sha256:[0-9a-f]{64}' | head -1 || true)
 if [ -z "$DIGEST" ]; then
   fail "release v$VERSION has no published image digest"
 fi

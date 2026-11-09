@@ -13,7 +13,15 @@
 #
 # `bm` and `bm2` additionally require --force: the first is the permanent
 # archive, the second is live.
+#
+# The guard protects the database that is written, not the label: the database
+# name in --dsn has to equal --target, and a mismatch is refused. The write also
+# takes the same deploy lock deploy-vps.sh and cutover.sh use, so a restore
+# cannot run while a deploy is swapping the release.
 set -euo pipefail
+
+APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"
+LOCK_FILE="$APP_DIR/.deploy.lock"
 
 FILE=""
 TARGET=""
@@ -22,7 +30,7 @@ FORCE=0
 DSN=""
 
 usage() {
-  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 while [ "$#" -gt 0 ]; do
@@ -52,16 +60,70 @@ if { [ "$TARGET" = "bm" ] || [ "$TARGET" = "bm2" ]; } && [ "$FORCE" -ne 1 ]; the
   exit 2
 fi
 
+# The database pg_restore writes into comes from --dsn, not from --target, so
+# the allow-list above is only a guard when both name the same database.
+dsn_database() {
+  local dsn=$1 rest path
+  case "$dsn" in
+    postgres://*) rest=${dsn#*://} ;;
+    postgresql://*) rest=${dsn#*://} ;;
+    *) return 1 ;;
+  esac
+  case "$rest" in
+    */*) path=/${rest#*/} ;;
+    *) return 1 ;;
+  esac
+  path=${path%%\?*}
+  path=${path#/}
+  [ -n "$path" ] || return 1
+  printf '%s\n' "$path"
+}
+
+if [ -z "$DSN" ]; then
+  DSN="postgresql:///${TARGET}"
+fi
+
+DSN_DB=$(dsn_database "$DSN") || {
+  echo "restore: cannot read a database name from --dsn '$DSN'" >&2
+  exit 2
+}
+if [ "$DSN_DB" != "$TARGET" ]; then
+  echo "restore: --target '$TARGET' does not match the database '$DSN_DB' in --dsn; refusing to write into '$DSN_DB'" >&2
+  exit 2
+fi
+
 command -v pg_restore >/dev/null 2>&1 || { echo "restore: pg_restore is required" >&2; exit 2; }
 command -v psql >/dev/null 2>&1 || { echo "restore: psql is required" >&2; exit 2; }
+command -v flock >/dev/null 2>&1 || { echo "restore: flock is required" >&2; exit 2; }
+[ -d "$APP_DIR" ] || { echo "restore: $APP_DIR does not exist; cannot take the deploy lock" >&2; exit 2; }
+
+# True when fd 9 already points at the deploy lock. cutover.sh holds that lock
+# while it calls this script and bash hands the descriptor down, so opening a
+# second description of the same file would block on our own parent. Compare the
+# file identity, not the path, because /proc resolves symlinks.
+file_identity() {
+  stat -L -c '%d:%i' "$1" 2>/dev/null || stat -L -f '%i' "$1" 2>/dev/null || echo "?"
+}
+
+inherits_lock() {
+  local lock_id fd_id
+  [ -e /dev/fd/9 ] || return 1
+  lock_id=$(file_identity "$LOCK_FILE")
+  fd_id=$(file_identity /dev/fd/9)
+  [ "$lock_id" != "?" ] && [ "$lock_id" = "$fd_id" ]
+}
+
+if ! inherits_lock; then
+  exec 9>"$LOCK_FILE"
+  if ! flock -w 900 9; then
+    echo "restore: another deploy or cutover holds $LOCK_FILE; refusing to write into '$TARGET'" >&2
+    exit 1
+  fi
+fi
 
 if ! pg_restore --list "$FILE" >/dev/null 2>&1; then
   echo "restore: $FILE is not a readable custom-format dump" >&2
   exit 1
-fi
-
-if [ -z "$DSN" ]; then
-  DSN="postgresql:///${TARGET}"
 fi
 
 # Derive the maintenance connection from the target DSN: same host, port and
