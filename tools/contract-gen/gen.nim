@@ -90,7 +90,7 @@ proc main() =
 
   let mergedSource = renderJson(mergeDocs(core, community))
   let nimSource = renderNim(operations)
-  let tsSource = renderTs(operations)
+  let tsSource = renderTs(operations, core["components"]["schemas"])
   var ok = true
   ok = writeOrCheck(mergedPath, mergedSource, check) and ok
   ok = writeOrCheck(nimPath, nimSource, check) and ok

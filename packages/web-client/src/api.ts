@@ -2,6 +2,129 @@
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
+export interface Achievement {
+  key: string;
+  category: string;
+  threshold: number;
+  earnedAt: string;
+  kind: string;
+  title: string;
+  detail: string;
+  note: string;
+  value: number;
+  tierLevel: number | null;
+  tierName: string | null;
+  nextTarget: number | null;
+  thresholds: Array<number>;
+  meta: Record<string, unknown>;
+}
+
+export interface AchievementPage {
+  items: Array<Achievement>;
+  total: number;
+  nextCursor: string;
+}
+
+export interface JoinRequest {
+  id: string;
+  userId: string;
+  displayName: string;
+  createdAt: string;
+}
+
+export interface JoinRequestPage {
+  items: Array<JoinRequest>;
+  total: number;
+  nextCursor: string;
+}
+
+export interface Member {
+  userId: string;
+  displayName: string;
+  role: "admin" | "host" | "member";
+  joinedAt: string;
+}
+
+export interface MemberPage {
+  items: Array<Member>;
+  total: number;
+  nextCursor: string;
+}
+
+export interface PendingClaim {
+  claimId: string;
+  playerId: string;
+  playerName: string;
+  userId: string;
+  displayName: string;
+  createdAt: string;
+}
+
+export interface PendingClaimPage {
+  items: Array<PendingClaim>;
+  total: number;
+  nextCursor: string;
+}
+
+export interface PlayerClaim {
+  id: string;
+  userId: string;
+  status: "pending" | "approved" | "rejected" | "released";
+  decidedBy: string;
+  decidedAt: string;
+  reason: string;
+  createdAt: string;
+}
+
+export interface PlayerClaimPage {
+  items: Array<PlayerClaim>;
+  total: number;
+  nextCursor: string;
+}
+
+export interface Problem {
+  type?: string;
+  title?: string;
+  status: number;
+  code: string;
+  i18nKey: string;
+  detail?: string;
+  retryAfter?: number;
+  issues?: Array<Record<string, unknown>>;
+}
+
+export interface RatingSource {
+  id: string;
+  type: "session" | "tournament" | "manual";
+  date: string;
+  sourceId: string;
+  deltas: number;
+  finalized: boolean;
+  finalizedAt: string | null;
+}
+
+export interface RatingSourcePage {
+  items: Array<RatingSource>;
+  total: number;
+  nextCursor: string;
+}
+
+export interface SessionPage {
+  items: Array<SessionSummary>;
+  total: number;
+  nextCursor: string;
+}
+
+export interface SessionSummary {
+  id: string;
+  title: string;
+  date: string;
+  status: "draft" | "locked" | "published" | "completed" | "archived";
+  version: number;
+  playerCount: number;
+  totalGames: number;
+}
+
 export interface RouteSpec {
   operationId: string;
   httpMethod: HttpMethod;

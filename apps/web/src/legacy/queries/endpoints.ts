@@ -15,6 +15,7 @@ import { ApiError } from './retry'
 import { API_BASE, request as transport } from '../../api/request'
 import { collectPages } from '../../api/paged'
 import type { Page } from '../../api/paged'
+import type { SessionPage as SessionPageWire } from '@majadu/web-client'
 
 export { ApiError } from './retry'
 
@@ -675,7 +676,8 @@ export async function swapMembers(
   return sessionSnapshot(id)
 }
 
-export interface SessionPage {
+/** The client's page: the server envelope plus the offset the next read wants. */
+export interface SessionListPage {
   items: SessionMeta[]
   total: number
   nextOffset: number | null
@@ -689,7 +691,7 @@ export async function listSessions(options?: {
   limit?: number
   offset?: number
   signal?: AbortSignal
-}): Promise<SessionPage> {
+}): Promise<SessionListPage> {
   // The server pages and filters, so a search covers the whole history instead
   // of whatever page happened to be loaded.
   const params = new URLSearchParams()
@@ -700,15 +702,7 @@ export async function listSessions(options?: {
   if (options?.status) params.set('status', options.status)
   const query = params.size > 0 ? `?${params.toString()}` : ''
 
-  const body = await request<{ items: Array<{
-    id: string
-    title: string
-    date: string
-    status: string
-    version: number
-    playerCount?: number
-    totalGames?: number
-  }>, total?: number, nextCursor?: string }>(
+  const body = await request<SessionPageWire>(
     'GET', communityPath('/sessions') + query, undefined, options?.signal)
 
   if (!Array.isArray(body?.items)) {

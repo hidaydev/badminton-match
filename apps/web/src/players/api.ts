@@ -1,6 +1,6 @@
 import { request } from '../auth/api'
 import { collectPages } from '../api/paged'
-import type { Page } from '../api/paged'
+import type { PlayerClaim, PlayerClaimPage } from '@majadu/web-client'
 
 /** A player row as the API returns it. `aliases` only comes back per player. */
 export type Player = {
@@ -16,18 +16,9 @@ export type Player = {
   viewerOwnsPlayer?: boolean
 }
 
-export type ClaimStatus = 'pending' | 'approved' | 'rejected' | 'released'
+export type { PlayerClaim }
 
-/** One row of a player's claim history. Empty strings mean "not decided". */
-export type PlayerClaim = {
-  id: string
-  userId: string
-  status: ClaimStatus
-  decidedBy: string
-  decidedAt: string
-  reason: string
-  createdAt: string
-}
+export type ClaimStatus = PlayerClaim['status']
 
 export type PlayerFilter = {
   q?: string
@@ -128,7 +119,7 @@ export function claimPlayer(
 
 export function listClaims(slug: string, id: string): Promise<PlayerClaim[]> {
   return collectPages((offset, limit) =>
-    request<Page<PlayerClaim>>(
+    request<PlayerClaimPage>(
       `/c/${encodeURIComponent(slug)}/players/${encodeURIComponent(id)}/claims?limit=${limit}&offset=${offset}`,
     ),
   )

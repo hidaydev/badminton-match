@@ -1,21 +1,16 @@
 import { request } from '../auth/api'
 import type { CommunityRole } from '../auth/api'
 import { collectPages } from '../api/paged'
-import type { Page } from '../api/paged'
+import type {
+  JoinRequest,
+  JoinRequestPage,
+  Member,
+  MemberPage,
+  PendingClaim,
+  PendingClaimPage,
+} from '@majadu/web-client'
 
-export type Member = {
-  userId: string
-  displayName: string
-  role: CommunityRole
-  joinedAt: string
-}
-
-export type JoinRequest = {
-  id: string
-  userId: string
-  displayName: string
-  createdAt: string
-}
+export type { JoinRequest, Member, PendingClaim }
 
 export type Invite = {
   token: string
@@ -23,19 +18,10 @@ export type Invite = {
   role: CommunityRole
 }
 
-export type PendingClaim = {
-  claimId: string
-  playerId: string
-  playerName: string
-  userId: string
-  displayName: string
-  createdAt: string
-}
-
 /** The server pages this list; the settings screen still needs every member. */
 export function listMembers(slug: string): Promise<Member[]> {
   return collectPages((offset, limit) =>
-    request<Page<Member>>(
+    request<MemberPage>(
       `/c/${encodeURIComponent(slug)}/members?limit=${limit}&offset=${offset}`,
     ),
   )
@@ -61,7 +47,7 @@ export function removeMember(slug: string, userId: string): Promise<void> {
 
 export function listJoinRequests(slug: string): Promise<JoinRequest[]> {
   return collectPages((offset, limit) =>
-    request<Page<JoinRequest>>(
+    request<JoinRequestPage>(
       `/c/${encodeURIComponent(slug)}/join-requests?limit=${limit}&offset=${offset}`,
     ),
   )
@@ -69,7 +55,7 @@ export function listJoinRequests(slug: string): Promise<JoinRequest[]> {
 
 export function listPendingClaims(slug: string): Promise<PendingClaim[]> {
   return collectPages((offset, limit) =>
-    request<Page<PendingClaim>>(
+    request<PendingClaimPage>(
       `/c/${encodeURIComponent(slug)}/claims?limit=${limit}&offset=${offset}`,
     ),
   )

@@ -245,7 +245,7 @@ describe('usePlayerDetail', () => {
 
     expect(server.calls.map((call) => call.url)).toEqual([
       '/api/c/acme/players/p1',
-      '/api/c/acme/players/p1/claims',
+      '/api/c/acme/players/p1/claims?limit=500&offset=0',
     ])
     expect(result.current.loading).toBe(true)
     expect(result.current.player).toBeNull()
