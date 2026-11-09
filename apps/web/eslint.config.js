@@ -8,6 +8,26 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores(['dist']),
   {
+    // The base layer is `src/components`; the v1 tree may depend on it, never
+    // the other way. The share page is the one new-layer exception left: it
+    // imports the shared tally helpers that still live under `legacy/utils`.
+    files: ['src/components/**/*.{ts,tsx}', 'src/pages/**/*.{ts,tsx}'],
+    ignores: ['src/pages/SharedSessionPage.tsx'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../legacy/*', '../legacy/**', '../../legacy/**', '../../../legacy/**'],
+              message: 'src/components and src/pages must not import the legacy tree; invert the dependency instead.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     extends: [
       js.configs.recommended,
