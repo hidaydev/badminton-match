@@ -1,4 +1,4 @@
-import std/[options, random, unittest]
+import std/[math, options, random, unittest]
 import ../domain/rating
 
 proc params(): RatingParams =
@@ -69,6 +69,19 @@ suite "rating domain":
     check roundPoints(124.5) == 125
     check entryPoints(p, @[250.0, 250.0], 1500, 1500) == 500
     check entryPoints(p, @[250.0, 250.0], 6000, 1500) == 750
+
+  test "the board and the ledger share one rounding rule":
+    # SQ-19: the projection used to call `int(round(total))` while the domain
+    # rounds with `floor(value + 0.5)`. Over the values the board can produce
+    # (a sum of non-negative entries) the two agree, and this pins that the
+    # one function the projection now calls is the one the contract names.
+    for value in [0.0, 0.5, 1.5, 2.5, 20.5, 124.5, 999.5]:
+      check roundPoints(value) == int(round(value))
+      check roundPoints(value) >= 0
+    # The two rules only disagree below zero, which is why the projection may
+    # not keep its own: a negative total would round a point the wrong way.
+    check roundPoints(-2.5) == -2
+    check int(round(-2.5)) == -3
 
   test "random margins keep every invariant":
     randomize(20261104)
