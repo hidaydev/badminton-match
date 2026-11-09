@@ -199,6 +199,26 @@ suite "janitor":
       discard purge(db, 0)
     check keysOf(db, userId) == @["fresh"]
 
+  test "an expired flow is purged without waiting for the retention window":
+    # SEC-08: a verifier is dead at `expires_at`, and `/auth/start` writes one
+    # row per call, so a row that expired one second ago must go on this pass
+    # instead of thirty days later with the rest of the window.
+    discard db.execUpdate(
+      "delete from auth.oauth_flows where return_to = '/janitor-recent'")
+    discard db.execUpdate(
+      """insert into auth.oauth_flows
+           (state_hash, nonce_hash, code_verifier_enc, key_id, return_to,
+            created_at, expires_at)
+         values (decode(repeat('12', 32), 'hex'), decode(repeat('34', 32), 'hex'),
+                 'x', '1', '/janitor-recent', $1::timestamptz,
+                 $1::timestamptz - interval '1 second')""",
+      @[textParam(pinned)])
+    withPinnedClock(pinned):
+      discard purge(db, retentionDays)
+    check db.queryOne(
+      """select count(*) as total from auth.oauth_flows
+         where return_to = '/janitor-recent'""").get.get("total") == "0"
+
   test "the application janitor never touches audit":
     let before = db.queryOne(
       "select count(*) as total from account.audit").get.get("total")
