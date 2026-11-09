@@ -18,18 +18,18 @@ export httpclient
 const
   allowedOrigin* = "http://127.0.0.1:5173"
   keysJson* = """{"1":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}"""
-  firstTestPort* = 18090
 
-# One base per HTTP suite, all from 18090 upward. Adding a suite takes the next
-# free number here; reusing one fails only after the ten second startup poll,
-# which then blames the server instead of the duplicate.
-#   18090 ws_ticket   18091 community   18092 player    18093 claim
-#   18094 session     18095 ops_token   18096 rankings  18097 readyz
-#   18098 idor        18099 csrf        18100 oidc      18101 ratelimit
-#   18102 tournament  18103 read_smoke  18108 be08_concurrency
-proc testPort*(base: int): Port =
-  doAssert base >= firstTestPort, "test ports start at 18090"
-  Port(base)
+# QA-26: the OS assigns the port. A hand-maintained table already had two suites
+# on 18103, and the failure mode is a ten second startup poll that blames the
+# server. Bind to port 0, read the number back, close, and let the suite use it;
+# the window between close and serve is a race in theory and was a weekly
+# collision in practice.
+proc testPort*(): Port =
+  var socket = newSocket()
+  defer: socket.close()
+  socket.setSockOpt(OptReuseAddr, true)
+  socket.bindAddr(Port(0), "127.0.0.1")
+  socket.getLocalAddr()[1]
 
 type
   ServeArgs = object

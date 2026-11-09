@@ -11,8 +11,8 @@ import tournament/domain/team_draw
 import tests/fixtures
 import ../http_support
 
-const
-  port = testPort(18102)
+let
+  port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
   slug = "tour-http"
   otherSlug = "tour-http-other"

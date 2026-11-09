@@ -5,8 +5,8 @@ import sha256
 import tests/fixtures
 import ../../http_support
 
-const
-  port = testPort(18099)
+let
+  port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
   foreignOrigin = "https://evil.example"
 

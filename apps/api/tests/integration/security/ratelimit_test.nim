@@ -4,8 +4,8 @@ import mummy
 import tests/fixtures
 import ../../http_support
 
-const
-  port = testPort(18101)
+let
+  port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
 
 var database: Db

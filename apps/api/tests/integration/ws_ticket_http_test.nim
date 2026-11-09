@@ -10,8 +10,8 @@ import "../../../../shared/platform-lib/tests/clock_fixture"
 import ../../src/live
 import ../http_support
 
-const
-  port = testPort(18090)
+let
+  port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
   wsBase = "ws://127.0.0.1:" & $uint16(port)
   keysJson = """{"1":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}"""

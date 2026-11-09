@@ -5,8 +5,8 @@ import tests/fixtures
 import ../http_support
 import ../../src/live
 
-const
-  port = testPort(18105)
+let
+  port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
   userSub = "be04-user"
 

@@ -22,8 +22,8 @@ import tests/fixtures
 import ../http_support
 import ../../src/app
 
-const
-  port = testPort(18103)
+let
+  port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
   slug = "read-smoke"
   otherSlug = "read-smoke-other"
