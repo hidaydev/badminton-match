@@ -37,8 +37,8 @@ The task resets `bm2_e2e`, migrates and seeds it, then starts four servers:
   403 from a settings write and a session create. An anonymous caller gets 401
   from the same write.
 
-The suite is ~37 percent functional: 32 of 86 runs drive a flow, 24 are the
-visual baseline, 2 are the account-menu screenshot and 28 are the axe walk. A
+The suite is 41 percent functional: 40 of 98 runs drive a flow, 24 are the
+visual baseline, 2 are the account-menu screenshot and 32 are the axe walk. A
 snapshot cannot fail for a permission regression, which is why the functional
 share is stated rather than implied.
 

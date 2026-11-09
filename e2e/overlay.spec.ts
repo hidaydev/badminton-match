@@ -129,3 +129,20 @@ test('the footer action is reachable without scrolling the page behind', async (
   await cancel.click()
   await expect(sheet).toBeHidden()
 })
+
+test('both sheets open and close from the keyboard alone', async ({ page }) => {
+  // QA-19: a pointer is not an accessibility path. Open the score sheet from a
+  // focused trigger, close it with Escape, then do the same for the share sheet
+  // stacked over the summary.
+  await signIn(page)
+  const { match, sheet } = await openScorePage(page)
+  await match.focus()
+  await page.keyboard.press('Enter')
+  await expect(sheet).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(sheet).toBeHidden()
+
+  const { share } = await openShareSheet(page)
+  await page.keyboard.press('Escape')
+  await expect(share).toBeHidden()
+})

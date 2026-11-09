@@ -143,4 +143,8 @@ export const a11yRoutes: readonly VisualRoute[] = [
     path: () => process.env.E2E_SCOREBOARD_URL ?? 'http://127.0.0.1:4173/',
     ready: () => 'text=tap to score',
   },
+  // Static prose the shell links from the account menu. They carry no data, so
+  // the heading is the readiness signal.
+  { name: 'privacy', path: () => '/privacy', ready: () => 'h1' },
+  { name: 'terms', path: () => '/terms', ready: () => 'h1' },
 ]
