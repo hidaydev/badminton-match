@@ -28,10 +28,16 @@ concurrency:
 env:
   NIM_VERSION: "2.4.0"
 
+# The runner image is pinned instead of `ubuntu-latest`. The `ubuntu-latest`
+# label moved to Ubuntu 26 on 2026-10-19, where the image no longer provides
+# what this toolchain loads at runtime: `libpcre` for Nim's `re` module and the
+# Perl modules the pinned lcov build needs. The workflows stay on the image the
+# toolchain is validated against until both are addressed.
+
 jobs:
   api-check:
     name: "API: check"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       postgres:
@@ -91,7 +97,7 @@ jobs:
 
   api-test:
     name: "API: integration (shard ${{ matrix.shard }}/2)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     # Two shards of the sorted suite list. The list is split by position, so both
     # jobs run the same files every time, and each has its own database service
@@ -186,7 +192,7 @@ jobs:
 
   contract:
     name: "Contract: generated files"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -216,7 +222,7 @@ jobs:
 
   web:
     name: "Web: build"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -241,7 +247,7 @@ jobs:
 
   e2e:
     name: "E2E: browser"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       postgres:
@@ -366,7 +372,7 @@ jobs:
 
   image:
     name: "Image: build"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -379,7 +385,7 @@ jobs:
 
   gate:
     name: "Gate"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [api-check, api-test, contract, web, e2e, image]
     if: always()

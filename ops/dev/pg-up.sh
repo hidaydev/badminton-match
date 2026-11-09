@@ -52,9 +52,13 @@ SELECT 'CREATE DATABASE bm2_template OWNER bm2_owner'
 WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'bm2_template') \gexec
 SQL
 
+# `\connect <db>` keeps the host, port and user of the admin connection, so this
+# works against a local socket and against a container exposed over TCP alike.
+# Passing the bare database name to -d would fall back to the local socket and
+# fail on a host where PostgreSQL only listens on the network.
 for db in bm2_dev bm2_template; do
-  psql -v ON_ERROR_STOP=1 -d "$db" -v db="$db" \
-    -f "$REPO_ROOT/ops/dev/roles.sql" >/dev/null
+  psql -v ON_ERROR_STOP=1 -d "$ADMIN_DSN" -v db="$db" \
+    -c "\\connect $db" -f "$REPO_ROOT/ops/dev/roles.sql" >/dev/null
 done
 
 psql -v ON_ERROR_STOP=1 -d "$ADMIN_DSN" -c \

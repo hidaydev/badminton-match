@@ -32,7 +32,7 @@ env:
 jobs:
   verify:
     name: "Release: verify tag"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     # The gate is `./task ci`, not `./task check`: a release must also pass the
     # integration suites and the contract fingerprint, and those need a
@@ -135,7 +135,7 @@ jobs:
 
   web:
     name: "Release: web"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -161,7 +161,7 @@ jobs:
 
   e2e:
     name: "Release: e2e"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       postgres:
@@ -227,7 +227,7 @@ jobs:
 
   coverage:
     name: "Release: coverage"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       postgres:
@@ -297,7 +297,7 @@ jobs:
 
   mutation:
     name: "Release: mutation"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -315,7 +315,7 @@ jobs:
 
   parity:
     name: "Release: parity"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       postgres:
@@ -355,7 +355,7 @@ jobs:
 
   image:
     name: "Release: image"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [verify, web, e2e, coverage, mutation, parity]
     permissions:
@@ -389,7 +389,7 @@ jobs:
 
   publish:
     name: "Release: GitHub Release"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [verify, image]
     permissions:
