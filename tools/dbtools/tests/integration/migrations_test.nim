@@ -247,12 +247,62 @@ try:
         check key in registry
 
     test "no shipped migration declares the contract marker":
-      # `deploy-vps.sh` never passes `--allow-contract`, so a marker in the
-      # shipped directory would stop every deploy.
+      # `deploy-vps.sh` never passes `--allow-contract`, so a pending marker in
+      # the shipped directory would stop every deploy. An applied one is fine
+      # (its ledger row records the flag), and the from-empty run below proves
+      # the shipped set has no pending contract file.
       check contractRefusal(migrationsDir, false).len == 0
       migrate(scratch, migrationsDir)
+      let shipped = sqlFiles(migrationsDir)
       let last = scratch.queryOne(
         "select version from dbtools.schema_migrations order by version desc limit 1").get
-      check last.get("version") == "0036_oauth_flow_key_id"
+      check last.get("version") == shipped[^1].changeFileExt("")
+
+    test "a scoring rule without its two numbers is rejected at write time":
+      migrate(scratch, migrationsDir)
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('rules-shape', 'Rules Shape', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      expect DbError:
+        discard scratch.execUpdate(
+          """insert into session.sessions
+               (community_id, session_date, status, source, scoring_rules)
+             values ($1::uuid, '2026-11-01', 'draft', 'manual',
+                     '{"gamesToWin":"two","pointsToWin":21}'::jsonb)""",
+          @[textParam(communityId)])
+      expect DbError:
+        discard scratch.execUpdate(
+          """insert into session.sessions
+               (community_id, session_date, status, source, scoring_rules)
+             values ($1::uuid, '2026-11-01', 'draft', 'manual',
+                     '{"gamesToWin":1}'::jsonb)""",
+          @[textParam(communityId)])
+
+      # A valid legacy preset still reads every game of its session.
+      let sessionId = scratch.queryOne(
+        """insert into session.sessions
+             (community_id, session_date, status, source, scoring_rules)
+           values ($1::uuid, '2026-11-01', 'draft', 'manual',
+                   '{"id":"legacy_v1","gamesToWin":1,"pointsToWin":30,
+                     "winBy":1,"deuceAt":null,"maxPoints":99}'::jsonb)
+           returning id""",
+        @[textParam(communityId)]).get.get("id")
+      discard scratch.execUpdate(
+        """insert into session.games
+             (community_id, session_id, round_no, court_no, status)
+           values ($1::uuid, $2::uuid, 0, 0, 'scheduled')""",
+        @[textParam(communityId), textParam(sessionId)])
+      discard scratch.execUpdate(
+        """insert into session.game_sets
+             (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+           values ($1::uuid, $2::uuid, 0, 0, 1, 30, 21)""",
+        @[textParam(communityId), textParam(sessionId)])
+      let results = scratch.queryOne(
+        """select count(*)::int as total, min(games_to_win)::text as games_to_win
+           from session.game_results where community_id = $1::uuid and session_id = $2::uuid""",
+        @[textParam(communityId), textParam(sessionId)]).get
+      check results.get("total") == "1"
+      check results.get("games_to_win") == "1"
 finally:
   shutdown()
