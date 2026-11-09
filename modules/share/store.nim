@@ -206,14 +206,29 @@ proc retireLegacy*(db: Db, windowDays: int, dryRun = false): LegacyRetirement =
               or created_at < now() - make_interval(days => $1))""",
     @[intParam(windowDays.int64)])
 
-proc rotateKeys*(db: Db, keyring: Keyring, fromKeyId, toKeyId: string): int =
+proc rotateKeys*(db: Db, keyring: Keyring, fromKeyId, toKeyId: string,
+                 dryRun = false): int =
+  ## Rotating the *key*: every link still sealed with `fromKeyId` is re-encrypted
+  ## under `toKeyId` with a fresh nonce. Rows already on the target key are
+  ## skipped, so running it twice changes nothing the second time.
+  ##
+  ## The target is the key the operator named, never the active one: sealing
+  ## under the active key while printing another target let an operator retire a
+  ## key that was still in use. A target the keyring does not hold is refused
+  ## before the first write. `dryRun` reports the exact row count and writes
+  ## nothing.
   if fromKeyId == toKeyId:
     return 0
+  if not keyring.holds(toKeyId):
+    raise newException(ShareKeyError,
+      "target share key is missing from SHARE_CODE_KEYS: " & toKeyId)
   let rows = db.query(
     """select id, community_id, key_id, encode(code_enc,'hex') as code_enc
        from session.links
        where key_id = $1""",
     @[textParam(fromKeyId)])
+  if dryRun:
+    return rows.len
   for row in rows:
     let linkId = row.get("id")
     let communityId = row.get("community_id")
@@ -223,7 +238,8 @@ proc rotateKeys*(db: Db, keyring: Keyring, fromKeyId, toKeyId: string): int =
         aadFor(communityId, linkId))
     except ShareKeyError:
       continue
-    let (newKeyId, encrypted) = encryptWith(keyring, code, aadFor(communityId, linkId))
+    let (newKeyId, encrypted) = encryptWithKey(keyring, toKeyId, code,
+      aadFor(communityId, linkId))
     discard db.execUpdate(
       """update session.links set code_enc = decode($2,'hex'), key_id = $3
          where community_id = $4::uuid and id = $1::uuid""",

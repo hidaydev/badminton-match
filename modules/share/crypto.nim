@@ -81,9 +81,25 @@ proc decrypt*(blob: seq[byte], aad: string, key: array[32, byte]): string =
   for index in 0 ..< plaintext.len:
     result[index] = char(plaintext[index])
 
+proc holds*(keyring: Keyring, keyId: string): bool =
+  ## Whether the keyring can encrypt or decrypt with this id. A rotation tool
+  ## asks before it writes anything, so a target that is not configured is a
+  ## refusal instead of a half-done run.
+  for (candidate, _) in keyring.keys:
+    if candidate == keyId:
+      return true
+  false
+
+proc encryptWithKey*(keyring: Keyring, keyId, plaintext,
+                     aad: string): (string, seq[byte]) =
+  ## Same envelope, sealed under the named key instead of the active one. A
+  ## rotation must be able to write the target key without making it active
+  ## first; an id the keyring does not hold raises like `decryptWith`.
+  (keyId, encrypt(plaintext, aad, keyring.keyFor(keyId)))
+
 proc encryptWith*(keyring: Keyring, plaintext, aad: string): (string, seq[byte]) =
   ## Returns (key id, envelope) for the active key.
-  (keyring.active, encrypt(plaintext, aad, keyring.keyFor(keyring.active)))
+  encryptWithKey(keyring, keyring.active, plaintext, aad)
 
 proc decryptWith*(keyring: Keyring, keyId: string, blob: seq[byte],
                   aad: string): string =

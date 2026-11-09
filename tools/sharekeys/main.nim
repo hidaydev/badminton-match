@@ -70,12 +70,17 @@ proc main*() =
     let dsn = dsnOrFail(program)
     let keyring = loadKeyring(getEnv("SHARE_CODE_KEYS"),
       getEnv("SHARE_CODE_ACTIVE_KEY_ID"))
-    if dryRun:
-      echo "sharekeys: dry run, nothing written"
-      quit(0)
     let database = openDb(dsn, 1)
     try:
-      let rotated = rotateKeys(database, keyring, fromId, toId)
+      var rotated = 0
+      try:
+        rotated = rotateKeys(database, keyring, fromId, toId, dryRun)
+      except ShareKeyError as error:
+        fail(program, error.msg)
+      if dryRun:
+        echo "sharekeys: dry run, " & $rotated & " link(s) would move from key " &
+          fromId & " to " & toId
+        quit(0)
       echo "sharekeys: re-encrypted " & $rotated & " link(s) from key " &
         fromId & " to " & toId
     finally:

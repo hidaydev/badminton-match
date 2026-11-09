@@ -85,12 +85,14 @@ suite "rotate":
     check runTool(@["rotate", "--from", "1"]).status == 2
     check runTool(@["rotate", "--to", "2"]).status == 2
 
-  test "a dry run prints and exits without opening the database":
+  test "a dry run needs the database because it reports the row count":
+    ## BE-14: a dry run that wrote nothing and reported nothing left the
+    ## operator to learn the count by doing the rotation.
     let run = runTool(@["rotate", "--from", "1", "--to", "2", "--dry-run"],
       @[("MAJADU_PG_DSN", unreachableDsn), ("SHARE_CODE_KEYS", keys),
         ("SHARE_CODE_ACTIVE_KEY_ID", "2")])
-    check run.status == 0
-    check run.output.contains("dry run, nothing written")
+    check run.status != 0
+    check not run.output.contains("dry run, nothing written")
 
   test "a dry run still needs a keyring":
     let run = runTool(@["rotate", "--from", "1", "--to", "2", "--dry-run"],
