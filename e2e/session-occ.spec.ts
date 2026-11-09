@@ -129,7 +129,12 @@ test('two writers on one session: the stale save is refused, a reload shows the 
     // The refused write left nothing behind on the server: the first writer
     // reloads and reads its own score back.
     await first.reload()
-    await first.getByText(title).waitFor()
+    // The page now carries the session title in its sr-only h1 as well as in
+    // the summary dialog, so the wait has to name the surface it expects.
+    await first
+      .getByRole('dialog', { name: t('summary.title') })
+      .getByText(title)
+      .waitFor()
     await expect(first.getByRole('button', { name: savedScore(FIRST) })).toBeVisible()
 
     // Case 3: the reload brings the server's score, not the refused draft.

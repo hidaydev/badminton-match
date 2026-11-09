@@ -206,6 +206,7 @@ export default function ScoreboardPage() {
 
   return (
     <main className="flex overflow-hidden select-none" style={portraitStyle}>
+      <h1 className="sr-only">Scoreboard</h1>
       {sides.map((el, i) => (
         <Fragment key={i}>
           {i > 0 && <ScoreboardDivider />}

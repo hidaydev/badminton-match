@@ -81,7 +81,7 @@ export default function SetupPage() {
           </Link>
         </div>
       </header>
-      <section className="mx-auto max-w-3xl p-4">
+      <main className="mx-auto max-w-3xl p-4">
       <PageHeader title={t('setup.title')} subtitle={t('setup.subtitle')} />
 
       <h2 className="mt-6 text-sm font-semibold text-fg">{t('setup.mine')}</h2>
@@ -169,7 +169,7 @@ export default function SetupPage() {
           </form>
         </details>
       )}
-    </section>
+    </main>
     </>
   )
 }
