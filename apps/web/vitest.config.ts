@@ -49,6 +49,16 @@ export default defineConfig({
           statements: 33,
           perFile: true,
         },
+        // The primitives are the widest blast radius in the app and each one
+        // now has a test file. Lines and functions are pinned at 100 so losing
+        // a test case fails the gate, not only the aggregate.
+        'src/components/**': {
+          lines: 100,
+          functions: 100,
+          branches: 50,
+          statements: 92,
+          perFile: true,
+        },
         'src/players/**': {
           lines: 96,
           functions: 92,
