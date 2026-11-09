@@ -481,6 +481,50 @@ jobs:
           path: apps/web/test-results/
           if-no-files-found: warn
 
+  # QA-06: the nightly run owns the full manifest; this job runs the changed
+  # prefixes on a pull request, so a new write path or access decision gets a
+  # mutant without paying for the whole list on every push.
+  mutation:
+    name: "Mutation: changed modules"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+        with:
+          nim-version: ${{ env.NIM_VERSION }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nimble
+          key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
+      - name: "Dependencies: install pinned Nim packages"
+        run: ./task deps-install
+      - name: "Mutation: run the changed prefixes"
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --no-tags origin "$BASE_SHA"
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > .cache-changed.txt
+          status=0
+          for prefix in apps/api/src/ modules/account/ modules/session/ \
+                        modules/tournament/ modules/player/ modules/share/ \
+                        modules/rating/ tools/parity/ tools/import/; do
+            if grep -q "^$prefix" .cache-changed.txt; then
+              echo "mutation: changed prefix $prefix"
+              ./task mutation --only "$prefix" || status=1
+            fi
+          done
+          rm -f .cache-changed.txt
+          exit "$status"
+
   image:
     name: "Image: build"
     runs-on: ubuntu-24.04
@@ -498,7 +542,7 @@ jobs:
     name: "Gate"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    needs: [api-check, api-test, contract, web, e2e, image]
+    needs: [api-check, api-test, contract, web, e2e, mutation, image]
     if: always()
     steps:
       - name: "Gate: require every job"
@@ -506,4 +550,8 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
         run: |
           echo "$NEEDS"
-          echo "$NEEDS" | jq -e 'all(.[]; .result == "success")'
+          # `mutation` is pull-request only; a push run treats it as skipped.
+          echo "$NEEDS" | jq -e '
+            to_entries | all(.[];
+              .value.result == "success" or
+              (.key == "mutation" and .value.result == "skipped"))'
