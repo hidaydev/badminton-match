@@ -672,6 +672,65 @@ printf '%s\n' "$*" >> "$FAKE_SYSTEMCTL_LOG"
 exit 0
 """
 
+const releaseRollbackPodman = """#!/bin/sh
+case "$*" in
+  "image exists "*) exit 0 ;;
+  *"opencontainers.image.version"*) printf '1.9.0\n' ;;
+esac
+exit 0
+"""
+
+const releaseRollbackCurl = """#!/bin/sh
+for arg in "$@"; do
+  case "$arg" in
+    */version) printf '{"version":"1.9.0","commit":"abc"}' ;;
+  esac
+done
+exit 0
+"""
+
+suite "release rollback":
+  test "a v2 regression returns :prev and rewrites the release state":
+    let fixture = newFixture("release-rollback")
+    defer: removeDir(fixture.root)
+    fixture.installFake("podman", releaseRollbackPodman)
+    fixture.installFake("curl", releaseRollbackCurl)
+    let log = fixture.root / "systemctl.log"
+    fixture.installFake("systemctl", systemctlLogFake)
+    let state = fixture.root / "deploy"
+    touch(state / "last-release.json",
+      "{\"version\":\"2.0.0\",\"commit\":\"new\",\"digest\":\"sha256:" &
+      "1111111111111111111111111111111111111111111111111111111111111111\"," &
+      "\"schema\":\"0033_new\",\"at\":\"2026-11-09T00:00:00Z\"}\n")
+    touch(state / "last-release.json.prev",
+      "{\"version\":\"1.9.0\",\"commit\":\"abc\",\"digest\":\"sha256:" &
+      "2222222222222222222222222222222222222222222222222222222222222222\"," &
+      "\"schema\":\"0032_old\",\"at\":\"2026-11-01T00:00:00Z\"}\n")
+    let result = fixture.runShell(
+      fixture.installOpsScript("release-rollback.sh"), @[],
+      appDir(fixture) & @[("FAKE_SYSTEMCTL_LOG", log)])
+    check result.exitCode == 0
+    check readFile(state / "deployed-version").strip == "1.9.0"
+    check readFile(state / "last-release.json").contains("\"version\":\"1.9.0\"")
+    check readFile(state / "last-release.json.rolled-back")
+      .contains("\"version\":\"2.0.0\"")
+    check readFile(log).contains("restart majadu-api")
+
+  test "a missing :prev is refused and pages":
+    let fixture = newFixture("release-rollback-noprev")
+    defer: removeDir(fixture.root)
+    fixture.installFake("podman", "#!/bin/sh\ncase \"$*\" in \"image exists \"*) exit 1 ;; esac\nexit 0\n")
+    let log = fixture.root / "systemctl.log"
+    fixture.installFake("systemctl", systemctlLogFake)
+    touch(fixture.root / "deploy" / "last-release.json",
+      "{\"version\":\"2.0.0\",\"schema\":\"0033_new\"}\n")
+    let result = fixture.runShell(
+      fixture.installOpsScript("release-rollback.sh"), @[],
+      appDir(fixture) & @[("FAKE_SYSTEMCTL_LOG", log)])
+    check result.exitCode == 1
+    check result.stdout.contains(":prev is missing")
+    check readFile(log).contains("start majadu-alert@release-rollback.service")
+
 suite "webhook routing and deploy drift":
   test "the committed webhook definition routes to the dispatcher":
     let body = readFile(repoDir / "ops" / "webhook" / "webhook.json")

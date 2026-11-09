@@ -81,6 +81,10 @@ the sequence is:
    `deploy/deployed-version` and `deploy/last-release.json`
    (`version`, `commit`, `digest`, `schema`, `at`).
 
+A failed attempt writes `deploy/last-attempt.json` with the same identity fields
+of the release that is still serving; it never overwrites `last-release.json`.
+That file stays the rollback input.
+
 ## 4. Exit criteria
 
 A release is not done until all six are true:
@@ -127,14 +131,18 @@ is `:prev`.
 - **Manual**, if the regression only shows up after the gate went green:
 
   ```sh
-  podman tag localhost/majadu-api:prev localhost/majadu-api:local
-  systemctl --user restart majadu-api
-  curl -fsS http://127.0.0.1:8080/version
+  /srv/qouver/apps/majadu/scripts/release-rollback.sh
   ```
 
-  Then align `deploy/deployed-version` with the version that now answers.
-  Without that, the next push for the failed version will be considered
-  "already live" and skipped.
+  The script reads `deploy/last-release.json` (and the `.prev` record the deploy
+  keeps), requires `:prev` to exist, retags it, restarts the unit, waits for
+  `/readyz`, and refuses a `/version` that does not report the previous release.
+  It then rewrites `deploy/deployed-version` and `last-release.json`, so the next
+  push is not skipped as "already live". It pages through
+  `majadu-alert@release-rollback.service` if any step fails.
+
+  Do not use `rollback.sh` for this: that script returns production to v1 and
+  deletes cutover state.
 
 The schema is not rolled back: `:prev` must be able to serve the schema already
 migrated by the new release. The rules are in §6.
