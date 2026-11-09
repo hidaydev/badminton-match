@@ -116,7 +116,7 @@ export default function PlayerStatsPanel({
               <button
                 key={id}
                 onClick={() => onSelectPlayer?.(id)}
-                className={`flex items-center justify-between gap-1 min-w-0 rounded px-1 -mx-1 py-0.5 text-left transition-colors ${
+                className={`hit44 flex items-center justify-between gap-1 min-w-0 rounded px-1 -mx-1 py-0.5 text-left transition-colors ${
                   isSelected && !teamTheme ? 'bg-yellow-400/15 ring-1 ring-yellow-400/40' : 'hover:bg-slate-700/50 active:bg-slate-700'
                 } ${isAbsent || isDimmed ? 'opacity-40' : ''}`}
                 style={selectedStyle}

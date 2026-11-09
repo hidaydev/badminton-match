@@ -82,7 +82,7 @@ export default function LoginPage() {
             type="button"
             onClick={() => void onLogin()}
             disabled={loggingIn}
-            className="mt-8 flex w-full min-h-12 items-center justify-center gap-3 rounded-xl bg-accent px-4 py-3 font-semibold text-ground hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ground disabled:opacity-40"
+            className="mt-8 flex w-full min-h-12 items-center justify-center gap-3 rounded-xl bg-accent px-4 py-3 font-semibold text-ground hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ground disabled:opacity-40 hit44"
           >
             <GoogleMark />
             {loggingIn ? t('login.pending') : t('login.action')}

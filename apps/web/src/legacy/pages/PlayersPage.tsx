@@ -49,7 +49,7 @@ function GenderToggle({ value, onChange, type }: { value: Gender; onChange: (g: 
           key={g}
           type={type}
           onClick={() => onChange(g)}
-          className={`px-2.5 py-1 text-xs font-semibold transition-colors ${
+          className={`hit44 px-2.5 py-1 text-xs font-semibold transition-colors ${
             value === g
               ? g === 'M' ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'
               : 'text-slate-400 hover:text-slate-200'
@@ -70,7 +70,7 @@ function TierToggle({ value, onChange, type }: { value: Tier; onChange: (t: Tier
           key={t}
           type={type}
           onClick={() => onChange(t)}
-          className={`min-w-8 h-8 text-xs font-bold transition-colors ${
+          className={`hit44 min-w-8 h-8 text-xs font-bold transition-colors ${
             value === t ? TIER_ACTIVE[t] : 'text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -151,7 +151,7 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
         {/* Delete */}
         <button
           onClick={onRemove}
-          className="text-slate-400 hover:text-red-400 active:text-red-400 text-sm transition-colors shrink-0 p-2"
+          className="text-slate-400 hover:text-red-400 active:text-red-400 text-sm transition-colors shrink-0 p-2 hit44"
           aria-label={t('wizard.players.remove')}
         >
           ✕
@@ -172,7 +172,7 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
                   updatePlayer(player.id, { name: m.name, gender: m.gender, tier: m.tier })
                   setName(m.name)
                 }}
-                className="bg-amber-900/90 hover:bg-amber-800 text-amber-100 border border-amber-500/60 font-medium px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+                className="bg-amber-900/90 hover:bg-amber-800 text-amber-100 border border-amber-500/60 font-medium px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm hit44"
               >
                 <span>{m.name}</span>
                 <span className="text-[10px] opacity-80">({TIER_LABELS[m.tier]} · {m.gender})</span>
@@ -233,11 +233,11 @@ function AddPlayerRow({ onAdd, onCancel, canonicalPlayers }: {
       <button
         type="submit"
         disabled={!name.trim()}
-        className="text-indigo-400 hover:text-indigo-300 disabled:opacity-30 text-sm font-medium transition-colors"
+        className="text-indigo-400 hover:text-indigo-300 disabled:opacity-30 text-sm font-medium transition-colors hit44"
       >
         Add
       </button>
-      <button type="button" onClick={onCancel} className="text-slate-400 hover:text-slate-200 text-sm transition-colors" aria-label={t('wizard.players.addCancel')}>
+      <button type="button" onClick={onCancel} className="text-slate-400 hover:text-slate-200 text-sm transition-colors hit44" aria-label={t('wizard.players.addCancel')}>
         ✕
       </button>
     </form>
@@ -276,7 +276,7 @@ function BulkImport({ onClose, existingCount, max, canonicalPlayers }: {
     <div className="bg-elevated border border-border rounded-xl p-4 flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-white">Paste player list</span>
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-200 text-sm" aria-label={t('players.bulkClose')}>✕</button>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-200 text-sm hit44" aria-label={t('players.bulkClose')}>✕</button>
       </div>
       <textarea
         autoFocus
@@ -304,11 +304,11 @@ function BulkImport({ onClose, existingCount, max, canonicalPlayers }: {
         <button
           disabled={preview.length === 0}
           onClick={handleImport}
-          className="flex-1 py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 text-sm font-semibold rounded-lg transition-colors"
+          className="flex-1 py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 text-sm font-semibold rounded-lg transition-colors hit44"
         >
           Import {preview.length > 0 ? preview.length : ''} Players
         </button>
-        <button onClick={onClose} className="px-4 py-2 text-slate-400 hover:text-slate-200 text-sm rounded-lg hover:bg-slate-700 transition-colors">
+        <button onClick={onClose} className="px-4 py-2 text-slate-400 hover:text-slate-200 text-sm rounded-lg hover:bg-slate-700 transition-colors hit44">
           Cancel
         </button>
       </div>
@@ -427,14 +427,14 @@ export default function PlayersPage() {
           <button
             disabled={players.length >= required}
             onClick={() => setShowForm(true)}
-            className="flex-1 py-2.5 border-2 border-dashed border-slate-700 hover:border-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-indigo-400 rounded-xl text-sm font-medium transition-colors"
+            className="flex-1 py-2.5 border-2 border-dashed border-slate-700 hover:border-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-indigo-400 rounded-xl text-sm font-medium transition-colors hit44"
           >
             + Add Player
           </button>
           <button
             disabled={players.length >= required}
             onClick={() => handleAdd('tbd', 'M', 2)}
-            className="py-2.5 px-4 border-2 border-dashed border-slate-700 hover:border-amber-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-amber-400 rounded-xl text-sm font-medium transition-colors"
+            className="py-2.5 px-4 border-2 border-dashed border-slate-700 hover:border-amber-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-amber-400 rounded-xl text-sm font-medium transition-colors hit44"
             title={t('players.tbdHint')}
           >
             + TBD
@@ -442,7 +442,7 @@ export default function PlayersPage() {
           <button
             disabled={players.length >= required}
             onClick={() => setShowBulk((v) => !v)}
-            className="py-2.5 px-4 border-2 border-dashed border-slate-700 hover:border-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors"
+            className="py-2.5 px-4 border-2 border-dashed border-slate-700 hover:border-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors hit44"
             title={t('players.bulkHint')}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg> Bulk
@@ -469,7 +469,7 @@ export default function PlayersPage() {
       <button
         disabled={!isComplete || !session.locked || hasAmbiguous}
         onClick={() => navigate('/session/constraints')}
-        className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors mt-2"
+        className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors mt-2 hit44"
       >
         {!session.locked
           ? 'Go to Setup to start session'

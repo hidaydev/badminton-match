@@ -147,7 +147,7 @@ export default function TeamMatchCard({
             <button
               onClick={onSave}
               disabled={saving || !dirty}
-              className="flex-1 py-2.5 rounded-lg bg-accent/15 border border-accent/30 text-accent text-sm font-bold disabled:opacity-40"
+              className="flex-1 py-2.5 rounded-lg bg-accent/15 border border-accent/30 text-accent text-sm font-bold disabled:opacity-40 hit44"
             >
               {saving ? 'Saving…' : 'Save'}
             </button>
@@ -157,7 +157,7 @@ export default function TeamMatchCard({
             <button
               onClick={postProps.onDownload}
               disabled={postProps.uploadedCount === 0}
-              className="w-10 h-10 rounded-lg bg-accent text-slate-950 flex items-center justify-center hover:brightness-110 active:scale-[0.98] disabled:opacity-40 shrink-0"
+              className="w-10 h-10 rounded-lg bg-accent text-slate-950 flex items-center justify-center hover:brightness-110 active:scale-[0.98] disabled:opacity-40 shrink-0 hit44"
               aria-label={t('tournament.downloadPosts')}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

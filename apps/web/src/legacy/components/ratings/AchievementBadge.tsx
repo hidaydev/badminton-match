@@ -624,7 +624,7 @@ export default function AchievementBadge({
         type="button"
         onClick={onSelect}
         aria-label={`View ${title} details`}
-        className="medal-badge-btn cursor-pointer select-none rounded focus-visible:outline-none"
+        className="medal-badge-btn cursor-pointer select-none rounded focus-visible:outline-none hit44"
         style={{
           width,
           height,

@@ -112,7 +112,7 @@ export default function GroupAssignment({
                   <button
                     key={slotIdx}
                     onClick={() => handleSlotTap(g, slotIdx)}
-                    className={[
+                    className={['hit44', 
                       'flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-left transition-all shadow-xs',
                       active
                         ? 'bg-accent/10 border border-accent ring-2 ring-accent/30'
@@ -148,7 +148,7 @@ export default function GroupAssignment({
                 key={p.id}
                 onClick={() => handlePairTap(p.id)}
                 disabled={!activeSlot}
-                className={[
+                className={['hit44', 
                   'text-xs rounded-lg px-3 py-2 font-medium transition-all shadow-xs',
                   activeSlot
                     ? 'bg-elevated text-accent border border-accent font-semibold hover:bg-surface active:scale-98'
@@ -167,7 +167,7 @@ export default function GroupAssignment({
         <button
           onClick={onConfirmGroups}
           disabled={isLoading}
-          className="w-full py-3 rounded-xl bg-accent text-slate-950 font-bold text-sm mt-2 disabled:opacity-60 flex items-center justify-center gap-2 hover:bg-accent/90 active:scale-98 transition-all"
+          className="w-full py-3 rounded-xl bg-accent text-slate-950 font-bold text-sm mt-2 disabled:opacity-60 flex items-center justify-center gap-2 hover:bg-accent/90 active:scale-98 transition-all hit44"
         >
           {isLoading && (
             <svg className="animate-spin w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none">

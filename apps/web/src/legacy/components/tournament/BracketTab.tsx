@@ -67,7 +67,7 @@ function MatchCard({
       <button
         onClick={() => canEnter && onSelect(match)}
         disabled={!canEnter}
-        className="w-full text-left disabled:opacity-60 hover:bg-elevated/60 disabled:hover:bg-transparent transition-colors"
+        className="w-full text-left disabled:opacity-60 hover:bg-elevated/60 disabled:hover:bg-transparent transition-colors hit44"
       >
         <div className="px-2 pt-2 pb-1">
           <div className="text-xs text-fg font-medium truncate">{getPairName(match.pairAId)}</div>

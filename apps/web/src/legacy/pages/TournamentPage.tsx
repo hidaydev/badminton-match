@@ -181,7 +181,7 @@ export default function TournamentPage() {
             <button
               key={item.id}
               onClick={() => handleTabChange(item.id)}
-              className={`flex-1 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+              className={`hit44 flex-1 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
                 tab === item.id
                   ? 'text-accent border-accent'
                   : 'text-fg-dim border-transparent hover:text-fg'

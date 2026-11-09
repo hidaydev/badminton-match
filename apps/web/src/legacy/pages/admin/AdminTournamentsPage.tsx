@@ -33,7 +33,7 @@ export default function AdminTournamentsPage() {
                   <p className="text-fg-dim text-xs font-sans text-center">{t('admin.noTournamentsHint')}</p>
                   <button
                     onClick={() => navigate('/tournaments')}
-                    className="text-accent text-xs font-medium hover:underline"
+                    className="text-accent text-xs font-medium hover:underline hit44"
                   >
                     {t('tournaments.backToList')}
                   </button>

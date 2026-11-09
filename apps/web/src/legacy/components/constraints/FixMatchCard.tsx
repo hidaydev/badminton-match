@@ -58,13 +58,13 @@ export function FixMatchCard({
         <div className="flex gap-2">
           <button
             onClick={() => duplicateFixMatch(match.id)}
-            className="text-xs text-slate-400 hover:text-slate-200 px-2.5 py-1.5 rounded hover:bg-slate-800 transition-colors"
+            className="text-xs text-slate-400 hover:text-slate-200 px-2.5 py-1.5 rounded hover:bg-slate-800 transition-colors hit44"
           >
             Copy
           </button>
           <button
             onClick={() => removeFixMatch(match.id)}
-            className="text-xs text-slate-400 hover:text-red-400 px-2.5 py-1.5 rounded hover:bg-slate-800 transition-colors"
+            className="text-xs text-slate-400 hover:text-red-400 px-2.5 py-1.5 rounded hover:bg-slate-800 transition-colors hit44"
             aria-label={t('wizard.constraints.remove')}
           >
             ✕
@@ -76,7 +76,7 @@ export function FixMatchCard({
       <div className="flex gap-1">
         <button
           onClick={() => updateFixMatch(match.id, { mode: 'flexible' } as Partial<MatchConstraint>)}
-          className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
+          className={`hit44 text-xs px-3 py-1 rounded-lg border transition-colors ${
             !isPinned
               ? 'bg-slate-700 border-slate-600 text-white'
               : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-white'
@@ -86,7 +86,7 @@ export function FixMatchCard({
         </button>
         <button
           onClick={() => updateFixMatch(match.id, { mode: 'pinned' })}
-          className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
+          className={`hit44 text-xs px-3 py-1 rounded-lg border transition-colors ${
             isPinned
               ? 'bg-indigo-900/60 border-indigo-700 text-indigo-300'
               : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-indigo-300'

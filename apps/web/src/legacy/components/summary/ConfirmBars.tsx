@@ -55,7 +55,7 @@ function ConfirmActionBar({
             </div>
             <button
               onClick={onCancel}
-              className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
+              className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0 hit44"
               aria-label={t('summary.cancel')}
             >
               ✕
@@ -63,7 +63,7 @@ function ConfirmActionBar({
             <button
               onClick={onConfirm}
               disabled={saving}
-              className={`text-xs font-bold px-4 py-1.5 rounded-lg ${c.btn} ${c.btnHover} ${c.btnText} transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5`}
+              className={`hit44 text-xs font-bold px-4 py-1.5 rounded-lg ${c.btn} ${c.btnHover} ${c.btnText} transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5`}
             >
               {saving && SPINNER}
               {saving ? 'Saving…' : 'Confirm'}

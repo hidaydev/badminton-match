@@ -261,7 +261,7 @@ export default function TeamTournamentPage() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex-1 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+              className={`hit44 flex-1 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
                 tab === t.id ? 'text-accent border-accent' : 'text-fg-dim border-transparent hover:text-fg'
               }`}
             >
@@ -348,7 +348,7 @@ export default function TeamTournamentPage() {
                     <button
                       onClick={handleUndian}
                       disabled={publish.isPending}
-                      className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40"
+                      className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 hit44"
                     >
                       Group Draw (match day)
                     </button>
@@ -360,7 +360,7 @@ export default function TeamTournamentPage() {
               <button
                 onClick={handleBuatFinal}
                 disabled={publish.isPending}
-                className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40"
+                className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 hit44"
               >
                 Create Final (top 2)
               </button>
@@ -436,7 +436,7 @@ export default function TeamTournamentPage() {
                       <div className="relative">
                         <button
                           onClick={() => openFinalUpload('champion')}
-                          className="w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center text-fg-dim hover:text-fg transition-colors"
+                          className="w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center text-fg-dim hover:text-fg transition-colors hit44"
                           aria-label={t('tournament.uploadChampion')}
                         >
                           <Icon name="camera" size={13} strokeWidth={2.2} />
@@ -452,7 +452,7 @@ export default function TeamTournamentPage() {
                       <div className="relative">
                         <button
                           onClick={() => openFinalUpload('runnerup')}
-                          className="w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center text-fg-dim hover:text-fg transition-colors"
+                          className="w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center text-fg-dim hover:text-fg transition-colors hit44"
                           aria-label={t('tournament.uploadRunnerUp')}
                         >
                           <Icon name="camera" size={13} strokeWidth={2.2} />

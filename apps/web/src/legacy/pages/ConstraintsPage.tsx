@@ -51,7 +51,7 @@ export default function ConstraintsPage() {
       <button
         onClick={() => addFixMatch({ slots: [toPlayerId(''), toPlayerId(''), toPlayerId(''), toPlayerId('')], mode: 'flexible' })}
         disabled={players.length < 2}
-        className="w-full py-2.5 border-2 border-dashed border-slate-700 hover:border-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-indigo-400 rounded-xl text-sm font-medium transition-colors"
+        className="w-full py-2.5 border-2 border-dashed border-slate-700 hover:border-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-indigo-400 rounded-xl text-sm font-medium transition-colors hit44"
       >
         + Add Fixed Match
       </button>
@@ -63,7 +63,7 @@ export default function ConstraintsPage() {
       <button
         onClick={() => navigate('/session/generate')}
         disabled={hasErrors}
-        className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors"
+        className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors hit44"
       >
         {hasErrors ? 'Fix errors above to continue' : 'Next: Generate →'}
       </button>

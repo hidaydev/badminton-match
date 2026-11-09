@@ -62,7 +62,7 @@ function NumInput({
           aria-label={`Decrease ${label.toLowerCase()}`}
           disabled={disabled || value <= min}
           onClick={() => onChange(Math.max(min, value - 1))}
-          className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors"
+          className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors hit44"
         >
           −
         </button>
@@ -71,7 +71,7 @@ function NumInput({
           aria-label={`Increase ${label.toLowerCase()}`}
           disabled={disabled || value >= max}
           onClick={() => onChange(Math.min(max, value + 1))}
-          className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors"
+          className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors hit44"
         >
           +
         </button>
@@ -457,7 +457,7 @@ export default function SetupPage() {
             <span>Session is active — settings locked</span>
             <button
               onClick={resetSession}
-              className="ml-auto text-xs text-red-400 hover:text-red-300 transition-colors"
+              className="ml-auto text-xs text-red-400 hover:text-red-300 transition-colors hit44"
             >
               Reset All
             </button>
@@ -466,7 +466,7 @@ export default function SetupPage() {
           <button
             onClick={handleLock}
             disabled={!canLock}
-            className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors"
+            className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors hit44"
           >
             Start Session →
           </button>

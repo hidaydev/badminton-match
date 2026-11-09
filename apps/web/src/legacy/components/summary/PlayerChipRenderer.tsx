@@ -77,7 +77,7 @@ export default function PlayerChipRenderer({
       <button
         onClick={() => onSkipToggle?.(gameKey, playerId)}
         aria-pressed={isSkipped}
-        className={`text-xs font-medium min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
+        className={`hit44 text-xs font-medium min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
           isSkipped
             ? 'bg-amber-900/50 border-amber-500 text-amber-200 ring-1 ring-amber-500/60 line-through decoration-amber-400'
             : isAbsent
@@ -97,7 +97,7 @@ export default function PlayerChipRenderer({
     return (
       <button
         onClick={() => onReplaceToggle(playerId)}
-        className={`text-xs font-medium min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
+        className={`hit44 text-xs font-medium min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
           isActive
             ? 'bg-emerald-900/50 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500/60'
             : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-emerald-400 hover:text-emerald-200'
@@ -122,7 +122,7 @@ export default function PlayerChipRenderer({
           if (hasScore) return
           onChangeSelect(changeTargetForChip)
         }}
-        className={`text-xs font-medium min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
+        className={`hit44 text-xs font-medium min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
           isActive
             ? 'bg-sky-900/50 border-sky-500 text-sky-200 ring-1 ring-sky-500/60'
             : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-sky-400 hover:text-sky-200'
@@ -138,7 +138,7 @@ export default function PlayerChipRenderer({
     return (
       <button
         onClick={() => onChipClick(target)}
-        className={`text-xs font-medium min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
+        className={`hit44 text-xs font-medium min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
           isSelected
             ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
             : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-indigo-400 hover:text-indigo-200'

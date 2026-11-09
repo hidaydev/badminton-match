@@ -383,7 +383,7 @@ export default function InstagramPostPage() {
           <button
             onClick={() => { setExportError(null); setOverlayError(null) }}
             aria-label={t('instagram.dismissError')}
-            className="text-red-400 hover:text-red-200 shrink-0"
+            className="text-red-400 hover:text-red-200 shrink-0 hit44"
           >
             ✕
           </button>
@@ -428,7 +428,7 @@ export default function InstagramPostPage() {
         {!userPhoto && (
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/60 active:bg-slate-900/70 transition-colors"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/60 active:bg-slate-900/70 transition-colors min-h-11"
           >
             <div className="w-16 h-16 rounded-full bg-slate-800 border-2 border-dashed border-slate-600 flex items-center justify-center text-2xl">
               📷
@@ -444,7 +444,7 @@ export default function InstagramPostPage() {
             <button
               onClick={() => fileInputRef.current?.click()}
               aria-label={t('instagram.replacePhoto')}
-              className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70"
+              className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70 hit44"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 2v6h-6"/>
@@ -456,7 +456,7 @@ export default function InstagramPostPage() {
             <button
               onClick={() => setShowDownloadSheet(true)}
               aria-label={t('instagram.download')}
-              className="w-9 h-9 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
+              className="w-9 h-9 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300 hit44"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -492,7 +492,7 @@ export default function InstagramPostPage() {
                 {/* Photo Post */}
                 <button
                   onClick={handleDownloadPost}
-                  className="bg-slate-800 active:bg-slate-700 rounded-lg p-4 flex flex-col items-center gap-3 border border-slate-700"
+                  className="bg-slate-800 active:bg-slate-700 rounded-lg p-4 flex flex-col items-center gap-3 border border-slate-700 hit44"
                 >
                   <div className="w-12 h-15 rounded-lg bg-slate-700 border border-slate-600" />
                   <div className="text-center">
@@ -504,7 +504,7 @@ export default function InstagramPostPage() {
                 {/* Photo Story */}
                 <button
                   onClick={handleDownloadStory}
-                  className="bg-yellow-400 active:bg-yellow-300 rounded-lg p-4 flex flex-col items-center gap-3"
+                  className="bg-yellow-400 active:bg-yellow-300 rounded-lg p-4 flex flex-col items-center gap-3 hit44"
                 >
                   <div className="w-12 h-15 rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
                     <div className="w-7 h-7 rounded bg-yellow-500/40" />
@@ -518,7 +518,7 @@ export default function InstagramPostPage() {
                 {/* Standing Post */}
                 <button
                   onClick={() => { setPendingStandingMode('post'); setSheetScreen('session-picker') }}
-                  className="bg-slate-800 active:bg-slate-700 rounded-lg p-4 flex flex-col items-center gap-3 border border-slate-700"
+                  className="bg-slate-800 active:bg-slate-700 rounded-lg p-4 flex flex-col items-center gap-3 border border-slate-700 hit44"
                 >
                   <div className="w-12 h-15 rounded-lg bg-slate-700 border border-slate-600 flex items-center justify-center">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H3v2a3 3 0 0 0 4 2.8M17 6h4v2a3 3 0 0 1-4 2.8"/></svg>
@@ -532,7 +532,7 @@ export default function InstagramPostPage() {
                 {/* Standing Story */}
                 <button
                   onClick={() => { setPendingStandingMode('story'); setSheetScreen('session-picker') }}
-                  className="bg-yellow-400 active:bg-yellow-300 rounded-lg p-4 flex flex-col items-center gap-3"
+                  className="bg-yellow-400 active:bg-yellow-300 rounded-lg p-4 flex flex-col items-center gap-3 hit44"
                 >
                   <div className="w-12 h-15 rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H3v2a3 3 0 0 0 4 2.8M17 6h4v2a3 3 0 0 1-4 2.8"/></svg>
@@ -552,7 +552,7 @@ export default function InstagramPostPage() {
                 <button
                   onClick={() => { setSheetScreen('formats'); setIsGenerating(false) }}
                   aria-label={t('instagram.back')}
-                  className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 text-sm active:bg-slate-700"
+                  className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 text-sm active:bg-slate-700 hit44"
                 >
                   ←
                 </button>
@@ -591,7 +591,7 @@ export default function InstagramPostPage() {
                     <button
                       key={s.id}
                       onClick={() => handleDownloadStanding(s)}
-                      className="flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-800 active:bg-slate-700 border border-slate-700 text-left"
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-800 active:bg-slate-700 border border-slate-700 text-left hit44"
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-white truncate">{s.title}</p>

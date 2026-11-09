@@ -117,7 +117,7 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
         onClick={() => setOpen(true)}
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-300 hover:text-white transition-colors"
+        className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-300 hover:text-white transition-colors hit44"
       >
         {t('session.share')}
       </button>
@@ -133,7 +133,7 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
                   type="button"
                   onClick={() => create.mutate()}
                   disabled={busy}
-                  className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-400 hover:bg-indigo-300 disabled:opacity-50 text-slate-950 transition-colors"
+                  className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-400 hover:bg-indigo-300 disabled:opacity-50 text-slate-950 transition-colors hit44"
                 >
                   {create.isPending ? t('session.share.working') : t('session.share.create')}
                 </button>
@@ -145,7 +145,7 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
                   <button
                     type="button"
                     onClick={handleCopy}
-                    className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${copied ? 'bg-emerald-400 text-slate-950' : 'bg-indigo-400 hover:bg-indigo-300 text-slate-950'}`}
+                    className={`hit44 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${copied ? 'bg-emerald-400 text-slate-950' : 'bg-indigo-400 hover:bg-indigo-300 text-slate-950'}`}
                   >
                     {copied ? t('session.share.copied') : t('session.share.copy')}
                   </button>
@@ -161,7 +161,7 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
                     type="button"
                     onClick={() => rotate.mutate()}
                     disabled={busy}
-                    className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-900/40 border border-amber-700 text-amber-200 hover:text-white disabled:opacity-50 transition-colors"
+                    className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-900/40 border border-amber-700 text-amber-200 hover:text-white disabled:opacity-50 transition-colors hit44"
                   >
                     {rotate.isPending ? t('session.share.working') : t('session.share.rotate')}
                   </button>
@@ -171,7 +171,7 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
                       type="button"
                       onClick={() => { setConfirmRevoke(true); setError(null) }}
                       disabled={busy}
-                      className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-red-900/30 border border-red-800 text-red-300 hover:text-white disabled:opacity-50 transition-colors"
+                      className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-red-900/30 border border-red-800 text-red-300 hover:text-white disabled:opacity-50 transition-colors hit44"
                     >
                       {t('session.share.revoke')}
                     </button>
@@ -183,7 +183,7 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
                         type="button"
                         onClick={() => revoke.mutate()}
                         disabled={busy}
-                        className="text-xs font-bold px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white disabled:opacity-50 transition-colors"
+                        className="text-xs font-bold px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white disabled:opacity-50 transition-colors hit44"
                       >
                         {revoke.isPending ? t('session.share.working') : t('session.share.revokeYes')}
                       </button>
@@ -191,7 +191,7 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
                         type="button"
                         onClick={cancelRevoke}
                         disabled={busy}
-                        className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white disabled:opacity-50 transition-colors"
+                        className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white disabled:opacity-50 transition-colors hit44"
                       >
                         {t('session.share.cancel')}
                       </button>

@@ -84,7 +84,7 @@ export default function SharedSessionPage() {
   const header = (
     <header className="border-b border-border-subtle bg-surface sticky top-0 z-10 pt-[env(safe-area-inset-top)]">
       <div className="max-w-3xl mx-auto px-3 py-2.5 flex flex-wrap items-center gap-2">
-        <button onClick={() => navigate(-1)} className="p-1.5 -ml-1.5 rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all shrink-0" aria-label={t('shell.back')}>
+        <button onClick={() => navigate(-1)} className="p-1.5 -ml-1.5 rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all shrink-0 hit44" aria-label={t('shell.back')}>
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M15 18l-6-6 6-6"/>
           </svg>
@@ -127,7 +127,7 @@ export default function SharedSessionPage() {
           <span className="text-slate-300 text-sm">Session not found.</span>
           <button
             onClick={() => navigate('/')}
-            className="text-xs text-indigo-400 hover:text-white underline underline-offset-2"
+            className="text-xs text-indigo-400 hover:text-white underline underline-offset-2 hit44"
           >
             Go to home
           </button>

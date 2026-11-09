@@ -78,14 +78,14 @@ export default function ResolvePlayersModal({
         <div className="flex gap-2">
           <button
             onClick={onCancel}
-            className="flex-1 py-2 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+            className="flex-1 py-2 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors hit44"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirm}
             disabled={!allResolved}
-            className="flex-1 py-2 rounded-xl text-sm font-bold bg-indigo-400 hover:bg-indigo-300 text-slate-950 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 py-2 rounded-xl text-sm font-bold bg-indigo-400 hover:bg-indigo-300 text-slate-950 transition-colors disabled:opacity-40 disabled:cursor-not-allowed hit44"
           >
             Confirm
           </button>
@@ -99,7 +99,7 @@ export default function ResolvePlayersModal({
             <div className="flex gap-1.5">
               <button
                 onClick={() => setMode(entry.player.id, 'new')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                className={`hit44 flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   entry.mode === 'new'
                     ? 'bg-emerald-700 text-white border border-emerald-500'
                     : 'bg-slate-700 text-slate-400 border border-slate-600 hover:text-slate-200'
@@ -109,7 +109,7 @@ export default function ResolvePlayersModal({
               </button>
               <button
                 onClick={() => setMode(entry.player.id, 'merge')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                className={`hit44 flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   entry.mode === 'merge'
                     ? 'bg-indigo-400 text-slate-950 border border-indigo-300'
                     : 'bg-slate-700 text-slate-400 border border-slate-600 hover:text-slate-200'

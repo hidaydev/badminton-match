@@ -91,7 +91,7 @@ export function ScoreboardSide({
         type="button"
         onClick={onScore}
         aria-label={t('scoreboard.score', { side: sideName, score })}
-        className="w-full flex-1 flex flex-col items-center justify-center cursor-pointer active:brightness-150 duration-75"
+        className="w-full flex-1 flex flex-col items-center justify-center cursor-pointer active:brightness-150 duration-75 hit44"
         style={{ transitionProperty: 'filter' }}
       >
         <span

@@ -150,7 +150,7 @@ export default function AdminRatingsPage() {
               <button
                 onClick={() => runRebuild()}
                 disabled={rebuilding}
-                className="w-full py-2.5 rounded-xl border border-border-subtle bg-surface hover:bg-elevated text-sm font-semibold text-fg hover:text-accent disabled:opacity-40 transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-2.5 rounded-xl border border-border-subtle bg-surface hover:bg-elevated text-sm font-semibold text-fg hover:text-accent disabled:opacity-40 transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-2 hit44"
               >
                 {rebuilding ? (
                   <svg className="animate-spin w-4 h-4 text-accent shrink-0" viewBox="0 0 24 24" fill="none">

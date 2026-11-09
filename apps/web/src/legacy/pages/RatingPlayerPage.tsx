@@ -57,7 +57,7 @@ export default function RatingPlayerPage() {
         <p className="text-error text-sm font-medium">{t('player.loadFailed')}</p>
         <button
           onClick={() => navigate(-1)}
-          className="mt-4 px-4 py-2 rounded-lg bg-elevated border border-border text-xs text-fg hover:bg-surface transition-colors"
+          className="mt-4 px-4 py-2 rounded-lg bg-elevated border border-border text-xs text-fg hover:bg-surface transition-colors hit44"
         >
           {t('common.prev')}
         </button>
@@ -314,7 +314,7 @@ export default function RatingPlayerPage() {
               <button
                 onClick={() => setMatchesPage((p) => Math.max(0, p - 1))}
                 disabled={matchesPage === 0}
-                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all"
+                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all hit44"
               >
                 {t('common.prev')}
               </button>
@@ -324,7 +324,7 @@ export default function RatingPlayerPage() {
               <button
                 onClick={() => setMatchesPage((p) => Math.min(matchTotalPages - 1, p + 1))}
                 disabled={matchesPage >= matchTotalPages - 1}
-                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all"
+                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all hit44"
               >
                 {t('common.next')}
               </button>

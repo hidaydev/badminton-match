@@ -25,7 +25,7 @@ export function ScoreboardControls({
     <>
       <button
         onClick={onReset}
-        className={cls}
+        className={`${cls} hit44`}
         style={baseBtnStyle}
         aria-label={t('scoreboard.reset')}
       >
@@ -33,7 +33,7 @@ export function ScoreboardControls({
       </button>
       <button
         onClick={onSwap}
-        className={cls}
+        className={`${cls} hit44`}
         style={baseBtnStyle}
         aria-label={t('scoreboard.swap')}
       >
@@ -41,7 +41,7 @@ export function ScoreboardControls({
       </button>
       <button
         onClick={onToggleFullscreen}
-        className={cls}
+        className={`${cls} hit44`}
         style={baseBtnStyle}
         aria-label={isFullscreen ? t('scoreboard.fullscreenExit') : t('scoreboard.fullscreenEnter')}
       >

@@ -129,7 +129,7 @@ export default function StandingsTab({
               </div>
               <button
                 type="button"
-                className={`flex-1 min-w-0 truncate text-left cursor-pointer active:opacity-70 ${isFirst ? 'text-sm font-bold text-emerald-300' : isPodium ? 'text-sm font-semibold text-emerald-100/80' : 'text-sm font-medium text-slate-400'}`}
+                className={`hit44 flex-1 min-w-0 truncate text-left cursor-pointer active:opacity-70 ${isFirst ? 'text-sm font-bold text-emerald-300' : isPodium ? 'text-sm font-semibold text-emerald-100/80' : 'text-sm font-medium text-slate-400'}`}
                 onClick={() => setSelectedPlayer({ standing: s, rank })}
               >
                 <AnnotatedPlayerName name={s.player.name} />

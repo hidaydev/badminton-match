@@ -262,7 +262,7 @@ export function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood,
         {(hasBad || hasWarn) && onRetryUntilGood && (
           <button
             onClick={onRetryUntilGood}
-            className="text-xs px-2.5 py-1 rounded-lg bg-emerald-900/40 hover:bg-emerald-900/60 border border-emerald-800 text-emerald-400 hover:text-emerald-200 transition-colors"
+            className="text-xs px-2.5 py-1 rounded-lg bg-emerald-900/40 hover:bg-emerald-900/60 border border-emerald-800 text-emerald-400 hover:text-emerald-200 transition-colors hit44"
           >
             ↺ Retry until good
           </button>

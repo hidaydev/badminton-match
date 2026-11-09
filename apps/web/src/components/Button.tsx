@@ -57,7 +57,7 @@ export function Button({
       disabled={disabled || loading}
       onClick={onClick}
       aria-busy={loading ? true : undefined}
-      className={join(BASE, VARIANT[variant], SIZE[size], className)}
+      className={join(BASE, VARIANT[variant], SIZE[size], 'hit44', className)}
     >
       {loading && (
         <span
@@ -87,7 +87,7 @@ export function ButtonLink({
   children,
 }: ButtonLinkProps) {
   return (
-    <Link to={to} className={join(BASE, VARIANT[variant], SIZE[size], className)}>
+    <Link to={to} className={join(BASE, VARIANT[variant], SIZE[size], 'hit44', className)}>
       {children}
     </Link>
   )

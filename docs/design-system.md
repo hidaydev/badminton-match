@@ -240,7 +240,7 @@ That is why the footer no longer carries `pb-[max(...)]`.
 | Rule | Implementation |
 |------|---------------|
 | Focus rings | `focus-visible:ring-2` (NOT `focus:ring`) — no tap flash |
-| Touch targets | ≥44px for interactive elements |
+| Touch targets | ≥44px for interactive elements, enforced by `apps/web/scripts/check-touch-targets.mjs` (`check:touch`) |
 | Reduced motion | `@media (prefers-reduced-motion: reduce)` |
 | Screen readers | `aria-label` on icon buttons, `role="dialog"` on modals |
 | Error text | `role="alert"` only. Adding `aria-live` on top is redundant and is documented as wrong in `legacy/components/ErrorBanner.tsx` |

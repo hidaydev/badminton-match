@@ -197,13 +197,13 @@ export default function ShareButton() {
             <div className="flex gap-2">
               <button
                 onClick={() => setConfirming(false)}
-                className="flex-1 py-2 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                className="flex-1 py-2 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors hit44"
               >
                 Cancel
               </button>
               <button
                 onClick={handleShareClick}
-                className="flex-1 py-2 rounded-xl text-sm font-bold bg-indigo-400 hover:bg-indigo-300 text-slate-950 transition-colors"
+                className="flex-1 py-2 rounded-xl text-sm font-bold bg-indigo-400 hover:bg-indigo-300 text-slate-950 transition-colors hit44"
               >
                 Publish & Share
               </button>
@@ -231,14 +231,14 @@ export default function ShareButton() {
           {canNativeShare && (
             <button
               onClick={handleNativeShare}
-              className="text-xs font-semibold shrink-0 text-indigo-400 hover:text-white transition-colors"
+              className="text-xs font-semibold shrink-0 text-indigo-400 hover:text-white transition-colors hit44"
             >
               Share…
             </button>
           )}
           <button
             onClick={handleCopy}
-            className={`text-xs font-semibold shrink-0 transition-colors ${copied ? 'text-emerald-400' : 'text-indigo-400 hover:text-white'}`}
+            className={`hit44 text-xs font-semibold shrink-0 transition-colors ${copied ? 'text-emerald-400' : 'text-indigo-400 hover:text-white'}`}
           >
             {copied ? '✓ Copied!' : 'Copy'}
           </button>
@@ -247,7 +247,7 @@ export default function ShareButton() {
         <button
           onClick={() => setConfirming(true)}
           disabled={publishing}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-900/50 hover:bg-indigo-800 border border-indigo-700 text-indigo-300 hover:text-white transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-900/50 hover:bg-indigo-800 border border-indigo-700 text-indigo-300 hover:text-white transition-colors disabled:opacity-50 hit44"
         >
           {publishing ? 'Publishing…' : error ? '✕ Save conflict — retry?' : (
             <>

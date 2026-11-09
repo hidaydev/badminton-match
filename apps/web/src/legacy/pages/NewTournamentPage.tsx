@@ -40,7 +40,7 @@ export default function NewTournamentPage() {
             <button
               key={o.format}
               onClick={() => navigate(o.to)}
-              className="w-full flex items-center gap-3.5 p-4 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.99] transition-all text-left shadow-sm group"
+              className="w-full flex items-center gap-3.5 p-4 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.99] transition-all text-left shadow-sm group hit44"
             >
               <div
                 className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${

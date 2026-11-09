@@ -83,7 +83,7 @@ export default function RankingsPage() {
           <button
             type="button"
             onClick={() => handleTierChange('all')}
-            className={`shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border ${
+            className={`hit44 shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border ${
               selectedTier === 'all'
                 ? 'bg-accent/20 text-accent border-accent/60 font-semibold'
                 : 'bg-surface text-fg-dim border-border-subtle hover:text-fg hover:border-border'
@@ -99,7 +99,7 @@ export default function RankingsPage() {
                 key={tier}
                 type="button"
                 onClick={() => handleTierChange(tier)}
-                className={`shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border flex items-center gap-1 ${
+                className={`hit44 shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border flex items-center gap-1 ${
                   isSelected
                     ? 'bg-accent/20 text-accent border-accent/60 font-semibold'
                     : count > 0
@@ -139,7 +139,7 @@ export default function RankingsPage() {
             <button
               type="button"
               onClick={() => void refetch()}
-              className="text-xs font-medium text-accent hover:underline"
+              className="text-xs font-medium text-accent hover:underline hit44"
             >
               Retry
             </button>
@@ -177,7 +177,7 @@ export default function RankingsPage() {
                 <li key={r.player_id}>
                   <button
                     onClick={() => navigate(`/rankings/${r.player_id}`)}
-                    className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-elevated transition-colors ${rowBg}`}
+                    className={`hit44 w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-elevated transition-colors ${rowBg}`}
                   >
                     {/* Rank Number (and Global Rank if filtering by tier) */}
                     <div className="w-9 shrink-0 flex flex-col items-start justify-center">

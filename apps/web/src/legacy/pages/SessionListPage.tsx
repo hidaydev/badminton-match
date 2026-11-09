@@ -210,7 +210,7 @@ export default function SessionListPage() {
           {dateFilter && (
             <button
               onClick={() => setDateFilter('')}
-              className="text-xs text-fg-dim hover:text-fg border border-border rounded-lg px-2.5 py-2 transition-colors active:scale-95"
+              className="text-xs text-fg-dim hover:text-fg border border-border rounded-lg px-2.5 py-2 transition-colors active:scale-95 hit44"
             >
               {t('sessions.clear')}
             </button>
@@ -224,7 +224,7 @@ export default function SessionListPage() {
           <button
             type="button"
             onClick={() => void refetch()}
-            className="text-xs font-medium text-accent hover:underline"
+            className="text-xs font-medium text-accent hover:underline hit44"
           >
             Retry
           </button>
@@ -292,7 +292,7 @@ export default function SessionListPage() {
               <button
                 key={s.id}
                 onClick={() => navigate(`/s/${s.id}`)}
-                className="w-full flex items-center gap-3.5 px-3.5 py-3 hover:bg-elevated text-left transition-colors active:bg-elevated/70"
+                className="w-full flex items-center gap-3.5 px-3.5 py-3 hover:bg-elevated text-left transition-colors active:bg-elevated/70 hit44"
               >
                 {/* Date Badge */}
                 <div className="w-11 h-11 rounded-lg bg-elevated border border-border flex flex-col items-center justify-center shrink-0">
@@ -358,7 +358,7 @@ export default function SessionListPage() {
         <button
           onClick={() => loadMore()}
           disabled={isLoadingMore}
-          className="self-center text-xs font-mono text-fg-dim hover:text-fg border border-border rounded-lg px-3 py-2 transition-colors active:scale-95 disabled:opacity-50"
+          className="self-center text-xs font-mono text-fg-dim hover:text-fg border border-border rounded-lg px-3 py-2 transition-colors active:scale-95 disabled:opacity-50 hit44"
         >
           {isLoadingMore ? '…' : t('sessions.loadMore')}
         </button>

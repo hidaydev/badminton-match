@@ -49,7 +49,7 @@ export default function ActionsMenu({
     <div className="relative">
       <button
         onClick={onToggle}
-        className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-300 hover:text-white transition-colors"
+        className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-300 hover:text-white transition-colors hit44"
         aria-expanded={actionsOpen}
         aria-haspopup="true"
         aria-label={t('summary.actions')}
@@ -68,7 +68,7 @@ export default function ActionsMenu({
             {hasSwapPlayers && (
               <button
                 onClick={onEnterSwapMode}
-                className="w-full text-left px-4 py-2.5 text-xs font-medium text-indigo-300 hover:bg-slate-800 transition-colors"
+                className="w-full text-left px-4 py-2.5 text-xs font-medium text-indigo-300 hover:bg-slate-800 transition-colors hit44"
                 role="menuitem"
               >
                 ⇄ Swap players
@@ -77,7 +77,7 @@ export default function ActionsMenu({
             {hasSwapTeams && (
               <button
                 onClick={onEnterTeamSwapMode}
-                className="w-full text-left px-4 py-2.5 text-xs font-medium text-sky-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                className="w-full text-left px-4 py-2.5 text-xs font-medium text-sky-400 hover:bg-slate-800 transition-colors border-t border-slate-800 hit44"
                 role="menuitem"
               >
                 ⇄ Swap team
@@ -86,7 +86,7 @@ export default function ActionsMenu({
             {hasReplacePlayer && (
               <button
                 onClick={onEnterReplaceMode}
-                className="w-full text-left px-4 py-2.5 text-xs font-medium text-emerald-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                className="w-full text-left px-4 py-2.5 text-xs font-medium text-emerald-400 hover:bg-slate-800 transition-colors border-t border-slate-800 hit44"
                 role="menuitem"
               >
                 ↔ Replace player
@@ -96,7 +96,7 @@ export default function ActionsMenu({
             {hasChangePlayer && (
               <button
                 onClick={onEnterChangeMode}
-                className="w-full text-left px-4 py-2.5 text-xs font-medium text-sky-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                className="w-full text-left px-4 py-2.5 text-xs font-medium text-sky-400 hover:bg-slate-800 transition-colors border-t border-slate-800 hit44"
                 role="menuitem"
               >
                 ⇄ Change player
@@ -106,7 +106,7 @@ export default function ActionsMenu({
             {hasSwapSlots && (
               <button
                 onClick={onEnterSlotSwapMode}
-                className="w-full text-left px-4 py-2.5 text-xs font-medium text-amber-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                className="w-full text-left px-4 py-2.5 text-xs font-medium text-amber-400 hover:bg-slate-800 transition-colors border-t border-slate-800 hit44"
                 role="menuitem"
               >
                 ↕ Switch slot
@@ -115,7 +115,7 @@ export default function ActionsMenu({
             {hasSetAbsent && (
               <button
                 onClick={onEnterAbsentMode}
-                className="w-full text-left px-4 py-2.5 text-xs font-medium text-red-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                className="w-full text-left px-4 py-2.5 text-xs font-medium text-red-400 hover:bg-slate-800 transition-colors border-t border-slate-800 hit44"
                 role="menuitem"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="inline mr-1.5 -mt-0.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>
@@ -126,7 +126,7 @@ export default function ActionsMenu({
             {hasSetSkipped && (
               <button
                 onClick={onEnterSkipMode}
-                className="w-full text-left px-4 py-2.5 text-xs font-medium text-amber-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                className="w-full text-left px-4 py-2.5 text-xs font-medium text-amber-400 hover:bg-slate-800 transition-colors border-t border-slate-800 hit44"
                 role="menuitem"
               >
                 ⊘ Skip in game

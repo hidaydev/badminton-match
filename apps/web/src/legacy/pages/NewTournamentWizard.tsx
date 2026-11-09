@@ -147,7 +147,7 @@ function TeamWizard() {
           <button
             onClick={() => setStep(2)}
             disabled={!name.trim()}
-            className="mt-2 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            className="mt-2 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hit44"
           >
             Next
           </button>
@@ -196,7 +196,7 @@ function TeamWizard() {
           <button
             onClick={() => { formTeams(); setStep(3) }}
             disabled={!namesComplete || !classesBalanced || !matrixBalanced}
-            className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hit44"
           >
             Next
           </button>
@@ -209,7 +209,7 @@ function TeamWizard() {
             <p className="text-xs text-fg-dim">Team rosters (1 player per class) · slots (Teams 1–6) drawn on matchday</p>
             <button
               onClick={formTeams}
-              className="text-xs px-3 py-1.5 rounded-lg border border-border-subtle text-fg-dim hover:text-fg"
+              className="text-xs px-3 py-1.5 rounded-lg border border-border-subtle text-fg-dim hover:text-fg hit44"
             >
               Refresh
             </button>
@@ -241,7 +241,7 @@ function TeamWizard() {
           <button
             onClick={handleCreate}
             disabled={teams.length !== TEAM_COUNT || teams.some((t) => t.players.length !== TEAM_COUNT) || isPending}
-            className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hit44"
           >
             {isPending ? 'Creating…' : 'Create Tournament'}
           </button>
@@ -347,7 +347,7 @@ function ClassicWizard() {
           <button
             onClick={() => setStep(2)}
             disabled={!name.trim()}
-            className="mt-2 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            className="mt-2 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hit44"
           >
             Next
           </button>
@@ -362,7 +362,7 @@ function ClassicWizard() {
             </p>
             <button
               onClick={() => setPairs(Array.from({ length: PAIR_COUNT }, emptyPair))}
-              className="text-xs text-fg-dim hover:text-fg"
+              className="text-xs text-fg-dim hover:text-fg hit44"
             >
               Reset
             </button>
@@ -390,7 +390,7 @@ function ClassicWizard() {
           <button
             onClick={() => setStep(3)}
             disabled={!pairsComplete}
-            className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hit44"
           >
             Next
           </button>
@@ -403,7 +403,7 @@ function ClassicWizard() {
             <p className="text-xs text-fg-dim">Draw: 4 groups × 4 pairs</p>
             <button
               onClick={drawGroups}
-              className="text-xs px-3 py-1.5 rounded-lg border border-border-subtle text-fg-dim hover:text-fg"
+              className="text-xs px-3 py-1.5 rounded-lg border border-border-subtle text-fg-dim hover:text-fg hit44"
             >
               Re-draw
             </button>
@@ -430,7 +430,7 @@ function ClassicWizard() {
           <button
             onClick={handleCreate}
             disabled={!groupsFull || isPending}
-            className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hit44"
           >
             {isPending ? 'Creating…' : 'Create Tournament'}
           </button>

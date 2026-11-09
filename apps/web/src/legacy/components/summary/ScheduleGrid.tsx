@@ -182,7 +182,7 @@ export default function ScheduleGrid({
                       <button
                         onClick={() => !pendingTeamSwap && handleTeamClick(tgt)}
                         disabled={!!pendingTeamSwap}
-                        className={`flex items-center justify-center gap-1 min-w-0 min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
+                        className={`hit44 flex items-center justify-center gap-1 min-w-0 min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
                           teamIsSelected ? 'border-amber-400 bg-amber-500/20' : 'bg-slate-800/40 border-slate-700 hover:border-sky-400'
                         } ${teamIsDimmed ? 'opacity-30' : ''}`}
                       >
@@ -383,7 +383,7 @@ export default function ScheduleGrid({
                               <button
                                 onClick={() => handleClearScore(key)}
                                 disabled={saving}
-                                className="px-3 py-1.5 min-h-6 rounded-lg border border-slate-600 text-slate-300 hover:text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-3 py-1.5 min-h-6 rounded-lg border border-slate-600 text-slate-300 hover:text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed hit44"
                               >
                                 Clear
                               </button>
@@ -391,7 +391,7 @@ export default function ScheduleGrid({
                             <button
                               onClick={() => handleScoreSave(key)}
                               disabled={saving}
-                              className="px-6 py-1.5 min-h-6 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                              className="px-6 py-1.5 min-h-6 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 hit44"
                             >
                               {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
                               {saving ? 'Saving…' : '✓ Save'}

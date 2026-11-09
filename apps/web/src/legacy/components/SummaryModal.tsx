@@ -295,7 +295,7 @@ export default function SummaryModal({
             <button
               onClick={() => setLockConfirm(true)}
               disabled={lockBusy}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
+              className={`hit44 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
                 locked
                   ? 'bg-slate-800 border-slate-600 text-slate-300 hover:text-white'
                   : 'bg-emerald-900/40 border-emerald-700 text-emerald-300 hover:bg-emerald-900/60'
@@ -315,7 +315,7 @@ export default function SummaryModal({
                   await onSetLocked(!locked)
                 }}
                 disabled={lockBusy}
-                className={`text-xs font-bold px-3 py-1.5 rounded-lg text-white transition-colors disabled:opacity-50 ${
+                className={`hit44 text-xs font-bold px-3 py-1.5 rounded-lg text-white transition-colors disabled:opacity-50 ${
                   locked ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'
                 }`}
               >
@@ -328,7 +328,7 @@ export default function SummaryModal({
               <button
                 onClick={() => setLockConfirm(false)}
                 aria-label={t('summary.cancel')}
-                className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors"
+                className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors hit44"
               >
                 ✕
               </button>
@@ -339,7 +339,7 @@ export default function SummaryModal({
               <button
                 onClick={() => { exitCurrentMode(); setActionsOpen(false) }}
                 aria-label={t('summary.cancel')}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors hit44"
               >
                 ✕<span className="hidden sm:inline"> {t('summary.cancel')}</span>
               </button>
@@ -370,7 +370,7 @@ export default function SummaryModal({
           {onDelete && !deleteConfirm && (
             <button
               onClick={() => setDeleteConfirm(true)}
-              className="text-slate-400 hover:text-red-400 px-2 py-1.5 rounded-lg hover:bg-red-950/30 transition-colors text-sm"
+              className="text-slate-400 hover:text-red-400 px-2 py-1.5 rounded-lg hover:bg-red-950/30 transition-colors text-sm hit44"
               aria-label={t('summary.delete')}
               title={t('summary.delete')}
             >
@@ -383,7 +383,7 @@ export default function SummaryModal({
             <button
               onClick={() => { onDelete(); setDeleteConfirm(false) }}
               disabled={deleteLoading}
-              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5 hit44"
             >
               {deleteLoading && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
               {deleteLoading ? t('summary.deleting') : t('summary.deleteConfirm')}
@@ -393,7 +393,7 @@ export default function SummaryModal({
             <button
               onClick={() => setDeleteConfirm(false)}
               aria-label={t('summary.deleteCancel')}
-              className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors"
+              className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors hit44"
             >
               ✕
             </button>
@@ -402,7 +402,7 @@ export default function SummaryModal({
           {onClose && !deleteConfirm && (
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
+              className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm hit44"
             >
               {t('summary.close')}
             </button>
@@ -428,7 +428,7 @@ export default function SummaryModal({
             <button
               onClick={onRefetch}
               disabled={isRefetching}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 active:scale-90 transition-all disabled:opacity-40 shrink-0"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 active:scale-90 transition-all disabled:opacity-40 shrink-0 hit44"
               aria-label={t('summary.reload')}
             >
               <svg
@@ -487,7 +487,7 @@ export default function SummaryModal({
                         return next
                       })
                     }}
-                    className={`text-xs font-medium px-2 py-0.5 rounded-lg border transition-colors ${
+                    className={`hit44 text-xs font-medium px-2 py-0.5 rounded-lg border transition-colors ${
                       isSelected
                         ? 'bg-red-900/60 border-red-700 text-red-200'
                         : 'bg-slate-800/60 border-slate-600 text-slate-300 hover:border-red-700 hover:text-red-300'
@@ -546,7 +546,7 @@ export default function SummaryModal({
                       exitCurrentMode()
                     }}
                     disabled={!replaceName.trim() || saving}
-                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-1.5"
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-1.5 hit44"
                   >
                     {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
                     {saving ? 'Saving…' : '✓ Save'}
@@ -609,7 +609,7 @@ export default function SummaryModal({
                       setPendingChange({ target: changeTarget, newName: name, b2b: validation.b2b })
                     }}
                     disabled={!changeName.trim() || saving}
-                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 hit44"
                   >
                     {t('summary.next')}
                   </button>
