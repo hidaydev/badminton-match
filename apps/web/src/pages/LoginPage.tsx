@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { Button } from '../components/Button'
 import { ErrorText } from '../components/ErrorText'
 import { t } from '../i18n'
 
@@ -54,7 +55,7 @@ export default function LoginPage() {
           className="h-28 w-auto self-start object-contain"
         />
         <div className="max-w-sm">
-          <span aria-hidden="true" className="block h-px w-12 bg-accent" />
+          <span aria-hidden="true" className="block h-px w-12" style={{ background: 'var(--color-accent)' }} />
           <p className="mt-5 text-sm leading-relaxed text-fg-dim">
             {t('login.description')}
           </p>
@@ -78,15 +79,14 @@ export default function LoginPage() {
             {t('login.description')}
           </p>
 
-          <button
-            type="button"
+          <Button
+            className="mt-8 flex w-full min-h-12 items-center justify-center gap-3 py-3"
             onClick={() => void onLogin()}
             disabled={loggingIn}
-            className="mt-8 flex w-full min-h-12 items-center justify-center gap-3 rounded-xl bg-accent px-4 py-3 font-semibold text-ground hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ground disabled:opacity-40 hit44"
           >
             <GoogleMark />
             {loggingIn ? t('login.pending') : t('login.action')}
-          </button>
+          </Button>
 
           {failed && (
             <ErrorText className="mt-4">{t('login.error')}</ErrorText>

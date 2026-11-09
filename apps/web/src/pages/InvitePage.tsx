@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
 import type { CommunityRole } from '../auth/api'
 import { useAuth } from '../auth/AuthContext'
 import { acceptInvite } from '../community/api'
+import { Button, ButtonLink } from '../components/Button'
 import { Card } from '../components/Card'
 import { ErrorText } from '../components/ErrorText'
 import { LoadingState } from '../components/LoadingState'
@@ -84,14 +85,9 @@ export default function InvitePage() {
         <Card className="w-full max-w-sm p-6">
           <h1 className="text-xl font-bold text-fg">{t('invite.title')}</h1>
           <p className="mt-2 text-sm text-fg-dim">{t('invite.signedOutHint')}</p>
-          <button
-            type="button"
-            onClick={() => void login()}
-            disabled={loggingIn}
-            className="mt-6 w-full min-h-11 rounded-xl bg-accent text-ground font-semibold px-4 py-3 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
-          >
+          <Button className="mt-6 w-full py-3" onClick={() => void login()} disabled={loggingIn}>
             {loggingIn ? t('login.pending') : t('invite.signIn')}
-          </button>
+          </Button>
         </Card>
       </main>
     )
@@ -107,25 +103,20 @@ export default function InvitePage() {
         </p>
 
         {accepted === null ? (
-          <button
-            type="button"
-            onClick={() => void accept()}
-            disabled={accepting}
-            className="mt-6 w-full min-h-11 rounded-xl bg-accent text-ground font-semibold px-4 py-3 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
-          >
+          <Button className="mt-6 w-full py-3" onClick={() => void accept()} disabled={accepting}>
             {accepting ? t('invite.accepting') : t('invite.accept')}
-          </button>
+          </Button>
         ) : (
           <div className="mt-6">
             <p role="status" className="text-sm text-fg">
               {t('invite.accepted', { role: t(ROLE_LABEL[accepted]) })}
             </p>
-            <Link
+            <ButtonLink
               to={slug === null ? '/' : `/c/${encodeURIComponent(slug)}`}
-              className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent"
+              className="mt-4 inline-flex items-center"
             >
               {slug === null ? t('nav.home') : t('invite.open')}
-            </Link>
+            </ButtonLink>
           </div>
         )}
 

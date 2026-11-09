@@ -11,6 +11,17 @@ describe('Button', () => {
     expect(button.className).toContain('disabled:')
   })
 
+  it('passes through any button attribute', () => {
+    render(
+      <Button id="save-player" aria-label="Save player" title="Save">
+        Save
+      </Button>,
+    )
+    const button = screen.getByRole('button', { name: 'Save player' })
+    expect(button.id).toBe('save-player')
+    expect(button.getAttribute('title')).toBe('Save')
+  })
+
   it('marks a loading button busy and blocks a second press', () => {
     render(
       <Button loading onClick={() => undefined}>

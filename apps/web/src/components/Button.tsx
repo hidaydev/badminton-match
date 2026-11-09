@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ComponentPropsWithoutRef } from 'react'
 import { Link } from 'react-router-dom'
 
 /**
@@ -27,18 +27,11 @@ function join(...parts: (string | undefined)[]): string {
   return parts.filter((part) => part !== undefined && part !== '').join(' ')
 }
 
-type ButtonProps = {
+type ButtonProps = ComponentPropsWithoutRef<'button'> & {
   variant?: Variant
   size?: Size
-  /** Defaults to `button`: a submit button that forgets the attribute reloads the page. */
-  type?: 'button' | 'submit'
-  disabled?: boolean
   /** Renders a spinner, marks the button busy and blocks a second submit. */
   loading?: boolean
-  onClick?: () => void
-  /** Placement only, appended after the recipe. */
-  className?: string
-  children: ReactNode
 }
 
 export function Button({
@@ -47,15 +40,15 @@ export function Button({
   type = 'button',
   disabled,
   loading = false,
-  onClick,
   className,
   children,
+  ...rest
 }: ButtonProps) {
   return (
     <button
+      {...rest}
       type={type}
       disabled={disabled || loading}
-      onClick={onClick}
       aria-busy={loading ? true : undefined}
       className={join(BASE, VARIANT[variant], SIZE[size], 'hit44', className)}
     >
@@ -70,24 +63,20 @@ export function Button({
   )
 }
 
-type ButtonLinkProps = {
-  to: string
+type ButtonLinkProps = ComponentPropsWithoutRef<typeof Link> & {
   variant?: Variant
   size?: Size
-  /** Placement only, appended after the recipe. */
-  className?: string
-  children: ReactNode
 }
 
 export function ButtonLink({
-  to,
   variant = 'primary',
   size = 'md',
   className,
   children,
+  ...rest
 }: ButtonLinkProps) {
   return (
-    <Link to={to} className={join(BASE, VARIANT[variant], SIZE[size], 'hit44', className)}>
+    <Link {...rest} className={join(BASE, VARIANT[variant], SIZE[size], 'hit44', className)}>
       {children}
     </Link>
   )

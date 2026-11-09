@@ -138,15 +138,17 @@ export default function PlayersPage() {
             </Button>
           ) : (
             canManage && (
-              <a
-                href="#players-add"
+              <Button
+                className="mt-3"
                 onClick={() => {
-                  if (addPanel.current !== null) addPanel.current.open = true
+                  if (addPanel.current !== null) {
+                    addPanel.current.open = true
+                    addPanel.current.scrollIntoView()
+                  }
                 }}
-                className="mt-3 inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent"
               >
                 {t('players.add')}
-              </a>
+              </Button>
             )
           )}
         </div>
