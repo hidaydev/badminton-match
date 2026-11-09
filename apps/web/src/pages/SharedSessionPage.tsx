@@ -302,12 +302,12 @@ export default function SharedSessionPage() {
                             game.scoreA !== null &&
                             game.scoreB !== null
                           const sets = game.sets ?? []
-                          const multiSet = sets.length > 1 ||
-                            (session.scoring !== undefined && session.scoring !== null &&
-                              session.scoring.gamesToWin > 1)
-                          const headline = multiSet && sets.length > 0
-                            ? `${game.setsWonA ?? 0}–${game.setsWonB ?? 0}`
+                          const headline = sets.length > 0
+                            ? describeSets(sets)
                             : `${game.scoreA}–${game.scoreB}`
+                          const tally = sets.length > 1
+                            ? `${game.setsWonA ?? 0}–${game.setsWonB ?? 0}`
+                            : null
                           return (
                             <div
                               key={game.id}
@@ -339,9 +339,9 @@ export default function SharedSessionPage() {
                                   <span className="block text-[11px] font-bold tabular-nums text-emerald-300">
                                     {headline}
                                   </span>
-                                  {multiSet && sets.length > 1 && (
+                                  {tally !== null && (
                                     <span className="block text-[9px] text-slate-400">
-                                      {describeSets(sets)}
+                                      {tally}
                                     </span>
                                   )}
                                 </span>

@@ -3,7 +3,7 @@ import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { Player, ScheduleSlot, GameScore, PlayerId, SetScore } from '../../types'
 import { toPlayerId, toGameKey } from '../../types'
 import type { PlayerStanding } from '../../utils/standings'
-import { setsWon, describeSets } from '../../utils/scoring'
+import { setsWon, describeSetsFor } from '../../utils/scoring'
 import { ordinal } from '../../utils/ordinal'
 
 interface GameRow {
@@ -43,10 +43,10 @@ function buildGameRows(
 
   return schedule
     .filter(slot => slot.teamA.includes(pid) || slot.teamB.includes(pid))
-    // Semantik skip_player (konsisten dengan computeStandings): game dengan
-    // pemain absent tetap dihitung untuk pemain yang main — hanya di-skip
-    // jika tim si pemain (atau tim lawan) tidak punya pemain aktif sama sekali.
-    // Skip per-game ditambah sebagai void per game.
+    // skip_player semantics (matches computeStandings): a game with absent
+    // players still counts for the players who did play. It is skipped only
+    // when the player's team (or the opposing team) has no active player at
+    // all. A per-game skip is added as a void for that game.
     .filter(slot => {
       const key = toGameKey(slot.slot, slot.court)
       const skipSet = skippedPlayers?.[key] ? new Set(skippedPlayers[key]) : null
@@ -54,7 +54,7 @@ function buildGameRows(
       const inA = slot.teamA.includes(pid)
       const myTeam = inA ? slot.teamA : slot.teamB
       const oppTeam = inA ? slot.teamB : slot.teamA
-      // Jika si pemain sendiri di-skip di game itu, jangan tampilkan (dia gak main)
+      // If the player is skipped in this game, do not show it (they did not play)
       if (skipSet?.has(playerId)) return false
       return myTeam.some(id => !isVoid(id)) && oppTeam.some(id => !isVoid(id))
     })
@@ -155,19 +155,19 @@ export default function PlayerMatchDetailSheet({
               </div>
               {game.sets && game.sets.length > 0 ? (
                 <div className="mt-1">
-                  <div className="text-sm text-slate-300">
-                    {(() => {
-                      const count = setsWon(game.sets)
-                      return `${game.onTeamA ? count.a : count.b} - ${game.onTeamA ? count.b : count.a}`
-                    })()}
-                  </div>
+                  <div className="text-sm text-slate-300">{describeSetsFor(game.sets, game.onTeamA)}</div>
                   {game.sets.length > 1 && (
-                    <div className="text-[11px] text-slate-400">{describeSets(game.sets)}</div>
+                    <div className="text-[11px] text-slate-400">
+                      {(() => {
+                        const count = setsWon(game.sets)
+                        return `${game.onTeamA ? count.a : count.b} - ${game.onTeamA ? count.b : count.a}`
+                      })()}
+                    </div>
                   )}
                 </div>
               ) : game.scoreFor !== null ? (
                 <div className="text-sm text-slate-300 mt-1">
-                  {game.scoreFor} - {game.scoreAgainst}
+                  {game.scoreFor}–{game.scoreAgainst}
                 </div>
               ) : null}
             </div>

@@ -78,7 +78,15 @@ export function validateSets(rules: SessionScoring, sets: SetScore[]): SetVerdic
   return { error: null, set: 0 }
 }
 
-/** A finished match's set line, e.g. `21–18 · 19–21 · 21–17`. */
+/** A finished match's set line, e.g. `21–18 · 19–21 · 21–17`. Team A first. */
 export function describeSets(sets: SetScore[]): string {
   return sets.map((set) => `${set.a}–${set.b}`).join(' · ')
+}
+
+/**
+ * The same set line seen from one player's side: Team A first when `onTeamA`,
+ * Team B first otherwise, so the player's own points always come first.
+ */
+export function describeSetsFor(sets: SetScore[], onTeamA: boolean): string {
+  return sets.map((set) => (onTeamA ? `${set.a}–${set.b}` : `${set.b}–${set.a}`)).join(' · ')
 }
