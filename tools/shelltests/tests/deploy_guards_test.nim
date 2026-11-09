@@ -354,6 +354,64 @@ suite "deploy-vps.sh":
     check fpGroupRead notin logDir
     check fpOthersRead notin logDir
 
+  # OPS-17: the GHCR token used to be built into a curl argument, where any
+  # process of the same user reads it with `ps -ef`.
+  test "the release token never reaches curl argv":
+    let fixture = newFixture("deploy-token-argv")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    let curlLog = fixture.root / "curl.log"
+    fixture.installFake("curl", """#!/bin/sh
+printf '%s\n' "$*" >>"$FAKE_CURL_LOG"
+case "$*" in
+  *api.github.com*) printf '%s' '{"body":"digest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n"}' ;;
+esac
+exit 0
+""")
+    # Stop right after the lookup: a failing cosign keeps the case about argv.
+    fixture.installFake("cosign", "#!/bin/sh\nexit 1\n")
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "ghcr-token", "secret-token\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("FAKE_CURL_LOG", curlLog),
+      ])
+    check result.exitCode == 1
+    check result.stdout.contains("cosign verify failed")
+    let argv = readFile(curlLog)
+    check argv.contains("--config -")
+    check not argv.contains("secret-token")
+
+  test "a world-readable credential file fails the deploy":
+    let fixture = newFixture("deploy-env-mode")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+    touch(fixture.root / "env" / "alert.env", "MAJADU_ALERT_WEBHOOK=x\n")
+    setFilePermissions(fixture.root / "env" / "alert.env",
+      {fpUserRead, fpUserWrite, fpGroupRead, fpOthersRead})
+    let alertFile = fixture.root / "env" / "alert.env"
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    check result.exitCode == 1
+    check result.stdout.contains(alertFile & " must be mode 600 (found 644)")
+
   test "a missing tool env fails before the release lookup":
     let fixture = newFixture("deploy-tool-env-missing")
     defer: removeDir(fixture.root)
@@ -898,6 +956,12 @@ suite "deploy-vps-rc.sh":
     let result = runRcGate(fixture, rcDir)
     check not result.stdout.contains("must not contain MAJADU_OWNER_DSN")
     check result.stdout.contains("ci gate: empty or malformed")
+
+  test "the web deploy passes no token on a command line":
+    let script = readFile(opsScriptsDir / "deploy-vps-rc.sh")
+    check not script.contains("--token")
+    check script.contains("export VERCEL_TOKEN")
+    check not script.contains("TOKEN=$(cat")
 
 suite "cutover.sh":
   test "--from an unknown step exits 2 and names it":

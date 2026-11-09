@@ -33,6 +33,26 @@ Rules that bind this list:
 - Database roles are separated: the app has no right to delete `account.audit`,
   and only `bm2_owner` runs the audit cleaner.
 
+### Credential rotation
+
+Every credential is issued for 90 days and rotated by the owner, on a calendar
+entry, not when something breaks. The deploy reads the files by name; the
+rotation is a file replace plus the restart or re-login in the table.
+
+| Credential | File on the VPS | Rotate by | Verify after |
+|---|---|---|---|
+| GHCR read token | `env/ghcr-token` | issue a new `read:packages` token, replace the file, mode 600 | `podman login ghcr.io -u <user> --password-stdin < env/ghcr-token` |
+| GitHub CI token (RC) | `env/github-token` | new fine-grained token, `actions: read`, replace the file, mode 600 | `env/github-token` is read by the RC CI gate on the next push |
+| Vercel token | `env/vercel-token` | new token in the Vercel account, replace the file, mode 600 | `VERCEL_TOKEN=$(cat env/vercel-token) vercel whoami` |
+| Database passwords | `env/majadu-prod.env`, `env/majadu-tools.env`, `env/majadu-rc*.env` | `alter role ... password` for each role, then update both files | `./task ci` against the DSN, or `curl /readyz` after `systemctl --user restart majadu-api` |
+| Alert webhook | `env/alert.env` | new webhook URL in the provider, replace the file, mode 600 | `systemctl --user start majadu-alert@rotation-test.service` and look for the delivery |
+| Cosign public key | `env/cosign.pub` | follows the signing key, not a secret | `cosign verify --key env/cosign.pub <image>` |
+
+Rotation dates are recorded in the private incident log next to the access
+list; a token older than 90 days is a finding. `deploy-vps.sh` refuses to run
+when any regular file under `env/` is not mode 600 or 400, so a copy made with
+the wrong umask fails the next deploy instead of sitting there readable.
+
 ## 2. Incidents
 
 One incident, one note, five fields. There is no other format; a long report

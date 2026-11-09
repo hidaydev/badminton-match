@@ -89,6 +89,22 @@ require_private_file() {
   esac
 }
 
+# Every credential file, not only the two the deploy reads by name: a 0644
+# alert.env or vercel-token is a read-only host compromise turned into a
+# supply-chain one.
+require_private_env() {
+  local dir="$1" file mode
+  [ -d "$dir" ] || return 0
+  for file in "$dir"/*; do
+    [ -f "$file" ] || continue
+    mode=$(file_mode "$file")
+    case "$mode" in
+      600|400) ;;
+      *) fail "$file must be mode 600 (found $mode)" ;;
+    esac
+  done
+}
+
 # One record, one rename. A crash, a full disk or a SIGKILL between two `>`
 # redirections used to leave half-written JSON and a version with no digest;
 # the temp file is fsynced and renamed in the same directory, so a reader sees
@@ -275,14 +291,27 @@ require_private_file "$ENV_FILE"
 # loads, and that file too must stay private.
 require_private_file "$TOOLS_ENV"
 require_private_file "$TOKEN_FILE"
-AUTH=()
-if [ -f "$TOKEN_FILE" ]; then
-  AUTH=(-H "Authorization: Bearer $(cat "$TOKEN_FILE")")
-elif [ -n "${GITHUB_TOKEN:-}" ]; then
-  AUTH=(-H "Authorization: Bearer $GITHUB_TOKEN")
-fi
-RELEASE=$(curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
-  "${AUTH[@]}" "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" 2>/dev/null || true)
+require_private_env "$APP_DIR/env"
+# The token travels on stdin as a curl config, so it never reaches argv where
+# `ps -ef` would show it. `read` keeps it out of an `set -x` trace too.
+release_query() {
+  local token=""
+  if [ -f "$TOKEN_FILE" ]; then
+    IFS= read -r token <"$TOKEN_FILE" || true
+  elif [ -n "${GITHUB_TOKEN:-}" ]; then
+    token="$GITHUB_TOKEN"
+  fi
+  if [ -n "$token" ]; then
+    curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
+      --config - "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" <<EOF
+header = "Authorization: Bearer $token"
+EOF
+  else
+    curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
+      "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION"
+  fi
+}
+RELEASE=$(release_query 2>/dev/null || true)
 # The release body starts with the tag message, which is human-writable, so a
 # digest-shaped string anywhere in it is not a binding. `release.yml` appends
 # exactly one machine line `digest: sha256:...`; anything else in the body that

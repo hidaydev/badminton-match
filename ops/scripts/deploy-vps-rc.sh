@@ -530,7 +530,10 @@ else
   [ -x "$VERCEL_BIN" ] || fail "vercel CLI not found at $VERCEL_BIN"
   TARGET_SCOPE="${MAJADU_RC_VERCEL_SCOPE:-qouver}"
   TARGET_PROJECT="${MAJADU_RC_VERCEL_PROJECT:-majadu-rc}"
-  TOKEN=$(cat "$VERCEL_TOKEN_FILE")
+  # The CLI reads the token from its environment, so no command line carries it
+  # where `ps -ef` can read it. `read` keeps it out of a `set -x` trace.
+  IFS= read -r VERCEL_TOKEN <"$VERCEL_TOKEN_FILE" || true
+  export VERCEL_TOKEN
   # fnm keeps node outside the login PATH this script inherits, and pnpm lives
   # in a third place again; `vercel build` runs the project's install command.
   export PATH="$HOME/.local/share/fnm/aliases/default/bin:$HOME/.local/share/pnpm/bin:$PATH"
@@ -540,15 +543,15 @@ else
   # apps/web makes it look for apps/web/apps/web.
   cd "$MONO_DIR"
   "$VERCEL_BIN" link --yes --scope "$TARGET_SCOPE" --project "$TARGET_PROJECT" \
-    --token "$TOKEN" >>"$LOG" 2>&1 || fail "vercel link failed"
-  "$VERCEL_BIN" pull --yes --environment=production --token "$TOKEN" >>"$LOG" 2>&1 ||
+    >>"$LOG" 2>&1 || fail "vercel link failed"
+  "$VERCEL_BIN" pull --yes --environment=production >>"$LOG" 2>&1 ||
     fail "vercel pull failed"
   # `vercel build` reuses whatever output directory is already there, including
   # builds.json from a failed attempt, and a deploy then refuses the stale
   # record. Start from nothing so the build that is deployed is this one.
   rm -rf "$MONO_DIR/.vercel/output"
-  "$VERCEL_BIN" build --prod --token "$TOKEN" >>"$LOG" 2>&1 || fail "vercel build failed"
-  DEPLOY_JSON=$("$VERCEL_BIN" deploy --prebuilt --prod --yes --json --token "$TOKEN" \
+  "$VERCEL_BIN" build --prod >>"$LOG" 2>&1 || fail "vercel build failed"
+  DEPLOY_JSON=$("$VERCEL_BIN" deploy --prebuilt --prod --yes --json \
     2>>"$LOG" || true)
   WEB_URL=$(printf '%s' "$DEPLOY_JSON" | sed -n 's/.*"url":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
   [ -n "$WEB_URL" ] || fail "vercel deploy returned no url"
