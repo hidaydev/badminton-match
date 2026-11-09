@@ -127,7 +127,10 @@ never run the wrong branch.
 
 The daemon configuration is in `/srv/qouver/config/webhook.json` (owned by
 `sachiel`, mode 600); its unit is a user unit (`systemctl --user restart webhook`),
-not a system unit.
+not a system unit. `ops/scripts/install-webhook.sh` applies the routing from the
+repository without touching the HMAC secret, and `ops/webhook/webhook.json` is
+the template. Reconcile a missed delivery with `majadu-deploy-check.timer`, which
+compares the latest release with `deploy/deployed-version` every hour.
 
 Manual, without the webhook:
 

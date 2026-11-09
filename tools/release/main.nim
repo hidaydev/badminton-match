@@ -108,8 +108,11 @@ proc report(options: Options, current, next: Version, tag: string,
   echo "  git add VERSION CHANGELOG.md"
   echo "  git commit -m \"chore(release): v" & $next & "\""
   echo "  git tag -s -F " & notesPath & " v" & $next
-  echo "  git push origin main"
+  # The tag must be pushed before main: the deploy webhook on main reads the
+  # release that the tag run publishes, and the reverse order makes the deploy
+  # fail at resolve-digest.
   echo "  git push origin refs/tags/v" & $next
+  echo "  git push origin main"
   echo "  gh release view v" & $next &
     "   # release.yml creates it and records the image digest"
   echo "  # only if the workflow is unavailable:"

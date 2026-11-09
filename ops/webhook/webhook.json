@@ -1,7 +1,7 @@
 [
   {
     "id": "majadu-monorepo",
-    "execute-command": "/srv/qouver/apps/majadu/scripts/deploy-vps.sh",
+    "execute-command": "/srv/qouver/apps/majadu/scripts/deploy-dispatch.sh",
     "command-working-directory": "/srv/qouver/apps/majadu",
     "pass-arguments-to-command": [
       { "source": "payload", "name": "repository.name" },

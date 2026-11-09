@@ -44,11 +44,21 @@ esac
 exit 0
 """
 
-# The release API plus the health probes: deploy-vps.sh reads the digest from
-# the release body and treats any curl exit 0 as a ready endpoint.
+# The release API plus the health probes: deploy-vps.sh reads the single
+# machine digest line from the release body and treats any curl exit 0 as a
+# ready endpoint.
 const releaseCurlFake = """#!/bin/sh
 case "$*" in
-  *api.github.com*) printf '%s' '{"body":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}' ;;
+  *api.github.com*) printf '%s' '{"body":"release notes\ndigest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n"}' ;;
+esac
+exit 0
+"""
+
+# A tag message that already carries a digest makes the published body
+# ambiguous; deploy-vps.sh must refuse it rather than take the first match.
+const ambiguousDigestCurlFake = """#!/bin/sh
+case "$*" in
+  *api.github.com*) printf '%s' '{"body":"tag message sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ndigest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n"}' ;;
 esac
 exit 0
 """
@@ -132,6 +142,10 @@ proc simFakes(fixture: Fixture) =
   fixture.installFake("curl", okFake)
   fixture.installFake("podman", podmanFake)
   fixture.installFake("psql", psqlFake)
+  fixture.installFake("cosign", okFake)
+  # deploy-vps.sh verifies the release signature before it pulls, so every
+  # fixture that reaches the digest step needs the public key installed.
+  privateFile(fixture.root / "env" / "cosign.pub", "fake cosign public key\n")
 
 proc runDeployForEnvGate(fixture: Fixture, apiBody: string,
     extra: seq[(string, string)] = @[]): ShellResult =
@@ -249,6 +263,12 @@ suite "deploy-vps.sh":
     # A token file keeps AUTH non-empty (bash 3.2 treats "${AUTH[@]}" on an
     # empty array as unbound under set -u) and the podman fake answers login.
     privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+    # A successful release is already recorded; the failed attempt must leave it
+    # intact and write its own record beside it.
+    touch(fixture.root / "deploy" / "last-release.json",
+      "{\"version\":\"1.9.0\",\"commit\":\"abc\",\"digest\":\"sha256:" &
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"," &
+      "\"schema\":\"0031_old\",\"at\":\"2026-10-01T00:00:00Z\"}\n")
     # Everything before the restart succeeds; `false` stands in for a systemctl
     # that refuses the restart, which used to exit through set -e without a log
     # line, an alert or a state record.
@@ -262,8 +282,14 @@ suite "deploy-vps.sh":
     let deployLog = readFile(fixture.root / "logs" / "deploy.log")
     check deployLog.contains("ERROR: command failed at line")
     check deployLog.contains("(step: restart)")
-    check readFile(fixture.root / "deploy" / "last-release.json")
+    check readFile(fixture.root / "deploy" / "last-attempt.json")
       .contains("\"step\":\"restart\"")
+    check readFile(fixture.root / "deploy" / "last-attempt.json")
+      .contains("\"version\":\"1.9.0\"")
+    check readFile(fixture.root / "deploy" / "last-release.json")
+      .contains("\"version\":\"1.9.0\"")
+    check readFile(fixture.root / "deploy" / "last-release.json")
+      .contains("\"schema\":\"0031_old\"")
     check readFile(systemctlLog).contains("start majadu-alert@deploy.service")
 
   test "an owner DSN left in the API env stops the deploy":
@@ -286,7 +312,7 @@ suite "deploy-vps.sh":
     let toolsFile = fixture.root / "env" / "majadu-tools.env"
     check result.stdout.contains(
       envFile & ":2 must not contain MAJADU_OWNER_DSN; move it to " & toolsFile)
-    check readFile(fixture.root / "deploy" / "last-release.json")
+    check readFile(fixture.root / "deploy" / "last-attempt.json")
       .contains("\"step\":\"env-split\"")
 
   test "a missing tool env fails before the release lookup":
@@ -355,6 +381,29 @@ suite "deploy-vps.sh":
     check result.stdout.contains(
       "production does not point at bm2 yet: cutover has not happened, nothing to deploy")
     check not result.stdout.contains("tool env file")
+
+  test "a digest in the tag message is refused as ambiguous":
+    let fixture = newFixture("deploy-ambiguous-digest")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    fixture.installFake("curl", ambiguousDigestCurlFake)
+    let mono = fixture.root / "monorepo"
+    touch(mono / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    check result.exitCode == 1
+    check result.stdout.contains(
+      "must carry exactly one 'digest: sha256:...' line")
+    check readFile(fixture.root / "deploy" / "last-attempt.json")
+      .contains("\"step\":\"resolve-digest\"")
 
 suite "deploy-vps-rc.sh":
   test "a ref other than the RC branch is ignored":
@@ -444,7 +493,7 @@ suite "deploy-vps-rc.sh":
     # about the install, not the deploy that follows.
     check result.exitCode != 0
     check readFile(installed) == readFile(source)
-    check readFile(rcDir / "deploy" / "last-release.json")
+    check readFile(rcDir / "deploy" / "last-attempt.json")
       .contains("\"step\":\"env-check\"")
 
   test "the CI gate allows a commit whose ci.yml run succeeded":
@@ -507,7 +556,7 @@ suite "deploy-vps-rc.sh":
       "newest ci.yml run for abc1234 ended as failure")
     check not result.stdout.contains(
       "built localhost/majadu-rc-api:local")
-    check readFile(rcDir / "deploy" / "last-release.json")
+    check readFile(rcDir / "deploy" / "last-attempt.json")
       .contains("\"step\":\"ci-gate\"")
 
   test "the CI gate refuses a completed run with a null conclusion":
@@ -651,7 +700,7 @@ suite "deploy-vps-rc.sh":
       "built localhost/majadu-rc-api:local at abc1234")
     # The run stops after the build in this fixture, and the failure record
     # still carries the bypass so the audit trail survives it.
-    check readFile(rcDir / "deploy" / "last-release.json")
+    check readFile(rcDir / "deploy" / "last-attempt.json")
       .contains("\"ci\":\"bypassed\"")
 
   test "a redeploy of the live commit skips the gate without a token":
@@ -835,6 +884,33 @@ suite "cutover.sh":
       @["--help"], appDir(fixture))
     check result.exitCode == 0
     check result.stdout.contains("One manual cutover from the v1 database")
+
+  test "--check uses the container when the host has no database clients":
+    let fixture = newFixture("cutover-check-container")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("curl", releaseCurlFake)
+    fixture.installFake("caddy", okFake)
+    for tool in ["psql", "pg_dump", "pg_restore"]:
+      removeFile(fixture.binDir / tool)
+    touch(fixture.root / "env" / "majadu-prod.env.v2", "")
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--check", "--version", "2.0.0"], appDir(fixture))
+    check result.exitCode == 0
+    check result.stdout.contains(
+      "database tools via podman exec qouver-postgres")
+    check result.stdout.contains("cutover --check: ok")
+
+  test "--check exits 2 when podman is missing":
+    let fixture = newFixture("cutover-check-nopodman")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    removeFile(fixture.binDir / "podman")
+    touch(fixture.root / "env" / "majadu-prod.env.v2", "")
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--check", "--version", "2.0.0"], appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains("cutover --check: podman is required")
 
   test "a missing required tool exits 2":
     let fixture = newFixture("cutover-tool")
@@ -1038,7 +1114,7 @@ suite "rollback.sh":
     check result.stdout.contains(
       "ERROR: :v1-final is gone; v2 cannot be rolled back safely")
 
-  test "the abandoned-row guard is skipped without an owner DSN":
+  test "no owner DSN without --abandon-data refuses to roll back":
     let fixture = newFixture("rollback-no-owner")
     defer: removeDir(fixture.root)
     simFakes(fixture)
@@ -1051,11 +1127,26 @@ suite "rollback.sh":
         ("FAKE_PSQL_LOG", psqlLog),
         ("FAKE_ABANDONED", "3"),
       ])
-    check result.exitCode == 0
-    check result.stdout.contains("rollback complete")
-    check result.stdout.contains(
-      "WARNING: no owner DSN available; the abandoned-row guard will be skipped")
+    check result.exitCode == 1
+    check result.stdout.contains("cannot count bm2 rows written since the cutover")
+    check result.stdout.contains("Pass --abandon-data")
+    check not result.stdout.contains("rollback complete")
     check not fileExists(psqlLog)
+
+  test "no owner DSN with --abandon-data states that the count is unknown":
+    let fixture = newFixture("rollback-no-owner-abandon")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    createDir(fixture.root / "caddy")
+    let result = fixture.runShell(fixture.installOpsScript("rollback.sh"),
+      @["--abandon-data"], appDir(fixture) & @[
+        ("MAJADU_CADDY_VALIDATE", "true"),
+        ("MAJADU_CADDY_RELOAD", "true"),
+      ])
+    check result.exitCode == 0
+    check result.stdout.contains(
+      "WARNING: no owner DSN; --abandon-data given and the abandoned-row count is unknown")
+    check result.stdout.contains("rollback complete")
 
   test "a positive abandoned count is refused without --abandon-data":
     let fixture = newFixture("rollback-abandoned")
@@ -1076,7 +1167,7 @@ suite "rollback.sh":
     check result.stdout.contains(
       "WARNING: " & toolsFile & " is missing; reading the owner DSN from " & v2File)
     check result.stdout.contains(
-      "ERROR: 3 row(s) were written to v2 since the cutover; rollback discards them. " &
+      "ERROR: 3 row(s) were written to bm2 since the cutover; rollback discards them. " &
       "Re-run with --abandon-data to confirm that loss.")
 
   test "--abandon-data accepts the same count":
@@ -1105,7 +1196,7 @@ suite "rollback.sh":
     fixture.installFake("systemctl", systemctlLogFake)
     createDir(fixture.root / "caddy")
     let result = fixture.runShell(fixture.installOpsScript("rollback.sh"),
-      @[], appDir(fixture) & @[
+      @["--abandon-data"], appDir(fixture) & @[
         ("MAJADU_CADDY_VALIDATE", "true"),
         ("MAJADU_CADDY_RELOAD", "false"),
         ("FAKE_SYSTEMCTL_LOG", systemctlLog),
@@ -1256,6 +1347,12 @@ suite "systemd units":
   # `systemd-analyze verify` after a deploy; that is documented in
   # docs/ops/operations.md.
   let unitsDir = repoDir / "ops" / "systemd"
+
+  test "the alert unit retries and keeps a dead-letter copy":
+    let text = readFile(unitsDir / "majadu-alert@.service")
+    check text.contains("After=network-online.target")
+    check text.contains("for attempt in 1 2 3")
+    check text.contains("alert-dead-letter.log")
 
   test "every alerting unit has exactly one OnFailure naming the template":
     var units = 0

@@ -16,7 +16,14 @@ do not consider them tested.
 | `CHANGELOG.md` | per-version sections from Conventional Commits | the GitHub release |
 | tag `v<version>` | SSH-signed, created by the operator | `.github/workflows/release.yml` |
 | image `ghcr.io/hidaydev/badminton-match:v<version>` | one build per tag | `deploy-vps.sh` (pull by digest) |
-| `sha256:…` digest in the GitHub Release body | binds the tag to the image | `deploy-vps.sh`, `cutover.sh` |
+| `digest: sha256:…` line in the GitHub Release body | the only digest the deploy accepts, signed by `cosign` | `deploy-vps.sh`, `cutover.sh` |
+| `cosign.pub` in `env/` | verifies the image signature before the pull | `deploy-vps.sh`, `cutover.sh` |
+
+The release body begins with the tag message, which is free text. The deploy
+accepts exactly one `digest: sha256:…` line and refuses the release when any
+other digest-shaped string appears in the body (for example in the tag message).
+The signature is checked with `cosign verify --key env/cosign.pub` before
+`podman pull`.
 
 `deploy-vps.sh` decides to deploy from `VERSION`, not from the tag: a commit that
 bumps `VERSION` is a release, a documentation commit is not. That is why the tag
@@ -43,13 +50,14 @@ pushed.
    deploy webhook. The reverse order makes the deploy run before the image
    exists; the deploy script will fail at the `resolve-digest` step, not silently
    use another image.
-
-   Note: `./task release` prints `git push origin main` before the tag push
-   command. The correct order is the one above; that tool's output has not been
-   fixed.
 6. Wait for `release.yml` to go green and record the digest from the GitHub
    Release body. `release.yml` never creates or moves a tag; the tag always comes
    from the operator.
+
+Before the first signed release, install `cosign` on the VPS, put the public key
+in `/srv/qouver/apps/majadu/env/cosign.pub` (mode 600), and set
+`COSIGN_PRIVATE_KEY` and `COSIGN_PASSWORD` as GitHub Actions secrets. The deploy
+refuses to pull a digest it cannot verify.
 
 ## 3. What the deploy does
 
@@ -73,6 +81,10 @@ the sequence is:
 8. Make sure the container really uses the `:local` image, then write
    `deploy/deployed-version` and `deploy/last-release.json`
    (`version`, `commit`, `digest`, `schema`, `at`).
+
+A failed attempt writes `deploy/last-attempt.json` with the same identity fields
+of the release that is still serving; it never overwrites `last-release.json`.
+That file stays the rollback input.
 
 ## 4. Exit criteria
 
@@ -120,14 +132,18 @@ is `:prev`.
 - **Manual**, if the regression only shows up after the gate went green:
 
   ```sh
-  podman tag localhost/majadu-api:prev localhost/majadu-api:local
-  systemctl --user restart majadu-api
-  curl -fsS http://127.0.0.1:8080/version
+  /srv/qouver/apps/majadu/scripts/release-rollback.sh
   ```
 
-  Then align `deploy/deployed-version` with the version that now answers.
-  Without that, the next push for the failed version will be considered
-  "already live" and skipped.
+  The script reads `deploy/last-release.json` (and the `.prev` record the deploy
+  keeps), requires `:prev` to exist, retags it, restarts the unit, waits for
+  `/readyz`, and refuses a `/version` that does not report the previous release.
+  It then rewrites `deploy/deployed-version` and `last-release.json`, so the next
+  push is not skipped as "already live". It pages through
+  `majadu-alert@release-rollback.service` if any step fails.
+
+  Do not use `rollback.sh` for this: that script returns production to v1 and
+  deletes cutover state.
 
 The schema is not rolled back: `:prev` must be able to serve the schema already
 migrated by the new release. The rules are in §6.

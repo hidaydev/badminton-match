@@ -87,7 +87,66 @@ does not match `CUTOVER_SNAPSHOT_SHA256`. Columns or seeds that are not in place
 yet are not detected there; what proves the schema is `dbtools verify` in the
 deploy step. `503` means "do not send traffic", not "try again".
 
-## 4. What is still missing
+## 4. Monitoring, alerting and the availability target
+
+Two detectors run on the VPS and one runs outside it. The VPS ones are useful but
+they cannot report the failure they are most likely to miss: the host itself.
+
+| Detector | Runs on | What it proves |
+|---|---|---|
+| `majadu-readyz.timer` | VPS | the API answered `/readyz` in the last five minutes |
+| `majadu-deploy-check.timer` | VPS | the latest release reached `deploy/deployed-version` |
+| external uptime checker | provider | the public origin answers from outside the VPS |
+
+The external checker is an account-level uptime monitor (the provider's own
+service, not a unit in this repository) with two HTTPS checks: `GET
+https://api.qouver.com/majadu/readyz` expecting `200`, and `GET
+https://majadu.vercel.app/` expecting `200`. Its notification channel is the
+account email plus push, deliberately independent of the VPS, the user systemd
+manager and the `majadu-alert@` webhook. Configure the checks for a 60 second
+interval and a 5 minute alert delay; a check that only runs on the machine it
+watches cannot report that the machine is gone.
+
+Availability target: **99.0% per calendar month** for the public API and web
+origin (about 7 hours 18 minutes of allowed downtime), excluding announced
+maintenance announced in the community channel at least 24 hours ahead. The
+target is a single-instance target: the API is one process on one host, so a
+host failure is downtime, not a degraded mode.
+
+Journal retention is bounded by `ops/journald/majadu.conf` (200 MB, 30 days).
+Install it on the host as described in the file header, then confirm with
+`journalctl --disk-usage`.
+
+## 5. Capacity statement
+
+The service is one process on one host. The host measured for this project is
+2 vCPU, 7.4 GB RAM and a 512 MB container limit (`ops/systemd/majadu-api.container`).
+The configured ceilings are:
+
+| Resource | Ceiling | Source |
+|---|---|---|
+| concurrent session watchers, process | 500 | `ws.max_watchers_process` |
+| concurrent watchers per session | 50 | `ws.max_watchers_per_session` |
+| concurrent watchers per address | 20 | `ws.max_watchers_per_ip` |
+| requests per minute per route and identity | 300 | `platform.config` seed |
+| API memory | 512 MB | `MemoryMax` in the unit |
+
+Those are safety limits, not measurements. The measured capacity is recorded by
+the T-074 soak test on the host above, using the committed load test:
+
+```sh
+./task loadtest --http https://api.qouver.com/majadu/readyz \
+  --requests 100000 --concurrency 50
+```
+
+The watcher half needs a file of single-use watcher URLs (`--ws-file`), because
+a ticket cannot be replayed. Until that run is recorded here, the 500-watcher
+ceiling is a configuration default and the capacity claim is unproven. A run
+that reaches 500 watchers and 100,000 requests without a 5xx, a rejected
+upgrade or an OOM is the acceptance evidence; a lower measured ceiling is the
+number to configure, not the default.
+
+## 6. What is still missing
 
 Being honest about gaps is more useful than a runbook that assumes tools that do
 not exist:
@@ -103,11 +162,26 @@ not exist:
   exist. The shelltests assert the specifier and the template presence because a
   macOS checkout cannot run systemd; on the host, prove the expansion with
   `systemd-analyze verify ~/.config/systemd/user/majadu-janitor.service` (and
-  the other installed units) after a deploy. Without
+  the other installed units) after a deploy. The alert unit now retries a
+  webhook three times with backoff and appends an undelivered message to
+  `logs/alert-dead-letter.log`; without
   `/srv/qouver/apps/majadu/env/alert.env` (mode 600) the message only goes to
-  the journal, it is not sent off the machine. Journal retention and shipping
-  the journal off-host are not configured; those are VPS steps, not files in
-  this repo.
+  the journal, it is not sent off the machine. A red push to `main` and a red
+  nightly also post to the same webhook from their `notify` job when
+  `MAJADU_ALERT_WEBHOOK` is configured. Journal retention is in the repository
+  (`ops/journald/majadu.conf`), but installing it and shipping the journal
+  off-host are VPS steps.
 - `readyz` used to be just a probe; now `majadu-readyz.timer` hits it every 5
-  minutes and a failure becomes an alert. Internal metrics (T-062) are still not
-  exposed; `/ops/ping` only proves the CLI token is alive.
+  minutes and a failure becomes an alert. Internal metrics exist on
+  `MAJADU_METRICS_PORT` (default 9090, bound to 127.0.0.1 inside the container
+  and never published). There is no scrape target or dashboard, so the supported
+  query is manual:
+
+  ```sh
+  podman exec majadu-api curl -fsS http://127.0.0.1:9090/metrics \
+    | grep '^http_requests_total'
+  ```
+
+  That line, plus the structured `"msg":"request"` access log, is the current
+  answer to "request rate and 5xx for the last hour". A real backend and an
+  external checker remain on the roadmap.

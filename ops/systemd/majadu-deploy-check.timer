@@ -1,0 +1,14 @@
+# Reconciles the latest release with the running version every hour.
+#
+# Enabled by the operator with the other timers (docs/ops/cutover.md). The one
+# hour window absorbs the normal delay between a push and the webhook deploy.
+[Unit]
+Description=Check for a missed Majadu deploy every hour
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=5m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -112,6 +112,13 @@ jobs:
           sudo apt-get install -y libpcre3
       - name: "Release: install pinned deps"
         run: ./task deps-install
+      - name: "Release: every action is pinned to a 40-hex SHA"
+        run: ./task ci-guards
+      # OPS-15: the RC branch rewrites the SPA to /majadu-rc. A tag that still
+      # carries that line would ship production against the RC API, so the tag
+      # fails before the image is built.
+      - name: "Release: the SPA must not rewrite to the RC API"
+        run: ./task ci-guards --release
       - name: "Release: database"
         env:
           MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
@@ -395,6 +402,7 @@ jobs:
       digest: ${{ steps.push.outputs.digest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: "Image: log in to GHCR"
         env:
           GHCR_USER: ${{ github.actor }}
@@ -416,6 +424,22 @@ jobs:
           digest=${digest#*@}
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
           echo "published $IMAGE@$digest"
+      # The digest is only as trustworthy as the job that produced it. The
+      # signature is what deploy-vps.sh verifies with the public key installed
+      # next to the env files; without it a registry write is enough to move
+      # production.
+      - name: "Image: sign the digest"
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          if [ -z "$COSIGN_PRIVATE_KEY" ]; then
+            echo "::error::COSIGN_PRIVATE_KEY is not configured; the release cannot be verified"
+            exit 1
+          fi
+          cosign sign --yes --key env://COSIGN_PRIVATE_KEY "$IMAGE@$DIGEST"
 
   publish:
     name: "Release: GitHub Release"
@@ -424,10 +448,26 @@ jobs:
     needs: [verify, image]
     permissions:
       contents: write
+      packages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - name: "Release: log in to GHCR for the SBOM pull"
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+      # The SBOM is generated from the published digest, so the bill of
+      # materials describes the bytes production pulls, not the working tree.
+      - name: "Release: generate the SBOM"
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ghcr.io/${{ github.repository }}@${{ needs.image.outputs.digest }}
+          format: spdx-json
+          output-file: majadu.sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
       - name: "Release: create or update"
         env:
           TAG: ${{ github.ref_name }}
@@ -437,17 +477,25 @@ jobs:
         run: |
           notes=$(mktemp)
           git tag -l --format='%(contents)' "$TAG" >"$notes"
+          # deploy-vps.sh accepts exactly one digest-shaped string in the
+          # release body. A tag message that already contains one would make the
+          # published body ambiguous, so the release fails here instead.
+          if grep -qE 'sha256:[0-9a-f]{64}' "$notes"; then
+            echo "::error::tag $TAG message contains a digest-shaped string; the release body must carry exactly one digest: line"
+            exit 1
+          fi
           {
             echo
             echo "## Container image"
             echo
-            echo "- \`$IMAGE:$TAG\`"
-            echo "- digest: \`$DIGEST\`"
+            echo "- image: \`$IMAGE:$TAG\`"
             echo
-            echo "Pull exactly what was released:"
+            echo "digest: $DIGEST"
+            echo
+            echo "Verify the signature before pulling:"
             echo
             echo '```sh'
-            echo "docker pull $IMAGE@$DIGEST"
+            echo "cosign verify --key cosign.pub \"\$IMAGE@\$DIGEST\""
             echo '```'
           } >>"$notes"
           if gh release view "$TAG" >/dev/null 2>&1; then
@@ -455,3 +503,4 @@ jobs:
           else
             gh release create "$TAG" --title "$TAG" --notes-file "$notes" --verify-tag
           fi
+          gh release upload "$TAG" majadu.sbom.spdx.json --clobber

@@ -93,6 +93,81 @@ suite "task target guards":
     let result = fixture.runTask(@["audit-retention"])
     check result.exitCode != 0
     check result.stderr.contains("MAJADU_AUDIT_DSN is required")
+  test "docs-check refuses a stale migration count":
+    let fixture = newFixture("docs-check-stale")
+    defer: removeDir(fixture.root)
+    createDir(fixture.root / "db" / "migrations")
+    writeFile(fixture.root / "db" / "migrations" / "0001_init.sql", "select 1;\n")
+    createDir(fixture.root / "packages" / "contracts" / "openapi")
+    writeFile(fixture.root / "packages" / "contracts" / "openapi" /
+      "CONTRACT.sha256", "operations 2\n")
+    writeFile(fixture.root / "README.md",
+      "| Schema | 3 migrations |\n| Contract | 2 operations |\n")
+    let result = fixture.runTask(@["docs-check"])
+    check result.exitCode == 1
+    check result.stderr.contains("README.md says 3 migrations")
+
+  test "ci-guards --release rejects an SPA rewrite to the RC API":
+    let fixture = newFixture("ci-guards-rc-spa")
+    defer: removeDir(fixture.root)
+    createDir(fixture.root / "apps" / "web")
+    createDir(fixture.root / ".github" / "workflows")
+    writeFile(fixture.root / "apps" / "web" / "vercel.json",
+      "{\"rewrites\":[{\"source\":\"/api/:path*\",\"destination\":" &
+      "\"https://api.qouver.com/majadu-rc/:path*\"}]}\n")
+    let normal = fixture.runTask(@["ci-guards"])
+    check normal.exitCode == 0
+    let release = fixture.runTask(@["ci-guards", "--release"])
+    check release.exitCode == 1
+    check release.stderr.contains("still rewrites /api to the RC backend")
+
+  test "ci-guards rejects a mutable action tag":
+    let fixture = newFixture("ci-guards-tag")
+    defer: removeDir(fixture.root)
+    createDir(fixture.root / ".github" / "workflows")
+    writeFile(fixture.root / ".github" / "workflows" / "bad.yml",
+      "steps:\n  - uses: owner/repo@v1\n")
+    let result = fixture.runTask(@["ci-guards"])
+    check result.exitCode == 1
+    check result.stderr.contains("is not pinned to a 40-hex commit SHA")
+
+  test "ci-guards rejects a 41-character action SHA":
+    let fixture = newFixture("ci-guards-41")
+    defer: removeDir(fixture.root)
+    createDir(fixture.root / ".github" / "workflows")
+    writeFile(fixture.root / ".github" / "workflows" / "bad.yml",
+      "steps:\n  - uses: owner/repo@55cc8345863c7cc4c66c329aec7e433d2d1c52a9a\n")
+    let result = fixture.runTask(@["ci-guards"])
+    check result.exitCode == 1
+    check result.stderr.contains("is not pinned to a 40-hex commit SHA")
+
+  test "deps-check refuses a Dockerfile digest that differs from deps.lock":
+    let fixture = newFixture("deps-docker-mismatch")
+    defer: removeDir(fixture.root)
+    createDir(fixture.root / "apps" / "api")
+    writeFile(fixture.root / "apps" / "api" / "Dockerfile",
+      "FROM docker.io/nimlang/nim:2.4.0@sha256:" &
+      "0000000000000000000000000000000000000000000000000000000000000000\n")
+    writeFile(fixture.root / "deps.lock",
+      "tree deadbeef\n" &
+      "nim-base 2.4.0 docker:docker.io/nimlang/nim:2.4.0 sha256:" &
+      "e35e49da9bb8a5d4562f9c4f8afc1945c9cdeb525b2a9b3e76431d0556ac0c8f\n")
+    let result = fixture.runTask(@["deps-check"])
+    check result.exitCode == 1
+    check result.stderr.contains("entry differs: nim-base")
+
+  test "the Caddy handlers carry limits, timeouts and the RC allow-list":
+    for name in ["site-v1.caddy", "site-v2.caddy"]:
+      let text = readFile(repoDir / "ops" / "caddy" / name)
+      check text.contains("max_size 1MB")
+      check text.contains("dial_timeout 3s")
+      check text.contains("health_uri /readyz")
+      check text.contains("handle_response @upstream_error")
+    let rc = readFile(repoDir / "ops" / "caddy" / "site-rc.caddy")
+    check rc.contains("@internal remote_ip")
+    check rc.contains("respond \"Forbidden\" 403")
+    check rc.contains("health_uri /readyz")
+
   test "every workflow that runs the Nim toolchain installs libpcre":
     ## Nim's `re` binds the system PCRE 1 library at run time. A workflow that
     ## installs the pinned Nim packages without installing the library dies with

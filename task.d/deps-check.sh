@@ -171,6 +171,31 @@ resolve() {
       fi
       computed=-
       ;;
+    docker:*)
+      # `source` is the exact `name:tag` referenced by apps/api/Dockerfile. The
+      # entry's fourth field is the manifest digest that FROM must carry, so a
+      # base image can only move when deps.lock moves with it.
+      image=${source#docker:}
+      manifest="$REPO_ROOT/apps/api/Dockerfile"
+      if [ ! -f "$manifest" ]; then
+        report "$name: missing $manifest"
+        return 1
+      fi
+      computed=$(awk -v want="$image" '
+        $1 == "FROM" {
+          ref = $2
+          split(ref, parts, "@")
+          if (parts[1] == want && parts[2] != "") print parts[2]
+        }' "$manifest" | head -1)
+      if [ -z "$computed" ]; then
+        report "$name: apps/api/Dockerfile has no FROM $image@sha256:..."
+        return 1
+      fi
+      if ! printf '%s\n' "$computed" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
+        report "$name: $image is not pinned to a 64-hex sha256 digest (found '$computed')"
+        return 1
+      fi
+      ;;
     *)
       report "$name: unknown source scheme in '$source'"
       return 1

@@ -1,0 +1,23 @@
+# Dependency updates for the parts of the supply chain that this repository
+# pins: the Dockerfile base images, the GitHub Actions SHAs and the frontend
+# npm packages. Nim packages are pinned by content in deps.lock and updated by
+# hand with ./task deps-check.
+version: 2
+updates:
+  - package-ecosystem: "docker"
+    directory: "/apps/api"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5

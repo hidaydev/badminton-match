@@ -5,10 +5,20 @@
 # when MAJADU_ALERT_WEBHOOK is set in the optional env file, posts the same
 # sentence to that endpoint. No webhook means journal only: the unit never
 # pretends to have notified someone.
+#
+# Delivery is retried with a short backoff instead of one fire-and-forget curl:
+# a webhook that is briefly unreachable is the normal failure, and losing the one
+# attempt is exactly the silence this unit exists to prevent. When all attempts
+# fail, ExecStopPost appends the sentence to a local dead-letter file, so a
+# failed alert is at least on disk next to the journal.
 [Unit]
 Description=Majadu alert for %i
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 Type=oneshot
 EnvironmentFile=-/srv/qouver/apps/majadu/env/alert.env
-ExecStart=/bin/sh -c 'echo "majadu alert: %i"; if [ -n "$${MAJADU_ALERT_WEBHOOK:-}" ]; then curl -fsS -m 5 -H "Content-Type: application/json" --data "{\"text\":\"majadu: %i failed\"}" "$${MAJADU_ALERT_WEBHOOK}"; fi'
+ExecStart=/bin/sh -c 'echo "majadu alert: %i"; if [ -z "$${MAJADU_ALERT_WEBHOOK:-}" ]; then exit 0; fi; for attempt in 1 2 3; do if curl -fsS -m 10 -H "Content-Type: application/json" --data "{\"text\":\"majadu: %i failed\"}" "$${MAJADU_ALERT_WEBHOOK}"; then exit 0; fi; sleep $$((attempt * 5)); done; exit 1'
+ExecStopPost=-/bin/sh -c 'if [ "$${EXIT_STATUS:-0}" != "0" ]; then printf "[%s] undelivered: %i\n" "$$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)" >>/srv/qouver/apps/majadu/logs/alert-dead-letter.log; fi'
+TimeoutStartSec=90

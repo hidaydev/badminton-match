@@ -72,8 +72,9 @@ STEPS=(preflight preserve-v1 maintenance stop-v1 snapshot restore-staging
 VERSION=""
 FROM="preflight"
 STEP="start"
-
-mkdir -p "$CUTOVER_DIR" "$APP_DIR/logs" "$CADDY_DIR" "$APP_DIR/env"
+CHECK=0
+PG_CONTAINER="${MAJADU_PG_CONTAINER:-qouver-postgres}"
+USE_CONTAINER=0
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"
@@ -110,6 +111,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --version) shift; VERSION="${1:-}" ;;
     --from) shift; FROM="${1:-}" ;;
+    --check) CHECK=1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "cutover: unknown argument $1" >&2; exit 2 ;;
   esac
@@ -163,11 +165,73 @@ link_site() {
 }
 
 # ---------------------------------------------------------------------------
+# Database client: host binaries when present, otherwise the PostgreSQL
+# container. The documented host has no psql/pg_dump, and installing packages
+# during the maintenance window is exactly the unplanned change the runbook
+# forbids. The DSNs still name the database; only the client moves.
+# ---------------------------------------------------------------------------
+host_db_tools=1
+for tool in psql pg_dump pg_restore; do
+  command -v "$tool" >/dev/null 2>&1 || host_db_tools=0
+done
+if [ "$host_db_tools" -eq 0 ]; then
+  USE_CONTAINER=1
+fi
+
+psql_cmd() {
+  if [ "$USE_CONTAINER" -eq 1 ]; then
+    podman exec -i "$PG_CONTAINER" psql "$@"
+  else
+    psql "$@"
+  fi
+}
+
+if [ "$CHECK" -eq 1 ]; then
+  for tool in podman curl caddy flock; do
+    command -v "$tool" >/dev/null 2>&1 ||
+      { echo "cutover --check: $tool is required" >&2; exit 2; }
+  done
+  [ -f "$ENV_V2" ] ||
+    { echo "cutover --check: $ENV_V2 is missing (the post-cutover env)" >&2; exit 2; }
+  if [ "$USE_CONTAINER" -eq 1 ]; then
+    podman container exists "$PG_CONTAINER" 2>/dev/null ||
+      { echo "cutover --check: host has no psql/pg_dump/pg_restore and container '$PG_CONTAINER' does not exist" >&2; exit 2; }
+    echo "cutover --check: database tools via podman exec $PG_CONTAINER"
+  else
+    echo "cutover --check: database tools from the host"
+  fi
+  auth=()
+  if [ -f "$APP_DIR/env/ghcr-token" ]; then
+    auth=(-H "Authorization: Bearer $(cat "$APP_DIR/env/ghcr-token")")
+  fi
+  if [ "${#auth[@]}" -gt 0 ]; then
+    release=$(curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
+      "${auth[@]}" "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" || true)
+  else
+    release=$(curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
+      "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" || true)
+  fi
+  digest=$(printf '%s' "$release" | grep -oE 'digest:[[:space:]]*sha256:[0-9a-f]{64}' | head -1 || true)
+  [ -n "$digest" ] ||
+    { echo "cutover --check: release v$VERSION has no published image digest" >&2; exit 2; }
+  echo "cutover --check: release v$VERSION resolves to ${digest#*sha256:}"
+  echo "cutover --check: ok"
+  exit 0
+fi
+
+mkdir -p "$CUTOVER_DIR" "$APP_DIR/logs" "$CADDY_DIR" "$APP_DIR/env"
+
+# ---------------------------------------------------------------------------
 # Guards before anything is touched.
 # ---------------------------------------------------------------------------
-for tool in podman psql pg_dump pg_restore curl caddy flock; do
+for tool in podman curl caddy flock; do
   command -v "$tool" >/dev/null 2>&1 || { echo "cutover: $tool is required" >&2; exit 2; }
 done
+if [ "$USE_CONTAINER" -eq 1 ]; then
+  podman container exists "$PG_CONTAINER" 2>/dev/null ||
+    { echo "cutover: host has no psql/pg_dump/pg_restore and container '$PG_CONTAINER' does not exist" >&2; exit 2; }
+  echo "cutover: database tools via podman exec $PG_CONTAINER"
+fi
 [ -f "$ENV_V2" ] || { echo "cutover: $ENV_V2 is missing (the post-cutover env)" >&2; exit 2; }
 
 # The tool DSNs live in a file the API unit never loads. The T-063 rehearsal
@@ -213,7 +277,7 @@ if ! flock -w 900 9; then
   exit 1
 fi
 
-COMPLETED=$(psql "$OWNER_DSN" -Atc \
+COMPLETED=$(psql_cmd "$OWNER_DSN" -Atc \
   "select coalesce(completed_at::text, '') from platform.cutover_state where id" \
   2>/dev/null || true)
 if [ -n "$COMPLETED" ]; then
@@ -239,11 +303,28 @@ step_preflight() {
   if [ -f "$APP_DIR/env/ghcr-token" ]; then
     auth=(-H "Authorization: Bearer $(cat "$APP_DIR/env/ghcr-token")")
   fi
-  local release digest
-  release=$(curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
-    "${auth[@]}" "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" || true)
-  digest=$(printf '%s' "$release" | grep -oE 'sha256:[0-9a-f]{64}' | head -1 || true)
-  [ -n "$digest" ] || fail "release v$VERSION has no published image digest"
+  local release digest markers marker_count strings string_count
+  if [ "${#auth[@]}" -gt 0 ]; then
+    release=$(curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
+      "${auth[@]}" "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" || true)
+  else
+    release=$(curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
+      "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" || true)
+  fi
+  markers=$(printf '%s' "$release" |
+    grep -oE 'digest:[[:space:]]*sha256:[0-9a-f]{64}' || true)
+  marker_count=$(printf '%s\n' "$markers" | grep -c 'sha256:' || true)
+  strings=$(printf '%s' "$release" | grep -oE 'sha256:[0-9a-f]{64}' || true)
+  string_count=$(printf '%s\n' "$strings" | grep -c 'sha256:' || true)
+  [ "$marker_count" -ne 0 ] || fail "release v$VERSION has no published image digest"
+  [ "$marker_count" -eq 1 ] && [ "$string_count" -eq 1 ] ||
+    fail "release v$VERSION must carry exactly one 'digest: sha256:...' line (found $marker_count marker(s) and $string_count sha256 string(s))"
+  digest="sha256:${markers#*sha256:}"
+  local cosign_pub="$APP_DIR/env/cosign.pub"
+  [ -f "$cosign_pub" ] || fail "release signature key $cosign_pub is missing; cannot verify $digest"
+  command -v cosign >/dev/null 2>&1 || fail "cosign is required to verify $digest"
+  cosign verify --key "$cosign_pub" "$REGISTRY_IMAGE@$digest" >>"$LOG" 2>&1 ||
+    fail "cosign verify failed for $REGISTRY_IMAGE@$digest"
   if [ -f "$APP_DIR/env/ghcr-token" ]; then
     podman login ghcr.io -u "${MAJADU_GHCR_USER:-hidaydev}" --password-stdin \
       <"$APP_DIR/env/ghcr-token" >>"$LOG" 2>&1
@@ -333,19 +414,19 @@ step_restore_staging() {
   # The ETL role cannot drop or create bm_staging, so the restore uses its own
   # DSN: a role that owns the staging database or has CREATEDB.
   "$APP_DIR/scripts/restore.sh" --file "$dump" --target "$STAGING_DB" \
-    --dsn "$RESTORE_DSN" --recreate
+    --dsn "$RESTORE_DSN" --recreate --no-privileges
 }
 
 step_prepare_bm2() {
   log "preparing bm2"
-  psql "$OWNER_DSN" -v ON_ERROR_STOP=1 -v db="$BM2_DB" \
+  psql_cmd "$OWNER_DSN" -v ON_ERROR_STOP=1 -v db="$BM2_DB" \
     -f "$MONO_DIR/ops/db/roles.sql" >>"$LOG" 2>&1
 
   set_role_password() {
     local role="$1" password="$2"
     printf "alter role %s with login password '%s';\n" \
       "$role" "${password//\'/\'\'}" |
-      psql "$OWNER_DSN" -v ON_ERROR_STOP=1 >>"$LOG" 2>&1
+      psql_cmd "$OWNER_DSN" -v ON_ERROR_STOP=1 >>"$LOG" 2>&1
   }
   [ -n "${BM2_OWNER_PASSWORD:-}" ] && set_role_password bm2_owner "$BM2_OWNER_PASSWORD"
   [ -n "${BM2_APP_PASSWORD:-}" ] && set_role_password bm2_app "$BM2_APP_PASSWORD"
@@ -377,7 +458,7 @@ step_state() {
   snapshot=$(cat "$CUTOVER_DIR/snapshot.sha256")
   taken_at=$(cat "$CUTOVER_DIR/snapshot.taken_at")
   etl_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
-  rows=$(psql "$OWNER_DSN" -Atc """
+  rows=$(psql_cmd "$OWNER_DSN" -Atc """
     select json_build_object(
       'players', (select count(*) from player.players),
       'sessions', (select count(*) from session.sessions),
@@ -385,7 +466,7 @@ step_state() {
       'tournaments', (select count(*) from tournament.tournaments),
       'achievements', (select count(*) from achievement.earned),
       'ratingEvents', (select count(*) from rating.events))::text""")
-  psql "$OWNER_DSN" -v ON_ERROR_STOP=1 -v sha="$snapshot" -v version="$VERSION" \
+  psql_cmd "$OWNER_DSN" -v ON_ERROR_STOP=1 -v sha="$snapshot" -v version="$VERSION" \
     -v rows="$rows" -v etl="$etl_at" -v taken="$taken_at" >>"$LOG" 2>&1 <<'SQL'
 insert into platform.cutover_state
   (id, snapshot_sha256, snapshot_taken_at, etl_completed_at, app_version, rows_imported)
@@ -438,7 +519,7 @@ step_smoke() {
 }
 
 step_finish() {
-  psql "$OWNER_DSN" -v ON_ERROR_STOP=1 \
+  psql_cmd "$OWNER_DSN" -v ON_ERROR_STOP=1 \
     -c "update platform.cutover_state set completed_at = now() where id" \
     >>"$LOG" 2>&1
   log "cutover v$VERSION complete"

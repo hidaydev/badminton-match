@@ -118,3 +118,24 @@ jobs:
           psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
             -c "CREATE DATABASE bm2_parity_verify_test OWNER bm2_owner"
           ./task parity v2 verify
+
+  notify:
+    name: "Notify: red nightly"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: [full]
+    if: failure()
+    steps:
+      - name: "Notify: post the failure"
+        env:
+          WEBHOOK: ${{ secrets.MAJADU_ALERT_WEBHOOK }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "::warning::MAJADU_ALERT_WEBHOOK is not configured; the red nightly is only in GitHub"
+            exit 0
+          fi
+          curl -fsS -m 10 -H "Content-Type: application/json" \
+            --data "{\"text\":\"majadu: nightly failed $RUN_URL\"}" \
+            "$WEBHOOK"
+

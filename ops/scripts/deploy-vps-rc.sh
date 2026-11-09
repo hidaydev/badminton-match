@@ -57,11 +57,23 @@ log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"
 }
 
+json_field() {
+  sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p" "$1" 2>/dev/null | head -1
+}
+
+# The running release record survives a failed attempt: the failure belongs in
+# last-attempt.json, next to the version, schema and digest it was serving.
 fail() {
+  local run_version run_schema
   log "ERROR: $1 (step: $STEP)"
-  printf '{"step":"%s","ci":"%s","message":"%s","at":"%s"}\n' \
-    "$STEP" "$CI_STATE" "$1" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-    >"$STATE_DIR/last-release.json"
+  run_version=$(json_field "$STATE_DIR/last-release.json" version)
+  run_schema=$(json_field "$STATE_DIR/last-release.json" schema)
+  : "${run_version:=${VERSION:-unknown}}"
+  : "${run_schema:=${SCHEMA:-unknown}}"
+  printf '{"step":"%s","ci":"%s","message":"%s","version":"%s","schema":"%s","at":"%s"}\n' \
+    "$STEP" "$CI_STATE" "$1" "$run_version" "$run_schema" \
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+    >"$STATE_DIR/last-attempt.json"
   exit 1
 }
 
@@ -210,7 +222,7 @@ APP_DB=$(printf '%s' "$APP_DSN" | sed 's/.*\///' | cut -d'?' -f1)
 # credential to the RC API, so stop before the build and name the line.
 # systemd skips leading whitespace, allows whitespace around `=`, and accepts an
 # `export` prefix, so the match has to see those forms; comments do not match.
-for key in MAJADU_OWNER_DSN MAJADU_ETL_DSN MAJADU_ETL_SOURCE_DSN \
+for key in MAJADU_OWNER_DSN MAJADU_ETL_DSN MAJADU_ETL_SOURCE_DSN MAJADU_BACKUP_DSN_BM2 \
   MAJADU_CUTOVER_RESTORE_DSN MAJADU_AUDIT_DSN; do
   if hit=$(grep -Ein "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=" "$ENV_FILE"); then
     fail "$ENV_FILE:${hit%%:*} must not contain $key; move it to $TOOLS_ENV"

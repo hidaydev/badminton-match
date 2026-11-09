@@ -1,9 +1,9 @@
 # Readiness probe, started by majadu-readyz.timer.
 #
-# There is no internal metrics endpoint yet (see docs/ops/operations.md), so the
-# only thing that notices a stuck API between deploys is something that asks it.
-# curl exits non-zero on a 503 or a connection failure, which makes this a unit
-# failure, which makes OnFailure fire majadu-alert@.
+# The internal metrics endpoint binds to 127.0.0.1 inside the container and is
+# not published, so it cannot be this probe. Something has to ask the API from
+# outside; curl exits non-zero on a 503 or a connection failure, which makes this
+# a unit failure, which makes OnFailure fire majadu-alert@.
 #
 # A deliberate stop (cutover, rollback, maintenance) also fails this probe: that
 # is the intended signal, not noise to be filtered out.

@@ -169,6 +169,25 @@ suite "backup.sh":
     check fresh.len == 1
     check hasStampName(fresh[0], "bm2-")
 
+  test "bm2 is dumped as the owner DSN from the tool env":
+    let fixture = newFixture("backup-owner-env")
+    defer: removeDir(fixture.root)
+    let dumpLog = fixture.root / "dump.log"
+    fixture.installFake("pg_dump",
+      "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$FAKE_DUMP_LOG\"\nprintf 'dump'\n")
+    fixture.installFake("pg_restore", okFake)
+    let tools = fixture.root / "env" / "majadu-tools.env"
+    touch(tools,
+      "MAJADU_OWNER_DSN=postgresql://bm2_owner@127.0.0.1:5432/bm2\n")
+    let result = fixture.runShell(fixture.installOpsScript("backup.sh"),
+      @[], appDir(fixture) & @[
+        ("MAJADU_TOOLS_ENV", tools),
+        ("MAJADU_BACKUP_DIR", fixture.root / "backups"),
+        ("FAKE_DUMP_LOG", dumpLog),
+      ])
+    check result.exitCode == 0
+    check readFile(dumpLog).contains("bm2_owner")
+
 suite "restore.sh":
   test "a target outside the allowlist exits 2":
     let fixture = newFixture("restore-target")
@@ -510,6 +529,41 @@ suite "restore.sh":
       "restore: pass --dsn postgres://<user>@<host>:<port>/<database>")
     check not fileExists(log)
 
+  test "restore keeps privileges and only replaces ownership":
+    let fixture = newFixture("restore-privileges")
+    defer: removeDir(fixture.root)
+    let restoreLog = fixture.root / "restore.log"
+    fixture.installFake("pg_restore",
+      "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$FAKE_RESTORE_LOG\"\nprintf ''\n")
+    fixture.installFake("flock", flockFake)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm2_test",
+        "--dsn", "postgres://bm2_owner@db.example:5432/bm2_test"],
+      appDir(fixture) & @[("FAKE_RESTORE_LOG", restoreLog)])
+    check result.exitCode == 0
+    let calls = readFile(restoreLog)
+    check calls.contains("--no-owner")
+    check not calls.contains("--no-privileges")
+    check calls.contains("--dbname postgres://bm2_owner@db.example:5432/bm2_test")
+
+  test "--no-privileges is still available for a staging restore":
+    let fixture = newFixture("restore-staging-privs")
+    defer: removeDir(fixture.root)
+    let restoreLog = fixture.root / "restore.log"
+    fixture.installFake("pg_restore",
+      "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$FAKE_RESTORE_LOG\"\nprintf ''\n")
+    fixture.installFake("flock", flockFake)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging", "--no-privileges",
+        "--dsn", "postgres://bm2_owner@db.example:5432/bm_staging"],
+      appDir(fixture) & @[("FAKE_RESTORE_LOG", restoreLog)])
+    check result.exitCode == 0
+    check readFile(restoreLog).contains("--no-privileges")
+
 suite "rotate-log.sh":
   test "every log is renamed with a timestamp and forced mode 600":
     let fixture = newFixture("rotate-rename")
@@ -661,3 +715,135 @@ suite "deploy-dispatch.sh":
       appDir(fixture) & @[("MAJADU_RC_APP_DIR", rcDir)])
     check result.exitCode == 1
     check result.stdout.contains("dispatch: " & rcDir & "/scripts/deploy-vps-rc.sh is missing")
+
+const releaseTagCurl = """#!/bin/sh
+printf '%s' '{"tag_name":"v2.0.0","body":"digest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}'
+exit 0
+"""
+
+const systemctlLogFake = """#!/bin/sh
+printf '%s\n' "$*" >> "$FAKE_SYSTEMCTL_LOG"
+exit 0
+"""
+
+const releaseRollbackPodman = """#!/bin/sh
+case "$*" in
+  "image exists "*) exit 0 ;;
+  *"opencontainers.image.version"*) printf '1.9.0\n' ;;
+esac
+exit 0
+"""
+
+const releaseRollbackCurl = """#!/bin/sh
+for arg in "$@"; do
+  case "$arg" in
+    */version) printf '{"version":"1.9.0","commit":"abc"}' ;;
+  esac
+done
+exit 0
+"""
+
+suite "release rollback":
+  test "a v2 regression returns :prev and rewrites the release state":
+    let fixture = newFixture("release-rollback")
+    defer: removeDir(fixture.root)
+    fixture.installFake("podman", releaseRollbackPodman)
+    fixture.installFake("curl", releaseRollbackCurl)
+    let log = fixture.root / "systemctl.log"
+    fixture.installFake("systemctl", systemctlLogFake)
+    let state = fixture.root / "deploy"
+    touch(state / "last-release.json",
+      "{\"version\":\"2.0.0\",\"commit\":\"new\",\"digest\":\"sha256:" &
+      "1111111111111111111111111111111111111111111111111111111111111111\"," &
+      "\"schema\":\"0033_new\",\"at\":\"2026-11-09T00:00:00Z\"}\n")
+    touch(state / "last-release.json.prev",
+      "{\"version\":\"1.9.0\",\"commit\":\"abc\",\"digest\":\"sha256:" &
+      "2222222222222222222222222222222222222222222222222222222222222222\"," &
+      "\"schema\":\"0032_old\",\"at\":\"2026-11-01T00:00:00Z\"}\n")
+    let result = fixture.runShell(
+      fixture.installOpsScript("release-rollback.sh"), @[],
+      appDir(fixture) & @[("FAKE_SYSTEMCTL_LOG", log)])
+    check result.exitCode == 0
+    check readFile(state / "deployed-version").strip == "1.9.0"
+    check readFile(state / "last-release.json").contains("\"version\":\"1.9.0\"")
+    check readFile(state / "last-release.json.rolled-back")
+      .contains("\"version\":\"2.0.0\"")
+    check readFile(log).contains("restart majadu-api")
+
+  test "a missing :prev is refused and pages":
+    let fixture = newFixture("release-rollback-noprev")
+    defer: removeDir(fixture.root)
+    fixture.installFake("podman", "#!/bin/sh\ncase \"$*\" in \"image exists \"*) exit 1 ;; esac\nexit 0\n")
+    let log = fixture.root / "systemctl.log"
+    fixture.installFake("systemctl", systemctlLogFake)
+    touch(fixture.root / "deploy" / "last-release.json",
+      "{\"version\":\"2.0.0\",\"schema\":\"0033_new\"}\n")
+    let result = fixture.runShell(
+      fixture.installOpsScript("release-rollback.sh"), @[],
+      appDir(fixture) & @[("FAKE_SYSTEMCTL_LOG", log)])
+    check result.exitCode == 1
+    check result.stdout.contains(":prev is missing")
+    check readFile(log).contains("start majadu-alert@release-rollback.service")
+
+suite "webhook routing and deploy drift":
+  test "the committed webhook definition routes to the dispatcher":
+    let body = readFile(repoDir / "ops" / "webhook" / "webhook.json")
+    check body.contains("deploy-dispatch.sh")
+    check not body.contains("\"execute-command\": \"/srv/qouver/apps/majadu/scripts/deploy-vps.sh\"")
+
+  test "install-webhook --check names a stale execute-command":
+    let fixture = newFixture("webhook-check-stale")
+    defer: removeDir(fixture.root)
+    let target = fixture.root / "config" / "webhook.json"
+    touch(target,
+      "{\"execute-command\": \"/srv/qouver/apps/majadu/scripts/deploy-vps.sh\"," &
+      "\"trigger-rule\": {}}\n")
+    let result = fixture.runShell(
+      fixture.installOpsScript("install-webhook.sh"),
+      @["--check"],
+      appDir(fixture) & @[("MAJADU_WEBHOOK_CONFIG", target)])
+    check result.exitCode == 1
+    check result.stdout.contains("deploy-dispatch.sh")
+
+  test "install-webhook replaces the command and keeps the HMAC secret":
+    let fixture = newFixture("webhook-install")
+    defer: removeDir(fixture.root)
+    let target = fixture.root / "config" / "webhook.json"
+    touch(target,
+      "{\n  \"execute-command\": \"/srv/qouver/apps/majadu/scripts/deploy-vps.sh\",\n" &
+      "  \"command-working-directory\": \"/srv/qouver/apps/majadu\",\n" &
+      "  \"trigger-rule\": {\"match\": {\"secret\": \"keep-me\"}}\n}\n")
+    let result = fixture.runShell(
+      fixture.installOpsScript("install-webhook.sh"), @[],
+      appDir(fixture) & @[("MAJADU_WEBHOOK_CONFIG", target)])
+    check result.exitCode == 0
+    let body = readFile(target)
+    check body.contains("deploy-dispatch.sh")
+    check body.contains("keep-me")
+    check mode600(target)
+
+  test "deploy-check alerts when deployed-version is missing":
+    let fixture = newFixture("deploy-check-missing")
+    defer: removeDir(fixture.root)
+    fixture.installFake("curl", releaseTagCurl)
+    let log = fixture.root / "systemctl.log"
+    fixture.installFake("systemctl", systemctlLogFake)
+    let result = fixture.runShell(
+      fixture.installOpsScript("deploy-check.sh"), @[],
+      appDir(fixture) & @[("FAKE_SYSTEMCTL_LOG", log)])
+    check result.exitCode == 1
+    check readFile(log).contains("start majadu-alert@deploy-check.service")
+
+  test "deploy-check is quiet when deployed-version matches":
+    let fixture = newFixture("deploy-check-match")
+    defer: removeDir(fixture.root)
+    fixture.installFake("curl", releaseTagCurl)
+    let log = fixture.root / "systemctl.log"
+    fixture.installFake("systemctl", systemctlLogFake)
+    touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
+    let result = fixture.runShell(
+      fixture.installOpsScript("deploy-check.sh"), @[],
+      appDir(fixture) & @[("FAKE_SYSTEMCTL_LOG", log)])
+    check result.exitCode == 0
+    check result.stdout.contains("matches the latest release")
+    check not fileExists(log)
