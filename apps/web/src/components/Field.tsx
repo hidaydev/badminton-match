@@ -6,7 +6,7 @@ import type { ComponentProps, ReactNode } from 'react'
  * what names it; there is no id/htmlFor plumbing.
  */
 const CONTROL =
-  'mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent'
+  'mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 read-only:opacity-60 aria-invalid:border-error aria-invalid:ring-1 aria-invalid:ring-error'
 
 function join(...parts: (string | undefined)[]): string {
   return parts.filter((part) => part !== undefined && part !== '').join(' ')

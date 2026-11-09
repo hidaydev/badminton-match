@@ -122,10 +122,14 @@ Components follow the semantic token system. Key patterns:
 
 | Variant | Classes |
 |---------|---------|
-| Primary | `bg-accent text-ground font-semibold rounded-xl min-h-11 px-4` |
+| Primary | `bg-accent text-ground font-semibold rounded-xl min-h-11 px-4 hover:brightness-105` |
 | Secondary | `border border-border text-fg hover:bg-elevated rounded-xl min-h-11 px-4` |
 | Danger | `border border-border text-error hover:bg-elevated rounded-xl min-h-11 px-4` |
 | Icon-only | `min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-fg-dim` |
+
+Every variant shares `active:scale-[0.99]`, `disabled:cursor-not-allowed
+disabled:opacity-50`, and a focused ring. `loading` renders a spinner, sets
+`aria-busy` and disables the button.
 
 Legacy screens still spell the primary CTA as `bg-indigo-400 text-slate-950`. The
 palette remap in `index.css` renders that as `accent`, so the difference is
@@ -141,7 +145,8 @@ box and expand the hit area with `hit44` from
 // Input and Select share one recipe; components/Field.tsx owns it.
 className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3
   text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent
-  disabled:opacity-60"
+  disabled:cursor-not-allowed disabled:opacity-60 read-only:opacity-60
+  aria-invalid:border-error aria-invalid:ring-1 aria-invalid:ring-error"
 
 // The control is the child of a <label>. That is what gives it an accessible
 // name, so there is no id/htmlFor plumbing.
