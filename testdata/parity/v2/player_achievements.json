@@ -10,7 +10,9 @@
   "expect": {
     "status": 200,
     "body": {
-      "items": []
+      "items": [],
+      "total": 0,
+      "nextCursor": ""
     }
   }
 }

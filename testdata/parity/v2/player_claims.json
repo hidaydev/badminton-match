@@ -20,7 +20,9 @@
           "status": "pending",
           "userId": "{uuid}"
         }
-      ]
+      ],
+      "total": 1,
+      "nextCursor": ""
     }
   }
 }
