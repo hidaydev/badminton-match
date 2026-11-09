@@ -9,10 +9,16 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'prompt',
+      // The logo icons come from `globPatterns`; letting the plugin add them a
+      // second time only duplicates the precache entries (PWA-16).
+      includeManifestIcons: false,
       workbox: {
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
+        // The manifest body is injected by the plugin; ignoring it here keeps
+        // one entry instead of two.
+        globIgnores: ['manifest.webmanifest'],
       },
       manifest: {
         name: 'MAJADU Score',
