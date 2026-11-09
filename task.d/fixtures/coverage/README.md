@@ -8,8 +8,9 @@ Each directory is a model the gate can judge without compiling anything:
 
 A model is three small tables:
 
-- `baseline.json` - the previous measurement, in `coverage-baseline.json`'s
-  schema (floor, total, domain rows, per-file rows, all as line counts).
+- `baseline.json` - the previous measurement, in
+  `coverage-baseline-<platform>.json`'s schema (floor, total, domain rows,
+  per-file rows, all as line counts).
 - `files.tsv` - the current report: `path<TAB>executable lines<TAB>covered lines`.
 - `changed.tsv` - optional; the changed executable lines already intersected
   with the report, as `path<TAB>line<TAB>hits`. Without it the diff check

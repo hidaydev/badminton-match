@@ -1,9 +1,11 @@
 # Coverage gate (T-109). Its own workflow so a coverage regression does not block
 # the fast CI jobs, and so the instrumented build never shares a cache with them.
 #
-# The gate compares against coverage-baseline.json: a domain or the total that
-# drops fails the run. Absolute targets (module 90%, total 75%) are reached by
-# raising the baseline, not by failing every PR until the whole codebase moves.
+# The gate compares against coverage-baseline-linux.json: a domain or the total
+# that drops fails the run. The baseline is per platform because llvm-gcov and
+# gcc's gcov attribute lines differently; CI judges the Linux file. Absolute
+# targets (module 90%, total 75%) are reached by raising the baseline, not by
+# failing every PR until the whole codebase moves.
 #
 # Measurement is split across a matrix because the instrumented build of every
 # test file does not fit in one 15 minute job. Each `measure` job writes the
@@ -16,6 +18,15 @@ on:
   push:
     branches: [main, "release/**"]
   pull_request:
+  # Recording the Linux baseline is an explicit operator action: it rewrites
+  # coverage-baseline-linux.json from the merged report, which a normal run only
+  # judges. The input is read through env, never interpolated into a shell.
+  workflow_dispatch:
+    inputs:
+      update_baseline:
+        description: "Record coverage-baseline-linux.json from the merged report"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -160,7 +171,22 @@ jobs:
         with:
           pattern: coverage-parts-*
           path: .cache/coverage-parts
-      - name: "Coverage: judge the merged report"
+      - name: "Coverage: judge or refresh the merged report"
         env:
           PARTS: .cache/coverage-parts
-        run: ./task coverage --parts "$PARTS"
+          UPDATE_BASELINE: ${{ inputs.update_baseline }}
+        run: |
+          if [ "$UPDATE_BASELINE" = "true" ]; then
+            ./task coverage --parts "$PARTS" --update --allow-decrease
+          else
+            ./task coverage --parts "$PARTS"
+          fi
+      # The baseline lives at the repository root and is not hidden, so the
+      # upload does not need `include-hidden-files`.
+      - name: "Coverage: upload the Linux baseline"
+        if: inputs.update_baseline
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-baseline-linux
+          path: coverage-baseline-linux.json
+          if-no-files-found: error

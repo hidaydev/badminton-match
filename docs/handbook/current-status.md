@@ -113,7 +113,7 @@ communities) is still used; v2 pages that were never mounted in the router
 | Contract | `./task contract-check` | fingerprint + generated output |
 | Parity | `./task parity verify` / `./task parity v2 verify` | frozen v1 71 cases/48 routes; v2 143 cases |
 | Tournament ladder | `./task levels` | read/write `rating.levels`; no row = per-game formula |
-| Coverage | `./task coverage` | per file, module and total ratchet against `coverage-baseline.json` (92.09% of 17,102 executable lines, integration; one fresh database per suite, gcov captured per suite, 0.1 pp tolerance for gcov noise, ~10 minutes) |
+| Coverage | `./task coverage` | per file, module and total ratchet against `coverage-baseline-<platform>.json` (92.09% of 17,102 executable lines, integration; one fresh database per suite, gcov captured per suite, 0.1 pp tolerance for gcov noise, ~10 minutes) |
 | Security | part of `./task test` | IDOR, escalation, CSRF, OIDC replay, rate limit, claims |
 | Web | `pnpm check:web` | TypeScript, ESLint, Tailwind guard, Vitest |
 | E2E | `./task e2e` | Playwright: a11y, visual, navigation, writes, OCC, offline, compatibility; 72 checks across two devices and no skip; snapshots per platform in `e2e/__screenshots__/{platform}/` |

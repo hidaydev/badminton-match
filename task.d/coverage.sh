@@ -3,7 +3,7 @@
 # baseline.
 #
 #   ./task coverage
-#       measure, then judge the report against coverage-baseline.json.
+#       measure, then judge the report against coverage-baseline-<platform>.json.
 #   ./task coverage --update
 #       measure, then rewrite the baseline. Refuses any decrease.
 #   ./task coverage --update --allow-decrease
@@ -40,6 +40,12 @@
 # holds a decrease against every total, domain and file row until
 # --allow-decrease is passed, and that flag prints each regression it accepts.
 #
+# The baseline is per platform. llvm-gcov on macOS and gcc's gcov on Linux
+# attribute the same source to different line sets (inlining and template
+# expansion differ), so a macOS measurement cannot judge a Linux one. Each
+# platform records and ratchets against coverage-baseline-<platform>.json, and
+# CI judges the Linux file.
+#
 # How the measurement works: every test binary is compiled with `--coverage`
 # (gcov) and `--lineDir:on`, so gcov reports Nim source paths and Nim line
 # numbers. A record whose SF is already a repository path is kept as is; a record
@@ -64,7 +70,6 @@
 # generator ran.
 . "$(dirname "$0")/lib.sh"
 
-BASELINE="$REPO_ROOT/coverage-baseline.json"
 COV="$REPO_ROOT/.cache/$WORKTREE/coverage"
 
 # Targets from the plan's scope table. The gate reports the gap to them; it does
@@ -81,7 +86,8 @@ usage() {
 usage: ./task coverage [--update [--allow-decrease]] [--model DIR]
                        [--shard I/N] [--parts DIR]
 
-  --update          rewrite coverage-baseline.json with this run's measurement
+  --update          rewrite coverage-baseline-<platform>.json with this run's
+                    measurement
   --allow-decrease  with --update, accept and print each total, domain or file
                     decrease instead of refusing it
   --model DIR       judge task.d/fixtures/coverage/DIR instead of measuring the
@@ -97,6 +103,10 @@ usage: ./task coverage [--update [--allow-decrease]] [--model DIR]
 
   --shard measures only and never runs the ratchet. --parts is the only mode
   that judges the merged report, and it is what the merge job runs.
+
+  The baseline is per platform because llvm-gcov and gcc's gcov attribute lines
+  differently. Record each one with --update on that platform; CI judges the
+  Linux file.
 EOF
 }
 
@@ -385,7 +395,8 @@ check_diff() {
 # ---------------------------------------------------------------------------
 
 run_gate() {
-  [ -f "$BASELINE" ] || fail "missing ${BASELINE#$REPO_ROOT/}; run ./task coverage --update first"
+  [ -f "$BASELINE" ] ||
+    fail "missing ${BASELINE#"$REPO_ROOT"/} for $COVERAGE_PLATFORM; run ./task coverage --update on $COVERAGE_PLATFORM to record it"
   if ! grep -q '^  "files": {' "$BASELINE"; then
     fail "${BASELINE#$REPO_ROOT/} has no per-file rows; run ./task coverage --update to seed the v2 baseline"
   fi
@@ -547,6 +558,23 @@ if [ -n "$model" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Platform baseline.
+# ---------------------------------------------------------------------------
+# llvm-gcov on macOS and gcc's gcov on Linux attribute the same source to
+# different line sets, so each platform judges against the baseline recorded on
+# it. A model carries its own baseline.json and never reaches this block.
+case "$(uname -s)" in
+  Darwin) COVERAGE_PLATFORM=darwin ;;
+  Linux) COVERAGE_PLATFORM=linux ;;
+  *)
+    fail "unsupported platform '$(uname -s)': coverage baselines exist for darwin and linux"
+    ;;
+esac
+BASELINE="$REPO_ROOT/coverage-baseline-$COVERAGE_PLATFORM.json"
+printf 'coverage: platform %s, baseline %s\n' \
+  "$COVERAGE_PLATFORM" "${BASELINE#"$REPO_ROOT"/}"
+
+# ---------------------------------------------------------------------------
 # Measurement.
 # ---------------------------------------------------------------------------
 
@@ -576,7 +604,7 @@ if [ -n "$parts" ]; then
   # baseline with no per-file rows cannot judge anything.
   if [ "$update" -eq 0 ]; then
     [ -f "$BASELINE" ] ||
-      fail "missing ${BASELINE#"$REPO_ROOT"/}; run ./task coverage --update first"
+      fail "missing ${BASELINE#"$REPO_ROOT"/} for $COVERAGE_PLATFORM; run ./task coverage --update on $COVERAGE_PLATFORM to record it"
     grep -q '^  "files": {' "$BASELINE" ||
       fail "${BASELINE#"$REPO_ROOT"/} has no per-file rows; run ./task coverage --update to seed the v2 baseline"
   fi
@@ -621,10 +649,12 @@ else
   fi
 
   # The same checks run_gate makes, made before half an hour of compiles instead of
-  # after: a baseline with no per-file rows cannot judge anything.
-  if [ "$update" -eq 0 ]; then
+  # after: a baseline with no per-file rows cannot judge anything. A shard never
+  # judges, so it must not need the baseline: recording the first Linux baseline
+  # starts from a tree where that file does not exist yet.
+  if [ "$update" -eq 0 ] && [ "$shard_total" -eq 1 ]; then
     [ -f "$BASELINE" ] ||
-      fail "missing ${BASELINE#"$REPO_ROOT"/}; run ./task coverage --update first"
+      fail "missing ${BASELINE#"$REPO_ROOT"/} for $COVERAGE_PLATFORM; run ./task coverage --update on $COVERAGE_PLATFORM to record it"
     grep -q '^  "files": {' "$BASELINE" ||
       fail "${BASELINE#"$REPO_ROOT"/} has no per-file rows; run ./task coverage --update to seed the v2 baseline"
   fi
@@ -794,9 +824,15 @@ awk -v mapfile="$COV/map.tsv" -v root="$REPO_ROOT/" '
 # counted as covered.
 : >"$COV/sizes.tsv"
 awk -F: -v root="$REPO_ROOT/" '
+  function included(rel) {
+    return substr(rel, 1, 5) == "apps/" || substr(rel, 1, 8) == "modules/" ||
+           substr(rel, 1, 7) == "shared/" || substr(rel, 1, 6) == "tools/"
+  }
   /^SF:/ {
     file = $2
-    if (index(file, root) == 1) print substr(file, length(root) + 1)
+    if (index(file, root) != 1) next
+    rel = substr(file, length(root) + 1)
+    if (included(rel)) print rel
   }
 ' "$COV/remapped.info" | sort -u | while IFS= read -r rel; do
   [ -f "$REPO_ROOT/$rel" ] || continue
@@ -815,10 +851,18 @@ awk -F: -v root="$REPO_ROOT/" -v sizesfile="$COV/sizes.tsv" \
       size[sized[1]] = sized[2] + 0
     }
   }
+  function included(rel) {
+    return substr(rel, 1, 5) == "apps/" || substr(rel, 1, 8) == "modules/" ||
+           substr(rel, 1, 7) == "shared/" || substr(rel, 1, 6) == "tools/"
+  }
   /^SF:/ {
     file = $2
     rel = ""
+    # Only the included roots count. On CI the Nim toolchain lives inside the
+    # checkout under .nim_runtime, and its 17k lines would otherwise enter the
+    # denominator as if they were project code.
     if (index(file, root) == 1) rel = substr(file, length(root) + 1)
+    if (!included(rel)) rel = ""
     next
   }
   /^DA:/ {
