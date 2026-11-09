@@ -8,6 +8,7 @@ import type { MessageKey } from '../i18n/en'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { CollapsiblePanel } from '../components/CollapsiblePanel'
+import { useAsyncAction } from '../hooks/useAsyncAction'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input } from '../components/Field'
 import { PageHeader } from '../components/PageHeader'
@@ -37,15 +38,11 @@ export default function SetupPage() {
   const [name, setName] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
   const [timezone, setTimezone] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<CreatedCommunity | null>(null)
 
-  const submit = async () => {
-    setBusy(true)
-    setError(null)
-    setCreated(null)
-    try {
+  const submitAction = useAsyncAction(
+    async () => {
+      setCreated(null)
       const community = await createCommunity({
         slug: slug.trim(),
         name: name.trim(),
@@ -57,11 +54,14 @@ export default function SetupPage() {
       setName('')
       setAdminEmail('')
       setTimezone('')
-    } catch (problem) {
-      setError(describe(problem))
-    } finally {
-      setBusy(false)
-    }
+    },
+    { describeError: describe },
+  )
+  const { busy } = submitAction
+  const error = submitAction.error
+
+  const submit = async () => {
+    await submitAction.run()
   }
 
   return (

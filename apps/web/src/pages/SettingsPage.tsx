@@ -23,6 +23,7 @@ import { formatDay } from '../utils/day'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { CollapsiblePanel } from '../components/CollapsiblePanel'
+import { useAsyncAction } from '../hooks/useAsyncAction'
 import { Checkbox } from '../components/Checkbox'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input, Select } from '../components/Field'
@@ -205,9 +206,19 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
   const { config, loading, error } = useCommunityConfig(slug)
   const [saved, setSaved] = useState<CommunityConfig | null>(null)
   const [edits, setEdits] = useState<Record<string, string | boolean>>({})
-  const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [presets, setPresets] = useState<ScoringPreset[]>([])
+
+  // Declared with the other hooks: the component returns early while loading.
+  const save = useAsyncAction(
+    async (patch: Record<string, unknown>) => {
+      const updated = await updateCommunityConfig(slug, patch)
+      setSaved(updated)
+      setEdits({})
+    },
+    { describeError: describeSave, onError: setMessage },
+  )
+  const busy = save.busy
 
   // The list is reference data; a failure here leaves the select empty rather
   // than breaking the rest of the settings screen.
@@ -253,18 +264,9 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
       setMessage(t('community.settings.saved'))
       return
     }
-    setBusy(true)
     setMessage(null)
-    try {
-      const updated = await updateCommunityConfig(slug, patch)
-      setSaved(updated)
-      setEdits({})
-      setMessage(t('community.settings.saved'))
-    } catch (problem) {
-      setMessage(describeSave(problem))
-    } finally {
-      setBusy(false)
-    }
+    const ok = await save.run(patch)
+    if (ok) setMessage(t('community.settings.saved'))
   }
 
   return (

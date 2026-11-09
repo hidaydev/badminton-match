@@ -8,6 +8,7 @@ import { usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
 import { Button } from '../components/Button'
 import { CollapsiblePanel } from '../components/CollapsiblePanel'
+import { useAsyncAction } from '../hooks/useAsyncAction'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input, Select } from '../components/Field'
@@ -64,14 +65,8 @@ export default function PlayersPage() {
   const [gender, setGender] = useState<'M' | 'F'>('M')
   const [tier, setTier] = useState('')
   const [aliases, setAliases] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
-
-  const add = async () => {
-    if (slug === '' || name.trim() === '') return
-    setBusy(true)
-    setFormError(null)
-    try {
+  const addAction = useAsyncAction(
+    async () => {
       await createPlayer(slug, {
         name: name.trim(),
         gender,
@@ -81,11 +76,15 @@ export default function PlayersPage() {
       setName('')
       setAliases('')
       reload()
-    } catch (problem) {
-      setFormError(describePlayerError(problem))
-    } finally {
-      setBusy(false)
-    }
+    },
+    { describeError: describePlayerError },
+  )
+  const { busy } = addAction
+  const formError = addAction.error
+
+  const add = async () => {
+    if (slug === '' || name.trim() === '') return
+    await addAction.run()
   }
 
   return (

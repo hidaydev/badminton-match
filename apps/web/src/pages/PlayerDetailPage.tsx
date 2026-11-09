@@ -20,7 +20,9 @@ import { formatDay } from '../utils/day'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { Card } from '../components/Card'
+import { ConfirmButton } from '../components/ConfirmButton'
 import { CollapsiblePanel } from '../components/CollapsiblePanel'
+import { useAsyncAction } from '../hooks/useAsyncAction'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input, Select } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
@@ -75,23 +77,23 @@ export default function PlayerDetailPage() {
   // Merge needs somewhere to merge from; only an admin can ask for the list.
   const candidates = usePlayers(isAdmin ? slug : null, '')
 
-  const [busy, setBusy] = useState(false)
-  const [actionError, setActionError] = useState<string | null>(null)
+  const action = useAsyncAction(
+    async (write: () => Promise<unknown>) => {
+      try {
+        await write()
+      } finally {
+        // A refused write can still have closed the row (a second claim for the
+        // same member), so refresh instead of leaving stale pending actions.
+        reload()
+      }
+    },
+    { describeError: describePlayerError },
+  )
+  const { busy } = action
+  const actionError = action.error
 
-  const run: Run = async (action) => {
-    setBusy(true)
-    setActionError(null)
-    try {
-      await action()
-      reload()
-    } catch (problem) {
-      setActionError(describePlayerError(problem))
-      // A refused write can still have closed the row (a second claim for the
-      // same member), so refresh instead of leaving stale pending actions.
-      reload()
-    } finally {
-      setBusy(false)
-    }
+  const run: Run = async (write) => {
+    await action.run(write)
   }
 
   const mine = claims?.find(
@@ -421,19 +423,17 @@ function MergePanel({
             ))}
           </Select>
         </Field>
-        <Button
+        <ConfirmButton
           variant="secondary"
+          confirmLabel={t('playerAdmin.merge.confirm', {
+            source: others.find((candidate) => candidate.id === source)?.name ?? source,
+            target: playerName,
+          })}
           disabled={busy || source === ''}
-          onClick={() => {
-            const sourceName = others.find((candidate) => candidate.id === source)?.name ?? source
-            const confirmed = window.confirm(
-              t('playerAdmin.merge.confirm', { source: sourceName, target: playerName }),
-            )
-            if (confirmed) void onRun(() => mergePlayers(slug, playerId, source))
-          }}
+          onConfirm={() => void onRun(() => mergePlayers(slug, playerId, source))}
         >
           {t('playerAdmin.merge.submit')}
-        </Button>
+        </ConfirmButton>
       </div>
       {hasMore && (
         <Button
