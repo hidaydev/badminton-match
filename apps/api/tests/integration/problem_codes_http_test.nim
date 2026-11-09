@@ -368,6 +368,27 @@ suite "problem-code reachability: guards":
     requireRow("large", "POST", "/auth/start", "", repeat('x', 1_100_000),
       413, "BODY_TOO_LARGE", "request body exceeds the limit")
 
+  test "every rejection carries no-store, not only the 204s and the 429s":
+    # SEC-11: 404 and 410 are heuristically cacheable and a 429 carries
+    # Retry-After, which a shared cache may honour. The API sits behind a CDN
+    # and a rewrite, so a refusal must never be served from one.
+    let notFound = call(baseUrl, HttpGet, "/be19-no-route")
+    expectStatus(notFound, 404)
+    check header(notFound, "Cache-Control") == "no-store"
+    let forbidden = call(baseUrl, HttpPost, "/c/" & slug & "/players",
+      memberCookie, """{"name":"Be19 Cached"}""")
+    expectStatus(forbidden, 403)
+    check header(forbidden, "Cache-Control") == "no-store"
+    # `memberC` has its own join budget, so the throttle below is deterministic
+    # whichever order the cases before this one ran in.
+    for _ in 0 .. 4:
+      discard call(baseUrl, HttpPost, "/c/" & slug & "/join-requests",
+        memberCCookie)
+    let limited = call(baseUrl, HttpPost, "/c/" & slug & "/join-requests",
+      memberCCookie)
+    expectStatus(limited, 429)
+    check header(limited, "Cache-Control") == "no-store"
+
   test "the join limiter answers RATE_LIMITED on the sixth request":
     for _ in 0 .. 4:
       discard call(baseUrl, HttpPost, "/c/" & slug & "/join-requests",

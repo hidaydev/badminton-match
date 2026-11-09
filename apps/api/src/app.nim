@@ -193,10 +193,15 @@ proc auditedWrite(body: proc(tx: Db, conn: DbConn)) =
 proc send(request: Request, status: int,
           headers: openArray[(string, string)], body: string) =
   ## Single response path: every response carries the security headers, so a new
-  ## route cannot silently ship without CSP or nosniff. An empty body is never
-  ## cacheable, so `no-store` is added here instead of at each call site.
+  ## route cannot silently ship without CSP or nosniff. A response with a body
+  ## is never cacheable either, and 204 is the one bodiless status that still
+  ## needs the directive; a caller that set `Cache-Control` itself keeps it.
   var merged = @headers
-  if status == 204:
+  var declaresCache = false
+  for pair in merged:
+    if cmpIgnoreCase(pair[0], "Cache-Control") == 0:
+      declaresCache = true
+  if not declaresCache and (status == 204 or body.len > 0):
     merged.add(("Cache-Control", "no-store"))
   for pair in securityHeaders(application.cookieSecure):
     merged.add(pair)
