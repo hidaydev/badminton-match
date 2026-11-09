@@ -140,7 +140,12 @@ test('two writers on one session: the stale save is refused, a reload shows the 
     // Case 3: the reload brings the server's score, not the refused draft.
     await secondContext.unroute(detailRoute)
     await second.reload()
-    await second.getByText(title).waitFor()
+    // Same two surfaces as the first writer: the title also sits in the
+    // sr-only h1, so the wait names the dialog it expects.
+    await second
+      .getByRole('dialog', { name: t('summary.title') })
+      .getByText(title)
+      .waitFor()
     await expect(second.getByRole('button', { name: savedScore(FIRST) })).toBeVisible()
     await expect(second.getByText(`${STALE.a}–${STALE.b}`)).toHaveCount(0)
 

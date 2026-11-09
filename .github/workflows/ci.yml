@@ -527,6 +527,7 @@ jobs:
           name: playwright-failure-artifacts
           path: |
             apps/web/test-results/
+            apps/web/playwright-report/
             test-results/
           if-no-files-found: warn
 
