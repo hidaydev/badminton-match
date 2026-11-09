@@ -116,7 +116,7 @@ communities) is still used; v2 pages that were never mounted in the router
 | Coverage | `./task coverage` | per file, module and total ratchet against `coverage-baseline-<platform>.json` (88.09% of 19,360 executable lines, Linux baseline measured 2026-11-09, integration; one fresh database per suite, gcov captured per suite, ~10 minutes). The gate's 0.1 pp tolerance is published with the number: 88.09% means a lower bound of 87.99%, and a run between them is inside the noise band, not a regression |
 | Security | part of `./task test` | IDOR, escalation, CSRF, OIDC replay, rate limit, claims |
 | Web | `pnpm check:web` | TypeScript, ESLint, Tailwind guard, Vitest |
-| E2E | `./task e2e` | Playwright: a11y, visual, navigation, writes, OCC, offline, compatibility, role boundary; 98 runs across two devices and no skip, 40 of them functional; snapshots per platform in `e2e/__screenshots__/{platform}/` |
+| E2E | `./task e2e` | Playwright: a11y, visual, navigation, writes, OCC, offline, compatibility, role boundary; 100 runs across two devices and no skip, 40 of them functional; snapshots per platform in `e2e/__screenshots__/{platform}/` |
 
 E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
 **POCO F5** (Chromium, 393×873, DPR 2.75), `maxDiffPixels: 0`.
