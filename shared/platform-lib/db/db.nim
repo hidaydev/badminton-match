@@ -27,6 +27,10 @@ type
     lock: Lock
     cond: Cond
     available: seq[PPGconn]
+    ## Set only on a facade built by `boundTo`: the connection the caller is
+    ## already inside a transaction with. Such a facade never takes a pooled
+    ## connection and never opens a transaction of its own.
+    pinned: PPGconn
     size*: int
     ## Milliseconds. Zero disables that bound, which keeps a tool that opens a
     ## one-connection pool on a private database from inheriting a web timeout.
@@ -121,6 +125,7 @@ var
   # holds its row locks for; `BEGIN`/`COMMIT` never reach the executors.
   countingStatements {.threadvar.}: bool
   transactionStatements {.threadvar.}: int
+  savepointSeq {.threadvar.}: int
 
 proc countStatement() =
   if countingStatements:
@@ -435,11 +440,21 @@ proc releaseConn(db: Db, conn: PPGconn) =
   release(db.lock)
 
 proc withConn[T](db: Db, body: proc(conn: DbConn): T): T =
+  if db.pinned != nil:
+    return body(DbConn(conn: db.pinned))
   let conn = acquireConn(db)
   try:
     body(DbConn(conn: conn))
   finally:
     releaseConn(db, conn)
+
+proc boundTo*(db: Db, conn: DbConn): Db =
+  ## A facade over a connection the caller already holds inside a transaction.
+  ## Hand it to a helper that takes a `Db` when its statements must join the
+  ## caller's transaction instead of checking out a second connection. A `tx`
+  ## on the facade runs its body without `BEGIN`/`COMMIT`: the caller has
+  ## already opened the boundary, and only that caller may end it.
+  Db(pinned: conn.conn, size: db.size)
 
 proc query*(db: Db, sql: string, params: seq[DbParam] = @[]): seq[Row] =
   withConn(db, proc(conn: DbConn): seq[Row] = conn.query(sql, params))
@@ -462,7 +477,39 @@ proc txRet*[T](db: Db, body: proc(conn: DbConn): T): T =
   ## Runs `body` in one transaction and returns its value. A normal return
   ## commits, any exception (a `Defect` included) rolls back. Reach for this
   ## only when the body's value is the answer; otherwise `tx` says the boundary
-  ## is all that matters.
+  ## is all that matters. On a `boundTo` facade the caller already owns the
+  ## boundary, so the body runs inside a savepoint: a helper that catches its
+  ## own database error still leaves the caller's transaction usable, and only
+  ## the caller may commit.
+  if db.pinned != nil:
+    let conn = db.pinned
+    savepointSeq.inc
+    let name = "majadu_sp_" & $savepointSeq
+    let saveRes = pqexec(conn, ("savepoint " & name).cstring)
+    try:
+      if pqresultStatus(saveRes) != PGRES_COMMAND_OK:
+        raiseResultError(saveRes)
+    finally:
+      pqclear(saveRes)
+    var released = false
+    try:
+      result = body(DbConn(conn: conn))
+      let releaseRes = pqexec(conn, ("release savepoint " & name).cstring)
+      try:
+        if pqresultStatus(releaseRes) != PGRES_COMMAND_OK:
+          raiseResultError(releaseRes)
+      finally:
+        pqclear(releaseRes)
+      released = true
+    finally:
+      if not released:
+        let rollbackRes = pqexec(conn, ("rollback to savepoint " & name).cstring)
+        if rollbackRes != nil:
+          pqclear(rollbackRes)
+        let releaseRes = pqexec(conn, ("release savepoint " & name).cstring)
+        if releaseRes != nil:
+          pqclear(releaseRes)
+    return
   withConn(db, proc(conn: DbConn): T =
     let beginRes = pqexec(conn.conn, "BEGIN")
     try:

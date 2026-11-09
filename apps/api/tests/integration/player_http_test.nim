@@ -299,6 +299,36 @@ suite "player HTTP":
       memberCookie).body
     check parseJson(unfiltered)["items"].len >= 2
 
+  test "a failed audit insert rolls the player write back":
+    # BE-02: the write and its evidence share one transaction. A trigger that
+    # rejects the audit row must take the player with it, or the client would
+    # see a 500 for a write that had already landed.
+    discard database.execUpdate(
+      """create or replace function t_player_audit_fail() returns trigger
+         language plpgsql as $fn$
+         begin
+           if new.action = 'player.create' then
+             raise exception 'injected audit failure' using errcode = 'P0001';
+           end if;
+           return new;
+         end $fn$""")
+    discard database.execUpdate(
+      """create trigger t_player_audit_fail before insert on account.audit
+         for each row execute function t_player_audit_fail()""")
+    let failed = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Rolled Back","gender":"F"}""")
+    expectStatus(failed, 500)
+    discard database.execUpdate("drop trigger t_player_audit_fail on account.audit")
+    discard database.execUpdate("drop function t_player_audit_fail()")
+    check database.queryOne(
+      """select id from player.players
+         where community_id = $1::uuid and canonical_name = 'Rolled Back'""",
+      @[textParam(communityId)]).isNone
+    # The transaction rolled back cleanly, so the next create still works.
+    let recovered = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Rolled Back","gender":"F"}""")
+    expectStatus(recovered, 201)
+
   test "a limit above the page cap returns the cap, not the request":
     # `pageParams` pulls the request down to `api.page_size_max` (500). Enough
     # rows make the cap observable without 500 HTTP writes.

@@ -1,4 +1,4 @@
-import std/[json, options, os, sequtils, unittest]
+import std/[json, monotimes, options, os, sequtils, times, unittest]
 import db/db
 import tests/fixtures
 import ../../write
@@ -136,6 +136,23 @@ suite "session write":
       """select count(*) as total from rating.events
          where community_id = $1::uuid""", @[textParam(communityId)]).get
     check events.get("total") == "0"
+
+  test "locking one session does not scale with the community history":
+    # BE-01: the old lock path replayed the whole community ledger. With 1000
+    # other sessions present one lock must still be a single row update.
+    discard db.execUpdate(
+      """insert into session.sessions
+           (community_id, title, session_date, start_time, slot_minutes,
+            status, source)
+         select $1::uuid, 'History ' || i, '2026-11-04', '19:00', 30,
+                'draft', 'manual'
+         from generate_series(1, 1000) as i""",
+      @[textParam(communityId)])
+    let begin = getMonoTime()
+    let locked = setLock(db, communityId, sessionId, userId, 1, locked = true)
+    let elapsed = (getMonoTime() - begin).inMilliseconds
+    check locked.status == wsOk
+    check elapsed < 1000
 
   test "a rated session keeps its date until it is unlocked":
     check setLock(db, communityId, sessionId, userId, 1, locked = true).status == wsOk

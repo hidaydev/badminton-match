@@ -151,3 +151,26 @@ suite "bootHandler":
     finally:
       if previous.len > 0:
         putEnv("MAJADU_PG_DSN", previous)
+
+  test "production with no trusted proxy refuses before connecting":
+    # BE-03: with an empty trusted-proxy list every anonymous caller shares the
+    # CDN address, so a production process must not start that way.
+    let previousDsn = getEnv("MAJADU_PG_DSN")
+    let previousEnv = getEnv("MAJADU_ENV")
+    let previousTrusted = getEnv("MAJADU_TRUSTED_PROXIES")
+    putEnv("MAJADU_PG_DSN", "postgresql://nobody@127.0.0.1:1/never")
+    putEnv("MAJADU_ENV", "prod")
+    putEnv("MAJADU_TRUSTED_PROXIES", "")
+    try:
+      let message = messageOf(proc() =
+        discard bootHandler(ServerConfig(port: Port(8080)), 2))
+      check message.contains("MAJADU_TRUSTED_PROXIES")
+    finally:
+      if previousDsn.len > 0: putEnv("MAJADU_PG_DSN", previousDsn)
+      else: delEnv("MAJADU_PG_DSN")
+      if previousEnv.len > 0: putEnv("MAJADU_ENV", previousEnv)
+      else: delEnv("MAJADU_ENV")
+      if previousTrusted.len > 0:
+        putEnv("MAJADU_TRUSTED_PROXIES", previousTrusted)
+      else:
+        delEnv("MAJADU_TRUSTED_PROXIES")

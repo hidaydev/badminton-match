@@ -13,6 +13,10 @@ const communityAllowlistPath = "tools/archcheck/allowlist_community.txt"
 # QA-02: test blocks the honest-test scan lets through; each entry carries the
 # reason the audit recorded, so the exemption is visible rather than implied.
 const honestAllowlistPath = "tools/archcheck/allowlist_tests.txt"
+# BE-06: handlers that still own SQL while the extraction is in flight. Each
+# entry names one routine and why it is still in the delivery layer; a new
+# routine without an entry fails the build.
+const deliverySqlAllowlistPath = "tools/archcheck/allowlist_delivery_sql.txt"
 
 proc at(base, relative: string): string =
   ## `./task check` may be run from any directory; REPO_ROOT names the tree.
@@ -56,6 +60,10 @@ proc main() =
     if fileExists(at(base, honestAllowlistPath)):
       loadAllowlist(readFile(at(base, honestAllowlistPath)))
     else: @[]
+  let deliveryAllowed =
+    if fileExists(at(base, deliverySqlAllowlistPath)):
+      loadAllowlist(readFile(at(base, deliverySqlAllowlistPath)))
+    else: @[]
   # Test blocks are judged after the walk, because a block that delegates its
   # assertion to a helper needs that helper's name, which any file can declare.
   var asserting: seq[string] = @[]
@@ -76,6 +84,7 @@ proc main() =
       scanned.inc
       let source = readFile(absolute)
       violations.add(violationsFor(path, source, communityAllowed))
+      violations.add(deliverySqlViolations(path, source, deliveryAllowed))
       if not path.contains("/tests/") and not path.endsWith("_gen.nim"):
         violations.add(constantViolations(path, source, values, allowed))
       for name in assertingRoutines(source):

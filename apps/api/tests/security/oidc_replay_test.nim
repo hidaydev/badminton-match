@@ -15,6 +15,9 @@ const
   stubBase = "http://127.0.0.1:" & $stubPort
   clientId = "t070-client"
   redirectUri = "http://127.0.0.1:5173/api/auth/callback"
+  ## Two keys so the rotation cases can move the active id between start and
+  ## finish without reloading the process. The first is the shared test key.
+  rotationKeys = """{"1":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","2":"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="}"""
 
 var
   database: Db
@@ -79,7 +82,7 @@ proc bootstrap() =
     issuer: stubBase,
     clientId: clientId,
     redirectUri: redirectUri)
-  startServer(newApp(database, oidc, loadKeyring(keysJson, "1"),
+  startServer(newApp(database, oidc, loadKeyring(rotationKeys, "1"),
     newConfigCache(database)), port, baseUrl)
 
 proc startFlow(returnTo: string): tuple[state, nonce: string] =
@@ -111,16 +114,16 @@ proc callback(state, code: string, withCookie = true): HttpResult =
     extra = headers, maxRedirects = 0)
 
 proc insertFlow(state, nonce, returnTo: string, expired = false) =
-  let keyring = loadKeyring(keysJson, "1")
-  let (_, encrypted) = encryptWith(keyring, "verifier-" & state, state)
+  let keyring = loadKeyring(rotationKeys, "1")
+  let (keyId, encrypted) = encryptWith(keyring, "verifier-" & state, state)
   let minutes = if expired: -5 else: 10
   discard database.execUpdate(
     """insert into auth.oauth_flows
-         (state_hash, nonce_hash, code_verifier_enc, return_to, expires_at)
-       values (decode($1, 'hex'), decode($2, 'hex'), decode($3, 'hex'), $4,
-               now() + make_interval(mins => $5))""",
+         (state_hash, nonce_hash, code_verifier_enc, key_id, return_to, expires_at)
+       values (decode($1, 'hex'), decode($2, 'hex'), decode($3, 'hex'), $4, $5,
+               now() + make_interval(mins => $6))""",
     @[textParam(sha256Hex(state)), textParam(sha256Hex(nonce)),
-      textParam(bytesHex(encrypted)), textParam(returnTo),
+      textParam(bytesHex(encrypted)), textParam(keyId), textParam(returnTo),
       intParam(minutes.int64)])
 
 requireDatabase()
@@ -208,6 +211,37 @@ proc auditCount(action: string): int =
   parseInt(database.queryOne(
     """select count(*)::int as n from account.audit where action = $1""",
     @[textParam(action)]).get.get("n"))
+
+suite "security: flow key rotation":
+  test "a flow started under k1 completes after the active key moves to k2":
+    # SQ-02: the row records the key that encrypted the verifier, so the
+    # documented rotation does not break a login that is already in flight.
+    let (state, nonce) = startFlow("/sessions")
+    let stored = database.queryOne(
+      """select key_id from auth.oauth_flows
+         where state_hash = decode($1, 'hex')""",
+      @[textParam(sha256Hex(state))])
+    check stored.isSome
+    check stored.get.get("key_id") == "1"
+    rotateActiveKey("2")
+    try:
+      let code = stubCode(state, nonce, "t070-rot-1",
+        "t070-rot-1@example.com")
+      expectStatus(callback(state, code), 302)
+    finally:
+      rotateActiveKey("1")
+
+  test "a flow that names a different key fails the decrypt":
+    # The explicit wrong id: the row is written under k1 but claims k2, so the
+    # callback must refuse instead of trying the current active key.
+    let (state, nonce) = startFlow("/sessions")
+    discard database.execUpdate(
+      """update auth.oauth_flows set key_id = '2'
+         where state_hash = decode($1, 'hex')""",
+      @[textParam(sha256Hex(state))])
+    let code = stubCode(state, nonce, "t070-rot-2",
+      "t070-rot-2@example.com")
+    expectProblem(callback(state, code), 500, "KEY_ERROR")
 
 suite "security: auth audit":
   test "a successful login leaves exactly one audit row":

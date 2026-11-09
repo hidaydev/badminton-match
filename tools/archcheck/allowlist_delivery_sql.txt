@@ -1,0 +1,134 @@
+# BE-06: SQL and the process-global `application.db` are not allowed in the
+# delivery layer. Each entry below is one handler routine the extraction has
+# not moved yet; the reason names the batch that will take it. The scan is per
+# routine: a statement in a routine without an entry is a finding, and a new
+# routine needs its own reviewed entry. An entry exempts the whole routine, so
+# remove it once the statements move rather than growing it in place.
+#
+# Format:
+#
+#   apps/path/file.nim:routine   # why this routine is still a handler
+#   apps/path/file.nim           # why the whole file has no application home
+#
+# Remove an entry when its routine moves to `modules/<name>/application/`.
+
+# Platform configuration is read and written for every community at once, so
+# it has no tenant context to hand a store. The batch target is
+# `modules/platform/application/`.
+apps/api/src/config_routes.nim:applyPatch
+apps/api/src/config_routes.nim:checkPatch
+
+# The process-global pool and its transaction boundary stay in the delivery
+# layer until the first service owns it; every other entry below calls through
+# this one.
+apps/api/src/app.nim:auditedWrite
+
+# Session reads and writes: the first extraction batch, because the schedule
+# paths already own the most SQL.
+apps/api/src/app.nim:createSession
+apps/api/src/app.nim:listSessions
+apps/api/src/app.nim:getSessionDetail
+apps/api/src/app.nim:getGameRoute
+apps/api/src/app.nim:gameSets
+apps/api/src/app.nim:sessionVersionNow
+apps/api/src/app.nim:sessionApproved
+apps/api/src/app.nim:sessionPlayerIds
+apps/api/src/app.nim:deleteSession
+apps/api/src/app.nim:createShare
+apps/api/src/app.nim:issueSessionTicket
+apps/api/src/app.nim:resolveShare
+apps/api/src/app.nim:handleWebSocket
+
+# Rating reads and sign-off: second batch, after the session reads.
+apps/api/src/app.nim:listRatingSources
+apps/api/src/app.nim:removeRatingSource
+apps/api/src/app.nim:patchRatingSource
+apps/api/src/app.nim:clearTournamentRating
+
+# Account and access doors: they run before a community context exists, so the
+# application service has to take the slug or token rather than a context.
+apps/api/src/app.nim:startAuth
+apps/api/src/app.nim:finishAuth
+apps/api/src/app.nim:listCommunities
+apps/api/src/app.nim:requestJoin
+apps/api/src/app.nim:release
+
+# The readiness probe reads the migration ledger and the cutover row; it is a
+# process-level check, not a community use case.
+apps/api/src/app.nim:readyz
+
+# Platform plumbing every request touches: the config snapshot, the resolved
+# identity, the idempotency claim and the live socket. These move into
+# `modules/platform/application/` once the first service owns the pool.
+apps/api/src/app.nim:configSnapshot
+apps/api/src/app.nim:requestIdentity
+apps/api/src/app.nim:createSessionToken
+apps/api/src/app.nim:currentUser
+apps/api/src/app.nim:decide
+apps/api/src/app.nim:claimWrite
+apps/api/src/app.nim:issueShareTicket
+apps/api/src/app.nim:upgradeSocket
+apps/api/src/app.nim:opsPing
+
+# Account doors that run before a community context exists: audit rows with no
+# community, sign-in session state and community creation.
+apps/api/src/app.nim:authAudit
+apps/api/src/app.nim:authRejected
+apps/api/src/app.nim:listAuthSessions
+apps/api/src/app.nim:revokeOtherSessions
+apps/api/src/app.nim:logout
+apps/api/src/app.nim:createCommunity
+apps/api/src/app.nim:complete
+
+# Community settings, members and the join/invite flows.
+apps/api/src/app.nim:ratingParamsFor
+apps/api/src/app.nim:setSessionLock
+apps/api/src/app.nim:getCommunitySettings
+apps/api/src/app.nim:patchCommunitySettings
+apps/api/src/app.nim:directory
+apps/api/src/app.nim:createInvite
+apps/api/src/app.nim:listJoinRequests
+apps/api/src/app.nim:listPendingClaims
+apps/api/src/app.nim:listMembers
+apps/api/src/app.nim:communityConfig
+
+# Player directory and the claim queue.
+apps/api/src/app.nim:listPlayersRoute
+apps/api/src/app.nim:createPlayerRoute
+apps/api/src/app.nim:getPlayerRoute
+apps/api/src/app.nim:patchPlayerRoute
+apps/api/src/app.nim:listClaimsRoute
+apps/api/src/app.nim:clearSessionRating
+
+# Session schedule writes, standings and the public share link.
+apps/api/src/app.nim:putScheduleRoute
+apps/api/src/app.nim:setAbsentRoute
+apps/api/src/app.nim:setGameScoreRoute
+apps/api/src/app.nim:skipGameRoute
+apps/api/src/app.nim:getSessionStandingsRoute
+apps/api/src/app.nim:getShareLink
+
+# Rating board, player stats and the anonymous rankings.
+apps/api/src/app.nim:communityBoard
+apps/api/src/app.nim:rankingPlayer
+apps/api/src/app.nim:playerAchievements
+apps/api/src/app.nim:boardPoints
+apps/api/src/app.nim:playerStats
+apps/api/src/app.nim:getSharedRanking
+apps/api/src/app.nim:getSharedRankings
+
+# Tournament reads and deletes.
+apps/api/src/app.nim:listTournamentsRoute
+apps/api/src/app.nim:getTournamentRoute
+apps/api/src/app.nim:deleteTournamentRoute
+
+# The idempotency store and the live hub are platform infrastructure that the
+# delivery layer wires directly. They move when the services do.
+apps/api/src/ws_ticket.nim:store
+apps/api/src/ws_ticket.nim:consume
+apps/api/src/ws_ticket.nim:revokePrincipal
+apps/api/src/ws_ticket.nim:revokeShare
+
+# Resolves the slug plus membership into the community context itself, so there
+# is no context to pass to a service yet.
+apps/api/src/community_context.nim:loadCommunity

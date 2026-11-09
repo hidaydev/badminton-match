@@ -131,6 +131,6 @@ suite "body size guard over HTTP":
 
   test "the guard reads the body, not the method":
     let body = paddedSessionBody(limit + 1, "GetTooBig")
-    let response = call(baseUrl, HttpGet, "/healthz", hostCookie, body)
+    let response = call(baseUrl, HttpGet, "/version", hostCookie, body)
     check response.status == 413
     check parseJson(response.body)["code"].getStr() == "BODY_TOO_LARGE"

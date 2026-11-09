@@ -49,7 +49,6 @@ import account/domain/lifecycle as accountLifecycle
 import account/domain/audit
 import account/domain/roles
 import account/infrastructure/audit_store
-import account/infrastructure/jwt_rs256
 import account/infrastructure/oidc
 import account/infrastructure/ops_token as opsToken
 
@@ -159,19 +158,6 @@ proc auditConn(conn: DbConn, action: string, ctx: CommunityContext, user: AuthUs
   auditConn(conn, action, ctx.communityId, user, targetKind, targetId, after,
     $ctx.role)
 
-proc audit(action: string, communityId: string, user: AuthUser,
-           targetKind: string, targetId: string,
-           after: JsonNode = newJObject(), role = "") =
-  ## Evidence for a write that already committed: it gets its own connection
-  ## because the caller holds none. A route that can share one uses `auditConn`.
-  recordAudit(application.db, evidenceEvent(action, communityId, user,
-    targetKind, targetId, after, role))
-
-proc audit(action: string, ctx: CommunityContext, user: AuthUser,
-           targetKind: string, targetId: string,
-           after: JsonNode = newJObject()) =
-  audit(action, ctx.communityId, user, targetKind, targetId, after, $ctx.role)
-
 proc authAudit(action: string, user: AuthUser, outcome = arAllow,
                reason = "") =
   ## Auth events belong to no community, so the row carries none. The role is
@@ -190,6 +176,19 @@ proc authRejected(action, reason: string, userId = "") =
     actorId = userId, actorRole = "anonymous", outcome = arDeny,
     targetKind = (if userId.len > 0: "user" else: ""), targetId = userId,
     reason = reason, requestId = currentRequestId()))
+
+type WriteRefusal* = object of CatchableError
+  ## Raised inside `auditedWrite` when the write must not land but the route
+  ## still has a normal 4xx answer. The transaction rolls back and the caller
+  ## turns the refusal into the response.
+
+proc auditedWrite(body: proc(tx: Db, conn: DbConn)) =
+  ## One transaction for a privileged write and its evidence. The store helper
+  ## receives a facade bound to this connection, so a helper that takes a `Db`
+  ## cannot check out a second connection and commit before the audit row. If
+  ## either the write or the audit fails, both roll back.
+  application.db.tx(proc(conn: DbConn) =
+    body(application.db.boundTo(conn), conn))
 
 proc send(request: Request, status: int,
           headers: openArray[(string, string)], body: string) =
@@ -469,11 +468,23 @@ proc requestIdentity(request: Request, snapshot: Snapshot,
       let userId = application.identityCache.cachedUserId(application.db,
         token, idleDays, utcNow().toTime.toUnixFloat)
       if userId.isSome:
+        recordIdentitySource("cookie")
         return RateIdentity(key: "user:" & userId.get, address: address)
     except DbError:
       # A session lookup that cannot reach the database must not turn a read
       # into a 500: the address path is a safe, coarser fallback.
       discard
+  # An anonymous caller, or a cookie the database did not confirm, is named by
+  # the edge when a trusted proxy asserted an address and by the TCP peer
+  # otherwise. The metric makes a misconfigured trusted-proxy list visible:
+  # everything collapses to `peer` and the per-viewer budget becomes one global
+  # budget.
+  let source =
+    if edgeConfig.forwardedIp(request, edgeConfig.trustedProxies()).len > 0:
+      "header"
+    else:
+      "peer"
+  recordIdentitySource(source)
   RateIdentity(key: address, address: address)
 
 proc quota(request: Request, snapshot: Snapshot, scope, key, address: string,
@@ -577,11 +588,12 @@ proc startAuth(request: Request, snapshot: Snapshot) =
   let ttl = snapshot.intValue(%*{}, keyAuthFlowTtlMinutes)
   discard application.db.execUpdate(
     """insert into auth.oauth_flows
-       (state_hash, nonce_hash, code_verifier_enc, return_to, expires_at)
-       values (decode($1,'hex'), decode($2,'hex'), decode($3,'hex'), $4,
-               now() + make_interval(mins => $5))""",
+       (state_hash, nonce_hash, code_verifier_enc, key_id, return_to, expires_at)
+       values (decode($1,'hex'), decode($2,'hex'), decode($3,'hex'), $4, $5,
+               now() + make_interval(mins => $6))""",
     @[textParam(sha256Hex(state)), textParam(sha256Hex(nonce)),
-      textParam(bytesHex(encrypted)), textParam(safeReturn), intParam(ttl.int64)])
+      textParam(bytesHex(encrypted)), textParam(keyId),
+      textParam(safeReturn), intParam(ttl.int64)])
   jsonResponse(request, 200, %*{
     "authorizeUrl": authorizeUrl(application.oidc, state, nonce, challenge),
     "keyId": keyId,
@@ -606,10 +618,10 @@ proc finishAuth(request: Request) =
     """with deleted as (
          delete from auth.oauth_flows
          where state_hash = decode($1,'hex') and expires_at > now()
-         returning nonce_hash, code_verifier_enc, return_to)
+         returning nonce_hash, code_verifier_enc, key_id, return_to)
        select encode(nonce_hash,'hex') as nonce_hash,
               encode(code_verifier_enc,'hex') as verifier_enc,
-              return_to
+              key_id, return_to
        from deleted""",
     @[textParam(sha256Hex(state))])
   if row.isNone:
@@ -618,7 +630,9 @@ proc finishAuth(request: Request) =
   let flow = row.get
   var verifier = ""
   try:
-    verifier = decryptWith(application.keyring, application.keyring.active,
+    # The key that encrypted the verifier, not the key that happens to be
+    # active now: a rotation between start and finish must not break the login.
+    verifier = decryptWith(application.keyring, flow.get("key_id"),
       hexBytes(flow.get("verifier_enc")), state)
   except ShareKeyError:
     problem(request, 500, "KEY_ERROR", "cannot decrypt flow")
@@ -633,7 +647,7 @@ proc finishAuth(request: Request) =
     return
   var claims: JsonNode
   try:
-    claims = verifyIdToken(idToken, jwks(application.oidc),
+    claims = verifyIdTokenWithRefresh(application.oidc, idToken,
       application.oidc.issuer, application.oidc.clientId, "",
       utcNow().toTime.toUnix)
   except CatchableError as error:
@@ -683,10 +697,11 @@ proc finishAuth(request: Request) =
   # `community.join` row would claim they joined twice.
   let loginUser = AuthUser(id: userRow.get.get("id"),
     isOwner: userRow.get.get("is_platform_owner") == "t")
-  for grant in inviteStore.acceptPendingForEmail(application.db,
-      loginUser.id, sha256Hex(email)):
-    audit("community.join", grant.communityId, loginUser, "community",
-      grant.communityId, %*{"role": grant.role}, grant.role)
+  application.db.tx(proc(conn: DbConn) =
+    for grant in inviteStore.acceptPendingForEmail(application.db.boundTo(conn),
+        loginUser.id, sha256Hex(email)):
+      auditConn(conn, "community.join", grant.communityId, loginUser, "community",
+        grant.communityId, %*{"role": grant.role}, grant.role))
   let token = createSessionToken(userRow.get.get("id"))
   authAudit("auth.login", AuthUser(id: userRow.get.get("id"),
     isOwner: userRow.get.get("is_platform_owner") == "t"))
@@ -781,14 +796,17 @@ proc createCommunity(request: Request, snapshot: Snapshot) =
     problem(request, 400, "INVALID_COMMUNITY",
       "timezone is not a known IANA zone")
     return
-  let created = communityStore.create(application.db, check.slug, name.strip(),
-    adminEmail, check.timezone, user.get.id)
+  var created: communityStore.CreateResult
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    created = communityStore.create(tx, check.slug, name.strip(),
+      adminEmail, check.timezone, user.get.id)
+    if created.status == csOk:
+      auditConn(conn, "community.create", created.communityId, user.get,
+        "community", created.communityId, %*{"slug": check.slug}))
   case created.status
   of csSlugTaken:
     problem(request, 409, "SLUG_TAKEN", "community slug already exists")
   of csOk:
-    audit("community.create", created.communityId, user.get, "community",
-      created.communityId, %*{"slug": check.slug})
     jsonResponse(request, 201, %*{
       "id": created.communityId,
       "slug": check.slug,
@@ -954,16 +972,23 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser,
   if claimed.isNone:
     return
   let w = claimed.get
-  let row = application.db.queryOne(
-    """insert into session.sessions
-       (community_id, title, session_date, start_time, slot_minutes, status,
-        source, scoring_preset, scoring_rules)
-       values ($1, $2, $3::date, $4::time, $5, 'draft', 'manual', $6,
-               $7::jsonb)
-       returning id, title, session_date::text as session_date, status""",
-    @[textParam(ctx.communityId), textParam(title), textParam(date),
-      textParam(startTime), intParam(slot.int64), textParam(presetId),
-      textParam($sessionScoring.rulesJson(chosen.get))])
+  var row: Option[Row]
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    row = tx.queryOne(
+      """insert into session.sessions
+         (community_id, title, session_date, start_time, slot_minutes, status,
+          source, scoring_preset, scoring_rules)
+         values ($1, $2, $3::date, $4::time, $5, 'draft', 'manual', $6,
+                 $7::jsonb)
+         returning id, title, session_date::text as session_date, status""",
+      @[textParam(ctx.communityId), textParam(title), textParam(date),
+        textParam(startTime), intParam(slot.int64), textParam(presetId),
+        textParam($sessionScoring.rulesJson(chosen.get))])
+    if row.isSome:
+      auditConn(conn, "session.create", ctx, user, "session",
+        row.get.get("id"),
+        %*{"title": row.get.get("title"), "date": row.get.get("session_date"),
+            "status": row.get.get("status")}))
   if row.isNone:
     # Nothing was written, so release the key instead of leaving it owned until
     # the TTL turns every retry into a 409.
@@ -976,12 +1001,7 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser,
     "date": row.get.get("session_date"),
     "status": row.get.get("status"),
   }
-  # Complete before the audit: a failure while recording the event must not
-  # leave a claimed key whose response was never stored.
   w.complete(201, created)
-  audit("session.create", ctx, user, "session", row.get.get("id"),
-    %*{"title": row.get.get("title"), "date": row.get.get("session_date"),
-        "status": row.get.get("status")})
   jsonResponse(request, 201, created)
 
 proc pageParams(request: Request, snapshot: Snapshot): tuple[limit, offset: int] =
@@ -1066,25 +1086,30 @@ proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
        where community_id = $1::uuid and session_id = $2::uuid
          and revoked_at is null""",
     @[textParam(ctx.communityId), textParam(sessionId)])
-  let code = shareStore.issue(application.db, application.keyring,
-    ctx.communityId, sessionId, user.id,
-    snapshot.intValue(%*{}, keyShareLinkTtlDays))
+  var code = ""
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    code = shareStore.issue(tx, application.keyring,
+      ctx.communityId, sessionId, user.id,
+      snapshot.intValue(%*{}, keyShareLinkTtlDays))
+    auditConn(conn, "share.issue", ctx, user, "session", sessionId,
+      %*{"sessionId": sessionId}))
   if previous.isSome:
     application.hub.revokeShare(previous.get.get("id"))
-  audit("share.issue", ctx, user, "session", sessionId,
-    %*{"sessionId": sessionId})
   jsonResponse(request, 201, %*{"code": code, "sessionId": sessionId})
 
 proc deleteShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
                      sessionId: string) =
-  let revoked = shareStore.revokeLive(application.db, ctx.communityId, sessionId)
+  var revoked: seq[string] = @[]
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    revoked = shareStore.revokeLive(tx, ctx.communityId, sessionId)
+    if revoked.len > 0:
+      auditConn(conn, "share.revoke", ctx, user, "session", sessionId,
+        %*{"sessionId": sessionId}))
   if revoked.len == 0:
     problem(request, 404, "NOT_FOUND", "no live share link")
     return
   for linkId in revoked:
     application.hub.revokeShare(linkId)
-  audit("share.revoke", ctx, user, "session", sessionId,
-    %*{"sessionId": sessionId})
   send(request, 204)
 
 proc issueSessionTicket(request: Request, ctx: CommunityContext, user: AuthUser,
@@ -1188,12 +1213,15 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
       problem(request, 400, "INVALID_PRESET", "unknown scoring preset")
       return
     patchBody.scoringRules = some(chosen.get)
-  let result = sessionWrite.patch(application.db, ctx.communityId, sessionId,
-    version.get, patchBody)
+  var result: sessionWrite.WriteResult
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    result = sessionWrite.patch(tx, ctx.communityId, sessionId,
+      version.get, patchBody)
+    if result.status == wsOk:
+      auditConn(conn, "session.patch", ctx, user, "session", sessionId,
+        result.record))
   case result.status
   of wsOk:
-    audit("session.patch", ctx, user, "session", sessionId,
-      result.record)
     w.complete(200, result.record)
     application.hub.sessionChanged(sessionId, result.record["version"].getInt())
     jsonResponse(request, 200, result.record,
@@ -1226,13 +1254,18 @@ proc swapSession(request: Request, ctx: CommunityContext, user: AuthUser,
   if not jsonBody(request, body):
     w.release()
     return
-  let result = sessionSwap.swapMembers(application.db, ctx.communityId,
-    sessionId, version.get, sessionSwap.parseSwap(body))
+  var result: sessionSwap.SwapOutcome
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    result = sessionSwap.swapMembers(tx, ctx.communityId,
+      sessionId, version.get, sessionSwap.parseSwap(body))
+    if result.status == sessionSwap.swOk:
+      let record = %*{"version": result.version,
+        "status": result.sessionStatus}
+      auditConn(conn, "session.swap", ctx, user, "session", sessionId,
+        record))
   case result.status
   of sessionSwap.swOk:
     let record = %*{"version": result.version, "status": result.sessionStatus}
-    audit("session.swap", ctx, user, "session", sessionId,
-      record)
     w.complete(200, record)
     application.hub.sessionChanged(sessionId, result.version)
     jsonResponse(request, 200, record,
@@ -1265,9 +1298,23 @@ proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
   if ratingIngest.sourceFinalized(application.db, ctx.communityId, sessionId):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
-  let result = sessionWrite.setLock(application.db, ctx.communityId, sessionId,
-    user.id, version.get, locked)
-  case result.status
+  var outcome: sessionWrite.WriteResult
+  var removed = 0
+  var params: ratingDomain.RatingParams
+  if locked:
+    params = ratingParamsFor(ctx)
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    outcome = sessionWrite.setLock(tx, ctx.communityId, sessionId,
+      user.id, version.get, locked)
+    if outcome.status == wsOk:
+      if locked:
+        discard ratingIngest.ingestSession(tx, ctx.communityId,
+          sessionId, params)
+      else:
+        removed = ratingIngest.revertSource(tx, ctx.communityId, sessionId)
+      auditConn(conn, (if locked: "session.lock" else: "session.unlock"),
+        ctx, user, "session", sessionId, outcome.record))
+  case outcome.status
   of wsOk:
     # Approval is the rating gate: locking rates the session now, unlocking
     # withdraws what it contributed. The withdraw is immediate; the ledger
@@ -1275,22 +1322,14 @@ proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
     # full rebuild must not run under this request's connection and advisory
     # lock. The response record is unchanged, only the derived board lags by
     # one worker pass.
-    let params = ratingParamsFor(ctx)
     if locked:
-      discard ratingIngest.ingestSession(application.db, ctx.communityId,
-        sessionId, params)
       discard application.ratingJobs.enqueue(ratingJobs.jkReconcile,
         ctx.communityId)
-    else:
-      let removed = ratingIngest.revertSource(application.db, ctx.communityId,
-        sessionId)
-      if removed > 0:
-        discard application.ratingJobs.enqueue(ratingJobs.jkRebuild,
-          ctx.communityId)
-    audit(if locked: "session.lock" else: "session.unlock", ctx, user,
-      "session", sessionId, result.record)
-    jsonResponse(request, 200, result.record,
-      [("ETag", "\"" & $result.record["version"].getInt() & "\"")])
+    elif removed > 0:
+      discard application.ratingJobs.enqueue(ratingJobs.jkRebuild,
+        ctx.communityId)
+    jsonResponse(request, 200, outcome.record,
+      [("ETag", "\"" & $outcome.record["version"].getInt() & "\"")])
   of wsStale:
     problem(request, 412, "STALE_VERSION", "session changed since If-Match")
   of wsNotFound:
@@ -1299,8 +1338,9 @@ proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 400, "INVALID_PATCH", "cannot lock session")
   of wsPresetLocked:
     problem(request, 409, "PRESET_LOCKED", "session has recorded sets")
-  if result.status == wsOk:
-    application.hub.sessionChanged(sessionId, result.record["version"].getInt())
+  if outcome.status == wsOk:
+    application.hub.sessionChanged(sessionId,
+      outcome.record["version"].getInt())
 
 proc getCommunitySettings(request: Request, ctx: CommunityContext,
                           snapshot: Snapshot) =
@@ -1362,22 +1402,28 @@ proc createInvite(request: Request, ctx: CommunityContext, user: AuthUser,
     return
   let ttl = snapshot.intValue(
     currentSettings(application.db, ctx.communityId), keyCommunityInviteTtlDays)
-  let token = inviteStore.create(application.db, ctx.communityId,
-    sha256Hex(email.strip().toLowerAscii()), parsed, user.id, ttl)
-  audit("community.invite", ctx, user, "community", ctx.communityId,
-    %*{"role": $parsed})
+  var token = ""
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    token = inviteStore.create(tx, ctx.communityId,
+      sha256Hex(email.strip().toLowerAscii()), parsed, user.id, ttl)
+    auditConn(conn, "community.invite", ctx, user, "community",
+      ctx.communityId, %*{"role": $parsed}))
   jsonResponse(request, 201, %*{"token": token, "expiresInDays": ttl, "role": $parsed})
 
 proc acceptInvite(request: Request, token: string) =
   let user = requireUser(request)
   if user.isNone:
     return
-  let result = inviteStore.accept(application.db, token, user.get.id,
-    user.get.emailHash)
+  var result: inviteStore.AcceptResult
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    result = inviteStore.accept(tx, token, user.get.id,
+      user.get.emailHash)
+    if result.outcome == aoOk:
+      auditConn(conn, "community.join", result.communityId, user.get,
+        "community", result.communityId, %*{"role": result.role},
+        result.role))
   case result.outcome
   of aoOk:
-    audit("community.join", result.communityId, user.get, "community",
-      result.communityId, %*{"role": result.role}, result.role)
     jsonResponse(request, 201, %*{"communityId": result.communityId,
       "role": result.role})
   of aoNotFound:
@@ -1415,11 +1461,15 @@ proc requestJoin(request: Request, slug: string, snapshot: Snapshot) =
       none(Row)
   if row.isSome and row.get.get("enabled") == "t" and user.isSome:
     let requester = user.get
-    if joinRequestStore.request(application.db, row.get.get("id"), requester.id):
-      # The request itself is a self-service write; record it without the
-      # community context the requester does not have yet.
-      audit("community.join.requested", row.get.get("id"), requester,
-        "user", requester.id, %*{"status": "pending"}, role = "member")
+    auditedWrite(proc(tx: Db, conn: DbConn) =
+      let created = joinRequestStore.request(tx, row.get.get("id"),
+        requester.id)
+      if created:
+        # The request itself is a self-service write; record it without the
+        # community context the requester does not have yet.
+        auditConn(conn, "community.join.requested", row.get.get("id"),
+          requester, "user", requester.id, %*{"status": "pending"},
+          role = "member"))
   jsonResponse(request, 202, %*{"status": "accepted"})
 
 proc listJoinRequests(request: Request, ctx: CommunityContext) =
@@ -1446,12 +1496,17 @@ proc decideJoinRequest(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 400, "INVALID_ROLE", "role must be member, host or admin")
     return
   let approve = decision == "approve"
-  if not joinRequestStore.decide(application.db, ctx.communityId, requestId,
-      user.id, parsed, approve):
+  var decided = false
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    decided = joinRequestStore.decide(tx, ctx.communityId, requestId,
+      user.id, parsed, approve)
+    if decided:
+      auditConn(conn,
+        (if approve: "community.join.approved" else: "community.join.rejected"),
+        ctx.communityId, user, "join_request", requestId, %*{"role": $parsed}))
+  if not decided:
     problem(request, 404, "NOT_FOUND", "pending request not found")
     return
-  audit(if approve: "community.join.approved" else: "community.join.rejected",
-    ctx.communityId, user, "join_request", requestId, %*{"role": $parsed})
   jsonResponse(request, 200, %*{"status": if approve: "approved" else: "rejected"})
 
 proc listPendingClaims(request: Request, ctx: CommunityContext) =
@@ -1481,11 +1536,21 @@ proc patchMemberRole(request: Request, ctx: CommunityContext, user: AuthUser,
   except ValueError:
     problem(request, 400, "INVALID_ROLE", "role must be member, host or admin")
     return
-  # Read before the write: this is the role the change replaces.
-  let previous = application.db.queryOne(membershipSql.memberRoleSql,
-    @[textParam(ctx.communityId), textParam(targetId)])
-  case membershipStore.setRoleChecked(application.db, ctx.communityId,
+  var previous: Option[Row]
+  var outcome = membershipStore.mwNotFound
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    # Read before the write: this is the role the change replaces.
+    previous = tx.queryOne(membershipSql.memberRoleSql,
+      @[textParam(ctx.communityId), textParam(targetId)])
+    outcome = membershipStore.setRoleChecked(tx, ctx.communityId,
       targetId, parsed)
+    if outcome == membershipStore.mwOk:
+      # The old role is what makes a role change auditable; `role` alone cannot
+      # tell a promotion from a demotion.
+      auditConn(conn, "community.member.role", ctx, user, "user", targetId,
+        %*{"fromRole": if previous.isSome: previous.get.get("role") else: "",
+           "toRole": $parsed}))
+  case outcome
   of membershipStore.mwLastAdmin:
     problem(request, 409, "LAST_ADMIN", "promote another admin first")
     return
@@ -1494,16 +1559,16 @@ proc patchMemberRole(request: Request, ctx: CommunityContext, user: AuthUser,
     return
   of membershipStore.mwOk:
     discard
-  # The old role is what makes a role change auditable; `role` alone cannot
-  # tell a promotion from a demotion.
-  audit("community.member.role", ctx, user, "user", targetId,
-    %*{"fromRole": if previous.isSome: previous.get.get("role") else: "",
-       "toRole": $parsed})
   jsonResponse(request, 200, %*{"userId": targetId, "role": $parsed})
 
 proc removeMember(request: Request, ctx: CommunityContext, user: AuthUser,
                   targetId: string) =
-  case membershipStore.removeChecked(application.db, ctx.communityId, targetId)
+  var outcome = membershipStore.mwNotFound
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    outcome = membershipStore.removeChecked(tx, ctx.communityId, targetId)
+    if outcome == membershipStore.mwOk:
+      auditConn(conn, "community.member.remove", ctx, user, "user", targetId))
+  case outcome
   of membershipStore.mwLastAdmin:
     problem(request, 409, "LAST_ADMIN", "promote another admin first")
     return
@@ -1514,7 +1579,6 @@ proc removeMember(request: Request, ctx: CommunityContext, user: AuthUser,
     discard
   # A removed member loses the sockets and tickets of that principal.
   application.hub.revokePrincipal(targetId)
-  audit("community.member.remove", ctx, user, "user", targetId)
   send(request, 204)
 
 proc scoringPresetsJson(snapshot: Snapshot): JsonNode =
@@ -1598,9 +1662,28 @@ proc createPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser) 
     if not playerDomain.aliasesValid(aliases):
       problem(request, 400, "INVALID_ALIAS", "aliases must be distinct non-empty names")
       return
-  let result = playerStore.create(application.db, ctx.communityId,
-    playerDomain.normalizeName(name), gender.toUpperAscii(),
-    if tier.len > 0: $playerDomain.parseTier(tier) else: "")
+  var result: playerStore.CreateResult
+  var aliasTaken = false
+  try:
+    auditedWrite(proc(tx: Db, conn: DbConn) =
+      result = playerStore.create(tx, ctx.communityId,
+        playerDomain.normalizeName(name), gender.toUpperAscii(),
+        if tier.len > 0: $playerDomain.parseTier(tier) else: "")
+      if result.status == pcOk:
+        let playerId = result.player["id"].getStr()
+        if aliases.len > 0 and
+           not playerStore.setAliases(tx, ctx.communityId, playerId, aliases):
+          # The insert and its aliases share the transaction, so a taken alias
+          # rolls both back instead of leaving a half-created player.
+          aliasTaken = true
+          raise newException(WriteRefusal, "alias taken")
+        auditConn(conn, "player.create", ctx, user, "player", playerId,
+          %*{"name": result.player["name"]}))
+  except WriteRefusal:
+    discard
+  if aliasTaken:
+    problem(request, 409, "ALIAS_TAKEN", "an alias is already used by another player")
+    return
   case result.status
   of pcDuplicate:
     problem(request, 409, "PLAYER_EXISTS", "a player with this name already exists")
@@ -1608,15 +1691,6 @@ proc createPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser) 
     problem(request, 400, "INVALID_PLAYER", "cannot create player")
   of pcOk:
     let playerId = result.player["id"].getStr()
-    if aliases.len > 0 and
-       not playerStore.setAliases(application.db, ctx.communityId, playerId, aliases):
-      # The player had no aliases yet, so undo the insert rather than leaving a
-      # half-created record behind.
-      discard playerStore.remove(application.db, ctx.communityId, playerId)
-      problem(request, 409, "ALIAS_TAKEN", "an alias is already used by another player")
-      return
-    audit("player.create", ctx, user, "player", playerId,
-      %*{"name": result.player["name"]})
     jsonResponse(request, 201, withAliases(result.player,
       playerStore.aliases(application.db, ctx.communityId, playerId)))
 
@@ -1650,14 +1724,17 @@ proc patchPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
     if not playerDomain.aliasesValid(aliases):
       problem(request, 400, "INVALID_ALIAS", "aliases must be distinct non-empty names")
       return
-  let result = playerStore.patch(application.db, ctx.communityId, playerId, patch)
+  var result: playerStore.PatchResult
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    result = playerStore.patch(tx, ctx.communityId, playerId, patch)
+    if result.status == psOk and not result.aliasTaken:
+      auditConn(conn, "player.patch", ctx, user, "player", playerId,
+        %*{"name": result.player["name"]}))
   case result.status
   of psOk:
     if result.aliasTaken:
       problem(request, 409, "ALIAS_TAKEN", "an alias is already used by another player")
       return
-    audit("player.patch", ctx, user, "player", playerId,
-      %*{"name": result.player["name"]})
     jsonResponse(request, 200, withAliases(result.player,
       playerStore.aliases(application.db, ctx.communityId, playerId)))
   of psDuplicate:
@@ -1674,18 +1751,21 @@ proc mergePlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 400, "INVALID_BODY", "sourcePlayerId is required")
     return
   let sourceId = body["sourcePlayerId"].getStr()
-  let outcome = playerMerge.merge(application.db, ctx.communityId, targetId,
-    sourceId, user.id)
+  var outcome: playerMerge.MergeOutcome
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    outcome = playerMerge.merge(tx, ctx.communityId, targetId,
+      sourceId, user.id)
+    if outcome.error == playerMerge.meOk:
+      auditConn(conn, "player.merge", ctx, user, "player", targetId,
+        %*{"sourcePlayerId": sourceId,
+          "rowsMoved": outcome.result.aliasesMoved + outcome.result.claimsMoved +
+            outcome.result.deltasMoved + outcome.result.snapshotsMoved +
+            outcome.result.achievementsMoved + outcome.result.pairsMoved +
+            outcome.result.ratingStateMoved + outcome.result.sessionsMoved +
+            outcome.result.gamesMoved + outcome.result.skipsMoved +
+            outcome.result.teamPlayersMoved}))
   case outcome.error
   of playerMerge.meOk:
-    audit("player.merge", ctx, user, "player", targetId,
-      %*{"sourcePlayerId": sourceId,
-        "rowsMoved": outcome.result.aliasesMoved + outcome.result.claimsMoved +
-          outcome.result.deltasMoved + outcome.result.snapshotsMoved +
-          outcome.result.achievementsMoved + outcome.result.pairsMoved +
-          outcome.result.ratingStateMoved + outcome.result.sessionsMoved +
-          outcome.result.gamesMoved + outcome.result.skipsMoved +
-          outcome.result.teamPlayersMoved})
     jsonResponse(request, 200, %*{
       "targetPlayerId": outcome.result.targetPlayerId,
       "sourcePlayerId": outcome.result.sourcePlayerId,
@@ -1718,10 +1798,14 @@ proc mergePlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
 
 proc deletePlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
                        playerId: string) =
-  if not playerStore.remove(application.db, ctx.communityId, playerId):
+  var removed = false
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    removed = playerStore.remove(tx, ctx.communityId, playerId)
+    if removed:
+      auditConn(conn, "player.delete", ctx, user, "player", playerId))
+  if not removed:
     problem(request, 404, "NOT_FOUND", "player not found")
     return
-  audit("player.delete", ctx, user, "player", playerId)
   send(request, 204)
 
 proc claimProblem(request: Request, error: playerClaim.ClaimError) =
@@ -1769,11 +1853,14 @@ proc listClaimsRoute(request: Request, ctx: CommunityContext, user: AuthUser,
 
 proc submitClaim(request: Request, ctx: CommunityContext, user: AuthUser,
                  playerId: string) =
-  let result = playerClaim.submit(application.db, ctx.communityId, playerId, user.id)
+  var result = ceConflict
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    result = playerClaim.submit(tx, ctx.communityId, playerId, user.id)
+    if result == ceOk:
+      auditConn(conn, "player.claim.submitted", ctx, user, "player", playerId))
   if result != ceOk:
     claimProblem(request, result)
     return
-  audit("player.claim.submitted", ctx, user, "player", playerId)
   jsonResponse(request, 201, %*{"playerId": playerId, "status": "pending"})
 
 proc decideClaim(request: Request, ctx: CommunityContext, user: AuthUser,
@@ -1788,18 +1875,21 @@ proc decideClaim(request: Request, ctx: CommunityContext, user: AuthUser,
     if reason.strip().len == 0:
       problem(request, 400, "REASON_REQUIRED", "releasing someone else needs a reason")
       return
-    let subject = playerClaim.claimOwner(application.db, ctx.communityId, playerId,
-      claimId)
-    if subject.len == 0:
-      problem(request, 404, "NOT_FOUND", "claim not found")
-      return
-    let released = playerClaim.release(application.db, ctx.communityId, playerId,
-      user.id, claimId, subject, reason)
+    var released = ceConflict
+    auditedWrite(proc(tx: Db, conn: DbConn) =
+      let subject = playerClaim.claimOwner(tx, ctx.communityId, playerId,
+        claimId)
+      if subject.len == 0:
+        released = ceClaimNotFound
+        return
+      released = playerClaim.release(tx, ctx.communityId, playerId,
+        user.id, claimId, subject, reason)
+      if released == ceOk:
+        auditConn(conn, "player.claim.released", ctx, user, "claim", claimId,
+          %*{"playerId": playerId, "status": "released"}))
     if released != ceOk:
       claimProblem(request, released)
       return
-    audit("player.claim.released", ctx, user, "claim", claimId,
-      %*{"playerId": playerId, "status": "released"})
     jsonResponse(request, 200, %*{"claimId": claimId, "status": "released"})
     return
 
@@ -1807,35 +1897,46 @@ proc decideClaim(request: Request, ctx: CommunityContext, user: AuthUser,
   if decision notin ["approve", "reject"]:
     problem(request, 400, "INVALID_DECISION", "decision must be approve or reject")
     return
-  let result = playerClaim.decide(application.db, ctx.communityId, playerId,
-    claimId, user.id, decision == "approve", reason)
-  if result != ceOk:
-    # This branch persists a rejection (the second claim for one member), so it
-    # must leave a trail even though the request answers 409.
+  var result = ceConflict
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    result = playerClaim.decide(tx, ctx.communityId, playerId,
+      claimId, user.id, decision == "approve", reason)
     if result == ceClaimantOwnsPlayer:
-      audit("player.claim.rejected", ctx.communityId, user, "claim", claimId,
-        %*{"playerId": playerId, "status": "rejected"})
+      # This branch persists a rejection (the second claim for one member), so
+      # it must leave a trail even though the request answers 409.
+      auditConn(conn, "player.claim.rejected", ctx.communityId, user, "claim",
+        claimId, %*{"playerId": playerId, "status": "rejected"})
+    elif result == ceOk:
+      auditConn(conn,
+        (if decision == "approve": "player.claim.approved"
+         else: "player.claim.rejected"),
+        ctx.communityId, user, "claim", claimId, %*{"playerId": playerId}))
+  if result != ceOk:
     claimProblem(request, result)
     return
-  audit(if decision == "approve": "player.claim.approved" else: "player.claim.rejected",
-    ctx.communityId, user, "claim", claimId, %*{"playerId": playerId})
   jsonResponse(request, 200, %*{"claimId": claimId,
     "status": if decision == "approve": "approved" else: "rejected"})
 
 proc releaseOwnClaim(request: Request, ctx: CommunityContext, user: AuthUser,
                      playerId: string) =
-  let claimId = playerClaim.approvedClaimFor(application.db, ctx.communityId,
-    playerId, user.id)
+  var claimId = ""
+  var released = ceConflict
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    claimId = playerClaim.approvedClaimFor(tx, ctx.communityId,
+      playerId, user.id)
+    if claimId.len == 0:
+      return
+    released = playerClaim.release(tx, ctx.communityId, playerId,
+      user.id, claimId, user.id, "self_released")
+    if released == ceOk:
+      auditConn(conn, "player.claim.released", ctx, user, "claim", claimId,
+        %*{"playerId": playerId, "status": "released"}))
   if claimId.len == 0:
     problem(request, 409, "CLAIM_CONFLICT", "you have no approved claim here")
     return
-  let released = playerClaim.release(application.db, ctx.communityId, playerId,
-    user.id, claimId, user.id, "self_released")
   if released != ceOk:
     claimProblem(request, released)
     return
-  audit("player.claim.released", ctx, user, "claim", claimId,
-    %*{"playerId": playerId, "status": "released"})
   jsonResponse(request, 200, %*{"claimId": claimId, "status": "released"})
 
 proc bearerToken(request: Request): string =
@@ -1938,12 +2039,14 @@ proc ingestSessionRating(request: Request, ctx: CommunityContext,
     problem(request, 409, "CONFLICT", "session is not approved")
     return
   let params = ratingParamsFor(ctx)
-  let result = ratingIngest.ingestSession(application.db, ctx.communityId,
-    sessionId, params)
+  var result: ratingIngest.IngestResult
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    result = ratingIngest.ingestSession(tx, ctx.communityId,
+      sessionId, params)
+    auditConn(conn, "rating.session.ingest", ctx, user, "session", sessionId,
+      %*{"events": result.events, "deltas": result.deltas}))
   discard application.ratingJobs.enqueue(ratingJobs.jkReconcile,
     ctx.communityId)
-  audit("rating.session.ingest", ctx, user, "session", sessionId,
-    %*{"events": result.events, "deltas": result.deltas})
   jsonResponse(request, 200, %*{"events": result.events,
     "deltas": result.deltas})
 
@@ -1962,12 +2065,14 @@ proc clearSessionRating(request: Request, ctx: CommunityContext,
     problem(request, 409, "CONFLICT",
       "session is still approved; unlock it first")
     return
-  let removed = ratingIngest.revertSource(application.db, ctx.communityId, sessionId)
+  var removed = 0
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    removed = ratingIngest.revertSource(tx, ctx.communityId, sessionId)
+    auditConn(conn, "rating.session.revert", ctx, user, "session", sessionId,
+      %*{"removedDeltas": removed}))
   if removed > 0:
     discard application.ratingJobs.enqueue(ratingJobs.jkRebuild,
       ctx.communityId)
-  audit("rating.session.revert", ctx, user, "session", sessionId,
-    %*{"removedDeltas": removed})
   # The row is gone; the ledger replay that derives the board is queued. Only
   # the count this request actually removed is reported, because a zero for
   # `events`/`deltas` described work the response never did.
@@ -1983,8 +2088,9 @@ proc rebuildRatings(request: Request, ctx: CommunityContext,
   if job.len == 0:
     problem(request, 503, "UNAVAILABLE", "rating worker is busy")
     return
-  audit("rating.rebuild", ctx, user, "community", ctx.communityId,
-    %*{"job": job})
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    auditConn(conn, "rating.rebuild", ctx, user, "community", ctx.communityId,
+      %*{"job": job}))
   # Stable acknowledgement only: the job id is a per-process counter and is
   # not part of the contract, so a client cannot depend on it.
   jsonResponse(request, 202, %*{"status": "accepted"})
@@ -2144,8 +2250,13 @@ proc patchRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
                                 where e.community_id = $1::uuid
                                   and e.id = $2::uuid))""",
     @[textParam(ctx.communityId), textParam(eventId)]).isSome
-  let updated = ratingIngest.setFinalized(application.db, ctx.communityId,
-    eventId, finalized)
+  var updated: Option[JsonNode]
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    updated = ratingIngest.setFinalized(tx, ctx.communityId,
+      eventId, finalized)
+    if updated.isSome:
+      auditConn(conn, "rating.source.finalize", ctx, user, "rating_event",
+        eventId, %*{"finalized": finalized}))
   if updated.isNone:
     problem(request, 404, "NOT_FOUND", "rating source not found")
     return
@@ -2163,8 +2274,6 @@ proc patchRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
       # queued; this route only records the decision.
       discard application.ratingJobs.enqueue(ratingJobs.jkRebuild,
         ctx.communityId)
-  audit("rating.source.finalize", ctx, user, "rating_event",
-    eventId, %*{"finalized": finalized})
   jsonResponse(request, 200, updated.get)
 
 proc scheduleProblem(request: Request, status: sessionSchedule.ScheduleStatus) =
@@ -2510,8 +2619,9 @@ proc getShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
   if code.isNone:
     problem(request, 404, "NOT_FOUND", "no live share link")
     return
-  audit("share.redisplay", ctx, user, "session", sessionId,
-    %*{"sessionId": sessionId})
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    auditConn(conn, "share.redisplay", ctx, user, "session", sessionId,
+      %*{"sessionId": sessionId}))
   jsonResponse(request, 200, %*{"code": code.get, "sessionId": sessionId})
 
 proc publicStandings(board: Option[JsonNode]): JsonNode =
@@ -2898,8 +3008,15 @@ proc createTournamentRoute(request: Request, ctx: CommunityContext,
   var body: JsonNode
   if not jsonBody(request, body):
     return
-  let (status, snapshot) = tournamentStore.create(application.db,
-    ctx.communityId, user.id, body)
+  var status: tournamentStore.SaveStatus
+  var snapshot: JsonNode
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    (status, snapshot) = tournamentStore.create(tx,
+      ctx.communityId, user.id, body)
+    if status == tournamentStore.svOk:
+      let id = snapshot["id"].getStr()
+      auditConn(conn, "tournament.create", ctx, user, "tournament", id,
+        %*{"id": id, "version": snapshot["version"]}))
   if status == tournamentStore.svInvalid:
     w.release()
     invalidBodyResponse(request, "INVALID_TOURNAMENT",
@@ -2910,8 +3027,6 @@ proc createTournamentRoute(request: Request, ctx: CommunityContext,
     saveFailure(request, status)
     return
   let id = snapshot["id"].getStr()
-  let record = %*{"id": id, "version": snapshot["version"]}
-  audit("tournament.create", ctx, user, "tournament", id, record)
   w.complete(201, snapshot)
   sendSnapshot(request, 201, snapshot,
     [("Location", "/c/" & ctx.slug & "/tournaments/" & id)])
@@ -2935,12 +3050,16 @@ proc putTournamentRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   var body: JsonNode
   if not jsonBody(request, body):
     return
-  let (status, snapshot) = tournamentStore.replace(application.db,
-    ctx.communityId, id, user.id, body, version.get)
+  var status: tournamentStore.SaveStatus
+  var snapshot: JsonNode
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    (status, snapshot) = tournamentStore.replace(tx,
+      ctx.communityId, id, user.id, body, version.get)
+    if status == tournamentStore.svOk:
+      auditConn(conn, "tournament.update", ctx, user, "tournament", id,
+        %*{"id": id, "version": snapshot["version"]}))
   case status
   of tournamentStore.svOk:
-    let record = %*{"id": id, "version": snapshot["version"]}
-    audit("tournament.update", ctx, user, "tournament", id, record)
     w.complete(200, snapshot)
     sendSnapshot(request, 200, snapshot)
   of tournamentStore.svInvalid:
@@ -2956,14 +3075,17 @@ proc ingestTournamentRating(request: Request, ctx: CommunityContext,
   ## Admin-only. The source must be signed off first, which is the v1 gate and
   ## the reason a running bracket cannot leak half a tournament into the board.
   let params = ratingParamsFor(ctx)
-  let result = ratingTournament.ingestTournament(application.db,
-    ctx.communityId, id, params)
+  var result: ratingTournament.TournamentIngestResult
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    result = ratingTournament.ingestTournament(tx,
+      ctx.communityId, id, params)
+    if result.status == ratingTournament.tisOk:
+      auditConn(conn, "rating.tournament.ingest", ctx, user, "tournament", id,
+        %*{"events": result.events, "deltas": result.deltas}))
   case result.status
   of ratingTournament.tisOk:
     discard application.ratingJobs.enqueue(ratingJobs.jkReconcile,
       ctx.communityId)
-    audit("rating.tournament.ingest", ctx, user, "tournament", id,
-      %*{"events": result.events, "deltas": result.deltas})
     jsonResponse(request, 200, %*{"events": result.events,
       "deltas": result.deltas})
   of ratingTournament.tisNotFinal:
@@ -2987,12 +3109,14 @@ proc clearTournamentRating(request: Request, ctx: CommunityContext,
   if ratingIngest.sourceFinalized(application.db, ctx.communityId, id):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
-  let removed = ratingIngest.revertSource(application.db, ctx.communityId, id)
+  var removed = 0
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    removed = ratingIngest.revertSource(tx, ctx.communityId, id)
+    auditConn(conn, "rating.tournament.revert", ctx, user, "tournament", id,
+      %*{"removedDeltas": removed}))
   if removed > 0:
     discard application.ratingJobs.enqueue(ratingJobs.jkRebuild,
       ctx.communityId)
-  audit("rating.tournament.revert", ctx, user, "tournament", id,
-    %*{"removedDeltas": removed})
   send(request, 204)
 
 proc deleteTournamentRoute(request: Request, ctx: CommunityContext,
@@ -3003,18 +3127,23 @@ proc deleteTournamentRoute(request: Request, ctx: CommunityContext,
   if ratingIngest.sourceFinalized(application.db, ctx.communityId, id):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
-  if not tournamentStore.remove(application.db, ctx.communityId, id):
+  var deleted = false
+  var removed = 0
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    deleted = tournamentStore.remove(tx, ctx.communityId, id)
+    if deleted:
+      # The rating event named this tournament; deleting the tournament without
+      # it would leave points on the board for a bracket that no longer exists.
+      removed = ratingIngest.revertSource(tx, ctx.communityId, id)
+      discard ratingIngest.dropSource(tx, ctx.communityId, id)
+      auditConn(conn, "tournament.delete", ctx, user, "tournament", id,
+        %*{"id": id, "removedDeltas": removed}))
+  if not deleted:
     problem(request, 404, "NOT_FOUND", "tournament not found")
     return
-  # The rating event named this tournament; deleting the tournament without it
-  # would leave points on the board for a bracket that no longer exists.
-  let removed = ratingIngest.revertSource(application.db, ctx.communityId, id)
   if removed > 0:
     discard application.ratingJobs.enqueue(ratingJobs.jkRebuild,
       ctx.communityId)
-  discard ratingIngest.dropSource(application.db, ctx.communityId, id)
-  audit("tournament.delete", ctx, user, "tournament", id,
-    %*{"id": id, "removedDeltas": removed})
   send(request, 204)
 
 proc patchTournamentMatchRoute(request: Request, ctx: CommunityContext,
@@ -3030,14 +3159,16 @@ proc patchTournamentMatchRoute(request: Request, ctx: CommunityContext,
   var body: JsonNode
   if not jsonBody(request, body):
     return
-  let (status, snapshot) = tournamentStore.patchMatch(application.db,
-    ctx.communityId, id, matchId, body, version.get)
+  var status: tournamentStore.PatchStatus
+  var snapshot: JsonNode
+  auditedWrite(proc(tx: Db, conn: DbConn) =
+    (status, snapshot) = tournamentStore.patchMatch(tx,
+      ctx.communityId, id, matchId, body, version.get)
+    if status == tournamentStore.ptOk:
+      auditConn(conn, "tournament.match.patch", ctx, user, "tournament", id,
+        %*{"id": id, "matchId": matchId, "version": snapshot["version"]}))
   case status
   of tournamentStore.ptOk:
-    let record = %*{"id": id, "matchId": matchId,
-      "version": snapshot["version"]}
-    audit("tournament.match.patch", ctx, user, "tournament", id,
-      record)
     w.complete(200, snapshot)
     sendSnapshot(request, 200, snapshot)
   of tournamentStore.ptInvalid:
@@ -3161,15 +3292,24 @@ proc route(request: Request) =
     # read, so even a 500 from the config snapshot carries this request's label
     # instead of the previous one's.
     currentRouteLabel = quotaRoute(path)
+    # One id per request: every audit row written while serving it and the
+    # access-log line share it, so a 500 can be paired with the write before it.
+    beginRequest()
+    # The probes answer before any database or config read and outside the
+    # quota. A liveness check that needs a database is a database probe, and a
+    # burst must never answer 429 to the probe that decides a deploy is healthy.
+    if path == "/healthz":
+      send(request, 200, """{"status":"ok"}""")
+      return
+    if path == "/readyz":
+      readyz(request)
+      return
     let parts = path.split('/')
     let verb = request.httpMethod
     # The one access table: the test in modules/account compares this with
     # testdata/authz/matrix.yaml, so a class cannot change here alone.
     let access = operationAccess(verb, path)
     let snapshot = configSnapshot()
-    # One id per request: every audit row written while serving it and the
-    # access-log line share it, so a 500 can be paired with the write before it.
-    beginRequest()
     # One label per request: the quota bucket and the counter label both use
     # the matched contract shape, never the raw path. An unmatched request gets
     # one shared label, so invented URLs cannot mint pinned buckets.
@@ -3194,9 +3334,6 @@ proc route(request: Request) =
       return
     if rejectShareScrape(request, snapshot, identity):
       return
-    if path == "/healthz":
-      send(request, 200, """{"status":"ok"}""")
-      return
     if path.startsWith("/ops/"):
       if path == "/ops/ping" and request.httpMethod == "GET":
         opsPing(request)
@@ -3208,9 +3345,6 @@ proc route(request: Request) =
         jsonResponse(request, 200, %*{"version": appVersion, "commit": appCommit})
       else:
         problem(request, 405, "METHOD", "")
-      return
-    if path == "/readyz":
-      readyz(request)
       return
     if outdatedClient(request):
       problem(request, 410, "CLIENT_OUTDATED",
@@ -3561,6 +3695,18 @@ proc identityLookups*(app: App): int =
 proc install*(app: App) =
   application = app
   installHub(app.hub)
+
+proc rotateActiveKey*(keyId: string) =
+  ## Test seam for the documented rotation path: production loads the keyring
+  ## once at boot, and an in-flight flow must still decrypt with the key that
+  ## wrote it. Rejects an id the keyring does not hold, like `decryptWith`.
+  if application.isNil:
+    raise newException(ValueError, "application is not installed")
+  for (candidate, _) in application.keyring.keys:
+    if candidate == keyId:
+      application.keyring.active = keyId
+      return
+  raise newException(ValueError, "unknown key id: " & keyId)
 
 proc handler*(): RequestHandler =
   ## The App lives in a process-wide ref shared by every worker thread. Mummy

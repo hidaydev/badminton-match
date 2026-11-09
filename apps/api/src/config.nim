@@ -14,12 +14,21 @@ proc peerProxied*(request: Request, trusted: seq[string]): bool =
   let peer = request.remoteAddress
   peer in trusted or peer.startsWith("127.") and "127.0.0.1" in trusted
 
-proc clientIp*(request: Request, trusted: seq[string]): string =
-  ## `X-Forwarded-For` is never read: it is client-controlled and chains are
-  ## ambiguous. `X-Client-IP` is written by Caddy and is only honoured when the
-  ## TCP peer is a trusted proxy.
+proc forwardedIp*(request: Request, trusted: seq[string]): string =
+  ## The address a trusted proxy asserted, or empty when this peer may not
+  ## speak for a client. The header is unsigned, so it is only ever read from
+  ## the edge that terminates the connection.
   if peerProxied(request, trusted):
     let forwarded = request.headers["X-Client-IP"]
     if forwarded.len > 0:
       return forwarded
+  ""
+
+proc clientIp*(request: Request, trusted: seq[string]): string =
+  ## `X-Forwarded-For` is never read: it is client-controlled and chains are
+  ## ambiguous. `X-Client-IP` is written by Caddy and is only honoured when the
+  ## TCP peer is a trusted proxy.
+  let forwarded = forwardedIp(request, trusted)
+  if forwarded.len > 0:
+    return forwarded
   request.remoteAddress

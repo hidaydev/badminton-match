@@ -40,9 +40,10 @@ suite "janitor":
       startTime = "19:00")
     discard db.execUpdate(
       """insert into auth.oauth_flows
-           (state_hash, nonce_hash, code_verifier_enc, return_to, created_at, expires_at)
+           (state_hash, nonce_hash, code_verifier_enc, key_id, return_to,
+            created_at, expires_at)
          values (decode(repeat('11', 32), 'hex'), decode(repeat('22', 32), 'hex'),
-                 'x', '/janitor-test', $1::timestamptz, $1::timestamptz)""",
+                 'x', '1', '/janitor-test', $1::timestamptz, $1::timestamptz)""",
       @[textParam(epoch)])
     discard db.execUpdate(
       """insert into platform.idempotency_keys (user_id, key, body_hash, created_at, expires_at)
@@ -166,3 +167,29 @@ suite "janitor":
       """select count(*) as total from account.audit
          where action = 'janitor.recent'""").get.get("total")
     check recent != "0"
+
+  test "the retention predicate uses the occurred_at index":
+    # With sequential scans disabled the planner can only pick an index, so
+    # this fails if 0035 is missing instead of passing on a tiny table.
+    var plan = ""
+    db.tx(proc(conn: DbConn) =
+      discard conn.execUpdate("set local enable_seqscan = off")
+      for row in conn.query(
+        """explain (costs off) select count(*) from account.audit
+           where occurred_at < now() - interval '365 days'"""):
+        plan.add(row.get("QUERY PLAN") & "\n"))
+    check plan.contains("audit_occurred_at_idx")
+
+  test "the purge drains more rows than one batch":
+    for _ in 0 ..< 25:
+      discard db.execUpdate(
+        """insert into account.audit
+             (actor_role, action, target_kind, target_id, result, request_id,
+              occurred_at)
+           values ('owner', 'retention.batch', 'test', 'x', 'allow', '-',
+                   now() - interval '400 days')""")
+    let deleted = purgeAudit(db, 365, batchSize = 10)
+    check deleted >= 25
+    check db.queryOne(
+      """select count(*) as total from account.audit
+         where action = 'retention.batch'""").get.get("total") == "0"
