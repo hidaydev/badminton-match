@@ -426,6 +426,41 @@ suite "v1 import":
     # clean one, so the list is part of the contract.
     check report["checkedDomains"].getElems().len == 8
 
+  test "verify names a corrupted row and exits 1":
+    # QA-09: a `verifyEtl` that returned an empty list unconditionally would
+    # pass every clean assertion above. Corrupt one imported field, prove the
+    # report notices it and names the v1 row, then restore the fixture.
+    let community = target.queryOne(
+      "select id::text as id from platform.community where slug = 'import-test'"
+      ).get.get("id")
+    # A session title is compared by `verifySessions` alone; a player rename
+    # would also reach `verifyGames`, where sides are compared by name.
+    let session = target.queryOne(
+      """select s.id::text as id, s.title as title, r.old_id as old_id
+         from session.sessions s
+         join import.row_map r
+           on r.new_id = s.id and r.community_id = $1::uuid
+          and r.entity = 'session'
+         order by r.old_id limit 1""", @[textParam(community)]).get
+    discard target.execUpdate(
+      "update session.sessions set title = 'Corrupted Title' where id = $1::uuid",
+      @[textParam(session.get("id"))])
+    var run: tuple[output: string, exitCode: int]
+    try:
+      run = selfVerify(community)
+    finally:
+      discard target.execUpdate(
+        "update session.sessions set title = $2 where id = $1::uuid",
+        @[textParam(session.get("id")), textParam(session.get("title"))])
+    for line in run.output.splitLines():
+      checkpoint line
+    check run.exitCode == 1
+    let report = reportOf(run.output)
+    check report["problems"].getInt == 1
+    check run.output.contains("title differs for v1 session " &
+      session.get("old_id"))
+
+
   test "verify refuses an empty community instead of reporting it clean":
     # An import that read nothing leaves all eight domains empty. Reporting
     # zero problems there would hide the missing import, so verify names the
