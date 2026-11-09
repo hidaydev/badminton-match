@@ -111,6 +111,7 @@ suite "task target guards":
     let fixture = newFixture("ci-guards-rc-spa")
     defer: removeDir(fixture.root)
     createDir(fixture.root / "apps" / "web")
+    createDir(fixture.root / ".github" / "workflows")
     writeFile(fixture.root / "apps" / "web" / "vercel.json",
       "{\"rewrites\":[{\"source\":\"/api/:path*\",\"destination\":" &
       "\"https://api.qouver.com/majadu-rc/:path*\"}]}\n")
