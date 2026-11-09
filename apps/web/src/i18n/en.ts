@@ -11,6 +11,14 @@ export const en = {
   'notFound.body': 'There is no page at {path}.',
   'notFound.communityHome': 'Community home',
 
+  'errorBoundary.title': 'This screen could not be shown',
+  'errorBoundary.body': 'Something went wrong while drawing the page. Reloading usually fixes it.',
+  'errorBoundary.details': 'Details',
+  'errorBoundary.retry': 'Try again',
+  'errorBoundary.reload': 'Reload page',
+  'errorBoundary.chunk.title': 'App version updated',
+  'errorBoundary.chunk.body': 'A newer version is on the server. Reload the page to get it.',
+
   'nav.group.main': 'Main',
   'nav.group.admin': 'Administration',
   'nav.group.owner': 'Platform',
