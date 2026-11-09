@@ -2,13 +2,15 @@ import { Overlay } from '@majadu/scoreboard-ui'
 
 interface InstallModalProps {
   isIos: boolean
+  /** True once the precache controls the page; the offline claim waits for it. */
+  offlineReady?: boolean
   onInstall(): void
   onClose(): void
 }
 
 // The shared sheet owns the scrim, the focus trap, Escape and the safe area;
 // this body only carries the install instructions.
-export default function InstallModal({ isIos, onInstall, onClose }: InstallModalProps) {
+export default function InstallModal({ isIos, offlineReady = false, onInstall, onClose }: InstallModalProps) {
   return (
     <Overlay onClose={onClose} title="Install app">
       <div className="flex flex-col items-center gap-2 pt-2 pb-5">
@@ -63,7 +65,11 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
           </div>
           <div className="flex flex-col gap-1 pt-0.5">
             <span className="text-sm font-semibold text-white">One tap to install</span>
-            <span className="text-xs text-slate-400">Works offline · Fast · No app store needed</span>
+            <span className="text-xs text-slate-400">
+              {offlineReady
+                ? 'Works offline · Fast · No app store needed'
+                : 'Fast · No app store needed'}
+            </span>
           </div>
         </div>
       )}

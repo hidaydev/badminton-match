@@ -3,6 +3,7 @@ import { ScoreboardSide, ScoreboardDivider, ScoreboardFooter } from '../componen
 import type { ScoreboardSideProps } from '../components/scoreboard'
 import { useStorageUnavailable } from '../hooks/useStorageUnavailable'
 import { usePersistentStorage } from '../hooks/usePersistentStorage'
+import { useOnline } from '../hooks/useConnectivity'
 import { readStoredValue, writeStoredValue } from '../utils/storage'
 import { SCOREBOARD_LABELS } from '../scoreboardLabels'
 import {
@@ -46,6 +47,7 @@ async function exitFullscreen() {
 
 export default function ScoreboardPage() {
   const storageUnavailable = useStorageUnavailable()
+  const isOnline = useOnline()
   const { status: persistenceStatus, requestPersistence } = usePersistentStorage()
   const [red, setRed] = useState(() => readScore(LS_RED))
   const [blue, setBlue] = useState(() => readScore(LS_BLUE))
@@ -253,6 +255,15 @@ export default function ScoreboardPage() {
           style={{ background: 'rgba(0,0,0,0.5)', letterSpacing: '0.08em' }}
         >
           {statusNote}
+        </div>
+      )}
+      {!isOnline && (
+        <div
+          role="status"
+          className="fixed bottom-32 left-1/2 -translate-x-1/2 z-30 px-3 py-1 rounded-lg text-[0.6rem] text-white/80 text-center pointer-events-none"
+          style={{ background: 'rgba(0,0,0,0.6)', letterSpacing: '0.08em' }}
+        >
+          Offline, scores stay on this device
         </div>
       )}
       <ScoreboardFooter

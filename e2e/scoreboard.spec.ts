@@ -57,6 +57,7 @@ test('the scoreboard scores offline from the precache', async ({ page, context }
   await expect
     .poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null))
     .toBe(true)
+  await expect(page.getByText('Offline, scores stay on this device')).toBeVisible()
   await expect(redSide(page)).toContainText('1')
   await redSide(page).click()
   await expect(redSide(page)).toContainText('2')

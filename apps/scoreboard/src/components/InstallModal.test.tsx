@@ -3,10 +3,17 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import InstallModal from './InstallModal'
 
-function renderModal(isIos = false) {
+function renderModal(isIos = false, offlineReady = false) {
   const onInstall = vi.fn()
   const onClose = vi.fn()
-  render(<InstallModal isIos={isIos} onInstall={onInstall} onClose={onClose} />)
+  render(
+    <InstallModal
+      isIos={isIos}
+      offlineReady={offlineReady}
+      onInstall={onInstall}
+      onClose={onClose}
+    />,
+  )
   return { onInstall, onClose }
 }
 
@@ -83,5 +90,16 @@ describe('InstallModal', () => {
     renderModal(false)
     expect(screen.getByText('One tap to install')).toBeInTheDocument()
     expect(screen.getByText(/No app store needed/)).toBeInTheDocument()
+  })
+
+  it('does not claim offline before the worker controls the page', () => {
+    renderModal(false, false)
+    expect(screen.queryByText(/Works offline/)).not.toBeInTheDocument()
+    expect(screen.getByText(/No app store needed/)).toBeInTheDocument()
+  })
+
+  it('claims offline once the precache is ready', () => {
+    renderModal(false, true)
+    expect(screen.getByText(/Works offline/)).toBeInTheDocument()
   })
 })

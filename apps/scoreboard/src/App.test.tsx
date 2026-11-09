@@ -46,6 +46,14 @@ describe('App', () => {
     expect(screen.getByRole('dialog', { name: 'Install app' })).toBeInTheDocument()
   })
 
+  it('withholds the offline claim until a worker controls the page', () => {
+    setUserAgent(iphoneAgent)
+    render(<App />)
+
+    // jsdom has no service worker, so this is the first-visit case.
+    expect(screen.queryByText(/Works offline/)).not.toBeInTheDocument()
+  })
+
   it('records the day when the sheet is dismissed and does not return', async () => {
     setUserAgent(iphoneAgent)
     render(<App />)

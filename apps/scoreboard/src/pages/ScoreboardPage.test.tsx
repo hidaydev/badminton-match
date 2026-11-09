@@ -25,6 +25,7 @@ afterEach(() => {
   Reflect.deleteProperty(navigator, 'storage')
   Reflect.deleteProperty(navigator, 'clipboard')
   Reflect.deleteProperty(navigator, 'share')
+  Reflect.deleteProperty(navigator, 'onLine')
   // `fullscreenElement` and the viewport are defined per test; leaving them set
   // makes the next render start in fullscreen or in portrait.
   Object.defineProperty(document, 'fullscreenElement', { value: null, configurable: true })
@@ -419,5 +420,30 @@ describe('ScoreboardPage', () => {
     })
 
     expect(screen.getByText('Could not export the match')).toBeInTheDocument()
+  })
+
+  it('shows an offline indicator when the network drops', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+    expect(screen.queryByText(/Offline/)).not.toBeInTheDocument()
+
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
+    act(() => {
+      window.dispatchEvent(new Event('offline'))
+    })
+
+    expect(screen.getByText(/Offline, scores stay on this device/)).toBeInTheDocument()
+  })
+
+  it('clears the offline indicator when the network returns', () => {
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+    expect(screen.getByText(/Offline, scores stay on this device/)).toBeInTheDocument()
+
+    Object.defineProperty(navigator, 'onLine', { value: true, configurable: true })
+    act(() => {
+      window.dispatchEvent(new Event('online'))
+    })
+
+    expect(screen.queryByText(/Offline/)).not.toBeInTheDocument()
   })
 })
