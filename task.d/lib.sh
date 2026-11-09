@@ -116,13 +116,6 @@ junit_finish() {
   JUNIT_FINISHED=1
   [ -f "$JUNIT_DIR/results.tsv" ] || : >"$JUNIT_DIR/results.tsv"
   awk -F"$(printf '\t')" '
-    function esc(value) {
-      gsub(/&/, "\\&amp;", value)
-      gsub(/</, "\\&lt;", value)
-      gsub(/>/, "\\&gt;", value)
-      gsub(/"/, "\\&quot;", value)
-      return value
-    }
     {
       total++
       if ($2 == 77) skipped++
