@@ -24,6 +24,12 @@ The task resets `bm2_e2e`, migrates and seeds it, then starts four servers:
 - **A11y** (`a11y.spec.ts`): axe with the WCAG 2.0/2.1 A+AA tags on every route
   in `visual.routes.ts` plus the spectator share page (`/s/:code`), expecting
   zero violations.
+- **A11y, public** (`a11y.public.spec.ts`): the same tags on the screens reachable
+  without a session, which the signed-in sweep never sees: the login screen, the
+  invitation error state, the privacy page and the terms page.
+- **Keyboard** (`keyboard.spec.ts`): opens the account menu, closes it with
+  Escape, tabs into it and activates a menu item without a pointer. The state of
+  the known gaps is in `docs/ops/accessibility.md`.
 - **Visual** (`visual.spec.ts`): one full-page screenshot per route with
   `maxDiffPixels: 0`. Snapshots live in `__screenshots__/{platform}/` and are
   part of the review, never regenerated silently.
