@@ -10,6 +10,7 @@ type
     wsStale = "stale"
     wsInvalid = "invalid"
     wsPresetLocked = "preset_locked"
+    wsUnscoredGames = "unscored_games"
 
   WriteResult* = object
     status*: WriteStatus
@@ -167,10 +168,30 @@ proc patch*(db: Db, communityId, sessionId: string, expectedVersion: int,
     return WriteResult(status: wsOk, record: sessionNode(row.get))
   WriteResult(status: classify(db, communityId, sessionId))
 
+proc unscoredPlayedGame(db: Db, communityId, sessionId: string): bool =
+  ## A played game without a set is a host flag, not a result: it is allowed
+  ## while the session is a draft and means nothing once the session is rated.
+  ## The trigger `sessions_approval_needs_results` is the guarantee; this read is
+  ## the clean refusal in front of it.
+  db.queryOne(
+    """select 1 as ok from session.games g
+       where g.community_id = $1::uuid and g.session_id = $2::uuid
+         and g.status = 'played'
+         and not exists (
+           select 1 from session.game_sets x
+           where x.community_id = g.community_id
+             and x.session_id = g.session_id
+             and x.round_no = g.round_no
+             and x.court_no = g.court_no)
+       limit 1""",
+    @[textParam(communityId), textParam(sessionId)]).isSome
+
 proc setLock*(db: Db, communityId, sessionId, actorId: string,
               expectedVersion: int, locked: bool): WriteResult =
   ## Locking approves the schedule and stamps who approved it. It deliberately
   ## touches no rating row: ingest is a separate, explicit operation.
+  if locked and unscoredPlayedGame(db, communityId, sessionId):
+    return WriteResult(status: wsUnscoredGames)
   let row = db.queryOne(
     """update session.sessions
        set status = case when $3 then 'locked' else 'draft' end,

@@ -52,3 +52,8 @@ apps/api/src/app.nim:listCommunities
 apps/api/src/app.nim:requestJoin
 apps/api/src/app.nim:handleWebSocket
 modules/community/infrastructure/community_store.nim:directory
+
+# The badge catalogue is platform-wide: `achievement.definitions` has no
+# community column, and an earned row joins it by key. The routine reads the
+# catalogue to resolve a ladder, not a community's rows.
+modules/achievement/infrastructure/backfill.nim:listForPlayer
