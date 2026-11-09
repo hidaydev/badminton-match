@@ -323,7 +323,10 @@ export default function ScoreboardPage() {
       />
       <span
         data-testid="build-stamp"
-        className="fixed bottom-1 left-2 z-10 text-[0.5rem] text-white/30 pointer-events-none"
+        // On its own the 8px line at 30 percent white sat at roughly 1.5:1 on
+        // the red and blue halves, which axe correctly failed. A dark pill
+        // keeps the stamp unobtrusive and readable.
+        className="fixed bottom-1 left-2 z-10 rounded bg-black/60 px-1 py-0.5 text-[0.5rem] text-white/90 pointer-events-none"
       >
         {__BUILD_STAMP__}
       </span>
