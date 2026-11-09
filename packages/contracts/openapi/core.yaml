@@ -4641,7 +4641,7 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "The session's rating event was deleted. The body carries `removedDeltas`, the count this request removed; the derived board is rebuilt by the rating worker, not by this response."
           },
           "204": {
             "description": "ok"
@@ -4915,7 +4915,7 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "The rating event was deleted. The body carries `removedDeltas`, the count this request removed; the derived board is rebuilt by the rating worker, not by this response."
           },
           "401": {
             "description": "unauthenticated",
@@ -5084,8 +5084,26 @@
           "rankings"
         ],
         "responses": {
-          "200": {
-            "description": "ok"
+          "202": {
+            "description": "accepted: the replay is queued on the in-process rating worker. The body is a stable acknowledgement; no job id is part of the contract.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "accepted"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "bad request",

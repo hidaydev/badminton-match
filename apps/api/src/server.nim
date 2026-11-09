@@ -90,13 +90,17 @@ proc recordResponse*(verb, path: string, status: int, label = "",
   ## series. Unmatched paths share one bucket: a scanner would otherwise mint a
   ## new series per request and grow the registry without bound.
   ##
-  ## The request chain already computed the template, so it passes it in; a
-  ## direct caller without a request leaves it empty and it is derived here.
+  ## The request chain already computed the quota label from the contract shape
+  ## (and `/unmatched` for anything outside it), so an explicit label wins even
+  ## on a 404. That keeps the limiter bucket and the metric series named the
+  ## same way. A direct caller without a request leaves the label empty, and a
+  ## 404 then falls back to one shared `unmatched` series.
+  ##
   ## The rendered line is returned so a test can prove it carries the same id
   ## as the audit rows written while serving that request.
   let routeLabel =
-    if status == 404: "unmatched"
-    elif label.len > 0: label
+    if label.len > 0: label
+    elif status == 404: "unmatched"
     else: templateRoute(path)
   withLock registryLock:
     registry.inc("http_requests_total",

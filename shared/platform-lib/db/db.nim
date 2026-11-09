@@ -1,4 +1,6 @@
 import std/[locks, options, strutils, times]
+when defined(posix):
+  import std/posix
 import db_connector/postgres
 
 type
@@ -26,14 +28,30 @@ type
     cond: Cond
     available: seq[PPGconn]
     size*: int
+    ## Milliseconds. Zero disables that bound, which keeps a tool that opens a
+    ## one-connection pool on a private database from inheriting a web timeout.
+    acquireTimeoutMs*: int
+    statementTimeoutMs*: int
+    lockTimeoutMs*: int
 
   DbError* = object of CatchableError
     sqlState*: string
     constraint*: string
 
+  DbPoolTimeout* = object of DbError
+    ## The pool gave the caller no connection before its deadline. The HTTP
+    ## layer maps this to 503 instead of waiting until the process wedges.
+
 const
   PG_DIAG_SQLSTATE = 67.cint
   PG_DIAG_CONSTRAINT_NAME = 110.cint
+  ## The API process edge reads MAJADU_DB_* and passes these values in.
+  ## `openDb` itself defaults every bound to zero, because a CLI tool
+  ## (dbtools migrate, tools/import, ratingingest) must not run under a web
+  ## timeout: a large migration or ETL would be killed halfway through.
+  defaultAcquireTimeoutMs* = 5000
+  defaultStatementTimeoutMs* = 15000
+  defaultLockTimeoutMs* = 5000
 
 proc nullParam*(): DbParam = DbParam(kind: dpNull)
 proc textParam*(value: string): DbParam = DbParam(kind: dpText, text: value)
@@ -297,10 +315,37 @@ proc getTimestamp*(row: Row, name: string): DateTime =
     raise newException(ValueError,
       "column is not a timestamp: " & name & " = " & value)
 
-proc openDb*(dsn: string, poolSize: int): Db =
+proc configureConn(conn: PPGconn, statementMs, lockMs: int) =
+  ## Applied when the connection is created, so every path through the pool
+  ## inherits the bound. `options=-c ...` in the DSN would do the same but would
+  ## be lost the moment a caller passes a bare URL.
+  var statements: seq[string] = @[]
+  if statementMs > 0:
+    statements.add("set statement_timeout = " & $statementMs)
+  if lockMs > 0:
+    statements.add("set lock_timeout = " & $lockMs)
+  if statements.len == 0:
+    return
+  let res = pqexec(conn, statements.join("; ").cstring)
+  if res == nil:
+    raise newException(DbError, $pqerrorMessage(conn))
+  try:
+    if pqresultStatus(res) != PGRES_COMMAND_OK:
+      raiseResultError(res)
+  finally:
+    pqclear(res)
+
+proc openDb*(dsn: string, poolSize: int, statementTimeoutMs = 0,
+             lockTimeoutMs = 0, acquireTimeoutMs = 0): Db =
+  ## Opens the pool. A zero bound disables that limit, which is the default:
+  ## the web timeouts belong to the API process edge that reads them from its
+  ## environment, not to every caller of this library.
   if poolSize < 1:
     raise newException(ValueError, "pool size must be at least 1")
   result = Db(size: poolSize)
+  result.acquireTimeoutMs = acquireTimeoutMs
+  result.statementTimeoutMs = statementTimeoutMs
+  result.lockTimeoutMs = lockTimeoutMs
   initLock(result.lock)
   initCond(result.cond)
   for _ in 0 ..< poolSize:
@@ -310,6 +355,11 @@ proc openDb*(dsn: string, poolSize: int): Db =
         if conn == nil: "cannot allocate connection"
         else: $pqerrorMessage(conn)
       raise newException(DbError, "cannot connect to PostgreSQL: " & detail)
+    try:
+      configureConn(conn, result.statementTimeoutMs, result.lockTimeoutMs)
+    except CatchableError:
+      pqfinish(conn)
+      raise
     result.available.add(conn)
 
 proc close*(db: Db) =
@@ -321,12 +371,62 @@ proc close*(db: Db) =
   deinitCond(db.cond)
   deinitLock(db.lock)
 
+when defined(posix):
+  proc pthreadCondTimedWait(cond: var Cond, lock: var Lock,
+                            deadline: var Timespec): cint {.
+    importc: "pthread_cond_timedwait", header: "<pthread.h>".}
+
+  proc realtimeDeadline(timeoutMs: int): Timespec =
+    ## `pthread_cond_timedwait` wants an absolute CLOCK_REALTIME instant, so
+    ## the deadline is computed once and every wake compares against it. A
+    ## spurious wake therefore cannot extend the wait.
+    discard clock_gettime(CLOCK_REALTIME, result)
+    result.tv_sec = cast[typeof(result.tv_sec)](
+      int(result.tv_sec) + timeoutMs div 1000)
+    result.tv_nsec = cast[typeof(result.tv_nsec)](
+      int(result.tv_nsec) + (timeoutMs mod 1000) * 1_000_000)
+    if int(result.tv_nsec) >= 1_000_000_000:
+      result.tv_sec = cast[typeof(result.tv_sec)](int(result.tv_sec) + 1)
+      result.tv_nsec = cast[typeof(result.tv_nsec)](
+        int(result.tv_nsec) - 1_000_000_000)
+
 proc acquireConn(db: Db): PPGconn =
   acquire(db.lock)
-  while db.available.len == 0:
-    wait(db.cond, db.lock)
+  when defined(posix):
+    if db.acquireTimeoutMs > 0:
+      var deadline = realtimeDeadline(db.acquireTimeoutMs)
+      while db.available.len == 0:
+        let rc = pthreadCondTimedWait(db.cond, db.lock, deadline)
+        if db.available.len > 0:
+          break
+        if rc != 0:
+          release(db.lock)
+          raise newException(DbPoolTimeout,
+            "no database connection within " & $db.acquireTimeoutMs & "ms")
+    else:
+      while db.available.len == 0:
+        wait(db.cond, db.lock)
+  else:
+    while db.available.len == 0:
+      wait(db.cond, db.lock)
   result = db.available.pop()
   release(db.lock)
+
+proc connectionTimeouts*(db: Db): seq[(string, string)] =
+  ## The effective `statement_timeout` and `lock_timeout` of every pooled
+  ## connection. The integration test reads this to prove the settings are on
+  ## the connection rather than on one lucky checkout.
+  acquire(db.lock)
+  try:
+    for conn in db.available:
+      let rows = executeRows(conn,
+        """select current_setting('statement_timeout') as statement_timeout,
+                  current_setting('lock_timeout') as lock_timeout""", @[])
+      if rows.len > 0:
+        result.add((rows[0].get("statement_timeout"),
+          rows[0].get("lock_timeout")))
+  finally:
+    release(db.lock)
 
 proc releaseConn(db: Db, conn: PPGconn) =
   acquire(db.lock)

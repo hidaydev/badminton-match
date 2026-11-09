@@ -53,6 +53,24 @@ proc resolve*(db: Db, token: string, idleDays: int): Option[SessionUser] =
     isPlatformOwner: value.getBool("is_platform_owner"),
   ))
 
+proc validUserId*(db: Db, token: string, idleDays: int): Option[string] =
+  ## Read-only counterpart of `resolve` for callers that only need proof the
+  ## cookie is a live session. It must not touch `last_seen_at`: a rate-limit
+  ## identity check runs before the route and would otherwise turn every
+  ## request into a write.
+  if token.len == 0:
+    return none(string)
+  let row = db.queryOne(
+    """select user_id from account.sessions
+       where token_hash = decode($1,'hex')
+         and revoked_at is null
+         and absolute_expires_at > now()
+         and last_seen_at > now() - make_interval(days => $2)""",
+    @[textParam(sha256Hex(token)), intParam(idleDays.int64)])
+  if row.isNone:
+    return none(string)
+  some(row.get.getUuid("user_id"))
+
 proc revoke*(db: Db, token: string) =
   ## The next request with this cookie fails, because `resolve` requires
   ## `revoked_at is null`. Websocket tickets for the principal go with it.

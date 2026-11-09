@@ -6,6 +6,7 @@ import ../src/live
 import account/infrastructure/oidc
 import account/infrastructure/session_store
 import platform/config/store
+import rating/infrastructure/jobs
 import share/crypto
 
 # Callers write `testPort(18090)` in their const block and pass `HttpGet`/
@@ -119,10 +120,13 @@ proc expectProblem*(response: HttpResult, status: int, code = "") =
   if code.len > 0:
     check body["code"].getStr() == code
 
+var runningApp: App
+
 proc startServer*(app: App, port: Port, baseUrl: string,
                   websocket = false) =
   ## `websocket` keeps the live-channel suite on the same harness: it needs the
   ## WebSocket handler registered next to the HTTP one.
+  runningApp = app
   install(app)
   let server =
     if websocket: newServer(handler(), websocketHandler(), workerThreads = 4)
@@ -144,6 +148,21 @@ proc startServer*(app: App, port: Port, baseUrl: string,
 
 proc newTestApp*(db: Db): App =
   newApp(db, OidcConfig(), loadKeyring(keysJson, "1"), newConfigCache(db))
+
+proc waitForRatingJobs*(timeoutMs = 5000) =
+  ## Waits for the in-process rating worker to drain. A route that moves the
+  ## ledger or the badge shelf now queues that work, so a suite that reads the
+  ## result calls this instead of sleeping for a guessed interval.
+  doAssert not runningApp.isNil, "startServer was not called"
+  if not runningApp.ratingJobs.waitIdle(timeoutMs):
+    raise newException(ValueError,
+      "rating worker did not drain within " & $timeoutMs & "ms")
+
+proc identityLookups*(): int =
+  ## Database lookups spent turning a session cookie into a user id. Random
+  ## cookies must stop reaching that query once the pre-limit is spent.
+  doAssert not runningApp.isNil, "startServer was not called"
+  runningApp.identityLookups()
 
 proc cleanupUsers*(db: Db, prefix: string) =
   discard db.execUpdate(

@@ -1,4 +1,4 @@
-import std/[atomics, cpuinfo, json, net, os, posix]
+import std/[atomics, cpuinfo, json, net, os, posix, strutils]
 import mummy
 import app
 import build_info
@@ -49,6 +49,20 @@ proc serveMetrics(args: MetricsArgs) {.thread.} =
     {.cast(gcsafe).}:
       logError("metrics listener stopped", [("detail", error.msg)])
 
+proc timeoutFromEnv(name: string, fallback: int): int =
+  ## The web bounds belong to this process, not to `db.openDb`: a malformed
+  ## value falls back to the documented default instead of refusing to start,
+  ## because losing the bound to a typo would be the failure it prevents.
+  let raw = getEnv(name).strip()
+  if raw.len == 0:
+    return fallback
+  try:
+    result = parseInt(raw)
+  except ValueError:
+    result = fallback
+  if result < 0:
+    result = fallback
+
 proc bootHandler*(config: ServerConfig, threads: int): RequestHandler =
   ## Wires the real application. Every dependency is required here so a
   ## misconfigured process refuses to start instead of serving 500s.
@@ -65,7 +79,16 @@ proc bootHandler*(config: ServerConfig, threads: int): RequestHandler =
   # Two spare connections bound the pool while turning that deadlock into a
   # short queue; the pool is still per process, not per request.
   const poolHeadroom = 2
-  let database = openDb(dsn, threads + poolHeadroom)
+  # The web caps are applied only here, on the API pool. CLI tools call
+  # `openDb` without them so a deploy migration or a cutover ETL is not killed
+  # by a request timeout.
+  let database = openDb(dsn, threads + poolHeadroom,
+    statementTimeoutMs = timeoutFromEnv("MAJADU_DB_STATEMENT_TIMEOUT_MS",
+      defaultStatementTimeoutMs),
+    lockTimeoutMs = timeoutFromEnv("MAJADU_DB_LOCK_TIMEOUT_MS",
+      defaultLockTimeoutMs),
+    acquireTimeoutMs = timeoutFromEnv("MAJADU_DB_ACQUIRE_TIMEOUT_MS",
+      defaultAcquireTimeoutMs))
   let oidc = loadOidcConfig()
   let keyring = loadKeyring(getEnv("SHARE_CODE_KEYS"),
     getEnv("SHARE_CODE_ACTIVE_KEY_ID"))

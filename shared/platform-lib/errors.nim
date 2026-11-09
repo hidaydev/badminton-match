@@ -93,6 +93,7 @@ const
     ("STALE_VERSION", "error.staleVersion"),
     ("TOKEN_EXCHANGE_FAILED", "error.tokenExchangeFailed"),
     ("UNAUTHENTICATED", "error.unauthenticated"),
+    ("UNAVAILABLE", "error.unavailable"),
     ("UNKNOWN_CONFIG_KEY", "error.unknownConfigKey"),
     ("UNKNOWN_PLAYER", "error.unknownPlayer"),
     ("UPGRADE_REQUIRED", "error.upgradeRequired"),

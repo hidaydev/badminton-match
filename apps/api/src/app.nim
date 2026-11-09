@@ -1,4 +1,4 @@
-import std/[base64, json, options, os, sets, strutils, sysrand, times, uri]
+import std/[base64, json, locks, options, os, sets, strutils, sysrand, tables, times, uri]
 import mummy
 import auth_middleware
 import clock
@@ -15,9 +15,7 @@ import config_routes
 import errors as platformErrors
 import live
 import logger
-# `templateRoute` (rate-limit labels) is the only symbol used here; the counter
-# registry is never incremented and no route renders it.
-import metrics
+import quota_route
 import ratelimit
 import route_access
 import security_headers
@@ -42,6 +40,7 @@ import player/claim as playerClaim
 import player/merge as playerMerge
 import rating/domain/rating as ratingDomain
 import rating/infrastructure/ingest as ratingIngest
+import rating/infrastructure/jobs as ratingJobs
 import rating/infrastructure/tournament as ratingTournament
 import rating/infrastructure/params as ratingParams
 import rating/read as ratingRead
@@ -63,12 +62,28 @@ import account/infrastructure/session_store
 import platform/config/store
 
 type
+  IdentityEntry = object
+    userId: string
+    expires: float
+
+  IdentityCache = ref object
+    ## Token hash to user id for a few seconds. A browser sends one cookie and
+    ## reuses it on every request, so without this the limiter's own identity
+    ## check is a `SELECT` per request. The bound keeps random cookies from
+    ## growing the table, and `lookups` is the count the suites read to prove
+    ## that a rejected cookie does not reach the database.
+    lock: Lock
+    entries: Table[string, IdentityEntry]
+    lookups: int
+
   App* = ref object
     db*: Db
     oidc*: OidcConfig
     keyring*: Keyring
     config*: ConfigCache
     limiter*: Limiter
+    identityCache: IdentityCache
+    ratingJobs*: ratingJobs.RatingJobs
     hub*: LiveHub
     cookieSecure*: bool
     bootstrapOwner*: string
@@ -82,9 +97,9 @@ type
 
 var application: App
 
-# `route()` computes the route template once and `send` hands it to the counter
-# instead of asking `templateRoute` again. Each connection is served on a single
-# worker thread, so a threadvar cannot leak a label between requests.
+# `route()` computes the quota label once and `send` hands it to the counter
+# instead of deriving it again. Each connection is served on a single worker
+# thread, so a threadvar cannot leak a label between requests.
 var currentRouteLabel {.threadvar.}: string
 
 proc randomHex*(count: int): string =
@@ -338,15 +353,83 @@ proc optStr(body: JsonNode, key: string, fallback = ""): string =
   else:
     fallback
 
-proc requestIdentity(request: Request): string =
-  ## Production sits behind a CDN edge, so the TCP-derived address is the same
-  ## for everyone and a per-address quota would be a platform-wide quota. A
-  ## browser with a session cookie is keyed by a hash of that cookie; an
-  ## anonymous caller keeps the address. The table is memory-only, so the token
-  ## itself is never stored.
-  let token = cookieValue(request, "majadu_session")
-  if token.len > 0: "session:" & sha256Hex(token)[0 .. 15]
-  else: clientIp(request, trustedProxies())
+type
+  RateIdentity = object
+    ## The limiter key plus the address that minted it. The address travels
+    ## with the key so the limiter can bound how many buckets one client owns.
+    key: string
+    address: string
+
+const
+  ## A validated cookie is reused for this many seconds before it is looked up
+  ## again. Revocation already happens in `resolve` on the route that needs the
+  ## user; this cache only decides the limiter key.
+  identityCacheSeconds = 15.0
+  ## Hard bound on the table. Reaching it evicts the entry closest to expiry,
+  ## so random cookies cannot grow it without limit.
+  identityCacheMaxEntries = 2048
+
+proc newIdentityCache(): IdentityCache =
+  result = IdentityCache(entries: initTable[string, IdentityEntry]())
+  initLock(result.lock)
+
+proc identityLookups(cache: IdentityCache): int =
+  ## How many token-to-user lookups reached the database. A test reads this to
+  ## prove that a rejected cookie does not query `account.sessions`.
+  acquire(cache.lock)
+  try:
+    result = cache.lookups
+  finally:
+    release(cache.lock)
+
+proc knows(cache: IdentityCache, token: string, now: float): bool =
+  ## True when the token was validated recently. The pre-limit consults this
+  ## first, so a browser that keeps the same cookie costs one lookup per
+  ## window instead of one per request.
+  let key = sha256Hex(token)
+  acquire(cache.lock)
+  try:
+    let entry = cache.entries.getOrDefault(key)
+    result = entry.userId.len > 0 and entry.expires > now
+  finally:
+    release(cache.lock)
+
+proc cachedUserId(cache: IdentityCache, db: Db, token: string, idleDays: int,
+                  now: float): Option[string] =
+  ## Validates a token once per window and bounds the table. Called without
+  ## the cache lock so a slow PostgreSQL round trip never serialises other
+  ## requests' cache hits.
+  let key = sha256Hex(token)
+  acquire(cache.lock)
+  try:
+    let entry = cache.entries.getOrDefault(key)
+    if entry.userId.len > 0 and entry.expires > now:
+      return some(entry.userId)
+    if entry.userId.len > 0:
+      cache.entries.del(key)
+    inc cache.lookups
+  finally:
+    release(cache.lock)
+  let found = validUserId(db, token, idleDays)
+  if found.isSome:
+    acquire(cache.lock)
+    try:
+      if cache.entries.len >= identityCacheMaxEntries:
+        var oldestKey = ""
+        var oldest = 0.0
+        for candidate, entry in cache.entries:
+          if oldestKey.len == 0 or entry.expires < oldest:
+            oldestKey = candidate
+            oldest = entry.expires
+        if oldestKey.len > 0:
+          cache.entries.del(oldestKey)
+      cache.entries[key] = IdentityEntry(userId: found.get,
+        expires: now + identityCacheSeconds)
+    finally:
+      release(cache.lock)
+  found
+
+const identityPreLimitFactor* = 4
 
 proc rateLimited(request: Request, decision: Decision) =
   ## A 429 is not a second shape: it is the same envelope with `retryAfter`
@@ -355,18 +438,61 @@ proc rateLimited(request: Request, decision: Decision) =
     %*{"retryAfter": decision.retryAfter},
     [("Retry-After", $decision.retryAfter), ("Cache-Control", "no-store")])
 
-proc quota(request: Request, snapshot: Snapshot, scope, key: string,
-           limit: int): bool =
+proc preLimit(request: Request, snapshot: Snapshot, address: string,
+              now: float): bool =
+  ## Address budget charged only before a database validation. A genuine
+  ## browser is validated once per cache window, so a busy NAT of signed-in
+  ## users is far below it; an unknown cookie is validated on every request it
+  ## arrives on, so this is what stops random cookies before a query. `true`
+  ## means the 429 was already sent.
+  let limit = snapshot.intValue(%*{}, keySecurityRateLimitPerMinute) *
+    identityPreLimitFactor
+  let budget = application.limiter.hit("identity|" & address, limit, now,
+    address)
+  if budget.allowed:
+    return false
+  rateLimited(request, budget)
+  true
+
+proc requestIdentity(request: Request, snapshot: Snapshot,
+                     address: string): RateIdentity =
+  ## Production sits behind a CDN edge, so the TCP-derived address is the same
+  ## for everyone and a per-address quota would be a platform-wide quota. A
+  ## genuine session is keyed by its user id; an anonymous caller, and any
+  ## client that presents an unknown, expired or malformed cookie, keeps the
+  ## address. The cookie only becomes a key after `account.sessions` confirms
+  ## it, so rotating a random cookie cannot mint buckets.
+  let token = cookieValue(request, "majadu_session")
+  if token.len > 0:
+    let idleDays = snapshot.intValue(%*{}, keySessionIdleDays)
+    try:
+      let userId = application.identityCache.cachedUserId(application.db,
+        token, idleDays, utcNow().toTime.toUnixFloat)
+      if userId.isSome:
+        return RateIdentity(key: "user:" & userId.get, address: address)
+    except DbError:
+      # A session lookup that cannot reach the database must not turn a read
+      # into a 500: the address path is a safe, coarser fallback.
+      discard
+  RateIdentity(key: address, address: address)
+
+proc quota(request: Request, snapshot: Snapshot, scope, key, address: string,
+           limit: int, evictable = false): bool =
   ## One limiter call and one 429 for every budget. `scope` names the bucket and
   ## `key` is what is counted inside it, so the route budget, a share link and an
   ## invite request share the window and the body instead of each keeping their
   ## own copy. `true` means the 429 was already sent.
   let budget = application.limiter.hit(scope & "|" & key, limit,
-    utcNow().toTime.toUnixFloat)
+    utcNow().toTime.toUnixFloat, address, evictable)
   if budget.allowed:
     return false
   rateLimited(request, budget)
   true
+
+proc quota(request: Request, snapshot: Snapshot, scope: string,
+           identity: RateIdentity, limit: int, evictable = false): bool =
+  quota(request, snapshot, scope, identity.key, identity.address, limit,
+    evictable)
 
 proc sessionCookie(token: string): string =
   let days = configSnapshot().intValue(%*{}, keySessionAbsoluteDays)
@@ -1129,26 +1255,6 @@ proc ratingParamsFor(ctx: CommunityContext): ratingDomain.RatingParams =
   ratingParams.loadRatingParams(configSnapshot(),
     currentSettings(application.db, ctx.communityId))
 
-proc reconcileAchievements(ctx: CommunityContext,
-                           params: ratingDomain.RatingParams) =
-  ## Badges are derived from the same sessions and tournaments the board reads,
-  ## so every path that moves the rating reconciles the shelf too: a reverted
-  ## result must take its badge with it. The board anchor is read the way the
-  ## CLI tick reads it.
-  discard achievementBackfill.backfill(application.db, ctx.communityId,
-    ratingRead.latestEventDate(application.db, ctx.communityId), params)
-
-proc reconcileCommittedAchievements(ctx: CommunityContext,
-                                    params: ratingDomain.RatingParams) =
-  ## For paths whose rating write already committed: the badge shelf is derived
-  ## state, so a failure here must be logged instead of turning work that
-  ## landed into an error response.
-  try:
-    reconcileAchievements(ctx, params)
-  except CatchableError as error:
-    logError("achievement reconcile failed",
-      [("error", error.msg), ("community", ctx.communityId)])
-
 proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
                     sessionId: string, locked: bool) =
   let version = requireIfMatch(request)
@@ -1164,18 +1270,23 @@ proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
   case result.status
   of wsOk:
     # Approval is the rating gate: locking rates the session now, unlocking
-    # withdraws what it contributed. Without this the ledger keeps points from
-    # a session that is no longer approved.
+    # withdraws what it contributed. The withdraw is immediate; the ledger
+    # replay and the badge reconciliation that follow are queued, because a
+    # full rebuild must not run under this request's connection and advisory
+    # lock. The response record is unchanged, only the derived board lags by
+    # one worker pass.
     let params = ratingParamsFor(ctx)
     if locked:
       discard ratingIngest.ingestSession(application.db, ctx.communityId,
         sessionId, params)
+      discard application.ratingJobs.enqueue(ratingJobs.jkReconcile,
+        ctx.communityId)
     else:
       let removed = ratingIngest.revertSource(application.db, ctx.communityId,
         sessionId)
       if removed > 0:
-        discard ratingIngest.rebuild(application.db, ctx.communityId, params)
-    reconcileAchievements(ctx, params)
+        discard application.ratingJobs.enqueue(ratingJobs.jkRebuild,
+          ctx.communityId)
     audit(if locked: "session.lock" else: "session.unlock", ctx, user,
       "session", sessionId, result.record)
     jsonResponse(request, 200, result.record,
@@ -1286,7 +1397,8 @@ proc requestJoin(request: Request, slug: string, snapshot: Snapshot) =
   if user.isSome:
     # Per account per window: a repeated submission is a script, not a person,
     # and the anonymous path never reaches the store anyway.
-    if quota(request, snapshot, "join", requestIdentity(request),
+    if quota(request, snapshot, "join",
+        requestIdentity(request, snapshot, clientIp(request, trustedProxies())),
         snapshot.intValue(%*{}, keySecurityJoinRequestRate)):
       return
   let row = if user.isSome:
@@ -1828,7 +1940,8 @@ proc ingestSessionRating(request: Request, ctx: CommunityContext,
   let params = ratingParamsFor(ctx)
   let result = ratingIngest.ingestSession(application.db, ctx.communityId,
     sessionId, params)
-  reconcileAchievements(ctx, params)
+  discard application.ratingJobs.enqueue(ratingJobs.jkReconcile,
+    ctx.communityId)
   audit("rating.session.ingest", ctx, user, "session", sessionId,
     %*{"events": result.events, "deltas": result.deltas})
   jsonResponse(request, 200, %*{"events": result.events,
@@ -1849,26 +1962,32 @@ proc clearSessionRating(request: Request, ctx: CommunityContext,
     problem(request, 409, "CONFLICT",
       "session is still approved; unlock it first")
     return
-  let params = ratingParamsFor(ctx)
   let removed = ratingIngest.revertSource(application.db, ctx.communityId, sessionId)
-  var rebuilt = ratingIngest.IngestResult()
   if removed > 0:
-    rebuilt = ratingIngest.rebuild(application.db, ctx.communityId, params)
-    reconcileAchievements(ctx, params)
+    discard application.ratingJobs.enqueue(ratingJobs.jkRebuild,
+      ctx.communityId)
   audit("rating.session.revert", ctx, user, "session", sessionId,
     %*{"removedDeltas": removed})
-  jsonResponse(request, 200, %*{"removedDeltas": removed,
-    "events": rebuilt.events, "deltas": rebuilt.deltas})
+  # The row is gone; the ledger replay that derives the board is queued. Only
+  # the count this request actually removed is reported, because a zero for
+  # `events`/`deltas` described work the response never did.
+  jsonResponse(request, 200, %*{"removedDeltas": removed})
 
 proc rebuildRatings(request: Request, ctx: CommunityContext,
                     user: AuthUser) =
-  let params = ratingParamsFor(ctx)
-  let result = ratingIngest.rebuild(application.db, ctx.communityId, params)
-  reconcileAchievements(ctx, params)
+  ## Accepted, not completed: the worker replays the ledger after the response.
+  ## The old handler held a pool connection and the community lock for the whole
+  ## replay, which is what turned one click into a process-wide stall.
+  let job = application.ratingJobs.enqueue(ratingJobs.jkRebuild,
+    ctx.communityId)
+  if job.len == 0:
+    problem(request, 503, "UNAVAILABLE", "rating worker is busy")
+    return
   audit("rating.rebuild", ctx, user, "community", ctx.communityId,
-    %*{"events": result.events, "deltas": result.deltas})
-  jsonResponse(request, 200, %*{"events": result.events,
-    "deltas": result.deltas})
+    %*{"job": job})
+  # Stable acknowledgement only: the job id is a per-process counter and is
+  # not part of the contract, so a client cannot depend on it.
+  jsonResponse(request, 202, %*{"status": "accepted"})
 
 proc listRatingSources(request: Request, ctx: CommunityContext) =
   var items = newJArray()
@@ -1937,20 +2056,18 @@ proc removeRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 409, "CONFLICT",
       "session is still approved; unlock it first")
     return
-  let params = ratingParamsFor(ctx)
-  # Remove, rebuild and the evidence share one transaction: a rebuild that
-  # fails must leave the event and the board as they were, not a deleted event
-  # with stale points and an audit row describing the delete.
+  # The delete and its evidence share one transaction. The replay runs on the
+  # worker afterwards, so a failed replay cannot roll back a delete the caller
+  # was told had happened.
   var removed = 0
-  var rebuilt: ratingIngest.IngestResult
   application.db.tx(proc(conn: DbConn) =
     removed = ratingIngest.removeEventConn(conn, ctx.communityId, eventId)
-    rebuilt = ratingIngest.rebuildConn(conn, ctx.communityId, params)
     auditConn(conn, "rating.source.delete", ctx, user, "rating_event", eventId,
       %*{"removedDeltas": removed}))
-  reconcileCommittedAchievements(ctx, params)
-  jsonResponse(request, 200, %*{"removedDeltas": removed,
-    "events": rebuilt.events, "deltas": rebuilt.deltas})
+  if removed > 0:
+    discard application.ratingJobs.enqueue(ratingJobs.jkRebuild,
+      ctx.communityId)
+  jsonResponse(request, 200, %*{"removedDeltas": removed})
 
 proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
                    sessionId: string) =
@@ -1965,13 +2082,9 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
   # The links go with the session, so their watchers have to be told before the
   # rows they point at are gone.
   let links = shareStore.liveLinks(application.db, ctx.communityId, sessionId)
-  # Params are read before the transaction: the config and settings lookups use
-  # the pool, and a nested acquisition inside a held connection would wait on
-  # the pool instead of this transaction.
-  let params = ratingParamsFor(ctx)
-  # Delete, revert and rebuild in one transaction: a failure halfway must leave
-  # the session and its derived points as they were, not a deleted session with
-  # a stale board and a 500.
+  # Delete and revert in one transaction. The ledger replay that follows is a
+  # worker job, because holding this transaction open for it is what made a
+  # delete as expensive as the community's whole history.
   var outcome = sessionWrite.dsDeleted
   var removed = 0
   application.db.tx(proc(conn: DbConn) =
@@ -1979,8 +2092,6 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
       ctx.role == rAdmin)
     if outcome == sessionWrite.dsDeleted:
       removed = ratingIngest.revertSourceConn(conn, ctx.communityId, sessionId)
-      if removed > 0:
-        discard ratingIngest.rebuildConn(conn, ctx.communityId, params)
       discard ratingIngest.dropSourceConn(conn, ctx.communityId, sessionId)
       auditConn(conn, "session.delete", ctx, user, "session", sessionId,
         %*{"removedDeltas": removed}))
@@ -1992,7 +2103,9 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 403, "FORBIDDEN", "only an admin can delete this session")
     return
   of sessionWrite.dsDeleted:
-    reconcileCommittedAchievements(ctx, params)
+    if removed > 0:
+      discard application.ratingJobs.enqueue(ratingJobs.jkRebuild,
+        ctx.communityId)
   for linkId in links:
     application.hub.revokeShare(linkId)
   send(request, 204)
@@ -2046,10 +2159,10 @@ proc patchRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
     if ingested.isSome:
       # The bracket may have been edited between withdrawing and restoring the
       # sign-off. The stored event still carries the old scores, so replay every
-      # source instead of leaving the ledger on a stale result.
-      let params = ratingParamsFor(ctx)
-      discard ratingIngest.rebuild(application.db, ctx.communityId, params)
-      reconcileAchievements(ctx, params)
+      # source instead of leaving the ledger on a stale result. The replay is
+      # queued; this route only records the decision.
+      discard application.ratingJobs.enqueue(ratingJobs.jkRebuild,
+        ctx.communityId)
   audit("rating.source.finalize", ctx, user, "rating_event",
     eventId, %*{"finalized": finalized})
   jsonResponse(request, 200, updated.get)
@@ -2847,7 +2960,8 @@ proc ingestTournamentRating(request: Request, ctx: CommunityContext,
     ctx.communityId, id, params)
   case result.status
   of ratingTournament.tisOk:
-    reconcileAchievements(ctx, params)
+    discard application.ratingJobs.enqueue(ratingJobs.jkReconcile,
+      ctx.communityId)
     audit("rating.tournament.ingest", ctx, user, "tournament", id,
       %*{"events": result.events, "deltas": result.deltas})
     jsonResponse(request, 200, %*{"events": result.events,
@@ -2873,10 +2987,10 @@ proc clearTournamentRating(request: Request, ctx: CommunityContext,
   if ratingIngest.sourceFinalized(application.db, ctx.communityId, id):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
-  let params = ratingParamsFor(ctx)
   let removed = ratingIngest.revertSource(application.db, ctx.communityId, id)
-  discard ratingIngest.rebuild(application.db, ctx.communityId, params)
-  reconcileAchievements(ctx, params)
+  if removed > 0:
+    discard application.ratingJobs.enqueue(ratingJobs.jkRebuild,
+      ctx.communityId)
   audit("rating.tournament.revert", ctx, user, "tournament", id,
     %*{"removedDeltas": removed})
   send(request, 204)
@@ -2896,9 +3010,8 @@ proc deleteTournamentRoute(request: Request, ctx: CommunityContext,
   # would leave points on the board for a bracket that no longer exists.
   let removed = ratingIngest.revertSource(application.db, ctx.communityId, id)
   if removed > 0:
-    let params = ratingParamsFor(ctx)
-    discard ratingIngest.rebuild(application.db, ctx.communityId, params)
-    reconcileAchievements(ctx, params)
+    discard application.ratingJobs.enqueue(ratingJobs.jkRebuild,
+      ctx.communityId)
   discard ratingIngest.dropSource(application.db, ctx.communityId, id)
   audit("tournament.delete", ctx, user, "tournament", id,
     %*{"id": id, "removedDeltas": removed})
@@ -2975,10 +3088,13 @@ proc rejectCrossSite(request: Request, snapshot: Snapshot): bool =
   originNotAllowed(request)
   true
 
-proc rejectShareScrape(request: Request, snapshot: Snapshot): bool =
+proc rejectShareScrape(request: Request, snapshot: Snapshot,
+                       identity: RateIdentity): bool =
   ## Share links are limited per viewer, so one scraper cannot exhaust the
   ## budget of the group that holds the link, and per code at a looser ceiling
   ## so a pool of addresses still cannot replay a scraped code without bound.
+  ## The identity was resolved once for the route quota, so this check never
+  ## validates the cookie a second time.
   let path = request.path
   if not path.startsWith("/s/"):
     return false
@@ -2987,22 +3103,30 @@ proc rejectShareScrape(request: Request, snapshot: Snapshot): bool =
     return false
   let codeKey = sha256Hex(parts[2])[0 .. 15]
   let limit = snapshot.intValue(%*{}, keySecurityShareScrapeLimit)
-  if quota(request, snapshot, "share", codeKey, limit * shareGlobalFactor):
+  if quota(request, snapshot, "share", codeKey, "",
+      limit * shareGlobalFactor, evictable = true):
     return true
-  quota(request, snapshot, "share", codeKey & "|" & requestIdentity(request),
-    limit)
+  quota(request, snapshot, "share", codeKey & "|" & identity.key,
+    identity.address, limit, evictable = true)
 
 const
   conflictSqlStates = ["23001", "23503", "23505"]
   schemaSqlStates = ["23502", "23514", "54000"]
   formatSqlStates = ["22P02", "22007", "22008"]
+  ## `55P03` is lock_not_available: a rating rebuild holds the community
+  ## advisory lock, so a lock/unlock caller must get a retryable 503 rather
+  ## than a 500 that reads like a defect in the request.
+  busySqlStates = ["55P03"]
 
 proc statusForSqlState*(state: string): int =
   ## One integrity violation, one status, decided once at the HTTP boundary.
   ## A duplicate or a missing/restricted reference is a conflict; a value the
   ## schema rejects or cannot cast is the caller's mistake, not an internal
-  ## fault. Everything else is a 500.
-  if state in conflictSqlStates:
+  ## fault. A lock that is held by another transaction is temporary, so it is
+  ## a 503. Everything else is a 500.
+  if state in busySqlStates:
+    503
+  elif state in conflictSqlStates:
     409
   elif state in schemaSqlStates or state in formatSqlStates:
     400
@@ -3011,6 +3135,7 @@ proc statusForSqlState*(state: string): int =
 
 proc codeForSqlState*(state: string): string =
   case statusForSqlState(state)
+  of 503: "UNAVAILABLE"
   of 409: "CONFLICT"
   of 400: "INVALID_INPUT"
   else: "INTERNAL"
@@ -3018,7 +3143,9 @@ proc codeForSqlState*(state: string): string =
 proc detailForSqlState(state: string): string =
   ## The envelope keeps one sentence per cause, not one per status, because the
   ## legacy UI renders `detail` verbatim.
-  if state in formatSqlStates:
+  if state in busySqlStates:
+    "database is busy"
+  elif state in formatSqlStates:
     "a value has the wrong format"
   elif state in schemaSqlStates:
     "a value does not satisfy the schema"
@@ -3030,6 +3157,10 @@ proc detailForSqlState(state: string): string =
 proc route(request: Request) =
   try:
     let path = request.path
+    # The quota label is derived from the contract shape before any database
+    # read, so even a 500 from the config snapshot carries this request's label
+    # instead of the previous one's.
+    currentRouteLabel = quotaRoute(path)
     let parts = path.split('/')
     let verb = request.httpMethod
     # The one access table: the test in modules/account compares this with
@@ -3039,17 +3170,29 @@ proc route(request: Request) =
     # One id per request: every audit row written while serving it and the
     # access-log line share it, so a 500 can be paired with the write before it.
     beginRequest()
-    # One template per request: the quota bucket and the counter label both use
-    # it, so the same path cannot be labelled two ways.
-    currentRouteLabel = templateRoute(path)
+    # One label per request: the quota bucket and the counter label both use
+    # the matched contract shape, never the raw path. An unmatched request gets
+    # one shared label, so invented URLs cannot mint pinned buckets.
     if rejectLargeBody(request, snapshot):
       return
     if rejectCrossSite(request, snapshot):
       return
-    if quota(request, snapshot, currentRouteLabel, requestIdentity(request),
+    # Resolve the address once: the identity pre-limit, the route budget and
+    # the share budget all use it.
+    let address = clientIp(request, trustedProxies())
+    let now = utcNow().toTime.toUnixFloat
+    let token = cookieValue(request, "majadu_session")
+    # A cookie that was not validated in this window is a database lookup
+    # candidate. Charge the address's pre-limit before it, so random cookies
+    # are refused here and never reach `account.sessions`.
+    if token.len > 0 and not application.identityCache.knows(token, now):
+      if preLimit(request, snapshot, address, now):
+        return
+    let identity = requestIdentity(request, snapshot, address)
+    if quota(request, snapshot, currentRouteLabel, identity,
         snapshot.intValue(%*{}, keySecurityRateLimitPerMinute)):
       return
-    if rejectShareScrape(request, snapshot):
+    if rejectShareScrape(request, snapshot, identity):
       return
     if path == "/healthz":
       send(request, 200, """{"status":"ok"}""")
@@ -3358,6 +3501,10 @@ proc route(request: Request) =
         issueShareTicket(request, code, snapshot)
         return
     routeNotFound(request)
+  except DbPoolTimeout:
+    # The request never reached a query: answer with a retryable status instead
+    # of holding the worker thread until the pool cycle unwedges.
+    problem(request, 503, "UNAVAILABLE", "database is busy")
   except DbError as error:
     let status = statusForSqlState(error.sqlState)
     if status != 500:
@@ -3396,11 +3543,20 @@ proc secureCookies(oidc: OidcConfig): bool =
 
 proc newApp*(db: Db, oidc: OidcConfig, keyring: Keyring,
              config: ConfigCache): App =
-  App(db: db, oidc: oidc, keyring: keyring, config: config,
+  let jobs = newRatingJobs(db)
+  result = App(db: db, oidc: oidc, keyring: keyring, config: config,
       limiter: newLimiter(),
+      identityCache: newIdentityCache(),
+      ratingJobs: jobs,
       hub: newHub(db),
       cookieSecure: secureCookies(oidc),
       bootstrapOwner: getEnv("MAJADU_BOOTSTRAP_OWNER_EMAIL").strip().toLowerAscii())
+  jobs.start()
+
+proc identityLookups*(app: App): int =
+  ## Database lookups performed to turn a token into a user id. The rate-limit
+  ## suite reads this to prove a rejected cookie did not query the database.
+  app.identityCache.identityLookups()
 
 proc install*(app: App) =
   application = app
