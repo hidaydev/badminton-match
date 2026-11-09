@@ -4,17 +4,20 @@ import { useWriterLock, WRITER_LOCK } from './useWriterLock'
 
 type Request = (
   name: string,
-  options: { ifAvailable: boolean; signal: AbortSignal },
+  options: { ifAvailable: boolean },
   callback: (lock: object | null) => Promise<void> | void,
 ) => Promise<void>
 
 function setLocks(granted: boolean) {
+  const held: Promise<void>[] = []
   const request = vi.fn<Request>((name, _options, callback) => {
     expect(name).toBe(WRITER_LOCK)
-    return Promise.resolve(callback(granted ? {} : null))
+    const result = callback(granted ? {} : null)
+    if (result instanceof Promise) held.push(result)
+    return Promise.resolve()
   })
   Object.defineProperty(navigator, 'locks', { value: { request }, configurable: true })
-  return request
+  return { request, held }
 }
 
 afterEach(() => {
@@ -39,14 +42,21 @@ describe('useWriterLock', () => {
     await waitFor(() => expect(result.current).toBe(false))
   })
 
+  it('asks for the lock without the signal option browsers reject', async () => {
+    const { request } = setLocks(true)
+    renderHook(() => useWriterLock())
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(1))
+    expect(request.mock.calls[0][1]).toEqual({ ifAvailable: true })
+  })
+
   it('releases the lock on unmount', async () => {
-    const request = setLocks(true)
+    const { request, held } = setLocks(true)
     const { unmount } = renderHook(() => useWriterLock())
     await waitFor(() => expect(request).toHaveBeenCalledTimes(1))
 
-    // The held lock is the pending promise; aborting is what frees it.
+    // The held lock is the promise the callback returned; resolving it is what
+    // releases it.
     unmount()
-    const options = request.mock.calls[0][1]
-    expect(options.signal.aborted).toBe(true)
+    await expect(held[0]).resolves.toBeUndefined()
   })
 })
