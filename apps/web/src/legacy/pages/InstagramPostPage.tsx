@@ -10,7 +10,7 @@ import type { SessionMeta } from '../queries'
 import { loadImage, drawStandingsCanvas, type OverlayImages } from '../utils/canvasPost'
 import { drawPostCanvas } from '../utils/canvas-templates'
 import { loadOverlayImages } from '../utils/overlays'
-import { todayWIB } from '../utils/time'
+import { todayLocal } from '../utils/time'
 import { Overlay } from '../../components/Overlay'
 import { t } from '../../i18n'
 
@@ -31,7 +31,7 @@ export default function InstagramPostPage() {
   const [overlays, setOverlays] = useState<OverlayImages>({})
   const [isDragging, setIsDragging] = useState(false)
   const [fontReady, setFontReady] = useState(false) // true once browser fonts are loaded
-  const [dateValue, setDateValue] = useState(() => todayWIB())
+  const [dateValue, setDateValue] = useState(() => todayLocal())
   const [exportError, setExportError] = useState<string | null>(null)
   const [overlayError, setOverlayError] = useState<string | null>(null)
   const dragStart = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)
@@ -450,7 +450,7 @@ export default function InstagramPostPage() {
             <button
               onClick={() => fileInputRef.current?.click()}
               aria-label={t('instagram.replacePhoto')}
-              className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70 hit44"
+              className="h-11 w-11 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 2v6h-6"/>
@@ -462,7 +462,7 @@ export default function InstagramPostPage() {
             <button
               onClick={() => setShowDownloadSheet(true)}
               aria-label={t('instagram.download')}
-              className="w-9 h-9 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300 hit44"
+              className="h-11 w-11 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>

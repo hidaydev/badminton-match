@@ -3,9 +3,9 @@ import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
 import type { CommunityRole } from '../auth/api'
 import { useCommunity } from '../community/CommunityContext'
-import { updateCommunityConfig, fetchScoringPresets } from '../community/api'
+import { updateCommunityConfig } from '../community/api'
 import type { CommunityConfig, CommunityConfigEntry, ScoringPreset } from '../community/api'
-import { useCommunityConfig } from '../community/useCommunityConfig'
+import { communityTimeZone, useCommunityConfig } from '../community/useCommunityConfig'
 import {
   createInvite,
   decideJoinRequest,
@@ -19,7 +19,7 @@ import type { Invite, JoinRequest, Member, PendingClaim } from '../community/adm
 import { decideClaim } from '../players/api'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
-import { formatDay } from '../utils/day'
+import { formatInstantDate } from '../utils/day'
 import { Button } from '../components/Button'
 import { Checkbox } from '../components/Checkbox'
 import { ErrorText } from '../components/ErrorText'
@@ -56,6 +56,11 @@ export default function SettingsPage() {
   const { slug = '' } = useParams<{ slug: string }>()
   const { memberships } = useCommunity()
   const membership = memberships.find((candidate) => candidate.slug === slug) ?? null
+
+  // One config read for the whole screen: the settings block edits it and the
+  // audit rows below render their instants in the community's zone.
+  const { config, presets, loading: configLoading, error: configError } = useCommunityConfig(slug)
+  const timeZone = communityTimeZone(config)
 
   const [data, setData] = useState<Data | null>(null)
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null)
@@ -118,6 +123,7 @@ export default function SettingsPage() {
             members={current.members}
             busy={busy}
             onRun={run}
+            timeZone={timeZone}
           />
           <Invites slug={slug} busy={busy} onRun={run} />
           <JoinRequests
@@ -125,18 +131,24 @@ export default function SettingsPage() {
             requests={current.requests}
             busy={busy}
             onRun={run}
+            timeZone={timeZone}
           />
           {canEdit && (
             <PendingClaims
               slug={slug}
               claims={current.claims}
               onReload={reload}
+              timeZone={timeZone}
             />
           )}
           <CommunitySettings
             key={slug}
             slug={slug}
             canEdit={canEdit}
+            config={config}
+            presets={presets}
+            loading={configLoading}
+            error={configError}
           />
         </>
       )}
@@ -199,24 +211,25 @@ function describeSave(error: unknown): string {
  * value, so the screen shows the source of each one instead of pretending the
  * community owns it.
  */
-function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }) {
-  const { config, loading, error } = useCommunityConfig(slug)
+function CommunitySettings({
+  slug,
+  canEdit,
+  config,
+  presets,
+  loading,
+  error,
+}: {
+  slug: string
+  canEdit: boolean
+  config: CommunityConfig | null
+  presets: ScoringPreset[]
+  loading: boolean
+  error: 'notFound' | 'failed' | null
+}) {
   const [saved, setSaved] = useState<CommunityConfig | null>(null)
   const [edits, setEdits] = useState<Record<string, string | boolean>>({})
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-  const [presets, setPresets] = useState<ScoringPreset[]>([])
-
-  // The list is reference data; a failure here leaves the select empty rather
-  // than breaking the rest of the settings screen.
-  useEffect(() => {
-    if (slug === '') return
-    let active = true
-    fetchScoringPresets(slug)
-      .then((list) => { if (active) setPresets(list) })
-      .catch(() => { if (active) setPresets([]) })
-    return () => { active = false }
-  }, [slug])
 
   if (loading && config === null) {
     return <LoadingState label={t('community.settings')} rows={2} />
@@ -375,11 +388,13 @@ function Members({
   members,
   busy,
   onRun,
+  timeZone,
 }: {
   slug: string
   members: Member[]
   busy: boolean
   onRun: Run
+  timeZone: string
 }) {
   return (
     <section className="mt-6">
@@ -392,6 +407,7 @@ function Members({
             member={member}
             busy={busy}
             onRun={onRun}
+            timeZone={timeZone}
           />
         ))}
       </ul>
@@ -404,11 +420,13 @@ function MemberRow({
   member,
   busy,
   onRun,
+  timeZone,
 }: {
   slug: string
   member: Member
   busy: boolean
   onRun: Run
+  timeZone: string
 }) {
   const [confirming, setConfirming] = useState(false)
 
@@ -418,7 +436,7 @@ function MemberRow({
         <span className="min-w-0">
           <span className="block truncate text-sm text-fg">{member.displayName}</span>
           <span className="font-mono text-[10px] text-fg-dim">
-            {formatDay(member.joinedAt)}
+            {formatInstantDate(member.joinedAt, timeZone)}
           </span>
         </span>
         <span className="flex items-center gap-2">
@@ -561,11 +579,13 @@ function JoinRequests({
   requests,
   busy,
   onRun,
+  timeZone,
 }: {
   slug: string
   requests: JoinRequest[]
   busy: boolean
   onRun: Run
+  timeZone: string
 }) {
   // A request joins as a member unless the admin says otherwise; the role is
   // sent with the approval, and the granted role is echoed back afterwards.
@@ -602,7 +622,7 @@ function JoinRequests({
             >
               <p className="text-sm text-fg">{request.displayName}</p>
               <p className="font-mono text-[10px] text-fg-dim">
-                {formatDay(request.createdAt)}
+                {formatInstantDate(request.createdAt, timeZone)}
               </p>
               <div className="mt-2 flex flex-wrap items-end gap-2">
                 <label className="text-xs text-fg-dim">
@@ -667,10 +687,12 @@ function PendingClaims({
   slug,
   claims,
   onReload,
+  timeZone,
 }: {
   slug: string
   claims: PendingClaim[]
   onReload: () => void
+  timeZone: string
 }) {
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
@@ -710,7 +732,7 @@ function PendingClaims({
                     {t('admin.claims.claimant', { name: claim.displayName })}
                   </span>
                   <span className="font-mono text-[10px] text-fg-dim">
-                    {formatDay(claim.createdAt)}
+                    {formatInstantDate(claim.createdAt, timeZone)}
                   </span>
                 </span>
                 <span className="flex items-center gap-2">

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { Link, Outlet, useLocation, useNavigate } from '../router'
 import { useAdmin } from '../context/AdminContext'
@@ -6,8 +6,8 @@ import { useAuth } from '../../auth/AuthContext'
 import { useCommunity } from '../../community/CommunityContext'
 import CommunityPicker from '../../community/CommunityPicker'
 import { t } from '../../i18n'
+import { SkipLink } from '../../components/SkipLink'
 import AccountSessions from './AccountSessions'
-import { useEscapeKey } from '../hooks/useEscapeKey'
 
 export default function HomeLayout() {
   const location = useLocation()
@@ -18,9 +18,58 @@ export default function HomeLayout() {
   const { memberships, current, select } = useCommunity()
   const [accountOpen, setAccountOpen] = useState(false)
   const [sessionsOpen, setSessionsOpen] = useState(false)
-  // The account menu is not a dialog: Escape closes the menu itself and nothing
-  // behind it.
-  useEscapeKey(() => setAccountOpen(false), accountOpen)
+  const accountTrigger = useRef<HTMLButtonElement>(null)
+  const accountMenu = useRef<HTMLDivElement>(null)
+
+  // `role="menu"` is a keyboard promise: focus the first item on open, move
+  // with the arrow keys, Home/End to the ends, and Escape closes the menu and
+  // hands focus back to the trigger. Tab leaves the menu and closes it, like
+  // any other popup that is not a dialog.
+  // A hidden item cannot take focus, and focusing it would leave the menu with
+  // no focused row at all. The community switch is `sm:hidden` where the header
+  // picker already shows it, so it is in the DOM but not always in view.
+  const menuItems = (): HTMLElement[] =>
+    [...(accountMenu.current?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]') ?? [])]
+      .filter((item) => item.checkVisibility?.() !== false)
+
+  const closeAccount = (refocus: boolean) => {
+    setAccountOpen(false)
+    if (refocus) accountTrigger.current?.focus()
+  }
+
+  useEffect(() => {
+    if (!accountOpen) return
+    menuItems()[0]?.focus()
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        closeAccount(true)
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [accountOpen])
+
+  const onAccountMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Tab') {
+      // Focus moves on to the page behind; an open menu there would trap the
+      // next Shift+Tab in a place the user has already left.
+      setAccountOpen(false)
+      return
+    }
+    const items = menuItems()
+    if (items.length === 0) return
+    const index = items.indexOf(document.activeElement as HTMLElement)
+    let next: HTMLElement | undefined
+    if (event.key === 'ArrowDown') next = items[(index + 1) % items.length]
+    else if (event.key === 'ArrowUp') next = items[(index - 1 + items.length) % items.length]
+    else if (event.key === 'Home') next = items[0]
+    else if (event.key === 'End') next = items[items.length - 1]
+    if (next === undefined) return
+    event.preventDefault()
+    next.focus()
+  }
 
   const roleLabel = user?.platformOwner === true
     ? t('role.owner')
@@ -30,12 +79,13 @@ export default function HomeLayout() {
 
   return (
     <div className="min-h-screen bg-ground text-fg flex flex-col">
+      <SkipLink />
       <header className="border-b border-border-subtle bg-surface sticky top-0 z-10 pt-[env(safe-area-inset-top)]">
         <div className="max-w-3xl mx-auto px-3 py-2.5 flex items-center gap-2">
           {!isHome && (
             <button
               onClick={() => navigate(-1)}
-              className="p-1.5 -ml-1.5 rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all shrink-0 hit44"
+              className="flex h-11 w-11 -ml-[13px] -mr-[7px] -my-[7px] items-center justify-center rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all shrink-0"
               aria-label={t('shell.back')}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -43,7 +93,7 @@ export default function HomeLayout() {
               </svg>
             </button>
           )}
-          <Link to="/" className="flex items-center gap-2 flex-1">
+          <Link to="/" className="flex min-h-11 -my-[10px] items-center gap-2 flex-1">
             <img src="/logo-192.png" alt="" className="w-6 h-6 shrink-0 object-contain" />
             <span className="text-sm font-bold text-fg tracking-tight">MAJADU</span>
           </Link>
@@ -52,7 +102,7 @@ export default function HomeLayout() {
           </div>
           <button
             onClick={() => window.location.reload()}
-            className="p-1.5 rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all hit44"
+            className="flex h-11 w-11 -m-[7.5px] items-center justify-center rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all"
             aria-label={t('shell.refresh')}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -67,14 +117,22 @@ export default function HomeLayout() {
               signed in and which role that account holds here. */}
           <div className="relative">
             <button
+              ref={accountTrigger}
               type="button"
               onClick={() => setAccountOpen((open) => !open)}
               aria-label={t('shell.account')}
               aria-haspopup="menu"
               aria-expanded={accountOpen}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-elevated text-xs font-bold text-fg hover:border-accent active:scale-95 transition-all hit44"
+              className="group flex h-11 w-11 -m-[6px] items-center justify-center active:scale-95 transition-all"
             >
-              {(user?.displayName ?? '?').trim().charAt(0).toUpperCase()}
+              {/* The hit box grew to 44px; the circle itself keeps its 32px
+                  size, so nothing on screen moved. */}
+              <span
+                aria-hidden="true"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-elevated text-xs font-bold text-fg group-hover:border-accent"
+              >
+                {(user?.displayName ?? '?').trim().charAt(0).toUpperCase()}
+              </span>
             </button>
             {accountOpen && (
               <>
@@ -86,7 +144,10 @@ export default function HomeLayout() {
                   className="fixed inset-0 z-20 cursor-default min-h-11"
                 />
                 <div
+                  ref={accountMenu}
                   role="menu"
+                  aria-label={t('shell.account')}
+                  onKeyDown={onAccountMenuKeyDown}
                   className="absolute right-0 mt-2 z-30 w-60 overflow-hidden rounded-xl border border-border-subtle bg-surface shadow-lg"
                 >
                   <div className="border-b border-border-subtle px-3 py-2.5">
@@ -117,6 +178,7 @@ export default function HomeLayout() {
                             key={membership.id}
                             role="menuitemradio"
                             aria-checked={selected}
+                            tabIndex={-1}
                             type="button"
                             onClick={() => {
                               setAccountOpen(false)
@@ -141,6 +203,7 @@ export default function HomeLayout() {
                     {isAdminRole && (
                       <Link
                         role="menuitem"
+                        tabIndex={-1}
                         to="/settings"
                         onClick={() => setAccountOpen(false)}
                         className="rounded-lg px-3 py-2 text-fg hover:bg-elevated"
@@ -151,6 +214,7 @@ export default function HomeLayout() {
                     {user?.platformOwner === true && (
                       <RouterLink
                         role="menuitem"
+                        tabIndex={-1}
                         to="/owner/communities"
                         onClick={() => setAccountOpen(false)}
                         className="rounded-lg px-3 py-2 text-fg hover:bg-elevated"
@@ -160,6 +224,7 @@ export default function HomeLayout() {
                     )}
                     <button
                       role="menuitem"
+                      tabIndex={-1}
                       type="button"
                       onClick={() => {
                         setAccountOpen(false)
@@ -171,6 +236,7 @@ export default function HomeLayout() {
                     </button>
                     <button
                       role="menuitem"
+                      tabIndex={-1}
                       type="button"
                       onClick={() => {
                         setAccountOpen(false)
@@ -187,7 +253,7 @@ export default function HomeLayout() {
           </div>
         </div>
       </header>
-      <main className="flex-1 max-w-3xl w-full mx-auto px-3 py-4 relative pb-[env(safe-area-inset-bottom)]">
+      <main id="main" className="flex-1 max-w-3xl w-full mx-auto px-3 py-4 relative pb-[env(safe-area-inset-bottom)]">
         <Outlet />
       </main>
       {sessionsOpen && <AccountSessions onClose={() => setSessionsOpen(false)} />}

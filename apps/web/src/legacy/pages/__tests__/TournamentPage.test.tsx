@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { ReactElement } from 'react'
@@ -63,9 +63,36 @@ describe('TournamentPage', () => {
     renderInTournamentRoute(<TournamentPage />)
 
     expect(await screen.findByRole('heading', { name: 'Sunday Cup' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Groups' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Bracket' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Standings' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Groups' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Bracket' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Standings' })).toBeInTheDocument()
+  })
+
+  it('exposes the classic views as one tab set with a linked panel', async () => {
+    mockFetch({ [DETAIL]: () => ({ body: classic }) })
+
+    renderInTournamentRoute(<TournamentPage />)
+
+    const groups = await screen.findByRole('tab', { name: 'Groups' })
+    const bracket = screen.getByRole('tab', { name: 'Bracket' })
+    expect(groups).toHaveAttribute('aria-selected', 'true')
+    expect(bracket).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByRole('tablist', { name: t('tournament.tabs') })).toBeInTheDocument()
+    expect(screen.getByRole('tabpanel')).toHaveAttribute(
+      'aria-labelledby',
+      groups.id,
+    )
+
+    fireEvent.keyDown(groups, { key: 'ArrowRight' })
+
+    expect(screen.getByRole('tab', { name: 'Bracket' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(screen.getByRole('tabpanel')).toHaveAttribute(
+      'aria-labelledby',
+      bracket.id,
+    )
   })
 
   it('renders no classic content for a team snapshot', async () => {
@@ -120,7 +147,7 @@ describe('TournamentRouter', () => {
     renderInTournamentRoute(<TournamentRouter />)
 
     expect(await screen.findByRole('heading', { name: 'Sunday Cup' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Bracket' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Bracket' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Schedule' })).not.toBeInTheDocument()
   })
 })

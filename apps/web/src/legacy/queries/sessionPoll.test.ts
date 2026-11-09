@@ -64,4 +64,36 @@ describe('session poll', () => {
     expect(recovered?.version).toBe(8)
     expect(sessionCalls).toBe(3)
   })
+
+  it('turns a schedule side into a fixed pair and joins players in the given order', async () => {
+    mockFetch({
+      'GET /api/c/majadu/sessions/s1': () => ({
+        body: {
+          ...detail,
+          participants: [
+            { playerId: 'p1', name: 'Arya', absent: false },
+            { playerId: 'p2', name: 'Bima', absent: false },
+          ],
+          games: [
+            {
+              round: 0,
+              court: 0,
+              sideA: ['p2'],
+              sideB: [],
+              scoreA: null,
+              scoreB: null,
+              status: 'scheduled',
+            },
+          ],
+        },
+      }),
+    })
+
+    const snapshot = await getSession('s1')
+    // A half-filled side keeps its one player and an empty second slot; the
+    // schedule type is a tuple, so the shape never grows past two.
+    expect(snapshot?.schedule[0].teamA).toEqual(['p2', ''])
+    expect(snapshot?.schedule[0].teamB).toEqual(['', ''])
+    expect(snapshot?.players.map((player) => player.id)).toEqual(['p1', 'p2'])
+  })
 })

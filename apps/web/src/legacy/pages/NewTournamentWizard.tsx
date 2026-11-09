@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from '../router'
 import { useCreateTournament } from '../queries'
 import { shuffle } from '../utils/array'
-import { todayWIB } from '../utils/time'
+import { todayLocal } from '../utils/time'
 import {
   GROUP_IDS,
   EMPTY_GROUPS,
@@ -56,7 +56,7 @@ function TeamWizard() {
 
   const [step, setStep] = useState(1)
   const [name, setName] = useState('')
-  const [date, setDate] = useState(() => todayWIB())
+  const [date, setDate] = useState(() => todayLocal())
   const [players, setPlayers] = useState(initialPlayers)
   const [teams, setTeams] = useState<{ id: string; name: string; players: { name: string; cls: TeamClass }[] }[]>([])
 
@@ -257,7 +257,7 @@ function ClassicWizard() {
 
   const [step, setStep] = useState(1)
   const [name, setName] = useState('')
-  const [date, setDate] = useState(() => todayWIB())
+  const [date, setDate] = useState(() => todayLocal())
   const [pairs, setPairs] = useState(() => Array.from({ length: PAIR_COUNT }, emptyPair))
   const [groups, setGroups] = useState<Record<GroupId, string[]>>(() => ({ ...EMPTY_GROUPS }))
 

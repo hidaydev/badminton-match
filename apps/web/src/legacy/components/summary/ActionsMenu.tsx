@@ -90,7 +90,7 @@ export default function ActionsMenu({
                 role="menuitem"
               >
                 ↔ Replace player
-                <span className="block text-[10px] text-slate-500 font-normal">new name for this slot</span>
+                <span className="block text-[10px] text-slate-400 font-normal">new name for this slot</span>
               </button>
             )}
             {hasChangePlayer && (
@@ -100,7 +100,7 @@ export default function ActionsMenu({
                 role="menuitem"
               >
                 ⇄ Change player
-                <span className="block text-[10px] text-slate-500 font-normal">swap with a registered player</span>
+                <span className="block text-[10px] text-slate-400 font-normal">swap with a registered player</span>
               </button>
             )}
             {hasSwapSlots && (
@@ -120,7 +120,7 @@ export default function ActionsMenu({
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="inline mr-1.5 -mt-0.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>
                 Mark absent
-                <span className="block text-[10px] text-slate-500 font-normal">whole session</span>
+                <span className="block text-[10px] text-slate-400 font-normal">whole session</span>
               </button>
             )}
             {hasSetSkipped && (
@@ -130,7 +130,7 @@ export default function ActionsMenu({
                 role="menuitem"
               >
                 ⊘ Skip in game
-                <span className="block text-[10px] text-slate-500 font-normal">one game only — excludes from rating</span>
+                <span className="block text-[10px] text-slate-400 font-normal">one game only — excludes from rating</span>
               </button>
             )}
           </div>

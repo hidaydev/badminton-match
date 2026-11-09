@@ -57,6 +57,11 @@ DPR 2.75). They differ in aspect ratio on purpose — 19.5:9 against 20:9 — so
 layout that only fits one of them fails. The baseline records today's rendering;
 a layout fix changes snapshots on purpose.
 
+`desktop` (Chromium, 1440×900) covers the `sm:`/`md:`/`lg:` branches an admin
+uses at a laptop. It runs only `a11y.spec.ts`: the visual baseline is per
+platform, so a new width would have to be recorded on both before the
+comparison meant anything.
+
 Firefox is not part of the suite. Its macOS build (revision 1555, pinned in
 `deps.lock`) only starts with `CFFIXED_USER_HOME` pointed at an empty directory,
 and the owner chose not to carry that workaround.

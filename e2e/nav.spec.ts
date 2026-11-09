@@ -23,3 +23,33 @@ test('the account menu opens, navigates and closes @visual', async ({ page }) =>
   await expect(page).toHaveURL(new RegExp(`/c/${state().communitySlug}/settings$`))
   await expect(navigation).toBeHidden()
 })
+/**
+ * The account menu advertises `role="menu"`, so it has to answer the keyboard
+ * the way a menu does: focus lands inside on open, the arrows move, Home/End
+ * jump, and Escape closes it and returns focus to the trigger.
+ */
+test('the account menu follows the menu keyboard pattern', async ({ page }) => {
+  await signIn(page)
+  await page.goto(`/c/${state().communitySlug}`)
+
+  const trigger = page.getByRole('button', { name: t('shell.account') })
+  await trigger.focus()
+  await page.keyboard.press('Enter')
+
+  const menu = page.getByRole('menu')
+  await expect(menu).toBeVisible()
+  // Both roles count as menu items, and only the rows the user can see take
+  // focus: the community switch is hidden where the header picker shows it.
+  const entries = menu.locator('[role="menuitem"]:visible, [role="menuitemradio"]:visible')
+  await expect(entries.first()).toBeFocused()
+
+  await page.keyboard.press('ArrowDown')
+  await expect(entries.nth(1)).toBeFocused()
+
+  await page.keyboard.press('End')
+  await expect(entries.last()).toBeFocused()
+
+  await page.keyboard.press('Escape')
+  await expect(menu).toBeHidden()
+  await expect(trigger).toBeFocused()
+})

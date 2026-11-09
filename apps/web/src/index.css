@@ -206,16 +206,6 @@ body {
   to { transform: translateY(0); }
 }
 
-/* -- Reduced Motion -------------------------------------------------------- */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
 /* Team player highlight shimmer */
 @keyframes shimmer {
   0%   { background-position: -200% center; }
@@ -245,8 +235,9 @@ body {
   transform: scale(0.96) translateY(0);
   transition-duration: 0.1s;
 }
+/* The badge scales and glows on hover; the focus ring stays the global accent
+   outline, because a drop shadow alone is not a reliable focus indicator. */
 .medal-badge-btn:focus-visible {
-  outline: none;
   filter: drop-shadow(0 0 12px var(--medal-glow, rgba(227, 179, 65, 0.5)));
   z-index: 10;
 }

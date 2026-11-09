@@ -19,7 +19,7 @@ export default function CommunityPicker() {
         id="community-picker"
         value={current?.slug ?? ''}
         onChange={(event) => select(event.target.value)}
-        className="min-h-11 rounded-xl bg-elevated border border-border px-2 py-1.5 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
+        className="min-h-11 h-11 rounded-xl bg-elevated border border-border px-2 py-1.5 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
       >
         {memberships.map((membership) => (
           <option key={membership.id} value={membership.slug}>

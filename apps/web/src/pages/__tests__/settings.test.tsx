@@ -114,6 +114,65 @@ describe('community settings', () => {
     expect(panel.open).toBe(true)
   })
 
+  it('renders a join instant in the community timezone', async () => {
+    base({
+      // 23:30 UTC is already the 4th in Jakarta; slicing the string shows the
+      // 3rd, which is the day the audit was chasing.
+      'GET /api/c/acme/members': () => ({
+        body: { items: [{ ...members.items[0], joinedAt: '2026-11-03T23:30:00Z' }] },
+      }),
+    })
+
+    renderAt('/c/acme/settings')
+
+    expect(await screen.findByText('4 Nov 2026')).toBeInTheDocument()
+    expect(screen.queryByText('2026-11-03')).not.toBeInTheDocument()
+  })
+
+  it('reads the config and the format list from one request', async () => {
+    const fetchMock = base({
+      'GET /api/c/acme/config': () => ({
+        body: {
+          effective,
+          scoringPresets: [
+            {
+              id: 'standard',
+              label: 'Standard',
+              gamesToWin: 2,
+              pointsToWin: 21,
+              winBy: 2,
+              maxPoints: 30,
+              deuceAt: 20,
+              changeEndsAt: 11,
+            },
+          ],
+        },
+      }),
+    })
+
+    renderAt('/c/acme/settings')
+
+    // The settings block is a closed disclosure, so the read that feeds it is
+    // fired by the screen, not by the panel.
+    await screen.findByLabelText(t('community.setting.timezone'))
+    const reads = fetchMock.mock.calls.filter(([url]) => String(url) === '/api/c/acme/config')
+    expect(reads).toHaveLength(1)
+  })
+
+  it('renders one error when the config read fails', async () => {
+    base({
+      'GET /api/c/acme/config': () => ({
+        status: 500,
+        body: { code: 'INTERNAL', detail: 'boom' },
+      }),
+    })
+
+    renderAt('/c/acme/settings')
+
+    expect(await screen.findByText(t('community.error.load'))).toBeInTheDocument()
+    expect(screen.getAllByText(t('community.error.load'))).toHaveLength(1)
+  })
+
   it('narrows an invite lifetime and sends only the changed key', async () => {
     let configReads = 0
     const fetchMock = base({
@@ -345,7 +404,7 @@ describe('community settings', () => {
     expect(
       screen.getByText(t('admin.claims.claimant', { name: 'Citra' })),
     ).toBeInTheDocument()
-    expect(screen.getByText('2026-11-03')).toBeInTheDocument()
+    expect(screen.getByText('3 Nov 2026')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: t('admin.claims.approve') }))
 

@@ -7,7 +7,7 @@
 // called once by the legacy shell before any screen mounts.
 
 import { toPlayerId, toTimeString } from '../types'
-import type { GameKey, Gender, Player, SessionScoring, SetScore, Tier } from '../types'
+import type { GameKey, Gender, Player, PlayerId, SessionScoring, SetScore, Tier } from '../types'
 import type { CloudSnapshot, PlayerSummary, PlayerStats, SessionMeta } from './types'
 import type { AnyTournamentSnapshot } from '../utils/teamTournament'
 import { isPlaceholderName } from '../utils/placeholders'
@@ -151,6 +151,8 @@ function isNotFound(error: unknown): boolean {
 
 let playerCache: PlayerSummary[] | null = null
 let playerCacheSlug = ''
+/** The roster read that is in flight, so a second caller joins it instead of repeating it. */
+let playerRequest: { slug: string; promise: Promise<PlayerSummary[]> } | null = null
 /**
  * `<community>\u0000<name>` → id learned from a stats read, so a second read is
  * not a lookup. The same name can be a different player in another community,
@@ -270,6 +272,17 @@ function sessionPlayerMap(participants: V2SessionDetail['participants']): Map<st
   return out
 }
 
+/**
+ * One side of a scheduled game, as the fixed pair `ScheduleSlot` declares. The
+ * API sends a list; a side with one id or none would be a broken schedule, so
+ * the missing slot is the empty id the rest of the v1 tree already uses for
+ * "no player". Spelling the tuple out keeps the schedule shape checked by the
+ * compiler instead of silencing it.
+ */
+function scheduleSide(ids: string[]): [PlayerId, PlayerId] {
+  return [toPlayerId(ids[0] ?? ''), toPlayerId(ids[1] ?? '')]
+}
+
 function toCloudSnapshot(detail: V2SessionDetail): CloudSnapshot {
   const playerMap = sessionPlayerMap(detail.participants)
   const courts = detail.games.reduce((max, game) => Math.max(max, game.court + 1), 1)
@@ -319,13 +332,15 @@ function toCloudSnapshot(detail: V2SessionDetail): CloudSnapshot {
       locked: detail.status === 'locked',
       ...(detail.scoring ? { scoring: detail.scoring } : {}),
     },
-    players: detail.participants.map((participant) => playerMap.get(participant.playerId)!).filter(Boolean),
+    // The map is built from this same list, in this order, so reading its
+    // values is the join without an assertion that the compiler cannot check.
+    players: [...playerMap.values()],
     fixMatches: [],
     schedule: detail.games.map((game) => ({
       slot: game.round,
       court: game.court,
-      teamA: [game.sideA[0] ?? '', game.sideA[1] ?? ''] as never,
-      teamB: [game.sideB[0] ?? '', game.sideB[1] ?? ''] as never,
+      teamA: scheduleSide(game.sideA),
+      teamB: scheduleSide(game.sideB),
     })),
     playedGames,
     gameScores,
@@ -786,6 +801,21 @@ export async function deleteSessionShareLink(id: string): Promise<void> {
 
 export async function listPlayers(signal?: AbortSignal): Promise<PlayerSummary[]> {
   const slug = activeCommunitySlug()
+  // Two owners ask for the roster on the first paint of a community screen:
+  // the ambiguity badge (a query at the shell) and a session snapshot, which
+  // needs gender and tier. One in-flight read is shared instead of issuing the
+  // same 1000-row request twice; whoever leaves first must not cancel a read
+  // the other one is still waiting on, which is why the shared promise follows
+  // the caller that started it rather than the caller that joined it.
+  if (playerRequest !== null && playerRequest.slug === slug) return playerRequest.promise
+  const promise = readPlayers(slug, signal).finally(() => {
+    if (playerRequest !== null && playerRequest.promise === promise) playerRequest = null
+  })
+  playerRequest = { slug, promise }
+  return promise
+}
+
+async function readPlayers(slug: string, signal?: AbortSignal): Promise<PlayerSummary[]> {
   const body = await request<{ items: V2Player[] }>(
     'GET',
     communityPath('/players?limit=1000'),

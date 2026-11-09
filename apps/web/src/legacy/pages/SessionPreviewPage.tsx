@@ -87,8 +87,8 @@ export default function SessionPreviewPage() {
           handleClearScore={noop}
           setExpandedScore={noop}
           setScoreError={noop}
-          setDraftScores={noop as never}
-          updateDraftSet={noop as never}
+          setDraftScores={noop}
+          updateDraftSet={noop}
           highlightedPlayerId={highlightedPlayerId}
         />
         <PlayerStatsPanel

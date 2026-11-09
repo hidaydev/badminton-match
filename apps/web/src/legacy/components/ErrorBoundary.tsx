@@ -1,5 +1,6 @@
 import { Component, Fragment, type ReactNode, type ErrorInfo } from 'react'
 import { isChunkLoadError } from '../utils/safeLazy'
+import { t } from '../../i18n'
 
 interface Props {
   children: ReactNode
@@ -49,19 +50,28 @@ export default class ErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) return this.props.fallback
 
       const isChunkErr = isChunkLoadError(this.state.error)
+      const message = this.state.error.message.trim()
 
       return (
         <div className="flex flex-col items-center justify-center min-h-screen px-6 text-center gap-4">
-          <div className="text-3xl">{isChunkErr ? '🔄' : '⚠️'}</div>
+          <div className="text-3xl" aria-hidden="true">{isChunkErr ? '🔄' : '⚠️'}</div>
           <div>
-            <p className="text-fg font-semibold text-sm mb-1">
-              {isChunkErr ? 'App Version Updated' : 'Something went wrong'}
-            </p>
+            {/* The heading names what happened; the thrown message can carry
+                internals (a stack line, an id) and stays folded away. */}
+            <h1 className="text-fg font-semibold text-sm mb-1">
+              {t(isChunkErr ? 'errorBoundary.chunk.title' : 'errorBoundary.title')}
+            </h1>
             <p className="text-fg-dim text-xs max-w-xs">
-              {isChunkErr
-                ? 'A new version of the app is available on the server. Please reload the page to get the latest version.'
-                : this.state.error.message || 'Unexpected error — try reloading the page.'}
+              {t(isChunkErr ? 'errorBoundary.chunk.body' : 'errorBoundary.body')}
             </p>
+            {!isChunkErr && message !== '' && (
+              <details className="mt-3 max-w-xs">
+                <summary className="cursor-pointer text-xs text-fg-dim">
+                  {t('errorBoundary.details')}
+                </summary>
+                <p className="mt-1 break-words font-mono text-xs text-fg-dim">{message}</p>
+              </details>
+            )}
           </div>
           <div className="flex gap-2">
             {!isChunkErr && (
@@ -69,14 +79,14 @@ export default class ErrorBoundary extends Component<Props, State> {
                 onClick={this.handleReset}
                 className="text-xs px-3 py-1.5 rounded-lg bg-elevated hover:bg-border text-fg transition-colors hit44"
               >
-                Try again
+                {t('errorBoundary.retry')}
               </button>
             )}
             <button
               onClick={() => window.location.reload()}
               className="text-xs px-3 py-1.5 rounded-lg bg-accent/20 hover:bg-accent/30 text-accent transition-colors font-semibold hit44"
             >
-              Reload page
+              {t('errorBoundary.reload')}
             </button>
           </div>
         </div>

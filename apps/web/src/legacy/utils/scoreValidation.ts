@@ -1,6 +1,10 @@
-// src/utils/scoreValidation.ts
-// Aturan skor game — MIRROR ValidateScore di majadu-api/internal/domain/transform.go.
-// Dua sisi harus selalu konsisten (lihat scripts/tests/scoreValidation.test.ts).
+// src/legacy/utils/scoreValidation.ts
+// The single-game rules the score editor checks before it writes.
+// The server owns the same table in `modules/session/scoring.nim`
+// (`setVerdict`): equal scores, range, and the format's points/cap/win-by.
+// This file mirrors only the two rules the v1 editor can break on its own; the
+// table both sides must agree on is `./__tests__/scoreValidation.test.ts`
+// against `modules/session/tests/scoring_test.nim`.
 export function validateScore(a: number, b: number): string | null {
   if (a === b) return 'Scores cannot be equal'
   if (a < 0 || b < 0) return 'Scores cannot be negative'

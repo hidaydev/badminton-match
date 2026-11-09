@@ -3,10 +3,11 @@ import { useStore } from '../store'
 import { selectTotalGames } from '../store/selectors'
 import { PLAYERS_PER_GAME } from '../types'
 import type { SessionScoring } from '../types'
-import { timeToMinutes, minutesToTime } from '../utils/time'
+import { timeToMinutes, minutesToTime, todayLocal } from '../utils/time'
+import { setActiveTimeZone } from '../../utils/day'
 import { courtLabel } from '../utils/courtLabel'
 import { useLegacySlug, useNavigate } from '../router'
-import { fetchCommunityConfig, fetchScoringPresets } from '../../community/api'
+import { fetchCommunityConfigBundle } from '../../community/api'
 import type { ScoringPreset } from '../../community/api'
 import { Radio } from '../../components/Radio'
 
@@ -62,7 +63,7 @@ function NumInput({
           aria-label={`Decrease ${label.toLowerCase()}`}
           disabled={disabled || value <= min}
           onClick={() => onChange(Math.max(min, value - 1))}
-          className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors hit44"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors"
         >
           −
         </button>
@@ -71,7 +72,7 @@ function NumInput({
           aria-label={`Increase ${label.toLowerCase()}`}
           disabled={disabled || value >= max}
           onClick={() => onChange(Math.min(max, value + 1))}
-          className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors hit44"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors"
         >
           +
         </button>
@@ -99,7 +100,7 @@ function TimeSelect({
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       aria-label={label}
-      className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
+      className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-11"
     >
       {options.map((o) => (
         <option key={o} value={o}>{hourLabel(o)}</option>
@@ -227,21 +228,29 @@ export default function SetupPage() {
 
   const [presets, setPresets] = useState<ScoringPreset[]>([])
   const [defaultPreset, setDefaultPreset] = useState('')
+  // The date the draft opened with. The store builds it before the community's
+  // zone is known, so a zone that is not the default is applied only while the
+  // field still holds that value: a date the host typed stays theirs.
+  const [openedOn] = useState(() => useStore.getState().session.date)
 
-  // The list and the community default arrive together from the config read.
+  // The list, the community default and the community timezone arrive together
+  // from the config read.
   useEffect(() => {
     if (slug === '') return
     let active = true
-    Promise.all([fetchScoringPresets(slug), fetchCommunityConfig(slug)])
-      .then(([list, config]) => {
+    fetchCommunityConfigBundle(slug)
+      .then(({ presets: list, config }) => {
         if (!active) return
         setPresets(list)
         const fallback = config['session.default_scoring_preset']?.value
         setDefaultPreset(typeof fallback === 'string' ? fallback : '')
+        const zone = config['community.default_timezone']?.value
+        setActiveTimeZone(typeof zone === 'string' ? zone : null)
+        if (useStore.getState().session.date === openedOn) setDate(todayLocal())
       })
       .catch(() => { if (active) setPresets([]) })
     return () => { active = false }
-  }, [slug])
+  }, [slug, openedOn, setDate])
 
   // A draft with no format opens on the community default; once a format is
   // chosen the effect must not overwrite it.
@@ -308,7 +317,7 @@ export default function SetupPage() {
               value={session.date}
               onChange={(e) => setDate(e.target.value)}
               disabled={session.locked}
-              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
+              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-11"
             />
           </div>
         </div>
@@ -381,7 +390,7 @@ export default function SetupPage() {
               value={session.slotMinutes}
               disabled={session.locked}
               onChange={(e) => setSlotMinutes(Number(e.target.value))}
-              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
+              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-11"
             >
               {DURATION_OPTIONS.map((d) => (
                 <option key={d} value={d}>{d} min</option>
@@ -457,7 +466,7 @@ export default function SetupPage() {
             <span>Session is active — settings locked</span>
             <button
               onClick={resetSession}
-              className="ml-auto text-xs text-red-400 hover:text-red-300 transition-colors hit44"
+              className="ml-auto inline-flex min-h-11 min-w-11 items-center justify-center text-xs text-red-400 hover:text-red-300 transition-colors"
             >
               Reset All
             </button>
@@ -466,7 +475,7 @@ export default function SetupPage() {
           <button
             onClick={handleLock}
             disabled={!canLock}
-            className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors hit44"
+            className="w-full min-h-11 py-2.5 bg-indigo-400 hover:bg-indigo-300 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors hit44"
           >
             Start Session →
           </button>
