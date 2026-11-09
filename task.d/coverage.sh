@@ -649,8 +649,10 @@ else
   fi
 
   # The same checks run_gate makes, made before half an hour of compiles instead of
-  # after: a baseline with no per-file rows cannot judge anything.
-  if [ "$update" -eq 0 ]; then
+  # after: a baseline with no per-file rows cannot judge anything. A shard never
+  # judges, so it must not need the baseline: recording the first Linux baseline
+  # starts from a tree where that file does not exist yet.
+  if [ "$update" -eq 0 ] && [ "$shard_total" -eq 1 ]; then
     [ -f "$BASELINE" ] ||
       fail "missing ${BASELINE#"$REPO_ROOT"/} for $COVERAGE_PLATFORM; run ./task coverage --update on $COVERAGE_PLATFORM to record it"
     grep -q '^  "files": {' "$BASELINE" ||
