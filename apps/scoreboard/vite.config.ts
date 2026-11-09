@@ -14,7 +14,9 @@ export default defineConfig({
       // second time only duplicates the precache entries (PWA-16).
       includeManifestIcons: false,
       workbox: {
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        // The board is installed over the worst network in the building. 512 KiB
+        // is the documented ceiling (PWA-18); the total is asserted separately.
+        maximumFileSizeToCacheInBytes: 512 * 1024,
         navigateFallback: '/index.html',
         // A navigation to the API must reach the server, never the cached shell;
         // otherwise an offline API call looks like a document load.
