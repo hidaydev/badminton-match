@@ -47,12 +47,14 @@ Both are third-party files: see `THIRD-PARTY-NOTICES.md`.
 | `--color-accent-alt` | `#6d9dc8` | `text-accent-alt` | Interactive, links |
 
 ### Status
-| Token | Hex | Tailwind class | Usage |
-|-------|-----|----------------|-------|
-| `--color-success` | `#43a57d` | `text-success` | Positive states |
-| `--color-error` | `#d65a5a` | `text-error` | Errors, destructive |
-| `--color-warning` | `#e0985c` | `text-warning` | Warnings |
-| `--color-info` | `#5b8fbd` | `text-info` | Informational |
+Every role is a distinct hex. The ratio column is measured on `bg-elevated`,
+the darkest surface a status label sits on (the danger button's hover state).
+| Token | Hex | Tailwind class | Usage | Contrast on `elevated` |
+|-------|-----|----------------|-------|------------------------|
+| `--color-success` | `#43a57d` | `text-success` | Positive states | 5.31:1 |
+| `--color-error` | `#d86f6a` | `text-error` | Errors, destructive | 4.92:1 |
+| `--color-warning` | `#e0985c` | `text-warning` | Warnings | 6.77:1 |
+| `--color-info` | `#5b8fbd` | `text-info` | Informational | 4.69:1 |
 
 ## Token Usage in Components
 

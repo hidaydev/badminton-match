@@ -16,7 +16,7 @@ export const PALETTE = {
   accent: '#e3b341',
   accentAlt: '#6d9dc8',
   success: '#43a57d',
-  error: '#d65a5a',
+  error: '#d86f6a',
   warning: '#e0985c',
   info: '#5b8fbd',
   /** Named intentional extension for team highlights, not part of the UI scale. */
