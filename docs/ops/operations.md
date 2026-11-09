@@ -71,6 +71,41 @@ without these five fields cannot be acted on.
 - **Owner**: one name responsible for closing the follow-up.
 ```
 
+### Severity
+
+The level decides who is woken and how fast. Assign it in the first minute; it
+is cheaper to lower it later than to explain a delay.
+
+| Level | Examples | Containment target | Who is woken | User notice |
+|---|---|---|---|---|
+| SEV-1 | production API down or serving 5xx to everyone; data loss or corruption; a personal-data exposure; the database unreachable | 1 hour | repository owner immediately, by the alert webhook and a phone call to self | within 72 hours if personal data was involved |
+| SEV-2 | a core flow broken for one community (scores cannot be saved, login fails for one provider path); a release rollback used | 4 hours | repository owner the same day | if a community lost data or a feature for more than a day |
+| SEV-3 | degraded but working (slow reads, a badge missing, the RC instance down) | next working day | repository owner at the next check | not required |
+| SEV-4 | cosmetic, documentation, a single person's workaround | next release | nobody | not required |
+
+### First hour
+
+1. Assign the severity from the table above and write it in the note.
+2. Stop the bleeding before diagnosing: `systemctl --user status majadu-api`,
+   the last release in `deploy/last-release.json`, and
+   `ops/scripts/release-rollback.sh` if the last release is the cause.
+3. Write down the time of every step as it happens; the note is the evidence,
+   not a reconstruction.
+4. If personal data may be involved, preserve the logs and the audit digest
+   before rotating anything, and treat the next step as legal, not technical:
+   tell the affected people within 72 hours, name the data, and record the
+   decision even when the answer is "no notice needed".
+5. After containment, write the prevention with its artifact (commit, config,
+   test). "Be more careful" is not prevention.
+
+### Exercises
+
+One tabletop exercise per quarter, recorded as an incident note with the date
+and the scenario (for example "the VPS disk is full at 02:00" or "the Vercel
+account is suspended"). It changes behaviour, so it is summarised in
+`CHANGELOG.md`. An exercise that finds the runbook wrong updates the runbook in
+the same change.
+
 Filling rules:
 
 - **Impact** names specific data, not "the system". A correct example:
@@ -81,7 +116,9 @@ Filling rules:
 - **Prevention** must have an artifact: a commit, a configuration change, or a
   new test. "I will be more careful" is not prevention.
 - Notes are stored in `.local/incidents/` (not in the public repo) and
-  summarized in the release changelog if they touch users.
+  summarized in the release changelog if they touch users. At close, the note
+  is copied into `MAJADU_BACKUP_DIR/incidents/` on the host, so the learning
+  record leaves the laptop with the dumps instead of dying with it.
 
 ## 3. Routine checks
 

@@ -76,3 +76,15 @@ suite "supplier register":
     check caddy.contains("try_files {path} /index.html")
     check caddy.contains("file_server")
     check caddy.contains("Content-Security-Policy")
+
+suite "incident policy":
+  # ISO-18: the incident note is a form; the policy is what decides who is
+  # woken and who is told.
+  test "operations.md carries a severity model and a user-notice rule":
+    let text = readFile(repoDir / "docs" / "ops" / "operations.md")
+    for level in ["SEV-1", "SEV-2", "SEV-3", "SEV-4"]:
+      check text.contains(level)
+    check text.contains("Containment target")
+    check text.contains("within 72 hours")
+    check text.contains("tabletop exercise")
+    check text.contains("MAJADU_BACKUP_DIR/incidents/")
