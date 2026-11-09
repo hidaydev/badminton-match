@@ -2,7 +2,7 @@ import std/[json, locks, options, strutils, tables]
 import db/db
 import registry
 import logger
-import session/scoring
+import scoring_presets
 
 export registry
 
