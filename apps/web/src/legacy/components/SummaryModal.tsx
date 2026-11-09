@@ -557,20 +557,20 @@ export default function SummaryModal({
           </div>
         )}
         {mode === 'slotSwap' && (
-          <div className="mb-3 rounded-lg bg-orange-950/30 border border-orange-900/40 px-3 py-2">
+          <div className="mb-3 rounded-lg bg-amber-950/30 border border-amber-900/40 px-3 py-2">
             {slotSwapError ? (
               <span className="text-xs text-red-400">{slotSwapError}</span>
             ) : (
-              <span className="text-xs text-orange-300 font-medium">↕ Drag ⠿ to switch a game's slot</span>
+              <span className="text-xs text-amber-300 font-medium">↕ Drag ⠿ to switch a game's slot</span>
             )}
           </div>
         )}
         {mode === 'teamSwap' && (
-          <div className="mb-3 rounded-lg bg-violet-950/30 border border-violet-900/40 px-3 py-2">
+          <div className="mb-3 rounded-lg bg-sky-950/30 border border-sky-900/40 px-3 py-2">
             {teamSwapError ? (
               <span className="text-xs text-red-400">{teamSwapError}</span>
             ) : (
-              <span className="text-xs text-violet-300 font-medium">⇄ Tap a team to select, then tap another team to swap</span>
+              <span className="text-xs text-sky-300 font-medium">⇄ Tap a team to select, then tap another team to swap</span>
             )}
           </div>
         )}

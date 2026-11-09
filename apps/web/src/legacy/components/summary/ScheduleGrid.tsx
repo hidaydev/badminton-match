@@ -183,7 +183,7 @@ export default function ScheduleGrid({
                         onClick={() => !pendingTeamSwap && handleTeamClick(tgt)}
                         disabled={!!pendingTeamSwap}
                         className={`flex items-center justify-center gap-1 min-w-0 min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
-                          teamIsSelected ? 'border-amber-400 bg-amber-500/20' : 'bg-slate-800/40 border-slate-700 hover:border-violet-400'
+                          teamIsSelected ? 'border-amber-400 bg-amber-500/20' : 'bg-slate-800/40 border-slate-700 hover:border-sky-400'
                         } ${teamIsDimmed ? 'opacity-30' : ''}`}
                       >
                         {ids.map((id, i) => (

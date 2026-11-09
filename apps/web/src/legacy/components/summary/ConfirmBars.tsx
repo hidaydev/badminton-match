@@ -9,8 +9,8 @@ type BarColor = 'indigo' | 'red' | 'orange' | 'violet' | 'sky' | 'amber'
 const COLOR_MAP: Record<BarColor, { border: string; bg: string; btn: string; btnHover: string; btnText: string; accent: string }> = {
   indigo: { border: 'border-indigo-900/40', bg: 'bg-indigo-950/50 border-indigo-800/50', btn: 'bg-indigo-400', btnHover: 'hover:bg-indigo-300', btnText: 'text-slate-950', accent: 'text-indigo-200' },
   red:    { border: 'border-red-900/40',    bg: 'bg-red-950/40 border-red-800/50',     btn: 'bg-red-700',    btnHover: 'hover:bg-red-600',    btnText: 'text-white', accent: 'text-red-300' },
-  orange: { border: 'border-orange-900/40', bg: 'bg-orange-950/40 border-orange-800/40', btn: 'bg-orange-600', btnHover: 'hover:bg-orange-500', btnText: 'text-white', accent: 'text-orange-300' },
-  violet: { border: 'border-violet-900/40', bg: 'bg-violet-950/50 border-violet-800/50', btn: 'bg-violet-600', btnHover: 'hover:bg-violet-500', btnText: 'text-white', accent: 'text-violet-200' },
+  orange: { border: 'border-amber-900/40', bg: 'bg-amber-950/40 border-amber-800/40', btn: 'bg-amber-600', btnHover: 'hover:bg-amber-500', btnText: 'text-white', accent: 'text-amber-300' },
+  violet: { border: 'border-sky-900/40', bg: 'bg-sky-950/50 border-sky-800/50', btn: 'bg-sky-600', btnHover: 'hover:bg-sky-500', btnText: 'text-white', accent: 'text-sky-200' },
   sky:    { border: 'border-sky-900/40',    bg: 'bg-sky-950/40 border-sky-800/40',     btn: 'bg-sky-600',    btnHover: 'hover:bg-sky-500',    btnText: 'text-white', accent: 'text-sky-300' },
   amber:  { border: 'border-amber-900/40',  bg: 'bg-amber-950/40 border-amber-800/40',   btn: 'bg-amber-600',  btnHover: 'hover:bg-amber-500',  btnText: 'text-white', accent: 'text-amber-200' },
 }
@@ -111,16 +111,16 @@ function SlotSwapConfirmBar({
       description={
         <div className="flex flex-col gap-1.5">
           <div>
-            <span className="text-[10px] font-bold text-orange-400 uppercase tracking-wider">{s1.label}</span>
+            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">{s1.label}</span>
             {s1.players && <p className="text-xs text-slate-200 leading-snug mt-0.5">{s1.players}</p>}
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="h-px flex-1 bg-orange-900/40" />
-            <span className="text-[10px] text-orange-500 font-bold">↕ switch</span>
-            <div className="h-px flex-1 bg-orange-900/40" />
+            <div className="h-px flex-1 bg-amber-900/40" />
+            <span className="text-[10px] text-amber-500 font-bold">↕ switch</span>
+            <div className="h-px flex-1 bg-amber-900/40" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-orange-400 uppercase tracking-wider">{s2.label}</span>
+            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">{s2.label}</span>
             {s2.players && <p className="text-xs text-slate-200 leading-snug mt-0.5">{s2.players}</p>}
           </div>
         </div>
@@ -162,9 +162,9 @@ function TeamSwapConfirmBar({
       color="violet"
       description={
         <>
-          <span className="text-violet-200">{t1names}</span>
+          <span className="text-sky-200">{t1names}</span>
           {' '}⇄{' '}
-          <span className="text-violet-200">{t2names}</span>
+          <span className="text-sky-200">{t2names}</span>
         </>
       }
       warning="Cannot be undone"

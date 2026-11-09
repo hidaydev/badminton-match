@@ -77,7 +77,7 @@ export default function ActionsMenu({
             {hasSwapTeams && (
               <button
                 onClick={onEnterTeamSwapMode}
-                className="w-full text-left px-4 py-2.5 text-xs font-medium text-violet-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                className="w-full text-left px-4 py-2.5 text-xs font-medium text-sky-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
                 role="menuitem"
               >
                 ⇄ Swap team
@@ -106,7 +106,7 @@ export default function ActionsMenu({
             {hasSwapSlots && (
               <button
                 onClick={onEnterSlotSwapMode}
-                className="w-full text-left px-4 py-2.5 text-xs font-medium text-orange-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                className="w-full text-left px-4 py-2.5 text-xs font-medium text-amber-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
                 role="menuitem"
               >
                 ↕ Switch slot

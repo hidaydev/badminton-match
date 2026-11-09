@@ -90,7 +90,7 @@ export const MEDAL_TIER_STYLES: MedalTierStyle[] = [
     glyphStops: ['#f0fdff', '#85dceb', '#2c7c8c'],
     specular: '#e8fbff',
     glow: 'rgba(165, 216, 224, 0.5)',
-    pillBg: 'bg-cyan-950/40',
+    pillBg: 'bg-sky-950/40',
     pillText: 'text-[#73c9d8]',
     pillBorder: 'border-[#42a8b9]/50',
   },

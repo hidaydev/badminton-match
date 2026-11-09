@@ -284,7 +284,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
                 showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos[QF_IDS[1]]} onUploadPhoto={openUpload(QF_IDS[1])} />
             </div>
             <Connector />
-            <MatchCard match={sf1} label="SEMI 1" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
+            <MatchCard match={sf1} label="SEMI 1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
               showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos[SF_IDS[0]]} onUploadPhoto={openUpload(SF_IDS[0])} />
             <Connector />
             <MatchCard match={final} label="FINAL" borderColor="border-yellow-500" labelColor="text-yellow-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
@@ -300,7 +300,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
                 showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos[QF_IDS[3]]} onUploadPhoto={openUpload(QF_IDS[3])} />
             </div>
             <Connector />
-            <MatchCard match={sf2} label="SEMI 2" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
+            <MatchCard match={sf2} label="SEMI 2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
               showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos[SF_IDS[1]]} onUploadPhoto={openUpload(SF_IDS[1])} />
             <span /> {/* no connector to 3rd place */}
             <MatchCard match={third} label="3RD" borderColor="border-border" labelColor="text-fg-dim" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}

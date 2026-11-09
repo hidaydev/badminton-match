@@ -51,7 +51,7 @@ function GenderToggle({ value, onChange, type }: { value: Gender; onChange: (g: 
           onClick={() => onChange(g)}
           className={`px-2.5 py-1 text-xs font-semibold transition-colors ${
             value === g
-              ? g === 'M' ? 'bg-blue-600 text-white' : 'bg-pink-600 text-white'
+              ? g === 'M' ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >

@@ -8,7 +8,7 @@ const GROUP_HEAD_CLASS: Record<GroupId, string> = {
   A: 'bg-amber-900 text-yellow-300',
   B: 'bg-blue-900 text-blue-300',
   C: 'bg-green-900 text-green-300',
-  D: 'bg-purple-900 text-purple-300',
+  D: 'bg-sky-900 text-sky-300',
 }
 
 interface ActiveSlot {

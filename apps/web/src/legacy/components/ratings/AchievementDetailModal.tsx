@@ -139,7 +139,7 @@ export default function AchievementDetailModal({
               {/* Garis Track Selesai (Gradien Emas/Logam) */}
               {tierLevel > 1 && (
                 <div
-                  className="absolute top-[22px] left-5 h-0.5 bg-gradient-to-r from-amber-600 via-yellow-400 to-cyan-400"
+                  className="absolute top-[22px] left-5 h-0.5 bg-gradient-to-r from-amber-600 via-yellow-400 to-sky-400"
                   style={{
                     width: `calc(${((tierLevel - 1) / (thresholds.length - 1)) * 100}% - 10px)`,
                   }}
