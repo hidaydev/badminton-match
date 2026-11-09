@@ -54,6 +54,7 @@ proc newFixture*(name: string): Fixture =
     writeExecutable(binDir / stub, execOk)
 
   copyFile(repoDir / "task", root / "task")
+  setFilePermissions(root / "task", {fpUserRead, fpUserWrite, fpUserExec})
   copyDir(repoDir / "task.d", root / "task.d")
 
   for dir in ["apps", "modules", "shared", "tools"]:
@@ -81,7 +82,10 @@ proc runShell*(fixture: Fixture, script: string, args: seq[string] = @[],
     extraEnv: seq[(string, string)] = @[],
     unsetEnv: seq[string] = @[],
     workingDir: string = ""): ShellResult =
-  ## Runs `/bin/sh <script> <args...>` with the fixture environment.
+  ## Executes `script` directly, so its shebang chooses the interpreter. The ops
+  ## scripts are `#!/usr/bin/env bash` (and use `set -Eeuo pipefail`), while
+  ## `task` and `task.d/*.sh` are `#!/bin/sh` and run under dash on the Linux
+  ## runner; only direct execution keeps both honest.
   var env = newStringTable(modeCaseSensitive)
   for key, value in fixture.env:
     env[key] = value
@@ -90,8 +94,8 @@ proc runShell*(fixture: Fixture, script: string, args: seq[string] = @[],
   for key in unsetEnv:
     env.del(key)
   let cwd = if workingDir.len > 0: workingDir else: fixture.root
-  let process = startProcess("/bin/sh", workingDir = cwd,
-    args = @[script] & args, env = env, options = {})
+  let process = startProcess(script, workingDir = cwd,
+    args = args, env = env, options = {})
   result.stdout = process.outputStream.readAll()
   result.stderr = process.errorStream.readAll()
   result.exitCode = process.waitForExit()
@@ -105,7 +109,8 @@ proc runTask*(fixture: Fixture, args: seq[string] = @[],
 proc runLib*(fixture: Fixture, body: string,
     extraEnv: seq[(string, string)] = @[],
     unsetEnv: seq[string] = @[]): ShellResult =
-  ## Sources task.d/lib.sh, then runs `body`. `$1` inside `body` is lib.sh.
+  ## Sources task.d/lib.sh through a generated `#!/bin/sh` script, then runs
+  ## `body`. `$1` inside `body` is lib.sh.
   let worktree = "tl18-wt"
   var env = @[
     ("REPO_ROOT", fixture.root),
@@ -114,8 +119,10 @@ proc runLib*(fixture: Fixture, body: string,
     ("NIMCACHE_BUILD", fixture.root / ".cache" / worktree / "build"),
   ]
   env.add(extraEnv)
-  fixture.runShell("-c", @[body, "sh", fixture.root / "task.d" / "lib.sh"],
-    env, unsetEnv)
+  let script = fixture.root / "lib-body.sh"
+  writeFile(script, "#!/bin/sh\n" & body & "\n")
+  setFilePermissions(script, {fpUserRead, fpUserWrite, fpUserExec})
+  fixture.runShell(script, @[fixture.root / "task.d" / "lib.sh"], env, unsetEnv)
 
 proc parseLines*(output: string): seq[string] =
   for line in output.splitLines:
@@ -125,11 +132,12 @@ proc parseLines*(output: string): seq[string] =
 proc installOpsScript*(fixture: Fixture, name: string): string {.discardable.} =
   ## Copies one shipping `ops/scripts/<name>` into the fixture tree and returns
   ## the copy. Scripts that run their siblings (a dispatch target, for example)
-  ## then resolve those siblings inside the fixture, not in the checkout.
+  ## then resolve those siblings inside the fixture, not in the checkout. The
+  ## copy is executable, so runShell can use its shebang.
   let dest = fixture.root / "ops" / "scripts" / name
   createDir(dest.parentDir)
   copyFile(opsScriptsDir / name, dest)
-  setFilePermissions(dest, {fpUserRead, fpUserWrite})
+  setFilePermissions(dest, {fpUserRead, fpUserWrite, fpUserExec})
   dest
 
 proc installFake*(fixture: Fixture, name, body: string): string {.discardable.} =

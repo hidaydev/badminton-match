@@ -15,7 +15,7 @@ Wants=network-online.target
 # five minutes instead of spinning forever.
 StartLimitIntervalSec=300
 StartLimitBurst=5
-OnFailure=majadu-alert@%n.service
+OnFailure=majadu-alert@%N.service
 
 [Container]
 Image=localhost/majadu-api:local

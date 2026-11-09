@@ -151,7 +151,7 @@ E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
   `bm_staging`, roles + migrations + seed + owner, ETL + verify, `cutover_state`,
   swap env, swap the Caddy snippet, `/readyz`, smoke. Rollback: `rollback.sh`.
 - **Unit**: `ops/systemd/majadu-api.container` (rootless, `Pull=never`,
-  `MemoryMax=512M`, `StartLimit*`, `OnFailure=majadu-alert@%n.service`,
+  `MemoryMax=512M`, `StartLimit*`, `OnFailure=majadu-alert@%N.service`,
   `NoNewPrivileges`, `DropCapability=ALL`) + `majadu-alert@.service`.
 - **Daily snapshot**: `majadu-snapshot.service` + `.timer` run
   `ranksnapshot` from the same image (`podman run --rm --pull=never`), so the

@@ -18,7 +18,7 @@
 # Env (in addition to MAJADU_APP_DIR): MAJADU_SYSTEMCTL_CMD, MAJADU_CADDY_VALIDATE
 # and MAJADU_BM2_DB exist for the rehearsal harness (T-063), the same overrides
 # cutover.sh takes.
-set -euo pipefail
+set -Eeuo pipefail
 
 APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"
 SERVICE="${MAJADU_SERVICE:-majadu-api}"
@@ -69,6 +69,10 @@ usage_fail() {
   exit 1
 }
 
+# Every step below either succeeds or pages: a rollback that stops halfway
+# leaves production in the state the cutover created.
+trap 'fail "command failed at line $LINENO"' ERR
+
 for arg in "$@"; do
   case "$arg" in
     --drop-bm2) DROP_BM2=1 ;;
@@ -92,9 +96,21 @@ read_env() {
   sed -n "s/^$key=//p" "$file" 2>/dev/null | tail -1
 }
 
+# The owner DSN belongs to the deploy and cutover tools, so it lives in the tool
+# env, not in the file the API unit loads. The v2 env fallback keeps the T-063
+# rehearsal sandbox, which installs a single v2 env, running.
+TOOLS_ENV="$APP_DIR/env/majadu-tools.env"
+V2_ENV="$APP_DIR/env/majadu-prod.env.v2"
 OWNER_DSN=""
-if [ -f "$APP_DIR/env/majadu-prod.env.v2" ]; then
-  OWNER_DSN=$(read_env "$APP_DIR/env/majadu-prod.env.v2" MAJADU_OWNER_DSN)
+if [ -f "$TOOLS_ENV" ]; then
+  OWNER_DSN=$(read_env "$TOOLS_ENV" MAJADU_OWNER_DSN)
+  [ -z "$OWNER_DSN" ] || log "rollback reads the owner DSN from $TOOLS_ENV"
+elif [ -f "$V2_ENV" ]; then
+  OWNER_DSN=$(read_env "$V2_ENV" MAJADU_OWNER_DSN)
+  log "WARNING: $TOOLS_ENV is missing; reading the owner DSN from $V2_ENV (rehearsal fallback)"
+fi
+if [ -z "$OWNER_DSN" ]; then
+  log "WARNING: no owner DSN available; the abandoned-row guard will be skipped, so v2 writes since the cutover are not counted"
 fi
 
 # ---------------------------------------------------------------------------
@@ -149,20 +165,20 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Caddy first, so the site is answered by the process that is about to start.
+# Service first: v1 has to answer before anything optional is touched.
+# cutover.sh stopped and disabled the unit, so until this restart nothing is
+# serving. Every command here is idempotent, so a retry after a partial run is
+# safe.
 # ---------------------------------------------------------------------------
-ln -sfn "$CADDY_DIR/site-v1.caddy" "$CADDY_ACTIVE"
-$CADDY_VALIDATE --config "$CADDY_CONFIG" --adapter caddyfile >/dev/null ||
-  fail "Caddy rejected the v1 snippet"
-$CADDY_RELOAD
-log "caddy serves the v1 site again"
-
-$SYSTEMCTL enable "$SERVICE" >/dev/null 2>&1
+if ! $SYSTEMCTL enable "$SERVICE" >/dev/null 2>&1; then
+  log "WARNING: could not enable $SERVICE; it runs but will not start after a reboot"
+fi
 $SYSTEMCTL restart "$SERVICE"
 log "v1 unit enabled and started"
 
 # ---------------------------------------------------------------------------
-# v1 has no /readyz; liveness is the strongest signal it offers.
+# v1 has no /readyz; liveness is the strongest signal it offers. A service that
+# does not answer is a failed rollback, and it pages.
 # ---------------------------------------------------------------------------
 deadline=$((SECONDS + 60))
 healthy=0
@@ -176,8 +192,23 @@ done
 if [ "$healthy" -eq 1 ]; then
   log "v1 answers /healthz"
 else
-  log "ERROR: v1 did not answer /healthz within 60s"
+  fail "v1 did not answer /healthz within 60s after the restart"
 fi
+
+# ---------------------------------------------------------------------------
+# Caddy last: the site snippet is optional relative to a running service, and
+# the live server runs Caddy with `admin off`, which makes `systemctl reload`
+# fail. Point the active snippet at v1 and try to reload, but a failure here is
+# a paged partial rollback, not a dead site.
+# ---------------------------------------------------------------------------
+ln -sfn "$CADDY_DIR/site-v1.caddy" "$CADDY_ACTIVE"
+if ! $CADDY_VALIDATE --config "$CADDY_CONFIG" --adapter caddyfile >/dev/null; then
+  fail "Caddy rejected the v1 snippet; v1 is running and healthy, the site is not switched"
+fi
+if ! $CADDY_RELOAD; then
+  fail "Caddy reload failed (admin off?); v1 is running and healthy, the site is not switched"
+fi
+log "caddy serves the v1 site again"
 
 # ---------------------------------------------------------------------------
 # Archive the cutover row, then delete it so a new cutover is not blocked.
@@ -206,8 +237,4 @@ fi
 printf '{"step":"rollback","state":"done","at":"%s"}\n' \
   "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >"$STEP_FILE"
 
-if [ "$healthy" -eq 1 ]; then
-  log "rollback complete"
-else
-  exit 1
-fi
+log "rollback complete"

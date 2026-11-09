@@ -29,9 +29,10 @@ rehearsal is done, treat every step here as untested.
 ├── scripts/                   # deploy-vps.sh, cutover.sh, rollback.sh, smoke.sh,
 │                              # backup.sh, restore.sh (copied from the repo)
 ├── env/
-│   ├── majadu-prod.env        # symlink to .v1 or .v2 (mode 600)
-│   ├── majadu-prod.env.v1     # MAJADU_PG_DSN → bm
-│   ├── majadu-prod.env.v2     # MAJADU_PG_DSN → bm2, OWNER/ETL/SOURCE DSN
+│   ├── majadu-prod.env        # API unit env, symlink to .v1 or .v2 (mode 600)
+│   ├── majadu-prod.env.v1     # MAJADU_PG_DSN → bm; no owner or ETL DSN
+│   ├── majadu-prod.env.v2     # MAJADU_PG_DSN → bm2; no owner or ETL DSN
+│   ├── majadu-tools.env       # OWNER/ETL/SOURCE/RESTORE DSNs (mode 600)
 │   ├── ghcr-token             # mode 600; optional if podman is already logged in
 │   └── alert.env              # mode 600; optional, MAJADU_ALERT_WEBHOOK
 ├── caddy/
@@ -62,6 +63,9 @@ Caddyfile that mentions only the first) are in
       window ≤ 10 minutes, `--from` proven).
 - [ ] `majadu-prod.env.v1` and `.v2` exist, mode 600, and `bm2` does not contain
       production data yet.
+- [ ] `majadu-tools.env` exists, mode 600, owned by the deploy user, and names
+      the owner, ETL, source-read and staging-restore roles. The API unit never
+      loads it.
 - [ ] `ghcr-token` (if used) is mode 600 and can `podman pull` the release digest.
 - [ ] `alert.env` contains a webhook, or there is a deliberate decision that
       alerts only land in the journal.
@@ -78,7 +82,8 @@ running it.
 
 1. Announce the maintenance window (start + expected finish).
 2. Make sure `bm_staging` contains a staging copy (`backup.sh --tag cutover` then
-   `restore.sh --target bm_staging --recreate`).
+   `restore.sh --target bm_staging --recreate --dsn "$MAJADU_CUTOVER_RESTORE_DSN"`,
+   with the DSN read from `env/majadu-tools.env`).
 3. Prepare two rehearsal env files (`v1.env`, `v2.env`, mode 600) from the
    templates in `ops/env/`. `bm2_rehearsal` is recreated by the harness, so it
    needs no preparation.
@@ -133,9 +138,9 @@ All commands are run over SSH to the VPS as the app owner, from
    | `maintenance` | Caddy → `site-maintenance.caddy` (`caddy validate` first) | site 503 + `Retry-After` |
    | `stop-v1` | `systemctl --user stop` + `disable` | v1 unit `inactive (dead)` and `disabled` |
    | `snapshot` | `backup.sh --tag cutover`, sha256 recorded | `backups/bm-cutover-*.dump` |
-   | `restore-staging` | dump → `bm_staging` | `restore: done` |
-   | `prepare-bm2` | roles, migrations, seed, `ownerseed` | `dbtools: migrated 26 file(s)` |
-   | `import` | ETL + `verify` | `problems: 0` |
+   | `restore-staging` | dump → `bm_staging` with `MAJADU_CUTOVER_RESTORE_DSN` | `restore: done` |
+   | `prepare-bm2` | roles, migrations, seed, `ownerseed` with `MAJADU_OWNER_DSN` | `dbtools: migrated 26 file(s)` |
+   | `import` | ETL from `MAJADU_ETL_SOURCE_DSN` into `MAJADU_ETL_DSN`, then `verify` | `problems: 0` |
    | `state` | fill `cutover_state`, switch env to `.v2` | `env now points at v2` |
    | `start` | `:release` → `:local`, enable + start v2 | unit `active (running)` |
    | `site` | Caddy → `site-v2.caddy` | site returns 200 |
@@ -195,11 +200,13 @@ there are writes without `--abandon-data`; the number that will be lost is
 printed in the error message and in the log. Add `--drop-bm2` if the bm2
 database should be dropped as well, rather than left behind for inspection.
 
-Rollback restores `:v1-final`, the unit and env saved during `preserve-v1`,
-points Caddy back to `site-v1.caddy` (with `caddy validate`), `enable` +
-`start`s v1, waits for `/healthz`, archives the `cutover_state` row to
-`cutover/cutover.state.json`, then deletes it so the next cutover is not
-blocked.
+Rollback restores `:v1-final`, the unit and env saved during `preserve-v1`, then
+enables and restarts v1 and waits for `/healthz` before it touches Caddy. Only
+after v1 answers does it point Caddy back to `site-v1.caddy` (`caddy validate`
+plus a reload). A Caddy failure there is reported as a partial rollback: v1
+keeps running, the site snippet is not switched, and the run pages. Once v1 is
+healthy, rollback archives the `cutover_state` row to
+`cutover/state-archive.json` and deletes it so the next cutover is not blocked.
 
 If the rollback itself fails, do not rerun the cutover: recover by hand from
 `cutover/majadu-api.container.v1`, `cutover/env-target.v1`, and the

@@ -22,6 +22,15 @@ printf '%s\n' "$*" >> "$FAKE_PSQL_LOG"
 exit 0
 """
 
+const flockFake = """#!/bin/sh
+# Stand-in for flock(1): a case sets FAKE_LOCK_HELD=1 to stand in for another
+# deploy or cutover holding .deploy.lock.
+if [ "${FAKE_LOCK_HELD:-0}" = "1" ]; then
+  exit 1
+fi
+exit 0
+"""
+
 const smokeCurl = """#!/bin/sh
 status=0
 url=
@@ -187,6 +196,7 @@ suite "restore.sh":
     let fixture = newFixture("restore-force-ok")
     defer: removeDir(fixture.root)
     fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
     let dump = fixture.root / "dump.bin"
     touch(dump, "dump")
     let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
@@ -195,10 +205,273 @@ suite "restore.sh":
     check result.stdout.contains("restore: writing " & dump & " into bm2")
     check result.stdout.contains("restore: done")
 
+  test "a --dsn that names another database is refused":
+    let fixture = newFixture("restore-dsn-mismatch")
+    defer: removeDir(fixture.root)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://bm2_owner@db.example:5432/bm2"], appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains(
+      "restore: --target 'bm_staging' does not match the database 'bm2' in --dsn")
+    check result.stderr.contains("refusing to write into 'bm2'")
+
+  test "a matching --dsn with --force is still accepted":
+    let fixture = newFixture("restore-dsn-match")
+    defer: removeDir(fixture.root)
+    fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm2", "--force",
+        "--dsn", "postgres://bm2_owner@db.example:5432/bm2?sslmode=require"],
+      appDir(fixture))
+    check result.exitCode == 0
+    check result.stdout.contains("restore: writing " & dump & " into bm2")
+
+  test "a dbname parameter cannot redirect the write":
+    let fixture = newFixture("restore-dsn-dbname")
+    defer: removeDir(fixture.root)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://u@db.example:5432/bm_staging?dbname=bm2"],
+      appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains(
+      "connection parameter 'dbname' in --dsn can change the destination")
+    check result.stderr.contains("only sslmode is allowed")
+
+  test "a mixed-case dbname parameter is refused":
+    let fixture = newFixture("restore-dsn-dbname-case")
+    defer: removeDir(fixture.root)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://u@db.example:5432/bm_staging?DbName=bm2"],
+      appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains(
+      "connection parameter 'DbName' in --dsn can change the destination")
+    check result.stderr.contains("only sslmode is allowed")
+
+  test "a percent-encoded dbname parameter is refused":
+    let fixture = newFixture("restore-dsn-dbname-encoded")
+    defer: removeDir(fixture.root)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://u@db.example:5432/bm_staging?%64bname=bm2"],
+      appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains(
+      "connection parameter 'dbname' in --dsn can change the destination")
+    check result.stderr.contains("only sslmode is allowed")
+
+  test "an undecodable parameter is refused":
+    let fixture = newFixture("restore-dsn-bad-escape")
+    defer: removeDir(fixture.root)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://u@db.example:5432/bm_staging?%zz=1"],
+      appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains("cannot decode connection parameter '%zz'")
+
+  test "sslmode is the only allowed query parameter":
+    let fixture = newFixture("restore-dsn-sslmode")
+    defer: removeDir(fixture.root)
+    fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://u@db.example:5432/bm_staging?sslmode=require"],
+      appDir(fixture))
+    check result.exitCode == 0
+    check result.stdout.contains("restore: writing " & dump & " into bm_staging")
+
+  test "an empty query string is accepted":
+    let fixture = newFixture("restore-dsn-empty-query")
+    defer: removeDir(fixture.root)
+    fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://u@db.example:5432/bm_staging?"],
+      appDir(fixture))
+    check result.exitCode == 0
+    check result.stdout.contains("restore: writing " & dump & " into bm_staging")
+
+  test "a question mark in the password is not a query":
+    let fixture = newFixture("restore-dsn-password-question")
+    defer: removeDir(fixture.root)
+    let pgLog = fixture.root / "pg_restore.log"
+    fixture.installFake("pg_restore",
+      "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " & pgLog & "\nexit 0\n")
+    fixture.installFake("flock", flockFake)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    # The `?` is in the userinfo, before the path slash, so it is password text.
+    let dsn = "postgres://u:p?ss@db.example:5432/bm_staging"
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging", "--dsn", dsn],
+      appDir(fixture))
+    check result.exitCode == 0
+    check result.stdout.contains("restore: writing " & dump & " into bm_staging")
+    # The path database is the one pg_restore receives, unchanged.
+    check readFile(pgLog).contains("--dbname " & dsn)
+
+  test "a decoy query in the password cannot redirect the write":
+    let fixture = newFixture("restore-dsn-password-decoy")
+    defer: removeDir(fixture.root)
+    let pgLog = fixture.root / "pg_restore.log"
+    fixture.installFake("pg_restore",
+      "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " & pgLog & "\nexit 0\n")
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgresql://sachiel:decoy?sslmode=prefer@127.0.0.1:5432/bm_staging?dbname=postgres"],
+      appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains(
+      "connection parameter 'dbname' in --dsn can change the destination")
+    check not fileExists(pgLog)
+
+  test "a semicolon in the query is refused explicitly":
+    let fixture = newFixture("restore-dsn-semicolon")
+    defer: removeDir(fixture.root)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://u@db.example:5432/bm_staging?sslmode=require;dbname=bm2"],
+      appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains("--dsn query contains ';'")
+
+  test "a DSN with no query is still accepted":
+    let fixture = newFixture("restore-dsn-no-query")
+    defer: removeDir(fixture.root)
+    fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://u@db.example:5432/bm_staging"], appDir(fixture))
+    check result.exitCode == 0
+    check result.stdout.contains("restore: writing " & dump & " into bm_staging")
+
+  test "an IPv6 host is not confused with a query":
+    let fixture = newFixture("restore-dsn-ipv6")
+    defer: removeDir(fixture.root)
+    fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://u@[::1]:5432/bm_staging"], appDir(fixture))
+    check result.exitCode == 0
+    check result.stdout.contains("restore: writing " & dump & " into bm_staging")
+
+  test "an authority without a path has no database":
+    let fixture = newFixture("restore-dsn-no-path")
+    defer: removeDir(fixture.root)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://u@db.example:5432"], appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains(
+      "restore: cannot read a database name from --dsn")
+
+  test "a query before the path slash cannot smuggle a target into a value":
+    let fixture = newFixture("restore-dsn-query-before-path")
+    defer: removeDir(fixture.root)
+    let pgLog = fixture.root / "pg_restore.log"
+    fixture.installFake("pg_restore",
+      "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " & pgLog & "\nexit 0\n")
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    # libpq reads dbname=postgres and treats /bm_staging inside application_name
+    # as a value, not a path. The guard must refuse instead of reading it as one.
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgresql://127.0.0.1:5432?dbname=postgres&application_name=/bm_staging"],
+      appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains(
+      "restore: cannot read a database name from --dsn")
+    check not fileExists(pgLog)
+
+  test "a no-path DSN that names the target in dbname is still refused":
+    let fixture = newFixture("restore-dsn-no-path-dbname")
+    defer: removeDir(fixture.root)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgresql://127.0.0.1:5432?dbname=bm_staging"], appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains(
+      "restore: cannot read a database name from --dsn")
+
+  test "an at sign in a query value is not userinfo":
+    let fixture = newFixture("restore-dsn-at-in-query")
+    defer: removeDir(fixture.root)
+    let pgLog = fixture.root / "pg_restore.log"
+    fixture.installFake("pg_restore",
+      "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " & pgLog & "\nexit 0\n")
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    # The "@" is inside a query value, so it cannot split userinfo and hide
+    # dbname=bm2_prod from the guard.
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgresql:///bm_staging?dbname=bm2_prod&application_name=a@/bm_staging"],
+      appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains(
+      "connection parameter 'dbname' in --dsn can change the destination")
+    check not fileExists(pgLog)
+
+  test "a held deploy lock stops the write before pg_restore":
+    let fixture = newFixture("restore-lock-held")
+    defer: removeDir(fixture.root)
+    fixture.installFake("flock", flockFake)
+    let pgLog = fixture.root / "pg_restore.log"
+    fixture.installFake("pg_restore",
+      "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " & pgLog & "\nexit 0\n")
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://bm2_owner@db.example:5432/bm_staging"],
+      appDir(fixture) & @[("FAKE_LOCK_HELD", "1")])
+    check result.exitCode == 1
+    check result.stderr.contains("another deploy or cutover holds")
+    check not fileExists(pgLog)
+
   test "--recreate keeps the authority and query and drops the database":
     let fixture = newFixture("restore-recreate")
     defer: removeDir(fixture.root)
     fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
     let log = fixture.root / "psql.log"
     fixture.installFake("psql", psqlLogFake)
     let dump = fixture.root / "dump.bin"
@@ -221,6 +494,7 @@ suite "restore.sh":
     let fixture = newFixture("restore-socket")
     defer: removeDir(fixture.root)
     fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
     let log = fixture.root / "psql.log"
     fixture.installFake("psql", psqlLogFake)
     let dump = fixture.root / "dump.bin"

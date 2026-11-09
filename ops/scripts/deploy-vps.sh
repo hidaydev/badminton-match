@@ -16,7 +16,8 @@
 # MAJADU_HEALTH_URL, MAJADU_CUTOVER_NETWORK.
 #
 # Before restarting, the migrations shipped in the pulled image are applied and
-# verified (`dbtools migrate` + `dbtools verify`, both against MAJADU_OWNER_DSN).
+# verified (`dbtools migrate` + `dbtools verify`, both against MAJADU_OWNER_DSN
+# from $APP_DIR/env/majadu-tools.env; the API unit never loads that file).
 # A failure there leaves the running release and the tags untouched. Migrations
 # must therefore stay expand/contract: `:prev` has to keep serving on the new
 # schema, because that is what the readiness rollback starts.
@@ -27,7 +28,12 @@
 #
 # After readiness, `scripts/smoke.sh` asserts that `/version` reports the release
 # that was just pulled, not just that a process is up.
-set -euo pipefail
+#
+# The ERR trap is installed at the top level, so `set -E` is what carries it into
+# functions and command substitutions. Without it a failure inside `service` or
+# `wait_ready` exits through `set -e` with no ERROR line, no alert and no
+# last-release.json.
+set -Eeuo pipefail
 
 REPO_NAME="${1:-badminton-match}"
 REF="${2:-}"
@@ -43,6 +49,7 @@ HEALTH_URL="${MAJADU_HEALTH_URL:-http://127.0.0.1:8080}"
 NETWORK="${MAJADU_CUTOVER_NETWORK:-qouver}"
 MONO_DIR="$APP_DIR/monorepo"
 ENV_FILE="$APP_DIR/env/majadu-prod.env"
+TOOLS_ENV="$APP_DIR/env/majadu-tools.env"
 STATE_DIR="$APP_DIR/deploy"
 LOG="$APP_DIR/logs/deploy.log"
 LOCK_FILE="$APP_DIR/.deploy.lock"
@@ -186,6 +193,26 @@ case "$PROD_DSN" in
     ;;
 esac
 
+# The cutover gate exited 0 on a pre-cutover host, so everything below only
+# applies once production points at bm2. The tool file holds the owner DSN the
+# migrate step needs; check it before the digest and the image pull so a host
+# that never created it fails fast instead of after pulling a release it cannot
+# migrate.
+[ -f "$TOOLS_ENV" ] || fail "tool env file $TOOLS_ENV is missing; copy ops/env/prod-tools.env.example"
+
+# This file is the API unit's EnvironmentFile. A leftover owner, ETL or audit
+# DSN from the single-file layout would be handed to the public process, so the
+# deploy stops and names the line instead of starting a container with it.
+# systemd skips leading whitespace, allows whitespace around `=`, and accepts an
+# `export` prefix, so the match has to see those forms; comments do not match.
+STEP="env-split"
+for key in MAJADU_OWNER_DSN MAJADU_ETL_DSN MAJADU_ETL_SOURCE_DSN \
+  MAJADU_CUTOVER_RESTORE_DSN MAJADU_AUDIT_DSN; do
+  if hit=$(grep -Ein "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=" "$ENV_FILE"); then
+    fail "$ENV_FILE:${hit%%:*} must not contain $key; move it to $TOOLS_ENV"
+  fi
+done
+
 VERSION=$(tr -d '[:space:]' <"$MONO_DIR/VERSION")
 [ -n "$VERSION" ] || fail "VERSION is empty"
 
@@ -206,6 +233,10 @@ fi
 STEP="resolve-digest"
 TOKEN_FILE="$APP_DIR/env/ghcr-token"
 require_private_file "$ENV_FILE"
+# The owner and ETL DSNs are for the deploy and cutover tools, not for the API
+# unit. They live next to the API env in a second file that the unit never
+# loads, and that file too must stay private.
+require_private_file "$TOOLS_ENV"
 require_private_file "$TOKEN_FILE"
 AUTH=()
 if [ -f "$TOKEN_FILE" ]; then
@@ -215,7 +246,7 @@ elif [ -n "${GITHUB_TOKEN:-}" ]; then
 fi
 RELEASE=$(curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
   "${AUTH[@]}" "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" 2>/dev/null || true)
-DIGEST=$(printf '%s' "$RELEASE" | grep -oE 'sha256:[0-9a-f]{64}' | head -1)
+DIGEST=$(printf '%s' "$RELEASE" | grep -oE 'sha256:[0-9a-f]{64}' | head -1 || true)
 if [ -z "$DIGEST" ]; then
   fail "release v$VERSION has no published image digest"
 fi
@@ -257,9 +288,9 @@ PREV_SCHEMA=$(sed -n 's/.*"schema":"\([^"]*\)".*/\1/p' \
   "$STATE_DIR/last-release.json" 2>/dev/null | tail -1 || true)
 [ -n "$PREV_SCHEMA" ] || PREV_SCHEMA="unknown"
 STEP="migrate"
-OWNER_DSN=$(sed -n 's/^MAJADU_OWNER_DSN=//p' "$ENV_FILE" | tail -1)
+OWNER_DSN=$(sed -n 's/^MAJADU_OWNER_DSN=//p' "$TOOLS_ENV" | tail -1)
 if [ -z "$OWNER_DSN" ]; then
-  fail "MAJADU_OWNER_DSN is missing from $ENV_FILE; cannot migrate"
+  fail "MAJADU_OWNER_DSN is missing from $TOOLS_ENV; cannot migrate"
 fi
 if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
   migrate --dir /app/db/migrations >>"$LOG" 2>&1; then
@@ -319,7 +350,11 @@ for kind in container service timer; do
     fi
   done
 done
-service daemon-reload >/dev/null 2>&1 || true
+# The units are on disk; a reload failure would leave systemd running the old
+# ones, so report it instead of hiding it.
+if ! reload_out=$(service daemon-reload 2>&1); then
+  log "WARNING: daemon-reload failed: $reload_out"
+fi
 
 # ---------------------------------------------------------------------------
 # Operator scripts come from the repository too: cutover.sh calls backup.sh,

@@ -22,8 +22,12 @@ Rules that bind this list:
 
 - MFA is required on Google, GitHub, and the VPS panel. Without MFA, one leaked
   password means the whole list above leaks with it.
-- Credentials never enter the repository. The repo only contains an example:
-  `ops/env/prod.env.example`.
+- Credentials never enter the repository. The repo only contains examples:
+  `ops/env/prod.env.example` for the API unit and
+  `ops/env/prod-tools.env.example` for the deploy and cutover tools. On the VPS
+  they are two files, both mode 600 and owned by the deploy user;
+  `majadu-tools.env` holds the owner and ETL roles and is never an
+  `EnvironmentFile` of the API unit.
 - Accounts no longer in use are revoked in all three places: GitHub, the VPS
   panel, and `platform_owner` (through `./task opstoken`/the CLI, not manual SQL).
 - Database roles are separated: the app has no right to delete `account.audit`,
@@ -71,7 +75,9 @@ Filling rules:
 | Yearly | The access list above is still accurate | review by hand, revoke what is unused |
 
 `deploy-vps.sh` runs `dbtools migrate` then `dbtools verify` from the newly
-pulled image, using `MAJADU_OWNER_DSN`, before the unit is restarted. A failure
+pulled image, using `MAJADU_OWNER_DSN` from `majadu-tools.env`, before the unit
+is restarted. The API unit loads only `majadu-prod.env`; it never sees the owner
+or ETL credential. A failure
 there aborts the deploy and leaves the old release running; `:local` and `:prev`
 are not touched.
 
@@ -89,12 +95,19 @@ not exist:
 - `ops/scripts/{cutover,rollback,backup,restore,smoke}.sh` exist in the repo,
   but have never been run on a real VPS. The D-3 rehearsal (T-063) is what
   proves them; before that, do not consider the rollback path tested.
-- Automatic alerts exist at the unit level: `OnFailure=majadu-alert@%n.service`
+- Automatic alerts exist at the unit level: `OnFailure=majadu-alert@%N.service`
   on every unit, and `deploy-vps.sh`, `cutover.sh`, and `rollback.sh` call the
-  same template on failure. Without `/srv/qouver/apps/majadu/env/alert.env`
-  (mode 600) the message only goes to the journal, it is not sent off the
-  machine. Journal retention and shipping the journal off-host are not
-  configured; those are VPS steps, not files in this repo.
+  same template on failure. `%N` is the unit name without its type suffix, so
+  `majadu-janitor.service` starts `majadu-alert@majadu-janitor.service`; `%n`
+  would produce `majadu-alert@majadu-janitor.service.service`, which does not
+  exist. The shelltests assert the specifier and the template presence because a
+  macOS checkout cannot run systemd; on the host, prove the expansion with
+  `systemd-analyze verify ~/.config/systemd/user/majadu-janitor.service` (and
+  the other installed units) after a deploy. Without
+  `/srv/qouver/apps/majadu/env/alert.env` (mode 600) the message only goes to
+  the journal, it is not sent off the machine. Journal retention and shipping
+  the journal off-host are not configured; those are VPS steps, not files in
+  this repo.
 - `readyz` used to be just a probe; now `majadu-readyz.timer` hits it every 5
   minutes and a failure becomes an alert. Internal metrics (T-062) are still not
   exposed; `/ops/ping` only proves the CLI token is alive.

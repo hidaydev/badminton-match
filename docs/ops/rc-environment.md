@@ -115,7 +115,8 @@ Artifacts already on the RC branch:
 
 | File | Contents |
 |---|---|
-| `ops/env/rc.env.example` | RC env template (DSN `bm2_rc`, RC domain OIDC) |
+| `ops/env/rc.env.example` | RC API env template (DSN `bm2_rc`, RC domain OIDC) |
+| `ops/env/rc-tools.env.example` | RC owner DSN for deploy and bootstrap (not loaded by the API unit) |
 | `ops/systemd/majadu-rc-api.container` | port `127.0.0.1:8081`, image `localhost/majadu-rc-api:local` |
 | `ops/scripts/deploy-vps-rc.sh` | deploy per push to the RC branch |
 | `ops/scripts/bootstrap-rc.sh` | one-time: DB + data copy + start |
