@@ -58,6 +58,10 @@ log() {
 }
 
 json_field() {
+  # A missing state file is the first deploy, not a failure. GNU sed exits 2 on
+  # it, and `set -o pipefail` turned that into a failed `fail()` before its
+  # message was written.
+  [ -f "$1" ] || return 0
   sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p" "$1" 2>/dev/null | head -1
 }
 
