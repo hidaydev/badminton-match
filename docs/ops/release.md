@@ -33,7 +33,11 @@ pushed.
 ## 2. Release sequence
 
 1. `./task release`: dry run. It prints the bump, the changelog section, and the
-   following commands; it writes or tags nothing.
+   following commands; it writes or tags nothing. It refuses a tree that does
+   not contain `main` (or `origin/main`): merge `main` into the release branch,
+   run the full gate on the merge commit, and tag that commit. Record its SHA in
+   the release notes next to the coverage baseline date, so the number and the
+   tree it describes travel together.
 2. `./task release --apply`: writes `VERSION`, `CHANGELOG.md`, and
    `.cache/release/v<version>.md` (tag message source). It only runs if the
    working tree is clean and the last tag matches `VERSION`.
