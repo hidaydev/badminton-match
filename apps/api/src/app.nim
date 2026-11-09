@@ -3499,6 +3499,11 @@ proc dispatch(request: Request) =
         else:
           clearTournamentRating(request, ctx, user, parts[4])
         return
+      if parts.len in [4, 5] or
+         (parts.len == 6 and parts[5] == "rating") or
+         (parts.len == 7 and parts[5] == "matches"):
+        methodNotAllowed(request)
+        return
     # /c/{slug}/ratings/rebuild and /c/{slug}/rating-sources[/{id}]
     if parts.len >= 4 and parts[1] == "c" and
        parts[3] in ["ratings", "rating-sources"]:
@@ -3516,6 +3521,10 @@ proc dispatch(request: Request) =
         return
       if parts[3] == "rating-sources" and parts.len == 5 and verb == "DELETE":
         removeRatingSource(request, admin.get[1], admin.get[0], parts[4])
+        return
+      if (parts[3] == "ratings" and parts.len == 5 and parts[4] == "rebuild") or
+         (parts[3] == "rating-sources" and parts.len in [4, 5]):
+        methodNotAllowed(request)
         return
     # /invites/{token}/accept
     if parts.len == 4 and parts[1] == "invites" and parts[3] == "accept":
