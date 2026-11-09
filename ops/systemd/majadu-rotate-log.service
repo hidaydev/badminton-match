@@ -9,7 +9,7 @@
 # repository.
 [Unit]
 Description=Majadu log rotation
-OnFailure=majadu-alert@%n.service
+OnFailure=majadu-alert@%N.service
 
 [Service]
 Type=oneshot
