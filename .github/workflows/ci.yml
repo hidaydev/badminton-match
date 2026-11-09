@@ -29,10 +29,9 @@ env:
   NIM_VERSION: "2.4.0"
 
 # The runner image is pinned instead of `ubuntu-latest`. The `ubuntu-latest`
-# label moved to Ubuntu 26 on 2026-10-19, where the image no longer provides
-# what this toolchain loads at runtime: `libpcre` for Nim's `re` module and the
-# Perl modules the pinned lcov build needs. The workflows stay on the image the
-# toolchain is validated against until both are addressed.
+# label moved to Ubuntu 26 on 2026-10-19 and broke the pinned lcov build, so the
+# workflows stay on the image the toolchain is validated against. Runtime C
+# libraries and Perl modules are installed explicitly below rather than assumed.
 
 jobs:
   api-check:
@@ -68,6 +67,12 @@ jobs:
         run: pnpm install --frozen-lockfile
       # The packages in deps.lock are not vendored: a cold `~/.nimble` cache
       # must install them before anything compiles.
+      # Nim's `re` binds to the system PCRE 1 library at run time, and the
+      # runner image does not ship it.
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       # D-6: `check` runs the database-backed suites, so this job provisions the
@@ -126,6 +131,12 @@ jobs:
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
       # The packages in deps.lock are not vendored: a cold `~/.nimble` cache
       # must install them before anything compiles.
+      # Nim's `re` binds to the system PCRE 1 library at run time, and the
+      # runner image does not ship it.
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       - name: "Database: provision and create the test database"
@@ -205,6 +216,12 @@ jobs:
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
       # The packages in deps.lock are not vendored: a cold `~/.nimble` cache
       # must install them before anything compiles.
+      # Nim's `re` binds to the system PCRE 1 library at run time, and the
+      # runner image does not ship it.
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       # Fails when the two source specs, the merged document, the generated Nim
@@ -271,6 +288,12 @@ jobs:
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
       # The packages in deps.lock are not vendored: a cold `~/.nimble` cache
       # must install them before anything compiles.
+      # Nim's `re` binds to the system PCRE 1 library at run time, and the
+      # runner image does not ship it.
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       - uses: pnpm/action-setup@9bbca1e9dc2902adb87e8780fe5c98796985a62d # v6.1.1
@@ -290,9 +313,14 @@ jobs:
       # the versions they report exactly. apt on the runner ships lcov 2.0 and
       # gcovr 7.0 against the locked 2.6 and 8.8, so both come from upstream.
       # The doc and XS targets are skipped: they need sphinx and a C++20 build
-      # and contribute nothing to `lcov --version`.
+      # and contribute nothing to `lcov --version`. `LCOV_NO_XS=1` skips only
+      # the XS modules, so the pure Perl ones lcov 2.6 loads at startup still
+      # have to be present.
       - name: "Dependencies: install pinned coverage tools"
         run: |
+          sudo apt-get update
+          sudo apt-get install -y libcapture-tiny-perl libdatetime-perl \
+            libdevel-stacktrace-perl
           python3 -m pip install --break-system-packages gcovr==8.8
           git clone --depth 1 --branch v2.6 \
             https://github.com/linux-test-project/lcov "$RUNNER_TEMP/lcov"
