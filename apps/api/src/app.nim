@@ -3106,7 +3106,7 @@ proc rejectShareScrape(request: Request, snapshot: Snapshot,
   let codeKey = sha256Hex(parts[2])[0 .. 15]
   let limit = snapshot.intValue(%*{}, keySecurityShareScrapeLimit)
   if quota(request, snapshot, "share", codeKey, "",
-      limit * shareGlobalFactor):
+      limit * shareGlobalFactor, evictable = true):
     return true
   quota(request, snapshot, "share", codeKey & "|" & identity.key,
     identity.address, limit, evictable = true)

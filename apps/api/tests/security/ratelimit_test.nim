@@ -82,6 +82,28 @@ suite "security: rate limit":
       extra = [("X-Client-IP", address)])
     expectStatus(afterChurn, 429)
 
+  test "two sessions of one user share the join-request bucket":
+    # SEC-01 DoD, second half: a per-account budget cannot be multiplied by
+    # logging in twice. Both cookies resolve to the same user id, so the sixth
+    # join request is 429 whichever session sends it.
+    cleanupUsers(database, "ratelimit-join%")
+    let userId = newUser(database, "ratelimit-join",
+      "ratelimit-join@example.com", "Rate Limit Join")
+    let first = cookieFor(database, userId)
+    let second = cookieFor(database, userId)
+    var blocked: HttpResult
+    var allowed = 0
+    for index in 0 ..< 6:
+      let cookie = if index mod 2 == 0: first else: second
+      let response = call(baseUrl, HttpPost,
+        "/c/ratelimit-join-none/join-requests", cookie, "{}")
+      if response.status == 202:
+        inc allowed
+      else:
+        blocked = response
+    check allowed == 5
+    expectStatus(blocked, 429)
+
   test "random cookies stop causing identity lookups after the pre-limit":
     # B3: the pre-limit is charged before `account.sessions` is read, so after
     # its budget the answer is a 429 with no query. Before the fix every one of

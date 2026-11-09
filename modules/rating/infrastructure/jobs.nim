@@ -54,20 +54,27 @@ proc newRatingJobs*(db: Db): RatingJobs =
 proc enqueue*(jobs: RatingJobs, kind: JobKind, communityId: string): string =
   ## Returns the job id the route reports, or "" when the bounded queue is
   ## full. A duplicate joins the queued job instead of adding a second run of
-  ## the same work, so the cap is only reached by distinct communities.
+  ## the same work, so the cap is only reached by distinct communities. A drop
+  ## is logged with the work it lost: the write that triggered it already
+  ## committed, so the caller cannot turn the refusal into a response.
+  var dropped = false
   acquire(jobs.lock)
   try:
     for job in jobs.pending:
       if job.kind == kind and job.communityId == communityId:
         return job.id
     if jobs.pending.len >= maxPendingJobs:
-      return ""
-    inc jobs.nextId
-    result = "rating-job-" & $jobs.nextId
-    jobs.pending.add(Job(id: result, kind: kind, communityId: communityId))
-    signal(jobs.cond)
+      dropped = true
+    else:
+      inc jobs.nextId
+      result = "rating-job-" & $jobs.nextId
+      jobs.pending.add(Job(id: result, kind: kind, communityId: communityId))
+      signal(jobs.cond)
   finally:
     release(jobs.lock)
+  if dropped:
+    logWarn("rating job dropped: queue is full",
+      [("kind", $kind), ("community", communityId)])
 
 proc take(jobs: RatingJobs): Job =
   acquire(jobs.lock)

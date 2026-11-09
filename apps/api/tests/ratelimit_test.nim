@@ -70,3 +70,29 @@ suite "rate limiter":
         1001.0 + index.float, address)
     check not limiter.hit("route|/healthz|" & address, 300, 1000.0,
       address).allowed
+
+  test "the global ceiling drops minted share buckets, never a pinned budget":
+    ## The address-less per-code share bucket is minted for every distinct
+    ## `/s/<code>`. Treating it as pinned let enough codes across a few
+    ## addresses push the global sweep into evicting the address budget
+    ## itself. Here the budget is exhausted, then more than maxBuckets
+    ## per-code buckets are minted; the sweep must drop those instead.
+    let limiter = newLimiter()
+    let address = "198.51.100.21"
+    for _ in 0 ..< 300:
+      discard limiter.hit("route|/auth/start|" & address, 300, 1000.0, address)
+    check not limiter.hit("route|/auth/start|" & address, 300, 1000.0,
+      address).allowed
+    var now = 1000.0
+    var index = 0
+    for _ in 0 ..< 10:
+      for _ in 0 ..< 500:
+        discard limiter.hit("share|code" & $index, 1200, now, "")
+        inc index
+      now += 5.0
+    # One more hit at the next sweep tick brings the table back under the
+    # ceiling. The exhausted budget must still be exhausted afterwards.
+    discard limiter.hit("share|code" & $(index - 1), 1200, now, "")
+    check limiter.bucketTotal() == maxBuckets
+    check not limiter.hit("route|/auth/start|" & address, 300, now,
+      address).allowed

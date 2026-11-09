@@ -11,6 +11,8 @@ type
     ## same address. The buckets that enforce a limit -- the address route
     ## budget, the identity pre-limit and every per-user budget -- are pinned,
     ## so minting keys can never reset the budget the address is charged on.
+    ## A bucket with no address cannot enforce an address budget, so it is
+    ## always evictable: the per-code share budget is minted per code.
     evictable*: bool
 
   Limiter* = ref object
@@ -29,7 +31,7 @@ const
   windowSeconds = 60.0
   ## Hard ceiling on the table. An anonymous client can mint a key per path it
   ## invents, so the table is swept and bounded instead of growing forever.
-  maxBuckets = 4096
+  maxBuckets* = 4096
   ## A single address may hold at most this many buckets. Session identities
   ## are the only keys a client can mint, so this bounds cookie rotation even
   ## before the global sweep runs.
@@ -105,6 +107,16 @@ proc bucketCountFor*(limiter: Limiter, address: string): int =
   finally:
     release(limiter.lock)
 
+proc bucketTotal*(limiter: Limiter): int =
+  ## How many buckets the limiter holds. The global-ceiling regression reads
+  ## this to prove the sweep drops minted keys instead of growing without
+  ## bound, while keeping a pinned budget alive.
+  acquire(limiter.lock)
+  try:
+    result = limiter.buckets.len
+  finally:
+    release(limiter.lock)
+
 proc hit*(limiter: Limiter, key: string, limit: int, now: float,
           address = "", evictable = false): Decision =
   ## Returns the remaining allowance decision for one request. A limit of zero
@@ -126,7 +138,11 @@ proc hit*(limiter: Limiter, key: string, limit: int, now: float,
     if bucket.windowStart == 0 or now - bucket.windowStart >= windowSeconds:
       bucket = Bucket(windowStart: now, count: 0)
     bucket.address = address
-    bucket.evictable = bucket.evictable or evictable
+    # A bucket with no address is a per-code budget that the caller minted by
+    # inventing a code, so it can never be the budget enforcing an address's
+    # limit. Treating it as evictable keeps the global sweep from sacrificing
+    # an address budget to make room for it.
+    bucket.evictable = bucket.evictable or evictable or address.len == 0
     bucket.lastSeen = now
     if bucket.count >= limit:
       let elapsed = now - bucket.windowStart
