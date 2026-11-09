@@ -35,4 +35,17 @@ export const projects: Project[] = [
       hasTouch: true,
     },
   },
+  {
+    // The width a host actually uses the admin screens at. It runs the a11y
+    // walk only: a screenshot baseline at 1440 x 900 would have to be recorded
+    // on both platforms before the comparison meant anything, and the desktop
+    // branches are what this project is here for (the settings table, the
+    // summary grid).
+    name: 'desktop',
+    testMatch: /a11y\.spec\.ts$/,
+    use: {
+      browserName: 'chromium',
+      viewport: { width: 1440, height: 900 },
+    },
+  },
 ]
