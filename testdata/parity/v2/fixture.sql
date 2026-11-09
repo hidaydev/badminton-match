@@ -21,8 +21,7 @@ truncate
   community.join_request, community.invite, community.settings,
   community.membership,
   account.audit, account.sessions,
-  platform.ws_ticket, platform.idempotency_keys, platform.outbox,
-  platform.import_row_map
+  platform.ws_ticket, platform.idempotency_keys, platform.outbox
   restart identity cascade;
 
 delete from platform.community;

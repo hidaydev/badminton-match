@@ -408,5 +408,16 @@ try:
       seed(scratch, seedsDir)
       let snapshot = loadSnapshot(scratch)
       check snapshot.values.len == allKeys.len
+
+    test "the dead platform import map is gone and the real map remains":
+      migrate(scratch, migrationsDir)
+      check scratch.queryOne(
+        """select 1 as ok from pg_class c
+           join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'platform' and c.relname = 'import_row_map'""").isNone
+      check scratch.queryOne(
+        """select 1 as ok from pg_class c
+           join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'import' and c.relname = 'row_map'""").isSome
 finally:
   shutdown()

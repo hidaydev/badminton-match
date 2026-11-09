@@ -47,11 +47,16 @@ the working tree; `git log --all -- docs/backend` still has it.
 | `platform.config` | PK `key`; `value_type` (`int`/`decimal`/`bool`/`string`/`json`), `value` JSONB, `min_value`/`max_value`, `scope` (`platform`/`community`), `description`, `since_version` | `0004:6-18` |
 | `platform.config_version` | Singleton (`id boolean primary key default true`), `version bigint`; the config snapshot is cached per this value and reloaded when it changes | `0004:20-25` |
 | `platform.idempotency_keys` | Unique `(user_id, key)`, `body_hash`, `status_code`, `response` JSONB, `expires_at` + index | `0004:27-39` |
-| `platform.import_row_map` | PK `(community_id, source_table, source_key)` → `target_id`; v1→v2 ETL map | `0004:41-48` |
 | `platform.ws_ticket` | unique `token_hash`, `channel_kind` (`session`/`share`), `channel_id`, `user_id` nullable with CHECK: the share channel may be anonymous, session requires a user; `expires_at`, `used_at` | `0004:50-64`, `0007` |
 | `platform.cutover_state` | Singleton; `snapshot_sha256`, `snapshot_taken_at`, `etl_completed_at`, `completed_at`, `app_version`, `rows_imported` (0016) | `0004:66-73`, `0016` |
 | `platform.outbox` | `topic`, `payload` JSONB, `created_at`, `processed_at`; currently only cleaned by the janitor, no event producer yet | `0004:121-128` |
 | `platform.ops_token` | `name`, unique `token_hash`, `created_by`, `expires_at`, `revoked_at`, `last_used_at` | `0008:6-22` |
+
+### `import`
+
+| Table | Key columns/constraints | Migration |
+|---|---|---|
+| `import.row_map` | PK `(community_id, entity, old_id)` → `new_id`; index `(community_id, entity, new_id)`; the one v1-to-v2 id map the loader reads and writes so a rerun does not mint a second set of ids | `0015:10-25` |
 
 ### `session`
 
