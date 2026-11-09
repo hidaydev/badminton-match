@@ -93,7 +93,7 @@ That file stays the rollback input.
 
 ## 4. Exit criteria
 
-A release is not done until all six are true:
+A release is not done until all seven are true:
 
 1. **Digest matches.** `deploy/last-release.json` records the digest used;
    its value must equal the digest in the GitHub Release body, and
@@ -122,6 +122,11 @@ A release is not done until all six are true:
    deleted by the deploy (`podman image prune -f` only drops untagged images);
    delete it by hand after that date, with the digest recorded in the release
    notes.
+7. **The load report for the tagged commit is recorded.** `./task loadtest`
+   against the release candidate with `--pid` on the API process, with its
+   p50/p95/p99, failure count and RSS peak archived in the release evidence
+   (T-074). A release without it has no measured capacity, only a configured
+   ceiling.
 
 If any of them fails, use §5, do not patch on the server.
 

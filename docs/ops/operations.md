@@ -136,8 +136,14 @@ the T-074 soak test on the host above, using the committed load test:
 
 ```sh
 ./task loadtest --http https://api.qouver.com/majadu/readyz \
-  --requests 100000 --concurrency 50
+  --requests 100000 --concurrency 50 --pid "$(pgrep -f majadu-api | head -1)"
 ```
+
+The report is one JSON object: p50/p95/p99 and the failure count for the HTTP
+half, the WebSocket opened/error counts, and, when `--pid` names the API
+process, the resident set size before, after and at its peak. Record the whole
+object; a latency number without the memory number cannot distinguish a slow
+reply from a process about to hit the 512 MB limit.
 
 The watcher half needs a file of single-use watcher URLs (`--ws-file`), because
 a ticket cannot be replayed. Until that run is recorded here, the 500-watcher

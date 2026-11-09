@@ -13,6 +13,7 @@
 // It prints one JSON object and exits non-zero when any request or socket fails,
 // so it can be the command in the T-074 record.
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 
 function option(name, fallback) {
   const index = process.argv.indexOf(name);
@@ -27,6 +28,22 @@ const concurrency = Number(option("--concurrency", "20"));
 const wsFile = option("--ws-file", "");
 const holdMs = Number(option("--hold-ms", "30000"));
 const timeoutMs = Number(option("--timeout-ms", "5000"));
+// The API process to sample, so a run reports memory as well as latency. The
+// capacity statement is about a 512 MB container limit; latency alone cannot
+// tell an OOM from a slow reply.
+const pid = option("--pid", "");
+
+function rssKb() {
+  if (!pid) return null;
+  try {
+    const value = Number(execFileSync("ps", ["-o", "rss=", "-p", pid], {
+      encoding: "utf8",
+    }).trim());
+    return Number.isFinite(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
 
 if (!httpUrl && !wsFile) {
   console.error("loadtest: pass --http and/or --ws-file");
@@ -100,9 +117,19 @@ async function runWatchers() {
 }
 
 const startedAt = Date.now();
+const rssBefore = rssKb();
+let rssPeak = rssBefore ?? 0;
+const sampler = pid
+  ? setInterval(() => {
+      const value = rssKb();
+      if (value !== null && value > rssPeak) rssPeak = value;
+    }, 250)
+  : null;
 const watchers = await runWatchers();
 const httpStarted = Date.now();
 await runHttp();
+if (sampler) clearInterval(sampler);
+const rssAfter = rssKb();
 
 const report = {
   http: {
@@ -113,6 +140,12 @@ const report = {
     p50Ms: Number(percentile(latencies, 0.5).toFixed(1)),
     p95Ms: Number(percentile(latencies, 0.95).toFixed(1)),
     p99Ms: Number(percentile(latencies, 0.99).toFixed(1)),
+  },
+  process: {
+    pid: pid || null,
+    rssKbBefore: rssBefore,
+    rssKbAfter: rssAfter,
+    rssPeakKb: pid ? rssPeak : null,
   },
   watchers,
   wallMs: Date.now() - startedAt,
