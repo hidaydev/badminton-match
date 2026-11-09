@@ -16,7 +16,14 @@ do not consider them tested.
 | `CHANGELOG.md` | per-version sections from Conventional Commits | the GitHub release |
 | tag `v<version>` | SSH-signed, created by the operator | `.github/workflows/release.yml` |
 | image `ghcr.io/hidaydev/badminton-match:v<version>` | one build per tag | `deploy-vps.sh` (pull by digest) |
-| `sha256:…` digest in the GitHub Release body | binds the tag to the image | `deploy-vps.sh`, `cutover.sh` |
+| `digest: sha256:…` line in the GitHub Release body | the only digest the deploy accepts, signed by `cosign` | `deploy-vps.sh`, `cutover.sh` |
+| `cosign.pub` in `env/` | verifies the image signature before the pull | `deploy-vps.sh`, `cutover.sh` |
+
+The release body begins with the tag message, which is free text. The deploy
+accepts exactly one `digest: sha256:…` line and refuses the release when any
+other digest-shaped string appears in the body (for example in the tag message).
+The signature is checked with `cosign verify --key env/cosign.pub` before
+`podman pull`.
 
 `deploy-vps.sh` decides to deploy from `VERSION`, not from the tag: a commit that
 bumps `VERSION` is a release, a documentation commit is not. That is why the tag

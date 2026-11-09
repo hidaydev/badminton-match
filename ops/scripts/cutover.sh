@@ -239,11 +239,23 @@ step_preflight() {
   if [ -f "$APP_DIR/env/ghcr-token" ]; then
     auth=(-H "Authorization: Bearer $(cat "$APP_DIR/env/ghcr-token")")
   fi
-  local release digest
+  local release digest markers marker_count strings string_count
   release=$(curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
     "${auth[@]}" "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" || true)
-  digest=$(printf '%s' "$release" | grep -oE 'sha256:[0-9a-f]{64}' | head -1 || true)
-  [ -n "$digest" ] || fail "release v$VERSION has no published image digest"
+  markers=$(printf '%s' "$release" |
+    grep -oE 'digest:[[:space:]]*sha256:[0-9a-f]{64}' || true)
+  marker_count=$(printf '%s\n' "$markers" | grep -c 'sha256:' || true)
+  strings=$(printf '%s' "$release" | grep -oE 'sha256:[0-9a-f]{64}' || true)
+  string_count=$(printf '%s\n' "$strings" | grep -c 'sha256:' || true)
+  [ "$marker_count" -ne 0 ] || fail "release v$VERSION has no published image digest"
+  [ "$marker_count" -eq 1 ] && [ "$string_count" -eq 1 ] ||
+    fail "release v$VERSION must carry exactly one 'digest: sha256:...' line (found $marker_count marker(s) and $string_count sha256 string(s))"
+  digest="sha256:${markers#*sha256:}"
+  local cosign_pub="$APP_DIR/env/cosign.pub"
+  [ -f "$cosign_pub" ] || fail "release signature key $cosign_pub is missing; cannot verify $digest"
+  command -v cosign >/dev/null 2>&1 || fail "cosign is required to verify $digest"
+  cosign verify --key "$cosign_pub" "$REGISTRY_IMAGE@$digest" >>"$LOG" 2>&1 ||
+    fail "cosign verify failed for $REGISTRY_IMAGE@$digest"
   if [ -f "$APP_DIR/env/ghcr-token" ]; then
     podman login ghcr.io -u "${MAJADU_GHCR_USER:-hidaydev}" --password-stdin \
       <"$APP_DIR/env/ghcr-token" >>"$LOG" 2>&1

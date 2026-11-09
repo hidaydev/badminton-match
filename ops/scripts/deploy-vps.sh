@@ -246,11 +246,36 @@ elif [ -n "${GITHUB_TOKEN:-}" ]; then
 fi
 RELEASE=$(curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
   "${AUTH[@]}" "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" 2>/dev/null || true)
-DIGEST=$(printf '%s' "$RELEASE" | grep -oE 'sha256:[0-9a-f]{64}' | head -1 || true)
-if [ -z "$DIGEST" ]; then
+# The release body starts with the tag message, which is human-writable, so a
+# digest-shaped string anywhere in it is not a binding. `release.yml` appends
+# exactly one machine line `digest: sha256:...`; anything else in the body that
+# looks like a digest is an ambiguity and a failed deploy, not a first match.
+DIGEST_MARKERS=$(printf '%s' "$RELEASE" |
+  grep -oE 'digest:[[:space:]]*sha256:[0-9a-f]{64}' || true)
+DIGEST_MARKER_COUNT=$(printf '%s\n' "$DIGEST_MARKERS" | grep -c 'sha256:' || true)
+DIGEST_STRINGS=$(printf '%s' "$RELEASE" | grep -oE 'sha256:[0-9a-f]{64}' || true)
+DIGEST_STRING_COUNT=$(printf '%s\n' "$DIGEST_STRINGS" | grep -c 'sha256:' || true)
+if [ "$DIGEST_MARKER_COUNT" -eq 0 ]; then
   fail "release v$VERSION has no published image digest"
 fi
-log "release v$VERSION resolves to $DIGEST"
+if [ "$DIGEST_MARKER_COUNT" -ne 1 ] || [ "$DIGEST_STRING_COUNT" -ne 1 ]; then
+  fail "release v$VERSION must carry exactly one 'digest: sha256:...' line (found $DIGEST_MARKER_COUNT marker(s) and $DIGEST_STRING_COUNT sha256 string(s)); a digest in the tag message is ambiguous"
+fi
+DIGEST="sha256:${DIGEST_MARKERS#*sha256:}"
+
+# The digest alone binds the tag to a registry object; only the signature binds
+# it to this repository's release job. The public key is installed next to the
+# env files, and a missing cosign is a failed deploy rather than a skipped check.
+COSIGN_PUB="$APP_DIR/env/cosign.pub"
+[ -f "$COSIGN_PUB" ] ||
+  fail "release signature key $COSIGN_PUB is missing; cannot verify $DIGEST"
+require_private_file "$COSIGN_PUB"
+command -v cosign >/dev/null 2>&1 ||
+  fail "cosign is required to verify $DIGEST"
+if ! cosign verify --key "$COSIGN_PUB" "$REGISTRY_IMAGE@$DIGEST" >>"$LOG" 2>&1; then
+  fail "cosign verify failed for $REGISTRY_IMAGE@$DIGEST"
+fi
+log "release v$VERSION resolves to $DIGEST and the signature verifies"
 
 STEP="registry-login"
 if [ -f "$TOKEN_FILE" ]; then

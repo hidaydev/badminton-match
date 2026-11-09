@@ -44,11 +44,21 @@ esac
 exit 0
 """
 
-# The release API plus the health probes: deploy-vps.sh reads the digest from
-# the release body and treats any curl exit 0 as a ready endpoint.
+# The release API plus the health probes: deploy-vps.sh reads the single
+# machine digest line from the release body and treats any curl exit 0 as a
+# ready endpoint.
 const releaseCurlFake = """#!/bin/sh
 case "$*" in
-  *api.github.com*) printf '%s' '{"body":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}' ;;
+  *api.github.com*) printf '%s' '{"body":"release notes\ndigest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n"}' ;;
+esac
+exit 0
+"""
+
+# A tag message that already carries a digest makes the published body
+# ambiguous; deploy-vps.sh must refuse it rather than take the first match.
+const ambiguousDigestCurlFake = """#!/bin/sh
+case "$*" in
+  *api.github.com*) printf '%s' '{"body":"tag message sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ndigest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n"}' ;;
 esac
 exit 0
 """
@@ -132,6 +142,10 @@ proc simFakes(fixture: Fixture) =
   fixture.installFake("curl", okFake)
   fixture.installFake("podman", podmanFake)
   fixture.installFake("psql", psqlFake)
+  fixture.installFake("cosign", okFake)
+  # deploy-vps.sh verifies the release signature before it pulls, so every
+  # fixture that reaches the digest step needs the public key installed.
+  privateFile(fixture.root / "env" / "cosign.pub", "fake cosign public key\n")
 
 proc runDeployForEnvGate(fixture: Fixture, apiBody: string,
     extra: seq[(string, string)] = @[]): ShellResult =
@@ -355,6 +369,29 @@ suite "deploy-vps.sh":
     check result.stdout.contains(
       "production does not point at bm2 yet: cutover has not happened, nothing to deploy")
     check not result.stdout.contains("tool env file")
+
+  test "a digest in the tag message is refused as ambiguous":
+    let fixture = newFixture("deploy-ambiguous-digest")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    fixture.installFake("curl", ambiguousDigestCurlFake)
+    let mono = fixture.root / "monorepo"
+    touch(mono / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    check result.exitCode == 1
+    check result.stdout.contains(
+      "must carry exactly one 'digest: sha256:...' line")
+    check readFile(fixture.root / "deploy" / "last-release.json")
+      .contains("\"step\":\"resolve-digest\"")
 
 suite "deploy-vps-rc.sh":
   test "a ref other than the RC branch is ignored":
