@@ -97,7 +97,7 @@ export default function AdminSessionsPage() {
                           }
                         }}
                       >
-                        Delete
+                        {t('legacy.delete')}
                       </ActionButton>
                     )}
                   </div>

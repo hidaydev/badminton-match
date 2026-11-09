@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { GroupId, TournamentPair } from '../../utils/tournament'
 import { hit44 } from '../hitTarget'
+import { t } from '../../../i18n'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 
@@ -68,7 +69,7 @@ export default function GroupAssignment({
   return (
     <div className="space-y-4">
       <p className="text-xs text-fg-dim text-center">
-        Tap an empty slot, then tap a pair to assign
+        {t('legacy.tapEmptySlot')}
       </p>
 
       {/* 2×2 group grid */}

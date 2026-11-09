@@ -4,6 +4,7 @@ import type { PlayerSummary } from '../queries'
 import type { ResolveEntry, ResolveResult } from '../utils/resolvePlayers'
 import { buildResolveResult } from '../utils/resolvePlayers'
 import { Overlay } from '../../components/Overlay'
+import { t } from '../../i18n'
 
 interface ResolvePlayersModalProps {
   open: boolean
@@ -65,7 +66,7 @@ export default function ResolvePlayersModal({
   return (
     <Overlay
       onClose={onCancel}
-      title="Resolve new players"
+      title={t('legacy.title.resolvePlayers')}
       description={
         <>
           {list.length} player{list.length > 1 ? 's' : ''} not found in the database.
@@ -80,14 +81,14 @@ export default function ResolvePlayersModal({
             onClick={onCancel}
             className="flex-1 py-2 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors hit44"
           >
-            Cancel
+            {t('legacy.cancel')}
           </button>
           <button
             onClick={handleConfirm}
             disabled={!allResolved}
             className="flex-1 py-2 rounded-xl text-sm font-bold bg-indigo-400 hover:bg-indigo-300 text-slate-950 transition-colors disabled:opacity-40 disabled:cursor-not-allowed hit44"
           >
-            Confirm
+            {t('legacy.confirm')}
           </button>
         </div>
       }
@@ -136,7 +137,7 @@ export default function ResolvePlayersModal({
               <p className="text-[10px] text-slate-400">
                 &quot;{entry.player.name}&quot; will be registered as an alias of{' '}
                 <span className="text-indigo-400 font-medium">{entry.mergeTarget}</span>.
-                Future sessions with this name will auto-resolve.
+                {t('legacy.autoResolveHint')}
               </p>
             )}
           </div>

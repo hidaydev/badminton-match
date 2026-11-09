@@ -10,17 +10,27 @@ type
     role*: string
     joinedAt*: string
 
-proc list*(db: Db, communityId: string): seq[Member] =
+proc list*(db: Db, communityId: string, limit, offset: int): seq[Member] =
+  ## One page of the roster. The role/name order is the stable order the page
+  ## walks, so two pages never repeat or skip a member.
   for row in db.query(
     """select m.user_id, u.display_name, m.role, m.created_at::text as created_at
        from community.membership m
        join platform.user u on u.id = m.user_id
        where m.community_id = $1::uuid
-       order by m.role desc, u.display_name""",
-    @[textParam(communityId)]):
+       order by m.role desc, u.display_name
+       limit $2 offset $3""",
+    @[textParam(communityId), intParam(limit.int64), intParam(offset.int64)]):
     result.add(Member(userId: row.get("user_id"),
       displayName: row.get("display_name"), role: row.get("role"),
       joinedAt: row.get("created_at")))
+
+proc count*(db: Db, communityId: string): int =
+  let row = db.queryOne(
+    """select count(*)::int as total from community.membership
+       where community_id = $1::uuid""",
+    @[textParam(communityId)])
+  if row.isSome: parseInt(row.get.get("total")) else: 0
 
 proc setRole*(db: Db, communityId, userId: string, role: Role): bool =
   ## Returns false when the user is not a member, so the route can answer 404

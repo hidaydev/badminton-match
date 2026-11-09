@@ -2,7 +2,7 @@
 import { useNavigate } from '../router'
 import { useState } from 'react'
 import { usePwaInstall } from '../../hooks/usePwaInstall'
-import { useListSessions, isDraftSession } from '../queries'
+import { useLatestDraftSession } from '../queries'
 import { useAdmin } from '../context/AdminContext'
 import { communityHref } from '../../routes.manifest'
 import { useCommunity } from '../../community/CommunityContext'
@@ -39,11 +39,12 @@ export default function HomePage() {
   const { isAdmin } = useAdmin()
   const { isInstallable, isIos, prompt } = usePwaInstall()
   const { current } = useCommunity()
-  // The list endpoint returns newest first (session_date desc, updated_at
-  // desc), so the first draft is the one that still needs work. A community
-  // with no draft gets no card: there is nothing left to continue.
-  const { data: sessions } = useListSessions()
-  const draftSession = sessions.find(isDraftSession)
+  // The server picks the newest draft (session_date desc, updated_at desc,
+  // limit 1), so a draft past the first page is still offered. The card has
+  // its own loading and error states: a failed read must not look like an
+  // empty community.
+  const draftQuery = useLatestDraftSession()
+  const draftSession = draftQuery.data ?? null
   const myPlayer = useMyPlayer(current?.slug ?? null)
   const [manualInstallOpen, setManualInstallOpen] = useState(false)
   // The install sheet only opens from the "Install App" card. Opening it by
@@ -74,6 +75,30 @@ export default function HomePage() {
       )}
 
       {/* Continue Session Card — the newest draft that still needs work. */}
+      {draftQuery.isPending && current && (
+        <div
+          role="status"
+          className="w-full flex items-center gap-3.5 p-3.5 sm:p-4 rounded-xl bg-surface border border-border-subtle"
+        >
+          <div className="w-11 h-11 rounded-lg bg-accent/10 shrink-0" />
+          <span className="text-sm text-fg-dim">{t('home.continue.loading')}</span>
+        </div>
+      )}
+      {draftQuery.isError && current && (
+        <div
+          role="alert"
+          className="w-full flex items-center gap-3 p-3.5 sm:p-4 rounded-xl bg-surface border border-border-subtle"
+        >
+          <span className="text-sm text-fg flex-1 min-w-0">{t('home.continue.error')}</span>
+          <button
+            type="button"
+            onClick={() => void draftQuery.refetch()}
+            className="shrink-0 rounded-lg border border-border px-3 py-2 text-sm font-semibold text-fg hover:bg-surface-raised hit44"
+          >
+            {t('home.continue.retry')}
+          </button>
+        </div>
+      )}
       {draftSession && current && (
         <button
           onClick={() =>
@@ -184,7 +209,7 @@ export default function HomePage() {
       {isAdmin && (
         <div className="flex flex-col gap-2">
           <p className="text-xs font-sans font-semibold text-amber-500/80 uppercase tracking-wider px-1">
-            Admin
+            {t('legacy.admin')}
           </p>
           <AdminMenuGrid />
         </div>

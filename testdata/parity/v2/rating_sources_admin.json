@@ -12,15 +12,6 @@
     "body": {
       "items": [
         {
-          "date": "2026-10-25",
-          "deltas": 4,
-          "finalized": false,
-          "finalizedAt": null,
-          "id": "{uuid}",
-          "sourceId": "{uuid}",
-          "type": "tournament"
-        },
-        {
           "date": "2026-11-20",
           "deltas": 0,
           "finalized": false,
@@ -37,8 +28,19 @@
           "id": "{uuid}",
           "sourceId": "{uuid}",
           "type": "tournament"
+        },
+        {
+          "date": "2026-10-25",
+          "deltas": 4,
+          "finalized": false,
+          "finalizedAt": null,
+          "id": "{uuid}",
+          "sourceId": "{uuid}",
+          "type": "tournament"
         }
-      ]
+      ],
+      "total": 3,
+      "nextCursor": ""
     }
   }
 }

@@ -10,6 +10,7 @@ import { useLegacySlug, useNavigate } from '../router'
 import { fetchCommunityConfigBundle } from '../../community/api'
 import type { ScoringPreset } from '../../community/api'
 import { Radio } from '../../components/Radio'
+import { t } from '../../i18n'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -304,7 +305,7 @@ export default function SetupPage() {
               value={session.title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={120}
-              placeholder="e.g. Sunday Morning Session"
+              placeholder={t('legacy.placeholder.sessionTitle')}
               disabled={session.locked}
               className="bg-elevated border border-border rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 disabled:cursor-not-allowed h-9"
             />
@@ -468,7 +469,7 @@ export default function SetupPage() {
               onClick={resetSession}
               className="ml-auto inline-flex min-h-11 min-w-11 items-center justify-center text-xs text-red-400 hover:text-red-300 transition-colors"
             >
-              Reset All
+              {t('legacy.resetAll')}
             </button>
           </div>
         ) : (

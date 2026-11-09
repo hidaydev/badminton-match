@@ -36,10 +36,11 @@ oversight:
 - The browser language is not negotiated, and there is no locale switch. A
   second locale needs a second dictionary and a decision about who translates
   it, which is why it is a release decision rather than a code change.
-- The legacy tree still contains literal English copy. Those screens are
-  scheduled for the rewrite, so a lint rule that fails on every literal in
-  `apps/web/src/legacy` would be red until then. The accepted limit is
-  recorded as RSK-005 in `docs/handbook/requirements.md`.
+- The legacy tree reads its copy from `en.ts` too. `apps/web/src/i18n/hardcoded.test.ts`
+  fails on a JSX text node, or on a `title`, `aria-label`, `placeholder` or
+  `alt` literal in `apps/web/src/legacy` that is not resolved through `t()`, so
+  the dictionary rule is enforced there as well. The single-locale decision
+  remains an accepted limit, RSK-005 in `docs/handbook/requirements.md`.
 
 Names, comments and announcements entered by users are free text and are not
 translated; the interface labels around them are. Any future locale has to keep

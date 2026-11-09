@@ -58,21 +58,32 @@ proc submit*(db: Db, communityId, playerId, userId: string): ClaimError =
     @[textParam(communityId), textParam(playerId), textParam(userId)])
   if inserted == 0: ceAlreadyPending else: ceOk
 
-proc list*(db: Db, communityId, playerId: string): seq[Claim] =
+proc list*(db: Db, communityId, playerId: string, limit, offset: int): seq[Claim] =
+  ## Newest first, one page. `id` breaks the timestamp tie so a page boundary
+  ## cannot repeat or skip a row.
   for row in db.query(
     """select id, user_id, status, coalesce(decided_by::text, '') as decided_by,
               coalesce(decided_at::text, '') as decided_at,
               coalesce(reason, '') as reason, created_at::text as created_at
        from player.claims
        where community_id = $1::uuid and player_id = $2::uuid
-       order by created_at desc""",
-    @[textParam(communityId), textParam(playerId)]):
+       order by created_at desc, id
+       limit $3 offset $4""",
+    @[textParam(communityId), textParam(playerId), intParam(limit.int64),
+      intParam(offset.int64)]):
     result.add(Claim(id: row.get("id"), userId: row.get("user_id"),
       status: row.get("status"), decidedBy: row.get("decided_by"),
       decidedAt: row.get("decided_at"), reason: row.get("reason"),
       createdAt: row.get("created_at")))
 
-proc listPending*(db: Db, communityId: string): seq[PendingClaim] =
+proc count*(db: Db, communityId, playerId: string): int =
+  let row = db.queryOne(
+    """select count(*)::int as total from player.claims
+       where community_id = $1::uuid and player_id = $2::uuid""",
+    @[textParam(communityId), textParam(playerId)])
+  if row.isSome: parseInt(row.get.get("total")) else: 0
+
+proc listPending*(db: Db, communityId: string, limit, offset: int): seq[PendingClaim] =
   ## A pending claim is only visible on its player's page; this queue is the
   ## one place an admin can discover it without knowing the player already.
   for row in db.query(
@@ -83,12 +94,20 @@ proc listPending*(db: Db, communityId: string): seq[PendingClaim] =
          on p.community_id = cl.community_id and p.id = cl.player_id
        join platform.user u on u.id = cl.user_id
        where cl.community_id = $1::uuid and cl.status = 'pending'
-       order by cl.created_at asc""",
-    @[textParam(communityId)]):
+       order by cl.created_at asc, cl.id
+       limit $2 offset $3""",
+    @[textParam(communityId), intParam(limit.int64), intParam(offset.int64)]):
     result.add(PendingClaim(claimId: row.get("id"),
       playerId: row.get("player_id"), playerName: row.get("canonical_name"),
       userId: row.get("user_id"), displayName: row.get("display_name"),
       createdAt: row.get("created_at")))
+
+proc countPending*(db: Db, communityId: string): int =
+  let row = db.queryOne(
+    """select count(*)::int as total from player.claims
+       where community_id = $1::uuid and status = 'pending'""",
+    @[textParam(communityId)])
+  if row.isSome: parseInt(row.get.get("total")) else: 0
 
 proc decide*(db: Db, communityId, playerId, claimId, adminId: string,
              approve: bool, reason: string): ClaimError =

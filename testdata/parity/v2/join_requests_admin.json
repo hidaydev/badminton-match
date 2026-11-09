@@ -17,7 +17,9 @@
           "id": "{uuid}",
           "userId": "{uuid}"
         }
-      ]
+      ],
+      "total": 1,
+      "nextCursor": ""
     }
   }
 }

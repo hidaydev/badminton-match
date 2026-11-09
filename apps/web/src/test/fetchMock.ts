@@ -6,12 +6,21 @@ export type Handler = (init: RequestInit | undefined) => Reply
 /**
  * Stub `fetch` with a table keyed by `"METHOD /path"`. Unknown requests fail the
  * test instead of silently returning an empty body.
+ *
+ * A key without a query string is the handler for any query on that path, so a
+ * screen that adds a page window (`limit`, `offset`, `status`) does not force
+ * every unrelated test to repeat it. A key that names a query still wins when
+ * the request matches it, so a test can pin one filter exactly.
  */
 export function mockFetch(handlers: Record<string, Handler>) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input).replace(/^https?:\/\/[^/]+/, '')
     const key = `${init?.method ?? 'GET'} ${url}`
-    const handler = handlers[key]
+    let handler = handlers[key]
+    if (!handler) {
+      const bare = url.split('?')[0]
+      handler = handlers[`${init?.method ?? 'GET'} ${bare}`]
+    }
     if (!handler) throw new Error(`unexpected request: ${key}`)
     const { status = 200, body, headers } = handler(init)
     return {

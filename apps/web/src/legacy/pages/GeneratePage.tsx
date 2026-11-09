@@ -236,7 +236,7 @@ export default function GeneratePage() {
             onClick={exitSharedView}
             className="text-xs text-indigo-400 hover:text-white underline underline-offset-2 shrink-0 transition-colors hit44"
           >
-            Start your own session
+            {t('legacy.startOwnSession')}
           </button>
         </div>
       )}
@@ -256,7 +256,7 @@ export default function GeneratePage() {
               onClick={() => setShowSummary(true)}
               className="text-xs text-indigo-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-indigo-900/50 hover:bg-indigo-800 border border-indigo-700 transition-colors whitespace-nowrap hit44"
             >
-              Summary
+              {t('legacy.summary')}
             </button>
             {!isSharedView && (
               <>

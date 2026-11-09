@@ -174,6 +174,20 @@ export function useListSessions(options?: {
 }
 
 /**
+ * The newest draft, asked of the server instead of scanned from the first
+ * page of every session. The home card is the way back into unfinished work:
+ * a draft past the page size was never offered, and a failed read looked
+ * exactly like "there is nothing to continue".
+ */
+export function useLatestDraftSession() {
+  return useQuery({
+    queryKey: communityQueryKey('sessions', 'draft', 'latest'),
+    queryFn: ({ signal }) => listSessions({ status: 'draft', limit: 1, signal }),
+    select: (page) => page.items[0] ?? null,
+  })
+}
+
+/**
  * One server page of sessions at a known offset. The admin table needs random
  * access to any page, which an infinite query cannot give without loading the
  * pages in between; the list endpoint already takes `limit`/`offset`.

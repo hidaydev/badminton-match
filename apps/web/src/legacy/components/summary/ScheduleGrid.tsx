@@ -385,7 +385,7 @@ export default function ScheduleGrid({
                                 disabled={saving}
                                 className="px-3 py-1.5 min-h-6 rounded-lg border border-slate-600 text-slate-300 hover:text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed hit44"
                               >
-                                Clear
+                                {t('legacy.clear')}
                               </button>
                             )}
                             <button

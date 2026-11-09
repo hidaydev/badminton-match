@@ -1,3 +1,5 @@
+import { t } from '../apps/web/src/i18n'
+
 /** Data the global setup creates; specs read it through `state()`. */
 export type E2eState = {
   communitySlug: string
@@ -159,6 +161,24 @@ export const a11yRoutes: readonly VisualRoute[] = [
     path: (state) => `/s/${state.shareCode}`,
     ready: (state) => `text=${state.sessionTitle}`,
   },
+  // The router keeps a stale deep link and reports it; the 404 screen is the
+  // last route in both branches, so a bad segment under a community and a bad
+  // top-level path render here.
+  {
+    name: 'not-found',
+    path: (state) => `/c/${state.communitySlug}/no-such-screen`,
+    ready: (state) => `text=${t('notFound.title')}`,
+  },
+  // The first step of the tournament wizard. The later steps need a filled
+  // draw, which the fixture does not carry; this one is a plain form and the
+  // only signed-in wizard screen with no draft state.
+  {
+    name: 'tournament-wizard',
+    path: (state) => `/c/${state.communitySlug}/tournaments/new/classic`,
+    ready: () => 'text=Classic Tournament',
+  },
+  // The scoreboard is not repeated here: it is in `visualRoutes` above and this
+  // list spreads that one.
   // Static prose the shell links from the account menu. They carry no data, so
   // the heading is the readiness signal.
   { name: 'privacy', path: () => '/privacy', ready: () => 'h1' },

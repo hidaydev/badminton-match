@@ -191,21 +191,21 @@ export default function ShareButton() {
       {confirming && (
         <Overlay
           onClose={() => setConfirming(false)}
-          title="Publish this session?"
-          description="Share this session with players. You can still input scores and manage the live session after publishing."
+          title={t('legacy.title.publishSession')}
+          description={t('legacy.publishSessionHint')}
           footer={
             <div className="flex gap-2">
               <button
                 onClick={() => setConfirming(false)}
                 className="flex-1 py-2 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors hit44"
               >
-                Cancel
+                {t('legacy.cancel')}
               </button>
               <button
                 onClick={handleShareClick}
                 className="flex-1 py-2 rounded-xl text-sm font-bold bg-indigo-400 hover:bg-indigo-300 text-slate-950 transition-colors hit44"
               >
-                Publish & Share
+                {t('legacy.publishShare')}
               </button>
             </div>
           }
@@ -255,7 +255,7 @@ export default function ShareButton() {
                 <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
                 <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
               </svg>
-              Share
+              {t('legacy.share')}
             </>
           )}
         </button>

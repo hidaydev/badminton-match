@@ -276,7 +276,7 @@ export default function TeamTournamentPage() {
           <>
             <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
               <div className="px-4 py-2 border-b border-border-subtle text-xs text-fg-dim uppercase tracking-wider">
-                Standings
+                {t('legacy.standings')}
               </div>
               {standings.map((r, i) => {
                 const isTop = i < 2 && groupComplete

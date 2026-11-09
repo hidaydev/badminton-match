@@ -363,3 +363,48 @@ suite "contract-check drift":
     let run = selfRun("check", @["--help"], root)
     check run.exitCode == 0
     check run.output.contains("Usage: contract-check")
+suite "query parameters":
+  test "travel into the Nim route table and the TypeScript client":
+    let operation = Operation(operationId: "list", httpMethod: "GET",
+      path: "/list", tag: "", queryParams: @["limit", "offset"])
+    check renderNim(@[operation]).contains("queryParams: \"limit,offset\",")
+    check renderTs(@[operation]).contains("queryParams: [\"limit\", \"offset\"],")
+
+  test "an operation without a query renders an empty list":
+    let operation = Operation(operationId: "one", httpMethod: "GET",
+      path: "/one", tag: "")
+    check renderNim(@[operation]).contains("queryParams: \"\",")
+    check renderTs(@[operation]).contains("queryParams: [],")
+
+suite "generated types":
+  test "a schema becomes an interface with required and optional fields":
+    let schemas = parseJson("""{"Member": {"type": "object",
+      "required": ["userId", "role"],
+      "properties": {"userId": {"type": "string"},
+                     "role": {"enum": ["admin", "member"]},
+                     "joinedAt": {"type": "string"}}}}""")
+    let rendered = renderTs(@[], schemas)
+    check rendered.contains("export interface Member {")
+    check rendered.contains("  userId: string;")
+    check rendered.contains("  role: \"admin\" | \"member\";")
+    check rendered.contains("  joinedAt?: string;")
+
+  test "an array and a reference keep their names":
+    let schemas = parseJson("""{"Page": {"type": "object",
+      "required": ["items"],
+      "properties": {"items": {"type": "array",
+                               "items": {"$ref": "#/components/schemas/Member"}}}}}""")
+    let rendered = renderTs(@[], schemas)
+    check rendered.contains("  items: Array<Member>;")
+
+  test "a nullable field is a union with null":
+    let schemas = parseJson("""{"Row": {"type": "object",
+      "required": ["at"],
+      "properties": {"at": {"type": ["string", "null"]}}}}""")
+    check renderTs(@[], schemas).contains("  at: string | null;")
+
+  test "schemas are sorted by name":
+    let schemas = parseJson("""{"Zeta": {"type": "object", "properties": {}},
+      "Alpha": {"type": "object", "properties": {}}}""")
+    let rendered = renderTs(@[], schemas)
+    check rendered.find("export interface Alpha") < rendered.find("export interface Zeta")

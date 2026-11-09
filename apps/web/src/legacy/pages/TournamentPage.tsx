@@ -226,7 +226,7 @@ export default function TournamentPage() {
                   />
                 : (
                   <p className="text-fg-dim text-sm text-center py-16">
-                    Groups have not been drawn yet. A host or admin assigns them.
+                    {t('legacy.groupsNotDrawn')}
                   </p>
                 )
         )}

@@ -259,7 +259,14 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinRequestPage"
+                }
+              }
+            }
           },
           "401": {
             "description": "unauthenticated",
@@ -309,6 +316,24 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size, clamped to api.page_size_max (1..10000, seeded 500). A value that is not an integer falls back to api.page_size_default.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Rows to skip, clamped to at least 0 and at most api.page_offset_max (seeded 1000000). A value that is not an integer falls back to 0.",
+            "schema": {
+              "type": "integer"
             }
           }
         ]
@@ -599,7 +624,14 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberPage"
+                }
+              }
+            }
           },
           "401": {
             "description": "unauthenticated",
@@ -649,6 +681,24 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size, clamped to api.page_size_max (1..10000, seeded 500). A value that is not an integer falls back to api.page_size_default.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Rows to skip, clamped to at least 0 and at most api.page_offset_max (seeded 1000000). A value that is not an integer falls back to 0.",
+            "schema": {
+              "type": "integer"
             }
           }
         ]
@@ -1016,7 +1066,14 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingClaimPage"
+                }
+              }
+            }
           },
           "401": {
             "description": "unauthenticated",
@@ -1066,6 +1123,24 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size, clamped to api.page_size_max (1..10000, seeded 500). A value that is not an integer falls back to api.page_size_default.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Rows to skip, clamped to at least 0 and at most api.page_offset_max (seeded 1000000). A value that is not an integer falls back to 0.",
+            "schema": {
+              "type": "integer"
             }
           }
         ]

@@ -19,7 +19,9 @@
           "playerName": "Budi",
           "userId": "{uuid}"
         }
-      ]
+      ],
+      "total": 1,
+      "nextCursor": ""
     }
   }
 }

@@ -79,7 +79,7 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
             className="w-full py-3.5 rounded-lg bg-yellow-400 text-slate-950 font-bold text-sm
               active:scale-98 transition-transform hit44"
           >
-            Install App
+            {t('legacy.installApp')}
           </button>
         )}
         <button

@@ -7,6 +7,7 @@ import { AmbiguousNamesProvider, combineAmbiguous } from '../context/AmbiguousNa
 import ScheduleGrid from '../components/summary/ScheduleGrid'
 import PlayerStatsPanel from '../components/summary/PlayerStatsPanel'
 import type { GeneratorResult } from '../generator'
+import { t } from '../../i18n'
 
 const SESSION_ID = '1b6284b1f4b145bf'
 
@@ -28,7 +29,7 @@ export default function SessionPreviewPage() {
   if (isError || !snapshot) {
     return (
       <div className="min-h-screen bg-ground flex items-center justify-center text-slate-400 text-sm">
-        Failed to load session.
+        {t('legacy.failedToLoadSession')}
       </div>
     )
   }

@@ -402,7 +402,7 @@ export default function InstagramPostPage() {
             className="text-[10px] font-sans text-slate-400 uppercase"
             style={{ letterSpacing: '0.2em' }}
           >
-            Create
+            {t('legacy.create')}
           </p>
           <h1 className="text-lg font-bold text-yellow-400 tracking-tight leading-none">Instagram Post</h1>
         </div>
@@ -570,7 +570,7 @@ export default function InstagramPostPage() {
                   type="text"
                   value={sessionQuery}
                   onChange={(e) => setSessionQuery(e.target.value)}
-                  placeholder="Search session by title…"
+                  placeholder={t('legacy.placeholder.searchSession')}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:border-yellow-400"
                 />
               </div>

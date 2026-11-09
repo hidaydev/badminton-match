@@ -35,7 +35,9 @@
           "role": "admin",
           "userId": "{uuid}"
         }
-      ]
+      ],
+      "total": 4,
+      "nextCursor": ""
     }
   }
 }

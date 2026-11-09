@@ -2,12 +2,136 @@
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
+export interface Achievement {
+  key: string;
+  category: string;
+  threshold: number;
+  earnedAt: string;
+  kind: string;
+  title: string;
+  detail: string;
+  note: string;
+  value: number;
+  tierLevel: number | null;
+  tierName: string | null;
+  nextTarget: number | null;
+  thresholds: Array<number>;
+  meta: Record<string, unknown>;
+}
+
+export interface AchievementPage {
+  items: Array<Achievement>;
+  total: number;
+  nextCursor: string;
+}
+
+export interface JoinRequest {
+  id: string;
+  userId: string;
+  displayName: string;
+  createdAt: string;
+}
+
+export interface JoinRequestPage {
+  items: Array<JoinRequest>;
+  total: number;
+  nextCursor: string;
+}
+
+export interface Member {
+  userId: string;
+  displayName: string;
+  role: "admin" | "host" | "member";
+  joinedAt: string;
+}
+
+export interface MemberPage {
+  items: Array<Member>;
+  total: number;
+  nextCursor: string;
+}
+
+export interface PendingClaim {
+  claimId: string;
+  playerId: string;
+  playerName: string;
+  userId: string;
+  displayName: string;
+  createdAt: string;
+}
+
+export interface PendingClaimPage {
+  items: Array<PendingClaim>;
+  total: number;
+  nextCursor: string;
+}
+
+export interface PlayerClaim {
+  id: string;
+  userId: string;
+  status: "pending" | "approved" | "rejected" | "released";
+  decidedBy: string;
+  decidedAt: string;
+  reason: string;
+  createdAt: string;
+}
+
+export interface PlayerClaimPage {
+  items: Array<PlayerClaim>;
+  total: number;
+  nextCursor: string;
+}
+
+export interface Problem {
+  type?: string;
+  title?: string;
+  status: number;
+  code: string;
+  i18nKey: string;
+  detail?: string;
+  retryAfter?: number;
+  issues?: Array<Record<string, unknown>>;
+}
+
+export interface RatingSource {
+  id: string;
+  type: "session" | "tournament" | "manual";
+  date: string;
+  sourceId: string;
+  deltas: number;
+  finalized: boolean;
+  finalizedAt: string | null;
+}
+
+export interface RatingSourcePage {
+  items: Array<RatingSource>;
+  total: number;
+  nextCursor: string;
+}
+
+export interface SessionPage {
+  items: Array<SessionSummary>;
+  total: number;
+  nextCursor: string;
+}
+
+export interface SessionSummary {
+  id: string;
+  title: string;
+  date: string;
+  status: "draft" | "locked" | "published" | "completed" | "archived";
+  version: number;
+  playerCount: number;
+  totalGames: number;
+}
+
 export interface RouteSpec {
   operationId: string;
   httpMethod: HttpMethod;
   path: string;
   tag: string;
   pathParams: string[];
+  queryParams: string[];
   hasBody: boolean;
   isWebSocket: boolean;
 }
@@ -19,6 +143,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/auth/callback",
     tag: "auth",
     pathParams: [],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -28,6 +153,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/auth/logout",
     tag: "auth",
     pathParams: [],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -37,6 +163,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/auth/me",
     tag: "auth",
     pathParams: [],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -46,6 +173,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/auth/sessions",
     tag: "auth",
     pathParams: [],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -55,6 +183,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/auth/sessions",
     tag: "auth",
     pathParams: [],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -64,6 +193,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/auth/start",
     tag: "auth",
     pathParams: [],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -73,6 +203,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/claims",
     tag: "community",
     pathParams: ["slug"],
+    queryParams: ["limit", "offset"],
     hasBody: false,
     isWebSocket: false,
   },
@@ -82,6 +213,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/config",
     tag: "community",
     pathParams: ["slug"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -91,6 +223,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/invites",
     tag: "community",
     pathParams: ["slug"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -100,6 +233,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/join-requests",
     tag: "community",
     pathParams: ["slug"],
+    queryParams: ["limit", "offset"],
     hasBody: false,
     isWebSocket: false,
   },
@@ -109,6 +243,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/join-requests",
     tag: "community",
     pathParams: ["slug"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -118,6 +253,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/join-requests/{id}",
     tag: "community",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -127,6 +263,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/members",
     tag: "community",
     pathParams: ["slug"],
+    queryParams: ["limit", "offset"],
     hasBody: false,
     isWebSocket: false,
   },
@@ -136,6 +273,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/members/{userId}",
     tag: "community",
     pathParams: ["slug", "userId"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -145,6 +283,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/members/{userId}",
     tag: "community",
     pathParams: ["slug", "userId"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -154,6 +293,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/players",
     tag: "players",
     pathParams: ["slug"],
+    queryParams: ["limit"],
     hasBody: false,
     isWebSocket: false,
   },
@@ -163,6 +303,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/players",
     tag: "players",
     pathParams: ["slug"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -172,6 +313,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/players/{playerId}",
     tag: "players",
     pathParams: ["slug", "playerId"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -181,6 +323,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/players/{playerId}",
     tag: "players",
     pathParams: ["slug", "playerId"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -190,6 +333,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/players/{playerId}",
     tag: "players",
     pathParams: ["slug", "playerId"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -199,6 +343,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/players/{playerId}/achievements",
     tag: "players",
     pathParams: ["slug", "playerId"],
+    queryParams: ["limit", "offset"],
     hasBody: false,
     isWebSocket: false,
   },
@@ -208,6 +353,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/players/{playerId}/claim",
     tag: "players",
     pathParams: ["slug", "playerId"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -217,6 +363,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/players/{playerId}/claims",
     tag: "players",
     pathParams: ["slug", "playerId"],
+    queryParams: ["limit", "offset"],
     hasBody: false,
     isWebSocket: false,
   },
@@ -226,6 +373,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/players/{playerId}/claims",
     tag: "players",
     pathParams: ["slug", "playerId"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -235,6 +383,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/players/{playerId}/claims/{claimId}",
     tag: "players",
     pathParams: ["slug", "playerId", "claimId"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -244,6 +393,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/players/{playerId}/merge",
     tag: "players",
     pathParams: ["slug", "playerId"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -253,6 +403,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/players/{playerId}/stats",
     tag: "players",
     pathParams: ["slug", "playerId"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -262,6 +413,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/rankings",
     tag: "rankings",
     pathParams: ["slug"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -271,6 +423,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/rankings/{playerId}",
     tag: "rankings",
     pathParams: ["slug", "playerId"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -280,6 +433,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/rating-sources",
     tag: "rankings",
     pathParams: ["slug"],
+    queryParams: ["limit", "offset"],
     hasBody: false,
     isWebSocket: false,
   },
@@ -289,6 +443,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/rating-sources/{id}",
     tag: "rankings",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -298,6 +453,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/rating-sources/{id}",
     tag: "rankings",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -307,6 +463,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/ratings/rebuild",
     tag: "rankings",
     pathParams: ["slug"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -316,6 +473,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions",
     tag: "sessions",
     pathParams: ["slug"],
+    queryParams: ["limit", "offset", "q", "date", "status"],
     hasBody: false,
     isWebSocket: false,
   },
@@ -325,6 +483,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions",
     tag: "sessions",
     pathParams: ["slug"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -334,6 +493,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}",
     tag: "sessions",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -343,6 +503,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}",
     tag: "sessions",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -352,6 +513,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}",
     tag: "sessions",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -361,6 +523,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}/absent",
     tag: "sessions",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -370,6 +533,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}/games/{gameKey}",
     tag: "sessions",
     pathParams: ["slug", "id", "gameKey"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -379,6 +543,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}/games/{gameKey}",
     tag: "sessions",
     pathParams: ["slug", "id", "gameKey"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -388,6 +553,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}/games/{gameKey}/skip",
     tag: "sessions",
     pathParams: ["slug", "id", "gameKey"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -397,6 +563,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}/lock",
     tag: "sessions",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -406,6 +573,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}/rating",
     tag: "rankings",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -415,6 +583,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}/rating",
     tag: "rankings",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -424,6 +593,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}/schedule",
     tag: "sessions",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -433,6 +603,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}/share",
     tag: "share",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -442,6 +613,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}/share",
     tag: "share",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -451,6 +623,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}/share",
     tag: "share",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -460,6 +633,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}/standings",
     tag: "sessions",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -469,6 +643,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}/swap",
     tag: "sessions",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -478,6 +653,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}/unlock",
     tag: "sessions",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -487,6 +663,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions/{id}/ws-ticket",
     tag: "realtime",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -496,6 +673,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/settings",
     tag: "community",
     pathParams: ["slug"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -505,6 +683,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/settings",
     tag: "community",
     pathParams: ["slug"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -514,6 +693,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/tournaments",
     tag: "tournaments",
     pathParams: ["slug"],
+    queryParams: ["limit", "offset"],
     hasBody: false,
     isWebSocket: false,
   },
@@ -523,6 +703,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/tournaments",
     tag: "tournaments",
     pathParams: ["slug"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -532,6 +713,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/tournaments/{id}",
     tag: "tournaments",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -541,6 +723,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/tournaments/{id}",
     tag: "tournaments",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -550,6 +733,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/tournaments/{id}",
     tag: "tournaments",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -559,6 +743,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/tournaments/{id}/matches/{matchId}",
     tag: "tournaments",
     pathParams: ["slug", "id", "matchId"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -568,6 +753,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/tournaments/{id}/rating",
     tag: "rankings",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -577,6 +763,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/tournaments/{id}/rating",
     tag: "rankings",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -586,6 +773,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/communities",
     tag: "community",
     pathParams: [],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -595,6 +783,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/communities",
     tag: "community",
     pathParams: [],
+    queryParams: [],
     hasBody: true,
     isWebSocket: false,
   },
@@ -604,6 +793,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/directory",
     tag: "community",
     pathParams: [],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -613,6 +803,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/healthz",
     tag: "system",
     pathParams: [],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -622,6 +813,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/invites/{token}/accept",
     tag: "community",
     pathParams: ["token"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -631,6 +823,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/readyz",
     tag: "system",
     pathParams: [],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -640,6 +833,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/s/{code}",
     tag: "share",
     pathParams: ["code"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -649,6 +843,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/s/{code}/rankings",
     tag: "rankings",
     pathParams: ["code"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -658,6 +853,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/s/{code}/rankings/{playerId}",
     tag: "rankings",
     pathParams: ["code", "playerId"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -667,6 +863,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/s/{code}/ws-ticket",
     tag: "realtime",
     pathParams: ["code"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -676,6 +873,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/version",
     tag: "system",
     pathParams: [],
+    queryParams: [],
     hasBody: false,
     isWebSocket: false,
   },
@@ -685,6 +883,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/ws/c/{slug}/sessions/{id}",
     tag: "realtime",
     pathParams: ["slug", "id"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: true,
   },
@@ -694,6 +893,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/ws/share/{code}",
     tag: "realtime",
     pathParams: ["code"],
+    queryParams: [],
     hasBody: false,
     isWebSocket: true,
   },

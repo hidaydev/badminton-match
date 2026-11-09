@@ -62,7 +62,7 @@ export default function TeamMatchCard({
               onChange={(e) => onUpdateCourt(matchIdx, e.target.value)}
               disabled={!canEdit}
               className="w-20 bg-transparent text-xs text-fg-dim border-b border-border-subtle focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-100 disabled:cursor-default"
-              placeholder="Court"
+              placeholder={t('legacy.placeholder.court')}
               aria-label={`Court ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}`}
             />
           </label>
