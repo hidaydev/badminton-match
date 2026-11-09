@@ -7,9 +7,9 @@
 #
 # Measurement is split across a matrix because the instrumented build of every
 # test file does not fit in one 15 minute job. Each `measure` job writes the
-# parts for its slice, and `ratchet` merges them and produces the only verdict.
-# A shard's own report covers a fraction of the tree, so its gate refuses it on
-# purpose; that refusal is expected and does not fail the shard job.
+# parts for its slice and stops; `ratchet` merges them and produces the only
+# verdict. A shard never judges, so a suite, capture or merge that fails still
+# fails its own job and no partial report can stand in for the whole tree.
 name: Coverage
 
 on:
@@ -116,22 +116,21 @@ jobs:
             echo "bm2_import_source_test has no bm schema" >&2
             exit 1
           fi
-      # The shard measures one slice, so the per-shard report is incomplete by
-      # construction and the gate inside the script refuses it. That refusal is
-      # recorded but not fatal: `ratchet` is the job that judges the whole tree.
+      # A shard measures and reports its slice, then exits without judging.
+      # `ratchet` is the only job that runs the ratchet, and a suite, capture or
+      # merge that fails still fails this job.
       - name: "Coverage: measure this shard"
-        continue-on-error: true
         env:
           SHARD: ${{ matrix.shard }}/4
           MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
           MAJADU_IMPORT_TEST_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_target_test
           MAJADU_IMPORT_TEST_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
         run: ./task coverage --shard "$SHARD"
-      # `if: always()` so a shard that failed the expected gate still hands its
-      # parts to the merge; `if-no-files-found: error` keeps a crash from
-      # looking like a shard that simply measured nothing.
+      # Only a successful shard uploads. The condition is omitted, so the step
+      # inherits the default `success()`: a failed measurement is not presented
+      # as a complete slice, and `if-no-files-found: error` still catches a
+      # measure run that produced nothing.
       - name: "Coverage: upload this shard's parts"
-        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-parts-${{ matrix.shard }}

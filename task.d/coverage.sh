@@ -48,6 +48,11 @@
 # file under the included roots that has no row in the report is scored 0%, so an
 # untested module cannot disappear from the denominator.
 #
+# Measurement can be sharded (`--shard I/N`). A shard only measures its slice,
+# writes its parts and prints the report for that slice; it never runs the
+# ratchet. `--parts DIR` merges every shard's parts and is the only mode that
+# judges, so no partial report can stand in for the whole-tree verdict.
+#
 # gcov is read after every binary rather than once at the end: the nimcache is
 # shared, so the next compile rewrites `.gcno` files whose old counters are still
 # on disk. gcov refuses such a pair and reports the file as 0%, which used to
@@ -81,16 +86,17 @@ usage: ./task coverage [--update [--allow-decrease]] [--model DIR]
                     decrease instead of refusing it
   --model DIR       judge task.d/fixtures/coverage/DIR instead of measuring the
                     tree; no compilation, no database
-  --shard I/N       measure slice I of N of the sorted test list (1-based); the
-                    slice's parts land in a shard-specific directory
+  --shard I/N       measure only slice I of N of the sorted test list (1-based);
+                    its parts land in a shard-specific directory and the ratchet
+                    is deferred to --parts
   --parts DIR       skip measurement: merge every *.info under DIR, then build
                     and judge the report. Needs lcov and the source tree only.
 
   --update writes nothing to a model: it prints the accepted regressions and
   leaves the regenerated baseline in the worktree cache.
 
-  A shard measures an incomplete tree, so its own gate refuses the report on
-  purpose. Judge the merged report with --parts; that is the one verdict.
+  --shard measures only and never runs the ratchet. --parts is the only mode
+  that judges the merged report, and it is what the merge job runs.
 EOF
 }
 
@@ -145,6 +151,9 @@ if [ -n "$model" ] && [ -n "$parts" ]; then
 fi
 if [ -n "$parts" ] && { [ "$shard_index" -ne 1 ] || [ "$shard_total" -ne 1 ]; }; then
   fail "--parts merges the whole set; drop --shard"
+fi
+if [ "$shard_total" -gt 1 ] && [ "$update" -eq 1 ]; then
+  fail "--shard measures a slice only; --update needs a full run or merged --parts"
 fi
 
 # ---------------------------------------------------------------------------
@@ -908,6 +917,15 @@ print_report
 printf '\n'
 timing_summary coverage
 printf '\n'
+
+# A shard measures and reports, but never judges: its report covers a slice, so
+# a ratchet verdict on it would be wrong in both directions. `--parts` is the
+# only mode that judges, and the merge job runs it over every shard's parts.
+if [ -z "$parts" ] && [ "$shard_total" -gt 1 ]; then
+  printf 'coverage: shard %s/%s measured only; the merged ratchet runs in the merge job (--parts)\n' \
+    "$shard_index" "$shard_total"
+  exit 0
+fi
 
 if [ "$update" -eq 1 ]; then
   run_update "$BASELINE"
