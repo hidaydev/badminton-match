@@ -449,9 +449,9 @@ The seed (`db/seeds/platform_config.sql`) uses the same values with
 
 Notes:
 
-- `games_identity_unique` is required by PostgreSQL for the composite FK; its content is
-  redundant with `games_round_court_unique` but the columns must be exactly the same
-  as the ones referenced.
+- `games_identity_unique` is required by PostgreSQL for the composite FK. `0041`
+  drops the older `games_round_court_unique`; writers now name the composite key
+  in `on conflict (community_id, session_id, round_no, court_no)`.
 - `session_id` is already a global uuid, so `community_id` in the FK is an extra
   defence layer, not a technical requirement.
 - The backfill only takes rows that have **both** scores. A `played` game

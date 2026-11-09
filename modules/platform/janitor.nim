@@ -11,11 +11,20 @@ type
 
 const purgeTargets = [
   # Temporary rows only. Audit is deliberately absent: it has its own retention
-  # and its own owner-run tool (see audit_retention.nim).
+  # and its own owner-run tool (see audit_retention.nim). A link is temporary
+  # when it was revoked or when its own expiry has passed, even if nobody
+  # revoked it: an expired row still sits in the one-live index.
   ("auth.oauth_flows", "expires_at < cut"),
   ("platform.idempotency_keys", "expires_at < cut"),
   ("platform.outbox", "processed_at is not null and processed_at < cut"),
-  ("session.links", "revoked_at is not null and revoked_at < cut"),
+  ("session.links",
+   "((revoked_at is not null and revoked_at < cut) or " &
+     "(expires_at is not null and expires_at < cut))"),
+  ("account.sessions", "absolute_expires_at < cut"),
+  ("community.invite",
+   "(accepted_at is not null or (expires_at is not null and expires_at < cut))"),
+  ("platform.ops_token",
+   "expires_at is not null and expires_at < cut and revoked_at is not null"),
   ("platform.ws_ticket", "expires_at < cut"),
 ]
 

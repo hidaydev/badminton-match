@@ -231,7 +231,7 @@ proc putSchedule*(db: Db, communityId, sessionId: string, expectedVersion: int,
              values ($1::uuid, $2::uuid, $3, $4,
                      nullif($5, '')::uuid, nullif($6, '')::uuid,
                      nullif($7, '')::uuid, nullif($8, '')::uuid)
-             on conflict (session_id, round_no, court_no) do update set
+             on conflict (community_id, session_id, round_no, court_no) do update set
                side_a1 = excluded.side_a1, side_a2 = excluded.side_a2,
                side_b1 = excluded.side_b1, side_b2 = excluded.side_b2""",
           @[textParam(communityId), textParam(sessionId),

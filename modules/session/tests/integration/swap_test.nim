@@ -266,13 +266,15 @@ suite "session swap":
       """update session.sessions set status = 'locked'
          where community_id = $1::uuid and id = $2::uuid""",
       @[textParam(communityId), textParam(sessionId)])
+    let lockedVersion = sessionVersion(sessionId)
     let patch = parseSwap(%*{"type": "player",
       "a": {"slot": 0, "court": 0, "team": "A", "position": 0},
       "b": {"slot": 0, "court": 0, "team": "B", "position": 0}})
     check swapMembers(database, communityId, sessionId, 1, patch).status == swLocked
     check readGame(sessionId, 0, 0).sides ==
       [players[0], players[1], players[2], players[3]]
-    check sessionVersion(sessionId) == 1
+    # The rejected swap leaves the version the status update produced.
+    check sessionVersion(sessionId) == lockedVersion
     check swapMembers(database, communityId,
       "11111111-1111-1111-1111-111111111111", 1, patch).status == swNotFound
 

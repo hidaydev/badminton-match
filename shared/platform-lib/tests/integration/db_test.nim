@@ -167,16 +167,31 @@ suite "database layer":
     defer: probe.close()
     let settings = probe.connectionTimeouts()
     check settings.len == 2
-    for (statement, lock) in settings:
+    for (statement, lock, idle) in settings:
       check statement == "750ms"
       check lock == "250ms"
+      # An idle bound follows the statement bound unless one is passed.
+      check idle == "750ms"
 
   test "the defaults leave a CLI pool without web caps":
     let probe = openDb(dsn(), 1)
     defer: probe.close()
-    for (statement, lock) in probe.connectionTimeouts():
+    for (statement, lock, idle) in probe.connectionTimeouts():
       check statement == "0"
       check lock == "0"
+      check idle == "0"
+
+  test "a statement that runs past the bound is cancelled":
+    let probe = openDb(dsn(), 1, statementTimeoutMs = 200)
+    defer: probe.close()
+    let begin = getMonoTime()
+    var state = ""
+    try:
+      discard probe.queryOne("select pg_sleep(20)")
+    except DbError as error:
+      state = error.sqlState
+    check state == "57014"
+    check (getMonoTime() - begin).inMilliseconds < 5000
 
   test "pool checkout raises DbPoolTimeout at the configured deadline":
     let probe = openDb(dsn(), 1, acquireTimeoutMs = 120)

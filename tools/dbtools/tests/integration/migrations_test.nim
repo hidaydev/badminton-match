@@ -247,13 +247,16 @@ try:
         check key in registry
 
     test "no shipped migration declares the contract marker":
-      # `deploy-vps.sh` never passes `--allow-contract`, so a marker in the
-      # shipped directory would stop every deploy.
+      # `deploy-vps.sh` never passes `--allow-contract`, so a pending marker in
+      # the shipped directory would stop every deploy. An applied one is fine
+      # (its ledger row records the flag), and the from-empty run below proves
+      # the shipped set has no pending contract file.
       check contractRefusal(migrationsDir, false).len == 0
       migrate(scratch, migrationsDir)
+      let shipped = sqlFiles(migrationsDir)
       let last = scratch.queryOne(
         "select version from dbtools.schema_migrations order by version desc limit 1").get
-      check last.get("version") == "0036_oauth_flow_key_id"
+      check last.get("version") == shipped[^1].changeFileExt("")
 
     test "the last migration applies to a populated schema from the previous version":
       # QA-16: every other case here starts from nothing. The upgrade path the
@@ -354,7 +357,340 @@ try:
         up.close()
         discard admin.execUpdate("drop database if exists " & upgradeName &
           " with (force)")
-        removeDir(staging)
 
+    test "a scoring rule without its two numbers is rejected at write time":
+      migrate(scratch, migrationsDir)
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('rules-shape', 'Rules Shape', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      expect DbError:
+        discard scratch.execUpdate(
+          """insert into session.sessions
+               (community_id, session_date, status, source, scoring_rules)
+             values ($1::uuid, '2026-11-01', 'draft', 'manual',
+                     '{"gamesToWin":"two","pointsToWin":21}'::jsonb)""",
+          @[textParam(communityId)])
+      expect DbError:
+        discard scratch.execUpdate(
+          """insert into session.sessions
+               (community_id, session_date, status, source, scoring_rules)
+             values ($1::uuid, '2026-11-01', 'draft', 'manual',
+                     '{"gamesToWin":1}'::jsonb)""",
+          @[textParam(communityId)])
+
+      # A valid legacy preset still reads every game of its session.
+      let sessionId = scratch.queryOne(
+        """insert into session.sessions
+             (community_id, session_date, status, source, scoring_rules)
+           values ($1::uuid, '2026-11-01', 'draft', 'manual',
+                   '{"id":"legacy_v1","gamesToWin":1,"pointsToWin":30,
+                     "winBy":1,"deuceAt":null,"maxPoints":99}'::jsonb)
+           returning id""",
+        @[textParam(communityId)]).get.get("id")
+      discard scratch.execUpdate(
+        """insert into session.games
+             (community_id, session_id, round_no, court_no, status)
+           values ($1::uuid, $2::uuid, 0, 0, 'scheduled')""",
+        @[textParam(communityId), textParam(sessionId)])
+      discard scratch.execUpdate(
+        """insert into session.game_sets
+             (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+           values ($1::uuid, $2::uuid, 0, 0, 1, 30, 21)""",
+        @[textParam(communityId), textParam(sessionId)])
+      let results = scratch.queryOne(
+        """select count(*)::int as total, min(games_to_win)::text as games_to_win
+           from session.game_results where community_id = $1::uuid and session_id = $2::uuid""",
+        @[textParam(communityId), textParam(sessionId)]).get
+      check results.get("total") == "1"
+      check results.get("games_to_win") == "1"
+
+    test "deleting a rated source removes its event and sign-off":
+      migrate(scratch, migrationsDir)
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('source-cascade', 'Source Cascade', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      let sessionId = scratch.queryOne(
+        """insert into session.sessions
+             (community_id, session_date, status, source)
+           values ($1::uuid, '2026-11-02', 'locked', 'manual') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      let tournamentId = scratch.queryOne(
+        """insert into tournament.tournaments (community_id, name, status)
+           values ($1::uuid, 'Cascade Cup', 'active') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      for source in [sessionId, tournamentId]:
+        let kind = if source == sessionId: "session" else: "tournament"
+        discard scratch.execUpdate(
+          """insert into rating.events (community_id, local_date, event_type, source_id)
+             values ($1::uuid, '2026-11-02', $2, $3::uuid)""",
+          @[textParam(communityId), textParam(kind), textParam(source)])
+        discard scratch.execUpdate(
+          """insert into rating.sources (community_id, source_id, kind)
+             values ($1::uuid, $2::uuid, $3)""",
+          @[textParam(communityId), textParam(source), textParam(kind)])
+
+      discard scratch.execUpdate(
+        "delete from session.sessions where community_id = $1::uuid and id = $2::uuid",
+        @[textParam(communityId), textParam(sessionId)])
+      check scratch.queryOne(
+        "select count(*)::int as n from rating.events where source_id = $1::uuid",
+        @[textParam(sessionId)]).get.get("n") == "0"
+      check scratch.queryOne(
+        "select count(*)::int as n from rating.sources where source_id = $1::uuid",
+        @[textParam(sessionId)]).get.get("n") == "0"
+
+      discard scratch.execUpdate(
+        "delete from tournament.tournaments where community_id = $1::uuid and id = $2::uuid",
+        @[textParam(communityId), textParam(tournamentId)])
+      check scratch.queryOne(
+        "select count(*)::int as n from rating.events where source_id = $1::uuid",
+        @[textParam(tournamentId)]).get.get("n") == "0"
+
+    test "an id the row does not supply is a UUIDv7":
+      migrate(scratch, migrationsDir)
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('uuidv7-defaults', 'UUIDv7', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      let audit = scratch.queryOne(
+        """insert into account.audit
+             (actor_role, action, target_kind, target_id, result, request_id)
+           values ('owner', 'uuidv7.test', 'test', 'x', 'allow', '-')
+           returning id::text as id""").get.get("id")
+      let event = scratch.queryOne(
+        """insert into rating.events (community_id, local_date, event_type)
+           values ($1::uuid, '2026-11-02', 'manual') returning id::text as id""",
+        @[textParam(communityId)]).get.get("id")
+      check audit[14] == '7'
+      check event[14] == '7'
+
+    test "the duplicate session indexes are gone and the strict ones remain":
+      migrate(scratch, migrationsDir)
+      let gone = @["games_round_court_unique", "courts_community_session_idx",
+        "participants_community_session_idx",
+        "game_skips_community_session_idx", "links_community_session_idx"]
+      let kept = @["games_identity_unique", "courts_session_index_unique",
+        "participants_session_player_unique", "game_skips_game_unique",
+        "links_one_live"]
+      for name in gone:
+        check scratch.queryOne(
+          """select 1 as ok from pg_indexes
+             where schemaname = 'session' and indexname = $1""",
+          @[textParam(name)]).isNone
+      for name in kept:
+        check scratch.queryOne(
+          """select 1 as ok from pg_indexes
+             where schemaname = 'session' and indexname = $1""",
+          @[textParam(name)]).isSome
+
+    test "config values must match their declared type and bounds":
+      migrate(scratch, migrationsDir)
+      var typeState = ""
+      try:
+        discard scratch.execUpdate(
+          """insert into platform.config (key, value_type, value, scope)
+             values ('t', 'int', '"x"', 'platform')""")
+      except DbError as error:
+        typeState = error.sqlState
+      check typeState == "23514"
+      var boundState = ""
+      try:
+        discard scratch.execUpdate(
+          """insert into platform.config
+               (key, value_type, value, min_value, max_value, scope)
+             values ('t.bound', 'int', '999', 1, 10, 'platform')""")
+      except DbError as error:
+        boundState = error.sqlState
+      check boundState == "23514"
+      # The seed values pass the same checks on a fresh database.
+      seed(scratch, seedsDir)
+      let snapshot = loadSnapshot(scratch)
+      check snapshot.values.len == allKeys.len
+
+    test "the dead platform import map is gone and the real map remains":
+      migrate(scratch, migrationsDir)
+      check scratch.queryOne(
+        """select 1 as ok from pg_class c
+           join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'platform' and c.relname = 'import_row_map'""").isNone
+      check scratch.queryOne(
+        """select 1 as ok from pg_class c
+           join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'import' and c.relname = 'row_map'""").isSome
+
+    test "a badge key is catalogued or one of the two imported families":
+      migrate(scratch, migrationsDir)
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('badge-keys', 'Badge Keys', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      let playerId = scratch.queryOne(
+        """insert into player.players (community_id, canonical_name)
+           values ($1::uuid, 'Badge Player') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      discard scratch.execUpdate(
+        """insert into achievement.definitions (key, category, threshold)
+           values ('sessions:5', 'attendance', 5) on conflict do nothing""")
+      for key in ["sessions:5", "tournament:abc", "rank_streak:99"]:
+        discard scratch.execUpdate(
+          """insert into achievement.earned
+               (community_id, player_id, achievement_key)
+             values ($1::uuid, $2::uuid, $3)""",
+          @[textParam(communityId), textParam(playerId), textParam(key)])
+      var state = ""
+      try:
+        discard scratch.execUpdate(
+          """insert into achievement.earned
+               (community_id, player_id, achievement_key)
+             values ($1::uuid, $2::uuid, 'typo:1')""",
+          @[textParam(communityId), textParam(playerId)])
+      except DbError as error:
+        state = error.sqlState
+      check state == "23514"
+
+    test "a team sheet accepts every tier the player ladder knows":
+      migrate(scratch, migrationsDir)
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('team-class', 'Team Class', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      let playerId = scratch.queryOne(
+        """insert into player.players (community_id, canonical_name, tier)
+           values ($1::uuid, 'D Player', 'D') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      let tournamentId = scratch.queryOne(
+        """insert into tournament.tournaments (community_id, name, status)
+           values ($1::uuid, 'Class Cup', 'active') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      let teamId = scratch.queryOne(
+        """insert into tournament.teams
+             (community_id, tournament_id, seed, team_name)
+           values ($1::uuid, $2::uuid, 1, 'Class Team') returning id""",
+        @[textParam(communityId), textParam(tournamentId)]).get.get("id")
+      discard scratch.execUpdate(
+        """insert into tournament.team_players
+             (community_id, team_id, player_id, player_name, cls)
+           values ($1::uuid, $2::uuid, $3::uuid, 'D Player', 'D')""",
+        @[textParam(communityId), textParam(teamId), textParam(playerId)])
+      var state = ""
+      try:
+        discard scratch.execUpdate(
+          """insert into tournament.team_players
+               (community_id, team_id, player_name, cls)
+             values ($1::uuid, $2::uuid, 'E Player', 'E')""",
+          @[textParam(communityId), textParam(teamId)])
+      except DbError as error:
+        state = error.sqlState
+      check state == "23514"
+
+    test "the community timezone is a known zone and a court may cross midnight":
+      migrate(scratch, migrationsDir)
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('zone-check', 'Zone Check', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      var state = ""
+      try:
+        discard scratch.execUpdate(
+          "update platform.community set timezone = 'Asia/Jakrta' where id = $1::uuid",
+          @[textParam(communityId)])
+      except DbError as error:
+        state = error.sqlState
+      check state == "23514"
+      check scratch.queryOne(
+        """select 1 as ok from pg_timezone_names where name = 'Asia/Jakarta'""")
+        .isSome
+
+      let sessionId = scratch.queryOne(
+        """insert into session.sessions
+             (community_id, session_date, status, source)
+           values ($1::uuid, '2026-11-02', 'draft', 'manual') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      discard scratch.execUpdate(
+        """insert into session.courts
+             (community_id, session_id, court_index, court_name,
+              start_time, end_time)
+           values ($1::uuid, $2::uuid, 0, 'Late court', '22:00', '01:00')""",
+        @[textParam(communityId), textParam(sessionId)])
+      let court = scratch.queryOne(
+        """select start_time::text as start_time, end_time::text as end_time
+           from session.courts
+           where community_id = $1::uuid and session_id = $2::uuid""",
+        @[textParam(communityId), textParam(sessionId)]).get
+      check court.get("start_time") == "22:00:00"
+      check court.get("end_time") == "01:00:00"
+
+    test "every table with updated_at bumps its version":
+      migrate(scratch, migrationsDir)
+      for table in ["tournament.matches", "tournament.pairs",
+                    "tournament.teams", "tournament.team_partai"]:
+        let parts = table.split('.')
+        check scratch.queryOne(
+          """select 1 as ok from information_schema.columns
+             where table_schema = $1 and table_name = $2
+               and column_name = 'version'""",
+          @[textParam(parts[0]), textParam(parts[1])]).isSome
+      let stamped = scratch.query(
+        """select table_schema, table_name from information_schema.columns
+           where column_name = 'updated_at'
+             and table_schema in ('session', 'player', 'rating', 'tournament',
+                                  'community')
+           order by 1, 2""")
+      check stamped.len >= 8
+      for row in stamped:
+        let found = scratch.queryOne(
+          """select 1 as ok from pg_trigger t
+             join pg_class c on c.oid = t.tgrelid
+             join pg_namespace n on n.oid = c.relnamespace
+             join pg_proc p on p.oid = t.tgfoid
+             join pg_namespace pn on pn.oid = p.pronamespace
+             where n.nspname = $1 and c.relname = $2
+               and pn.nspname = 'session' and p.proname = 'bump_version'
+               and not t.tgisinternal""",
+          @[textParam(row.get("table_schema")), textParam(row.get("table_name"))])
+        checkpoint(row.get("table_schema") & "." & row.get("table_name"))
+        check found.isSome
+
+      # One real match update proves the trigger is wired, not just present.
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('version-trigger', 'Version Trigger', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      var playerIds: seq[string] = @[]
+      for name in ["Version A", "Version B", "Version C", "Version D"]:
+        playerIds.add(scratch.queryOne(
+          """insert into player.players (community_id, canonical_name)
+             values ($1::uuid, $2) returning id""",
+          @[textParam(communityId), textParam(name)]).get.get("id"))
+      let tournamentId = scratch.queryOne(
+        """insert into tournament.tournaments (community_id, name, status)
+           values ($1::uuid, 'Version Cup', 'active') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      var pairIds: seq[string] = @[]
+      for index in 0 .. 1:
+        pairIds.add(scratch.queryOne(
+          """insert into tournament.pairs
+               (community_id, tournament_id, display_name, player_a_id, player_b_id)
+             values ($1::uuid, $2::uuid, $3, $4::uuid, $5::uuid) returning id""",
+          @[textParam(communityId), textParam(tournamentId),
+            textParam("Version Pair " & $index), textParam(playerIds[index * 2]),
+            textParam(playerIds[index * 2 + 1])]).get.get("id"))
+      let matchId = scratch.queryOne(
+        """insert into tournament.matches
+             (community_id, tournament_id, round_no, pair_a_id, pair_b_id)
+           values ($1::uuid, $2::uuid, 1, $3::uuid, $4::uuid) returning id""",
+        @[textParam(communityId), textParam(tournamentId), textParam(pairIds[0]),
+          textParam(pairIds[1])]).get.get("id")
+      discard scratch.execUpdate(
+        """update tournament.matches
+           set score_a = 21, score_b = 15, status = 'played'
+           where community_id = $1::uuid and id = $2::uuid""",
+        @[textParam(communityId), textParam(matchId)])
+      check scratch.queryOne(
+        """select version from tournament.matches
+           where community_id = $1::uuid and id = $2::uuid""",
+        @[textParam(communityId), textParam(matchId)]).get.get("version") == "2"
 finally:
   shutdown()

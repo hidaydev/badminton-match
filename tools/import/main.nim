@@ -488,7 +488,7 @@ proc importGames(source, target: Db, communityId: string,
                      $9::timestamptz, $10::timestamptz,
                      nullif($11, '')::uuid, nullif($12, '')::uuid,
                      nullif($13, '')::uuid, nullif($14, '')::uuid)
-             on conflict (session_id, round_no, court_no) do update
+             on conflict (community_id, session_id, round_no, court_no) do update
                set score_a = excluded.score_a, score_b = excluded.score_b,
                    status = excluded.status, side_a1 = excluded.side_a1,
                    side_a2 = excluded.side_a2, side_b1 = excluded.side_b1,

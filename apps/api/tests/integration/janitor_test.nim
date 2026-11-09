@@ -24,7 +24,7 @@ proc keysOf(db: Db, userId: string): seq[string] =
 
 suite "janitor":
   var db: Db
-  var communityId, userId, sessionId: string
+  var communityId, userId, sessionId, sessionId2: string
 
   setup:
     if dsn().len == 0:
@@ -34,9 +34,12 @@ suite "janitor":
     discard db.execUpdate("delete from platform.user where google_sub = 'janitor-test'")
     discard db.execUpdate("delete from platform.outbox where topic = 'janitor-test'")
     discard db.execUpdate("delete from auth.oauth_flows where return_to = '/janitor-test'")
+    discard db.execUpdate("delete from platform.ops_token where name like 'janitor-test%'")
     userId = newUser(db, "janitor-test", "janitor-hash", "Janitor")
     communityId = newCommunity(db, "janitor-test", "Janitor Test")
     sessionId = newSession(db, communityId, "Janitor", "2026-11-03",
+      startTime = "19:00")
+    sessionId2 = newSession(db, communityId, "Janitor expired link", "2026-11-04",
       startTime = "19:00")
     discard db.execUpdate(
       """insert into auth.oauth_flows
@@ -73,6 +76,35 @@ suite "janitor":
          values (gen_random_uuid(), $1::uuid, $2::uuid, decode(repeat('44', 32), 'hex'),
                  'code', 'k', $3::timestamptz)""",
       @[textParam(communityId), textParam(sessionId), textParam(fresh)])
+    # An expired link that was never revoked: the janitor used to leave it.
+    discard db.execUpdate(
+      """insert into session.links
+           (id, community_id, session_id, code_hash, code_enc, key_id, created_at,
+            expires_at)
+         values (gen_random_uuid(), $1::uuid, $2::uuid, decode(repeat('77', 32), 'hex'),
+                 'code', 'k', $3::timestamptz, $3::timestamptz)""",
+      @[textParam(communityId), textParam(sessionId2), textParam(epoch)])
+    discard db.execUpdate(
+      """insert into account.sessions (user_id, token_hash, absolute_expires_at)
+         values ($1::uuid, decode(repeat('88', 32), 'hex'), $2::timestamptz),
+                ($1::uuid, decode(repeat('99', 32), 'hex'), $3::timestamptz)""",
+      @[textParam(userId), textParam(epoch), textParam(fresh)])
+    discard db.execUpdate(
+      """insert into community.invite
+           (community_id, token_hash, email_hash, expires_at, accepted_at)
+         values ($1::uuid, decode(repeat('aa', 32), 'hex'), 'expired', $2::timestamptz, null),
+                ($1::uuid, decode(repeat('bb', 32), 'hex'), 'accepted', $2::timestamptz, $2::timestamptz),
+                ($1::uuid, decode(repeat('cc', 32), 'hex'), 'fresh', $3::timestamptz, null)""",
+      @[textParam(communityId), textParam(epoch), textParam(fresh)])
+    discard db.execUpdate(
+      """insert into platform.ops_token (name, token_hash, expires_at, revoked_at)
+         values ('janitor-test-expired-revoked', decode(repeat('dd', 32), 'hex'),
+                 $1::timestamptz, $1::timestamptz),
+                ('janitor-test-expired-live', decode(repeat('ee', 32), 'hex'),
+                 $1::timestamptz, null),
+                ('janitor-test-fresh-revoked', decode(repeat('ff', 32), 'hex'),
+                 $2::timestamptz, $2::timestamptz)""",
+      @[textParam(epoch), textParam(fresh)])
     discard db.execUpdate(
       """insert into platform.ws_ticket
            (token_hash, channel_kind, channel_id, user_id, created_at, expires_at)
@@ -130,6 +162,35 @@ suite "janitor":
       @[textParam(sessionId)])
     check tickets.len == 1
     check tickets[0].get("token") == repeat("66", 32)
+
+  test "expired links, logins, invites and revoked ops tokens are purged":
+    withPinnedClock(pinned):
+      discard purge(db, retentionDays)
+    # An expired, never-revoked link is gone; the fresh one stays.
+    check db.queryOne(
+      """select count(*) as total from session.links
+         where community_id = $1::uuid and session_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId2)]).get.get("total") == "0"
+    # An expired login session is gone; the fresh one stays.
+    let sessions = db.query(
+      """select encode(token_hash, 'hex') as token from account.sessions
+         where user_id = $1::uuid order by token""", @[textParam(userId)])
+    check sessions.len == 1
+    check sessions[0].get("token") == repeat("99", 32)
+    # Accepted and expired invites are gone; the fresh pending one stays.
+    let invites = db.query(
+      """select email_hash from community.invite
+         where community_id = $1::uuid order by email_hash""",
+      @[textParam(communityId)])
+    check invites.len == 1
+    check invites[0].get("email_hash") == "fresh"
+    # Only the expired-and-revoked ops token is gone.
+    let tokens = db.query(
+      """select name from platform.ops_token
+         where name like 'janitor-test%' order by name""")
+    check tokens.len == 2
+    check tokens[0].get("name") == "janitor-test-expired-live"
+    check tokens[1].get("name") == "janitor-test-fresh-revoked"
 
   test "a zero-day window cuts at the pinned instant and keeps the fresh row":
     # The cutoff is the pinned instant itself, not the later database clock, so

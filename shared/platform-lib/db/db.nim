@@ -37,6 +37,7 @@ type
     acquireTimeoutMs*: int
     statementTimeoutMs*: int
     lockTimeoutMs*: int
+    idleTimeoutMs*: int
 
   DbError* = object of CatchableError
     sqlState*: string
@@ -332,7 +333,7 @@ proc getTimestamp*(row: Row, name: string): DateTime =
     raise newException(ValueError,
       "column is not a timestamp: " & name & " = " & value)
 
-proc configureConn(conn: PPGconn, statementMs, lockMs: int) =
+proc configureConn(conn: PPGconn, statementMs, lockMs, idleMs: int) =
   ## Applied when the connection is created, so every path through the pool
   ## inherits the bound. `options=-c ...` in the DSN would do the same but would
   ## be lost the moment a caller passes a bare URL.
@@ -341,6 +342,8 @@ proc configureConn(conn: PPGconn, statementMs, lockMs: int) =
     statements.add("set statement_timeout = " & $statementMs)
   if lockMs > 0:
     statements.add("set lock_timeout = " & $lockMs)
+  if idleMs > 0:
+    statements.add("set idle_in_transaction_session_timeout = " & $idleMs)
   if statements.len == 0:
     return
   let res = pqexec(conn, statements.join("; ").cstring)
@@ -353,16 +356,23 @@ proc configureConn(conn: PPGconn, statementMs, lockMs: int) =
     pqclear(res)
 
 proc openDb*(dsn: string, poolSize: int, statementTimeoutMs = 0,
-             lockTimeoutMs = 0, acquireTimeoutMs = 0): Db =
+             lockTimeoutMs = 0, acquireTimeoutMs = 0,
+             idleTimeoutMs = 0): Db =
   ## Opens the pool. A zero bound disables that limit, which is the default:
   ## the web timeouts belong to the API process edge that reads them from its
-  ## environment, not to every caller of this library.
+  ## environment, not to every caller of this library. `idleTimeoutMs = 0`
+  ## follows `statementTimeoutMs`, because a transaction left open holds its
+  ## row locks until the connection dies.
   if poolSize < 1:
     raise newException(ValueError, "pool size must be at least 1")
   result = Db(size: poolSize)
   result.acquireTimeoutMs = acquireTimeoutMs
   result.statementTimeoutMs = statementTimeoutMs
   result.lockTimeoutMs = lockTimeoutMs
+  result.idleTimeoutMs =
+    if idleTimeoutMs > 0: idleTimeoutMs
+    elif statementTimeoutMs > 0: statementTimeoutMs
+    else: 0
   initLock(result.lock)
   initCond(result.cond)
   for _ in 0 ..< poolSize:
@@ -373,7 +383,8 @@ proc openDb*(dsn: string, poolSize: int, statementTimeoutMs = 0,
         else: $pqerrorMessage(conn)
       raise newException(DbError, "cannot connect to PostgreSQL: " & detail)
     try:
-      configureConn(conn, result.statementTimeoutMs, result.lockTimeoutMs)
+      configureConn(conn, result.statementTimeoutMs, result.lockTimeoutMs,
+        result.idleTimeoutMs)
     except CatchableError:
       pqfinish(conn)
       raise
@@ -429,19 +440,22 @@ proc acquireConn(db: Db): PPGconn =
   result = db.available.pop()
   release(db.lock)
 
-proc connectionTimeouts*(db: Db): seq[(string, string)] =
-  ## The effective `statement_timeout` and `lock_timeout` of every pooled
-  ## connection. The integration test reads this to prove the settings are on
-  ## the connection rather than on one lucky checkout.
+proc connectionTimeouts*(db: Db): seq[(string, string, string)] =
+  ## The effective `statement_timeout`, `lock_timeout` and
+  ## `idle_in_transaction_session_timeout` of every pooled connection. The
+  ## integration test reads this to prove the settings are on the connection
+  ## rather than on one lucky checkout.
   acquire(db.lock)
   try:
     for conn in db.available:
       let rows = executeRows(conn,
         """select current_setting('statement_timeout') as statement_timeout,
-                  current_setting('lock_timeout') as lock_timeout""", @[])
+                  current_setting('lock_timeout') as lock_timeout,
+                  current_setting('idle_in_transaction_session_timeout') as idle_timeout""",
+        @[])
       if rows.len > 0:
         result.add((rows[0].get("statement_timeout"),
-          rows[0].get("lock_timeout")))
+          rows[0].get("lock_timeout"), rows[0].get("idle_timeout")))
   finally:
     release(db.lock)
 

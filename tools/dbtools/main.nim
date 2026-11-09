@@ -7,11 +7,14 @@
 ##
 ##   -- contract
 ##
-## `migrate` refuses a file carrying that marker unless `--allow-contract` is
-## passed; `deploy-vps.sh` never passes it. The operator applies it by hand
-## (`dbtools migrate --allow-contract`), one release after the deploy that
-## stopped writing the old shape. Only the leading comment block is read, so a
-## later mention of the word does not opt a file in.
+## `migrate` refuses a *pending* file carrying that marker unless
+## `--allow-contract` is passed; `deploy-vps.sh` never passes it. The operator
+## applies it by hand (`dbtools migrate --allow-contract`), one release after
+## the deploy that stopped writing the old shape. Once the ledger records the
+## version, the marker no longer blocks a later deploy, and `verify` accepts the
+## applied version after the file is deleted: `dbtools.schema_migrations.contract`
+## remembers that it was applied by hand. Only the leading comment block is
+## read, so a later mention of the word does not opt a file in.
 ##
 ## `create index concurrently` stays a manual operation and is not supported
 ## here: every migration runs inside one transaction with an advisory lock, and
@@ -32,8 +35,11 @@ create schema if not exists dbtools;
 create table if not exists dbtools.schema_migrations (
   version text primary key,
   checksum text not null,
+  contract boolean not null default false,
   applied_at timestamptz not null default now()
 );
+alter table dbtools.schema_migrations
+  add column if not exists contract boolean not null default false;
 create table if not exists dbtools.seed_files (
   name text primary key,
   checksum text not null,
@@ -88,38 +94,55 @@ proc contractMessage(path: string): string =
     "`dbtools migrate --allow-contract`, one release after the deploy that " &
     "stopped using the old shape"
 
-proc contractProblem(allowContract: bool, migrations: openArray[Migration]): string =
+proc contractProblem(allowContract: bool, migrations: openArray[Migration],
+                     appliedVersions: openArray[string]): string =
+  ## A contract file is refused only while it is pending: once its version is
+  ## in the ledger the file may stay (verify accepts it) or be deleted (verify
+  ## accepts the ledger row because it records the flag).
   if allowContract:
     return ""
   for migration in migrations:
-    if migration.contract:
+    if migration.contract and migration.version notin appliedVersions:
       return contractMessage(migration.path)
 
-proc contractRefusal*(dir: string, allowContract: bool): string =
-  ## Why `migrate` must not run over `dir`, or "" when it may. A contract file
-  ## is only let through by the explicit flag; a file that cannot be read is a
-  ## refusal too, so a failed read never reads as "nothing to refuse".
+proc appliedVersions(db: Db): seq[string] =
+  ## Read without creating the ledger: a first deploy has no table, and a
+  ## refusal must not leave one behind.
+  let ledger = db.queryOne(
+    "select to_regclass('dbtools.schema_migrations') as ledger")
+  if ledger.isNone or ledger.get.getOpt("ledger").isNone:
+    return @[]
+  for row in db.query("select version from dbtools.schema_migrations"):
+    result.add(row.get("version"))
+
+proc contractRefusal*(dir: string, allowContract: bool,
+                      appliedVersions: seq[string] = @[]): string =
+  ## Why `migrate` must not run over `dir`, or "" when it may. A pending
+  ## contract file is only let through by the explicit flag; a file that cannot
+  ## be read is a refusal too, so a failed read never reads as "nothing to
+  ## refuse".
   try:
-    contractProblem(allowContract, loadMigrations(dir))
+    contractProblem(allowContract, loadMigrations(dir), appliedVersions)
   except CatchableError as error:
     "cannot read " & dir & ": " & error.msg
 
 proc ensureLedger(conn: DbConn) =
   conn.execScript(ledgerSchema)
 
-proc applied(conn: DbConn): seq[(string, string)] =
-  for row in conn.query("select version, checksum from dbtools.schema_migrations"):
-    result.add((row.get("version"), row.get("checksum")))
-
 proc migrate*(db: Db, dir: string, allowContract = false) =
   let migrations = loadMigrations(dir)
   if migrations.len == 0:
     fail(program, "no .sql files in " & dir)
-  let refusal = contractProblem(allowContract, migrations)
+  let refusal = contractProblem(allowContract, migrations, appliedVersions(db))
   if refusal.len > 0:
     fail(program, refusal)
 
   db.tx(proc(conn: DbConn) =
+    # A blocked ALTER TABLE queues behind any transaction holding a
+    # conflicting lock, and every later query queues behind it. The bounds turn
+    # that into a failed deploy instead of a hung service.
+    discard conn.execUpdate("set local lock_timeout = '5s'")
+    discard conn.execUpdate("set local statement_timeout = '60s'")
     # One transaction and one advisory lock: two deploys cannot interleave.
     discard conn.query("select pg_advisory_xact_lock(hashtext('majadu-dbtools'))")
     ensureLedger(conn)
@@ -139,20 +162,27 @@ proc migrate*(db: Db, dir: string, allowContract = false) =
         continue
       conn.execScript(readFile(migration.path))
       discard conn.execUpdate(
-        "insert into dbtools.schema_migrations (version, checksum) values ($1, $2)",
-        @[textParam(migration.version), textParam(migration.checksum)],
+        """insert into dbtools.schema_migrations
+             (version, checksum, contract) values ($1, $2, $3)""",
+        @[textParam(migration.version), textParam(migration.checksum),
+          boolParam(migration.contract)],
       )
   )
   echo "dbtools: migrated " & $migrations.len & " file(s)"
 
+proc ledgerRows(db: Db): seq[(string, string, bool)] =
+  result = db.txRet(proc(conn: DbConn): seq[(string, string, bool)] =
+    ensureLedger(conn)
+    for row in conn.query(
+      "select version, checksum, contract from dbtools.schema_migrations"):
+      result.add((row.get("version"), row.get("checksum"), row.getBool("contract")))
+  )
+
 proc verifyProblems*(db: Db, dir: string): seq[string] =
   let migrations = loadMigrations(dir)
-  let rows = db.txRet(proc(conn: DbConn): seq[(string, string)] =
-    ensureLedger(conn)
-    applied(conn)
-  )
+  let rows = ledgerRows(db)
   var appliedVersions: seq[string] = @[]
-  for (version, sum) in rows:
+  for (version, sum, contract) in rows:
     appliedVersions.add(version)
     var found = false
     for migration in migrations:
@@ -160,7 +190,7 @@ proc verifyProblems*(db: Db, dir: string): seq[string] =
         found = true
         if migration.checksum != sum:
           result.add("checksum drift: " & version)
-    if not found:
+    if not found and not contract:
       result.add("applied migration has no file: " & version)
   for migration in migrations:
     if migration.version notin appliedVersions:

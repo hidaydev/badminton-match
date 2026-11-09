@@ -4,8 +4,8 @@ This document is the source of truth for the **v2 database** (`bm2`) and the dat
 used by the API. Everything below comes from the migration files in the repo; there are no
 claims from a VPS dump or the v1 schema.
 
-- Migrations: `db/migrations/0001_core.sql` … `0036_oauth_flow_key_id.sql` (36 files;
-  `0036` records the share key that encrypted each OIDC flow,
+- Migrations: `db/migrations/0001_core.sql` … `0048_version_triggers.sql` (48 files;
+  `0048` adds the version triggers and `0036` records the share key that encrypted each OIDC flow,
   `0035` adds the `account.audit` occurred_at index, `0034` grants the ETL role,
   `0033` adds `session.links.legacy_id_ok`, `0032` adds default privileges
   for the application role, and `0030` grants access to `session.game_sets` and the
@@ -47,11 +47,16 @@ the working tree; `git log --all -- docs/backend` still has it.
 | `platform.config` | PK `key`; `value_type` (`int`/`decimal`/`bool`/`string`/`json`), `value` JSONB, `min_value`/`max_value`, `scope` (`platform`/`community`), `description`, `since_version` | `0004:6-18` |
 | `platform.config_version` | Singleton (`id boolean primary key default true`), `version bigint`; the config snapshot is cached per this value and reloaded when it changes | `0004:20-25` |
 | `platform.idempotency_keys` | Unique `(user_id, key)`, `body_hash`, `status_code`, `response` JSONB, `expires_at` + index | `0004:27-39` |
-| `platform.import_row_map` | PK `(community_id, source_table, source_key)` → `target_id`; v1→v2 ETL map | `0004:41-48` |
 | `platform.ws_ticket` | unique `token_hash`, `channel_kind` (`session`/`share`), `channel_id`, `user_id` nullable with CHECK: the share channel may be anonymous, session requires a user; `expires_at`, `used_at` | `0004:50-64`, `0007` |
 | `platform.cutover_state` | Singleton; `snapshot_sha256`, `snapshot_taken_at`, `etl_completed_at`, `completed_at`, `app_version`, `rows_imported` (0016) | `0004:66-73`, `0016` |
 | `platform.outbox` | `topic`, `payload` JSONB, `created_at`, `processed_at`; currently only cleaned by the janitor, no event producer yet | `0004:121-128` |
 | `platform.ops_token` | `name`, unique `token_hash`, `created_by`, `expires_at`, `revoked_at`, `last_used_at` | `0008:6-22` |
+
+### `import`
+
+| Table | Key columns/constraints | Migration |
+|---|---|---|
+| `import.row_map` | PK `(community_id, entity, old_id)` → `new_id`; index `(community_id, entity, new_id)`; the one v1-to-v2 id map the loader reads and writes so a rerun does not mint a second set of ids | `0015:10-25` |
 
 ### `session`
 
@@ -115,7 +120,7 @@ counted (used by the rating source screen and the revert/rebuild reports). The p
 | `tournament.matches` | `round_no`, nullable `pair_a_id`/`pair_b_id`, `phase` ∈ `group/qf/sf/3rd/final`, `group_id` ∈ `A–D`, `pic_name`, `match_key` unique per tournament, `match_order`, scores 0–99 with no draw when `played` | `0003:43-76`, `0012:17-31` |
 | `tournament.groups` | PK `(tournament_id, group_id, position)`; `group_id` A–D, `position` 0–3 | `0012:34-50` |
 | `tournament.teams` | `seed` 1–6, `team_name`; seed and name unique per tournament | `0012:54-70` |
-| `tournament.team_players` | `player_name` (snapshot), nullable `player_id`, `cls` ∈ `A+/A/B+/B/C+/C`; unique `(team_id, cls)` | `0012:72-89` |
+| `tournament.team_players` | `player_name` (snapshot), nullable `player_id`, `cls` ∈ `D/D+/C/C+/B/B+/A/A+` (the same eight values as `player.players.tier`); unique `(team_id, cls)` | `0012:72-89`, `0046` |
 | `tournament.team_matches` | `phase` ∈ `group/final`, `match_order`, unique `match_key`, nullable `team_a_id`/`team_b_id`, `courts text[3]` (default `Court 12/13/14`) | `0012:91-113` |
 | `tournament.team_partai` | `partai_index` 0–2, scores 0–99, `(score_a is null) = (score_b is null)`; unique `(team_match_id, partai_index)` | `0012:115-132` |
 
@@ -149,7 +154,17 @@ counted (used by the rating source screen and the revert/rebuild reports). The p
 - `player.players.canonical_key` and `player.aliases.alias_key` use the same normalization;
   aliases are unique per community so two players do not answer to the same name.
 - The name in `tournament.team_players.player_name` is a snapshot; `player_id` may be
-  `NULL` for a player not yet registered.
+  `NULL` for a player not yet registered. `cls` is also a snapshot, so reclassifying a
+  player on the rating ladder does not rewrite an old team sheet. This query lists the
+  rows where the two disagree (it should be run when a tier is renamed):
+
+  ```sql
+  select tp.community_id, tp.team_id, tp.player_id, tp.cls, p.tier
+    from tournament.team_players tp
+    join player.players p
+      on p.community_id = tp.community_id and p.id = tp.player_id
+   where p.tier is not null and tp.cls <> p.tier;
+  ```
 - `rating.sources` is the only place for sign-off; `rating.events` no longer has a
   `finalized` column (moved by `0013`).
 - `platform.ws_ticket` stores a hash, not a token; the `share` channel may have no user,
@@ -219,7 +234,7 @@ Do not carry names from the v1 document into this one:
 
 | v1 | v2 |
 |---|---|
-| schema `bm`, migrations `000001`–`000023` | database `bm2`, migrations `0001`–`0036` |
+| schema `bm`, migrations `000001`–`000023` | database `bm2`, migrations `0001`–`0048` |
 | `scheduled_games`, `scheduled_game_players` | `session.games` + `session.participants` |
 | `rating_events`, `rating_deltas`, `rating_players` | `rating.events`, `rating.player_state` (the delta ledger has no counterpart) |
 | `player_achievements` | `achievement.earned` + `achievement.definitions` |
