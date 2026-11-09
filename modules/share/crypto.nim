@@ -54,6 +54,15 @@ proc aesKeyBytes(key: array[32, byte]): seq[byte] =
 
 proc encrypt*(plaintext, aad: string, key: array[32, byte]): seq[byte] =
   ## version(1) || nonce(12) || ciphertext || tag(16)
+  ##
+  ## An empty plaintext or AAD is refused here rather than sliced into
+  ## `toOpenArrayByte(0, -1)`, which is a `RangeDefect`: a defect bypasses the
+  ## `except CatchableError` the API answers with, so the boundary would abort
+  ## the process instead of returning a 500 (SQ-23).
+  if plaintext.len == 0:
+    raise newException(ShareKeyError, "plaintext is empty")
+  if aad.len == 0:
+    raise newException(ShareKeyError, "aad is empty")
   let nonce = randomBytes(nonceLen)
   var ciphertext = newSeq[byte](plaintext.len)
   var tag: array[tagLen, byte]
@@ -67,6 +76,8 @@ proc encrypt*(plaintext, aad: string, key: array[32, byte]): seq[byte] =
     result.add(byteValue)
 
 proc decrypt*(blob: seq[byte], aad: string, key: array[32, byte]): string =
+  if aad.len == 0:
+    raise newException(ShareKeyError, "aad is empty")
   if blob.len < 1 + nonceLen + tagLen or blob[0] != version:
     raise newException(ShareKeyError, "invalid ciphertext envelope")
   let nonce = blob[1 ..< 1 + nonceLen]

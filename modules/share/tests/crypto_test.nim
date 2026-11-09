@@ -69,6 +69,18 @@ suite "keyring validation":
       discard loadKeyring(keys, "2")
 
 suite "envelope validation":
+  test "an empty plaintext or AAD is refused, never a RangeDefect":
+    # SQ-23: `toOpenArrayByte(0, -1)` aborts the process, and no `except`
+    # catches a Defect. Both boundaries answer the module's own error instead.
+    let keyring = loadKeyring(keys, "1")
+    expect ShareKeyError:
+      discard encryptWith(keyring, "", "community|link")
+    expect ShareKeyError:
+      discard encryptWith(keyring, "abc123", "")
+    let (keyId, blob) = encryptWith(keyring, "abc123", "community|link")
+    expect ShareKeyError:
+      discard decryptWith(keyring, keyId, blob, "")
+
   test "an empty blob, a wrong version byte and a short blob are refused":
     let keyring = loadKeyring(keys, "1")
     let (keyId, blob) = encryptWith(keyring, "abc123", "community|link")
