@@ -57,3 +57,22 @@ suite "docs-check":
     defer: removeDir(fixture.root)
     check readFile(fixture.root / "task.d" / "ci.sh")
       .contains("task.d/docs-check.sh")
+
+suite "supplier register":
+  # ISO-17: every service the product depends on is named once, and the second
+  # origin for the SPA is in the repository instead of in an incident note.
+  test "suppliers.md lists every external service":
+    let text = readFile(repoDir / "docs" / "ops" / "suppliers.md")
+    for service in ["Vercel", "GitHub", "GHCR", "Google", "VPS provider",
+                    "Alert webhook"]:
+      check text.contains(service)
+    for column in ["Exit path", "Data it receives", "Owner"]:
+      check text.contains(column)
+
+  test "the static fallback origin proxies /api and serves the built shell":
+    let caddy = readFile(repoDir / "ops" / "caddy" / "site-web-fallback.caddy")
+    check caddy.contains("handle /api/*")
+    check caddy.contains("rewrite * /majadu{uri}")
+    check caddy.contains("try_files {path} /index.html")
+    check caddy.contains("file_server")
+    check caddy.contains("Content-Security-Policy")
