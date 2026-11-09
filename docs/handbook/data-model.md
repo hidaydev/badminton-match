@@ -4,7 +4,8 @@ This document is the source of truth for the **v2 database** (`bm2`) and the dat
 used by the API. Everything below comes from the migration files in the repo; there are no
 claims from a VPS dump or the v1 schema.
 
-- Migrations: `db/migrations/0001_core.sql` … `0033_share_legacy_id.sql` (33 files;
+- Migrations: `db/migrations/0001_core.sql` … `0035_audit_occurred_at.sql` (35 files;
+  `0035` adds the `account.audit` occurred_at index, `0034` grants the ETL role,
   `0033` adds `session.links.legacy_id_ok`, `0032` adds default privileges
   for the application role, and `0030` grants access to `session.game_sets` and the
   `session.game_results` view).
@@ -217,7 +218,7 @@ Do not carry names from the v1 document into this one:
 
 | v1 | v2 |
 |---|---|
-| schema `bm`, migrations `000001`–`000023` | database `bm2`, migrations `0001`–`0033` |
+| schema `bm`, migrations `000001`–`000023` | database `bm2`, migrations `0001`–`0035` |
 | `scheduled_games`, `scheduled_game_players` | `session.games` + `session.participants` |
 | `rating_events`, `rating_deltas`, `rating_players` | `rating.events`, `rating.player_state` (the delta ledger has no counterpart) |
 | `player_achievements` | `achievement.earned` + `achievement.definitions` |

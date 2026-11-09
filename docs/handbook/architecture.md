@@ -38,7 +38,7 @@ for server data and Zustand for the wizard draft.
 | `apps/web/src/` | React shell, pages, per-feature API client |
 | `packages/contracts/openapi/` | two source specs + combined document + fingerprint |
 | `packages/web-client/src/api.ts` | generated TypeScript client |
-| `db/migrations/`, `db/seeds/` | schema (`0001`–`0033`) and config seed |
+| `db/migrations/`, `db/seeds/` | schema (`0001`–`0035`) and config seed |
 | `tools/` | dbtools, contract-gen, parity, ops CLI, OIDC stub |
 | `e2e/` | Playwright suite (a11y, visual, compatibility) |
 | `task`, `task.d/` | the only command runner (`./task <target>`) |

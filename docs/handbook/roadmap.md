@@ -9,7 +9,7 @@ Status as of **2026-11-08**. The change history is in git history.
   `apps/api/src/main.nim`.
 - **75-operation contract**: `core.yaml` + `community.yaml` → `api.yaml`,
   `routes_gen.nim`, TS client, fingerprint (`packages/contracts/openapi`).
-- **v2 schema**: 33 migrations (`0001`–`0033`), 34 config keys, config and
+- **v2 schema**: 35 migrations (`0001`–`0035`), 34 config keys, config and
   achievement seeds.
 - **Auth & communities**: OIDC + session cookie, `member`/`host`/`admin` membership,
   invite, join request, settings, append-only audit, platform owner.

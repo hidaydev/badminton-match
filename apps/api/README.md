@@ -84,7 +84,7 @@ fails if one is missing.
 ./task parity verify    # frozen v1 corpus (71 cases, 48 routes)
 ```
 
-Migrations: 33 files (`db/migrations/0001`–`0033`). Business config: 34 keys in
+Migrations: 35 files (`db/migrations/0001`–`0035`). Business config: 34 keys in
 `modules/platform/config/registry.nim`.
 
 ## v1 has been removed
