@@ -21,6 +21,10 @@ WEB_PORT=${MAJADU_E2E_WEB_PORT:-5173}
 # The scoreboard makes no API calls, so its origin only has to be stable for the
 # service worker and the spec that drives it.
 SCOREBOARD_PORT=${MAJADU_E2E_SCOREBOARD_PORT:-4173}
+# QAE-03: a second copy of the same release binary, started with
+# MAJADU_TEST_ROUTES=1. A production build compiles the flag out, so this
+# process must serve the real routes; the `api` project asserts it.
+FLAG_PORT=${MAJADU_E2E_FLAG_PORT:-18094}
 DB=${MAJADU_E2E_DB:-bm2_e2e}
 STUB_EMAIL=stub@example.com
 
@@ -55,8 +59,17 @@ export MAJADU_BOOTSTRAP_OWNER_EMAIL=$STUB_EMAIL
 "$bin_dir/majadu-api" >/tmp/e2e-api.log 2>&1 &
 API_PID=$!
 
+# QAE-03: the same binary with the skeleton flag. The release build compiles the
+# flag out, so this instance must answer the real routes; a flag that still
+# swapped the router would show up as `/healthz: stub` and a 404 `/readyz` here,
+# which is exactly the process an orchestrator would keep in service.
+MAJADU_PORT=$FLAG_PORT MAJADU_TEST_ROUTES=1 "$bin_dir/majadu-api" \
+  >/tmp/e2e-api-flag.log 2>&1 &
+FLAG_PID=$!
+
 cleanup() {
-  kill "$API_PID" "$STUB_PID" "${WEB_PID:-}" "${SCOREBOARD_PID:-}" 2>/dev/null || true
+  kill "$API_PID" "$FLAG_PID" "$STUB_PID" "${WEB_PID:-}" \
+    "${SCOREBOARD_PID:-}" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
@@ -71,6 +84,16 @@ done
 # Without this the suite runs against a dead API and Playwright reports a
 # timeout per spec instead of one actionable line.
 [ "$ready" = 1 ] || fail "API did not answer /healthz on :$API_PORT (log: /tmp/e2e-api.log)"
+
+ready=0
+for _ in $(seq 1 100); do
+  if curl -fsS --max-time 1 "http://127.0.0.1:$FLAG_PORT/healthz" >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
+  sleep 0.2
+done
+[ "$ready" = 1 ] || fail "the test-route instance did not answer /healthz on :$FLAG_PORT (log: /tmp/e2e-api-flag.log)"
 
 pnpm --filter badminton-pair-tmp build >/dev/null
 pnpm --filter majadu-score build >/dev/null
@@ -107,4 +130,7 @@ done
 
 E2E_BASE_URL="http://127.0.0.1:$WEB_PORT" \
   E2E_SCOREBOARD_BASE_URL="http://127.0.0.1:$SCOREBOARD_PORT" \
+  E2E_API_URL="http://127.0.0.1:$API_PORT" \
+  E2E_FLAG_API_URL="http://127.0.0.1:$FLAG_PORT" \
+  E2E_API_LOG=/tmp/e2e-api.log \
   pnpm exec playwright test --config "$REPO_ROOT/apps/web/playwright.config.ts" "$@"

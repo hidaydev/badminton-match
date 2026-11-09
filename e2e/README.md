@@ -19,6 +19,11 @@ The task resets `bm2_e2e`, migrates and seeds it, then starts four servers:
 | Web preview | 5173 | `MAJADU_E2E_WEB_PORT`; must match the seeded `security.allowed_origins` |
 | Scoreboard preview | 4173 | `MAJADU_E2E_SCOREBOARD_PORT`; serves the built `apps/scoreboard` |
 
+A fifth process is the same API binary started with `MAJADU_TEST_ROUTES=1` on
+18094 (`MAJADU_E2E_FLAG_PORT`). A release build compiles the flag out, so it
+exists only to prove that the flag cannot turn a deployed process into a health
+check over 404s (QAE-03).
+
 ## What is asserted
 
 - **A11y** (`a11y.spec.ts`): axe with the WCAG 2.0/2.1 A+AA tags on every route
@@ -42,9 +47,15 @@ The task resets `bm2_e2e`, migrates and seeds it, then starts four servers:
   from the admin settings screen, does not see the new-session control, and gets
   403 from a settings write and a session create. An anonymous caller gets 401
   from the same write.
+- **API boundary** (`api.spec.ts`, QAE-02, QAE-03, QAE-04 and QAE-06): the
+  audit findings on the anonymous edge, driven with Playwright's request context
+  against the API's own socket. The body limit is read from
+  `db/seeds/platform_config.sql` rather than repeated, so the test probes the
+  value the deployment has. It runs in the `api` project and never opens a page.
 
-The suite is 40 percent functional: 40 of 100 runs drive a flow, 24 are the
-visual baseline, 2 are the account-menu screenshot, 32 are the axe walk and 2 run
+The suite is 40 percent functional: 56 of 162 runs drive a flow on a phone and
+9 more drive the API over its own socket, 24 are the visual baseline, 2 are the
+account-menu screenshot, 60 are the axe walk, 8 are the public axe walk and 3 run
 the static route-coverage guard. A snapshot cannot fail for a permission
 regression, which is why the functional share is stated rather than implied.
 
@@ -75,6 +86,11 @@ a layout fix changes snapshots on purpose.
 uses at a laptop. It runs only `a11y.spec.ts`: the visual baseline is per
 platform, so a new width would have to be recorded on both before the
 comparison meant anything.
+
+`api` runs only `api.spec.ts`, and the phone projects ignore that file. It is a
+project instead of a spec inside an existing one because the checks talk to a
+socket, not to a screen: running them once is the point, and the width they
+would inherit from a phone says nothing.
 
 Firefox is not part of the suite. Its macOS build (revision 1555, pinned in
 `deps.lock`) only starts with `CFFIXED_USER_HOME` pointed at an empty directory,
