@@ -770,6 +770,10 @@ else
       continue
     fi
     if [ "$_status" -ne 0 ]; then
+      # A failure early in a long suite falls outside the last 20 lines, and the
+      # tail then hides the one line that names it.
+      grep -E '\[FAILED\]|Error:|Traceback|SIG[A-Z]+' "$COV/last-test.log" \
+        >&2 2>/dev/null || true
       tail -20 "$COV/last-test.log" >&2
       fail "test failed under coverage instrumentation: ${file#"$REPO_ROOT"/}"
     fi
