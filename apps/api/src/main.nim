@@ -81,6 +81,13 @@ proc bootHandler*(config: ServerConfig, threads: int): BootedApi =
   ## Exported for `apps/api/tests/boot_contract_test.nim` (D-5): `main()` cannot
   ## be entered from a test without binding a port, and the order of the refusal
   ## checks is the contract that keeps a misconfigured process off the database.
+  # `loadConfig` already refuses this pair for the process entry point, but this
+  # is also the door a test or a second entry point knocks on with a hand built
+  # config. A stub that answers 200 on `/healthz` while every real route,
+  # `/readyz` included, answers 404 must never be wired in production.
+  if config.testRoutes and getEnv("MAJADU_ENV") == "prod":
+    raise newException(ValueError,
+      "MAJADU_TEST_ROUTES=1 refuses MAJADU_ENV=prod")
   let dsn = getEnv("MAJADU_PG_DSN")
   if dsn.len == 0:
     raise newException(ValueError, "MAJADU_PG_DSN is required")

@@ -141,6 +141,26 @@ suite "buildInfoJson":
     check source.contains(""""commit": appCommit""")
 
 suite "bootHandler":
+  test "test routes beside MAJADU_ENV=prod refuse before any connection":
+    # SEC-13: `MAJADU_TEST_ROUTES=1` replaces the whole router with a stub that
+    # answers `/healthz` 200 and everything else 404, `/readyz` included, so a
+    # production process must refuse it before it opens the pool.
+    let previousEnv = getEnv("MAJADU_ENV")
+    let previousDsn = getEnv("MAJADU_PG_DSN")
+    delEnv("MAJADU_PG_DSN")
+    putEnv("MAJADU_ENV", "prod")
+    try:
+      let message = messageOf(proc() =
+        discard bootHandler(ServerConfig(port: Port(8080), testRoutes: true), 2))
+      check message.contains("MAJADU_TEST_ROUTES")
+      # The refusal is about the flag, not the missing DSN: the stub is checked
+      # first so this case cannot pass on an unrelated error.
+      check not message.contains("MAJADU_PG_DSN")
+    finally:
+      if previousEnv.len > 0: putEnv("MAJADU_ENV", previousEnv)
+      else: delEnv("MAJADU_ENV")
+      if previousDsn.len > 0: putEnv("MAJADU_PG_DSN", previousDsn)
+
   test "a missing DSN refuses before any connection is attempted":
     let previous = getEnv("MAJADU_PG_DSN")
     delEnv("MAJADU_PG_DSN")
