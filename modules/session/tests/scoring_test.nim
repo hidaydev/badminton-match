@@ -67,6 +67,15 @@ suite "set list":
     check matchComplete(majadu, @[set(30, 28)])
     check winnerSide(majadu, @[set(28, 30)]) == some(sdB)
 
+  test "a tied set is a win for neither side":
+    # SQ-22: the counter used to award a tie to side B, so a caller that built
+    # sets without `validateSets` marked a drawn game played for the wrong
+    # winner. The four cases below are the contract of the exported helpers.
+    check setsWon(@[set(5, 5)]) == (0, 0)
+    check winnerSide(majadu, @[set(5, 5)]).isNone
+    check not matchComplete(majadu, @[set(5, 5)])
+    check setsWon(@[set(21, 19), set(5, 5), set(19, 21)]) == (1, 1)
+
   test "no set after the match is decided":
     check validateSets(classic,
       @[set(21, 19), set(21, 19), set(21, 19)]).error == seSetAfterEnd
