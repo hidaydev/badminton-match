@@ -92,7 +92,7 @@ export function ScoreboardSide({
         type="button"
         onClick={onScore}
         aria-label={`${displayName}, score ${score}. Add a point`}
-        className="w-full flex-1 flex flex-col items-center justify-center cursor-pointer duration-75"
+        className="score-face w-full flex-1 flex flex-col items-center justify-center cursor-pointer duration-75"
       >
         <span
           aria-hidden="true"

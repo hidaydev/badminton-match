@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import ScoreboardPage from './ScoreboardPage'
 import { resetStorageStatus } from '../utils/storage'
 
@@ -22,6 +23,8 @@ afterEach(() => {
   vi.useRealTimers()
   localStorage.clear()
   Reflect.deleteProperty(navigator, 'storage')
+  Reflect.deleteProperty(navigator, 'clipboard')
+  Reflect.deleteProperty(navigator, 'share')
   // `fullscreenElement` and the viewport are defined per test; leaving them set
   // makes the next render start in fullscreen or in portrait.
   Object.defineProperty(document, 'fullscreenElement', { value: null, configurable: true })
@@ -157,6 +160,30 @@ describe('ScoreboardPage', () => {
     const minus = screen.getByRole('button', { name: 'Decrease red score' })
     fireEvent.keyDown(minus, { key: ' ' })
     fireEvent.keyDown(minus, { key: 'Enter' })
+
+    expect(within(halfOf('Arya')).getByText('2')).toBeInTheDocument()
+    expect(localStorage.getItem('score-red')).toBe('2')
+  })
+
+  it('keeps the space in the team name and leaves the score at zero', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo', 'score-blue': '5' })
+
+    fireEvent.click(screen.getByText('Arya'))
+    const input = screen.getByLabelText('Red team name')
+    fireEvent.change(input, { target: { value: 'Red Team' } })
+
+    expect(input).toHaveValue('Red Team')
+    expect(screen.getByText('0')).toBeInTheDocument()
+    expect(localStorage.getItem('score-red')).toBe('0')
+  })
+
+  it('decreases the score by exactly one when Space activates the minus button', async () => {
+    const user = userEvent.setup()
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo', 'score-red': '3' })
+
+    const minus = screen.getByRole('button', { name: 'Decrease red score' })
+    minus.focus()
+    await user.keyboard(' ')
 
     expect(within(halfOf('Arya')).getByText('2')).toBeInTheDocument()
     expect(localStorage.getItem('score-red')).toBe('2')
@@ -357,5 +384,40 @@ describe('ScoreboardPage', () => {
 
     render(<ScoreboardPage />)
     expect(within(halfOf('RED')).getByText('1')).toBeInTheDocument()
+  })
+
+  it('exports the four stored keys as JSON so the match can leave the device', async () => {
+    const writeText = vi.fn(async (_text: string) => {})
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    renderPage({
+      'name-red': 'Arya',
+      'name-blue': 'Bowo',
+      'score-red': '4',
+      'score-blue': '2',
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Export match' }))
+    })
+
+    expect(writeText).toHaveBeenCalledTimes(1)
+    const exported = JSON.parse(writeText.mock.calls[0][0] as string)
+    expect(exported).toEqual({
+      'score-red': localStorage.getItem('score-red'),
+      'score-blue': localStorage.getItem('score-blue'),
+      'name-red': localStorage.getItem('name-red'),
+      'name-blue': localStorage.getItem('name-blue'),
+    })
+    expect(screen.getByText('Match copied to clipboard')).toBeInTheDocument()
+  })
+
+  it('says so when the match cannot be exported', async () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Export match' }))
+    })
+
+    expect(screen.getByText('Could not export the match')).toBeInTheDocument()
   })
 })

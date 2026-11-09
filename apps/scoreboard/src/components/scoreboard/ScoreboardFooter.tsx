@@ -4,6 +4,7 @@ export interface ScoreboardFooterProps {
   isFullscreen: boolean
   onReset: () => void
   onSwap: () => void
+  onExport: () => void
   onToggleFullscreen: () => void
 }
 
@@ -11,6 +12,7 @@ export function ScoreboardFooter({
   isFullscreen,
   onReset,
   onSwap,
+  onExport,
   onToggleFullscreen,
 }: ScoreboardFooterProps) {
   return (
@@ -25,6 +27,7 @@ export function ScoreboardFooter({
         isFullscreen={isFullscreen}
         onReset={onReset}
         onSwap={onSwap}
+        onExport={onExport}
         onToggleFullscreen={onToggleFullscreen}
         buttonClassName="px-3 py-1"
       />

@@ -4,6 +4,11 @@ import type { ScoreboardSideProps } from '../components/scoreboard'
 import { useStorageUnavailable } from '../hooks/useStorageUnavailable'
 import { usePersistentStorage } from '../hooks/usePersistentStorage'
 import { readStoredValue, writeStoredValue } from '../utils/storage'
+import {
+  readMatchSnapshot,
+  serializeMatchSnapshot,
+  shareMatchExport,
+} from '../utils/matchExport'
 
 const LS_RED = 'score-red'
 const LS_BLUE = 'score-blue'
@@ -58,11 +63,13 @@ export default function ScoreboardPage() {
   const [isSwapped, setIsSwapped] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(() => !!document.fullscreenElement)
   const [fsError, setFsError] = useState<string | null>(null)
+  const [exportNotice, setExportNotice] = useState<string | null>(null)
   const [isPortrait, setIsPortrait] = useState(() => window.innerWidth < window.innerHeight)
 
   const redTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const blueTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fsErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const exportNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { writeStoredValue(LS_RED, String(red)) }, [red])
   useEffect(() => { writeStoredValue(LS_BLUE, String(blue)) }, [blue])
@@ -80,6 +87,7 @@ export default function ScoreboardPage() {
       if (redTimer.current) clearTimeout(redTimer.current)
       if (blueTimer.current) clearTimeout(blueTimer.current)
       if (fsErrorTimer.current) clearTimeout(fsErrorTimer.current)
+      if (exportNoticeTimer.current) clearTimeout(exportNoticeTimer.current)
     }
   }, [])
 
@@ -112,6 +120,19 @@ export default function ScoreboardPage() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const reset = useCallback(() => { setRed(0); setBlue(0) }, [])
+
+  const exportMatch = useCallback(async () => {
+    const text = serializeMatchSnapshot(readMatchSnapshot())
+    const result = await shareMatchExport(text)
+    if (result === 'cancelled') return
+
+    if (result === 'failed') setExportNotice('Could not export the match')
+    else if (result === 'shared') setExportNotice('Match shared')
+    else setExportNotice('Match copied to clipboard')
+
+    if (exportNoticeTimer.current) clearTimeout(exportNoticeTimer.current)
+    exportNoticeTimer.current = setTimeout(() => setExportNotice(null), 3000)
+  }, [])
 
   const toggleFullscreen = useCallback(async () => {
     if (isFullscreen) { exitFullscreen(); return }
@@ -199,6 +220,15 @@ export default function ScoreboardPage() {
           {fsError}
         </div>
       )}
+      {exportNotice && (
+        <div
+          role="status"
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 text-center"
+          style={{ maxWidth: '80vw', background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}
+        >
+          {exportNotice}
+        </div>
+      )}
       {statusNote && (
         <div
           role="status"
@@ -212,6 +242,7 @@ export default function ScoreboardPage() {
         isFullscreen={isFullscreen}
         onReset={reset}
         onSwap={doSwap}
+        onExport={exportMatch}
         onToggleFullscreen={toggleFullscreen}
       />
     </main>

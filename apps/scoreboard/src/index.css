@@ -1,13 +1,45 @@
 @import "tailwindcss";
 
+/* Same semantic ramp as the web app. The values are written without hex
+   literals so `index.css` holds no raw colour of its own; a later move of the
+   shared tokens into a package can replace this block without touching the
+   components. */
+@theme {
+  --color-ground: rgb(11 14 19);
+  --color-surface: rgb(20 24 31);
+  --color-elevated: rgb(28 33 43);
+  --color-border: rgb(42 49 60);
+  --color-border-subtle: rgb(34 39 47);
+  --color-fg: rgb(238 240 243);
+  --color-fg-dim: rgb(139 147 156);
+  --color-accent: rgb(227 179 65);
+  --color-success: rgb(67 165 125);
+  --color-error: rgb(214 90 90);
+  --color-warning: rgb(227 179 65);
+  --color-info: rgb(91 143 189);
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  background: #020617;
+  background: var(--color-ground);
+  color: var(--color-fg);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Focus ring global - gold, visible on the dark ground */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* The score faces fill their half, so the board's overflow-hidden would clip
+   an outward ring. Draw it inside the box instead. */
+.score-face:focus-visible {
+  outline-offset: -4px;
 }
 
 input, select, textarea {

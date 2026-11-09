@@ -332,24 +332,28 @@ appears that needs rules outside
 
 ---
 
-## ADR-013 · The scoreboard is display only for this release
+## ADR-013 · The scoreboard exports the match but does not sync it
 
 **Date:** 2026-11-09
 **Audit finding:** PWA-02
-**Status:** Deferred
+**Status:** Applied (export) / Deferred (cross-device sync)
 
-**Decision:** the standalone scoreboard is display only for this release. Scores
-stay in the browser. Export, share text and any queued write to the server are
-deferred.
+**Decision:** the standalone scoreboard keeps the in-progress match in this
+browser and offers an explicit export: one control copies a JSON object with the
+four stored keys (`score-red`, `score-blue`, `name-red`, `name-blue`) through the
+native share sheet, or the clipboard when the sheet is not available. There is
+no import, no write to the platform and no cross-device sync.
 
 **Reason:** the app has no API client, so a queued write needs a sync contract
-that does not exist, and the destination format for an export is a product
-decision that has not been made. Requesting persistent storage on the first score
-makes eviction less likely without committing to either shape.
+that does not exist, and an import format for a second device is a product
+decision that has not been made. Export covers the case the audit can prove,
+losing the only copy when site data is cleared, without inventing either
+contract. Requesting persistent storage on the first score makes eviction less
+likely without committing to a shape.
 
-**Reopener:** the owner chooses an export format or decides that courtside scores
-must land on the platform; at that point the app needs an API client or a
-copy/share control, plus a test that round-trips the four stored keys.
+**Reopener:** the owner decides that courtside scores must land on the platform
+or move to a second device; that needs an API client or an import control, plus
+a test that round-trips the four stored keys through whichever format is chosen.
 
 ---
 
