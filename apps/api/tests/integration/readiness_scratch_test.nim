@@ -12,8 +12,8 @@ import db/db
 import ../http_support
 import ../../../../tools/dbtools/main
 
-const
-  port = testPort(18107)
+let
+  port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
   migrationsDir = "db/migrations"
   seedsDir = "db/seeds"

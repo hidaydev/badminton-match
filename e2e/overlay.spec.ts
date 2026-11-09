@@ -54,7 +54,7 @@ async function openShareSheet(page: Page) {
   return { summary, trigger, share }
 }
 
-test('the sheet locks the body and restores the scroll position', async ({ page }) => {
+test('the page does not scroll behind the sheet and the offset is restored', async ({ page }) => {
   await signIn(page)
   const { match, sheet } = await openScorePage(page)
 
@@ -69,17 +69,18 @@ test('the sheet locks the body and restores the scroll position', async ({ page 
   await match.click()
   await expect(sheet).toBeVisible()
 
-  expect(await page.evaluate(() => document.body.style.position)).toBe('fixed')
-  expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden')
-  expect(await page.evaluate(() => document.body.style.top)).toBe(`-${scrolled}px`)
+  // QA-28: the assertion is the observable behaviour, not the inline styles the
+  // current implementation happens to use. A refactor to `inert`, `overflow:
+  // clip` or a scroll container must keep this green as long as the page behind
+  // the sheet cannot move.
+  const locked = await page.evaluate(() => window.scrollY)
+  await page.evaluate(() => window.scrollBy(0, 200))
+  expect(await page.evaluate(() => window.scrollY)).toBe(locked)
 
   await sheet.getByRole('button', { name: 'Cancel' }).click()
   await expect(sheet).toBeHidden()
 
-  await expect.poll(() => page.evaluate(() => document.body.style.position)).toBe('')
-  expect(await page.evaluate(() => document.body.style.top)).toBe('')
-  expect(await page.evaluate(() => document.body.style.overflow)).toBe('')
-  expect(await page.evaluate(() => window.scrollY)).toBe(scrolled)
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(scrolled)
 })
 
 test('Escape closes only the top sheet and returns focus to its trigger', async ({ page }) => {
@@ -128,4 +129,21 @@ test('the footer action is reachable without scrolling the page behind', async (
   await expect(cancel).toBeEnabled()
   await cancel.click()
   await expect(sheet).toBeHidden()
+})
+
+test('both sheets open and close from the keyboard alone', async ({ page }) => {
+  // QA-19: a pointer is not an accessibility path. Open the score sheet from a
+  // focused trigger, close it with Escape, then do the same for the share sheet
+  // stacked over the summary.
+  await signIn(page)
+  const { match, sheet } = await openScorePage(page)
+  await match.focus()
+  await page.keyboard.press('Enter')
+  await expect(sheet).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(sheet).toBeHidden()
+
+  const { share } = await openShareSheet(page)
+  await page.keyboard.press('Escape')
+  await expect(share).toBeHidden()
 })

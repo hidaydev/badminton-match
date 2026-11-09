@@ -9,8 +9,8 @@ import share/crypto
 import ../../src/app
 import ../http_support
 
-const
-  port = testPort(18109)
+let
+  port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
 
 # An empty pool: acquireConn would wait or raise, so reaching it would fail the

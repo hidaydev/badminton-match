@@ -216,6 +216,52 @@ resolve() {
   printf '%s %s %s %s\n' "$name" "$version" "$source" "$computed"
 }
 
+# A workflow file is code, and an action pin is a dependency. `ci-guards`
+# proves the shape (40-hex); this pass asks GitHub whether the commit exists, so
+# a pin that was resolved once and later removed is caught before the workflow
+# fails at setup. Offline and rate-limited runs report a skip: the shape check
+# already ran, and a laptop without network must still be able to check a lock.
+audit_action_pins() {
+  _workflows="$REPO_ROOT/.github/workflows"
+  [ -d "$_workflows" ] || return 0
+  require_cmd curl
+  _token=${GITHUB_TOKEN:-${GH_TOKEN:-}}
+  : >"$tmp/actions"
+  # `set -f` above disables globbing for the lock parser, so the workflow list
+  # comes from find rather than a shell glob.
+  find "$_workflows" -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) |
+    while IFS= read -r _workflow; do
+      grep -o 'uses:[[:space:]]*[^[:space:]#]*' "$_workflow" |
+        sed 's/^uses:[[:space:]]*//' |
+        grep -E '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}$' \
+          >>"$tmp/actions" || true
+    done
+  LC_ALL=C sort -u "$tmp/actions" -o "$tmp/actions"
+  # Read from a file, not a pipeline: `mismatch` has to change the caller's
+  # counter, and a pipeline would run the loop in a subshell that discards it.
+  while IFS= read -r _ref; do
+    [ -n "$_ref" ] || continue
+    _repo=${_ref%@*}
+    _sha=${_ref##*@}
+    _code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 \
+      ${_token:+-H "Authorization: Bearer $_token"} \
+      "https://api.github.com/repos/$_repo/commits/$_sha" 2>/dev/null || echo 000)
+    case "$_code" in
+      200) ;;
+      404|422)
+        mismatch "workflow pin $_repo@$_sha does not resolve on GitHub"
+        ;;
+      403|000)
+        report "workflow pin $_repo@$_sha: GitHub not reachable or rate limited (HTTP $_code); shape was checked"
+        ;;
+      *)
+        mismatch "workflow pin $_repo@$_sha: unexpected HTTP $_code"
+        ;;
+    esac
+  done <"$tmp/actions"
+  return 0
+}
+
 seen=
 : >"$tmp/entries"
 
@@ -281,6 +327,8 @@ else
       printf '  lock:     %s\n  computed: %s\n' "$expected_tree" "$actual_tree" >&2
     fi
   fi
+
+  audit_action_pins
 
   if [ "$errors" -ne 0 ]; then
     printf 'deps-check: %d problem(s); update deps.lock (docs/handbook/deps-format.md)\n' "$errors" >&2

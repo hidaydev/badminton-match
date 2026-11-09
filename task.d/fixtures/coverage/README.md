@@ -25,6 +25,7 @@ The paths are labels only: a model never touches the tree it lives in.
 | `file-decrease` | One file drops 90% to 80% while the domain and the total stay flat: the file row catches it. | 1 |
 | `domain-hides-file` | One file drops 50% to 30% while the total and the domain rise: a domain-only gate would have missed it. | 1 |
 | `diff-below-90` | The ratchet holds, but only 5 of 10 changed lines are covered. | 1 |
+| `branch-axis` | The report carries BRF/BRH per file and for the total, and `--update` records both axes. | 0 |
 
 The update rules are fixtures too, and they never rewrite the checked-in files:
 

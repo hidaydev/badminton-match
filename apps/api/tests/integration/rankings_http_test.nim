@@ -9,8 +9,8 @@ import share/store as shareStore
 import tests/fixtures
 import ../http_support
 
-const
-  port = testPort(18096)
+let
+  port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
   keysJson = """{"1":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}"""
 

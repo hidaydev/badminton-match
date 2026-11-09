@@ -2,14 +2,14 @@ import std/[exitprocs, httpclient, json, options, os, osproc, strutils, unittest
 import db/db
 import mummy
 import sha256
-import ../../src/app
+import ../../../src/app
 import account/infrastructure/oidc
 import platform/config/store
 import share/crypto
-import ../http_support
+import ../../http_support
 
-const
-  port = testPort(18100)
+let
+  port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
   stubPort = 18177
   stubBase = "http://127.0.0.1:" & $stubPort

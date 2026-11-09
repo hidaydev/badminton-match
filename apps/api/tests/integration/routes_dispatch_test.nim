@@ -1,7 +1,7 @@
 import std/[json, options, strutils, unittest]
 import db/db
-import ../src/routes_gen
-import ./http_support
+import ../../src/routes_gen
+import ../http_support
 
 # The anonymous request sweep. One server for the whole suite, the same path a
 # probe or a CLI uses, and one expectation per operation read from the access
@@ -10,8 +10,8 @@ import ./http_support
 # `testdata/authz/matrix.yaml`, never from `route_access`, so patching the
 # classifier to call a write route public fails this test instead of agreeing
 # with it.
-const
-  port = testPort(18103)
+let
+  port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
   # `routeNotFound` is the only producer of this sentence in app.nim, so a body
   # that contains it can only come from the final fallthrough.

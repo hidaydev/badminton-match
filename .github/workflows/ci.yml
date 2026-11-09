@@ -36,15 +36,6 @@ jobs:
     name: "API: check"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    services:
-      postgres:
-        image: postgres:18.6
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready --health-interval 5s
-          --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
@@ -67,7 +58,7 @@ jobs:
             nimcache-${{ runner.os }}-
       # QA-11: `./task check` runs the TypeScript coverage gate, so this job
       # needs the workspace installed as well as Nim.
-      - uses: pnpm/action-setup@9bbca1e9dc2902adb87e8780fe5c98796985a62d # v6.1.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -84,63 +75,14 @@ jobs:
           sudo apt-get install -y libpcre3
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
-      # D-6: `check` runs the database-backed suites, so this job provisions the
-      # same disposable database the integration job uses.
-      - name: "Database: provision and create the test database"
-        env:
-          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env
-        run: |
-          ./task dev-db
-          psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 <<'SQL'
-          SELECT 'CREATE DATABASE bm2_test OWNER bm2_owner'
-          WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'bm2_test') \gexec
-          SQL
-      - name: "Database: migrate and seed"
-        env:
-          MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
-        run: |
-          mkdir -p .cache/ci
-          nim c --hints:off -d:release -o:.cache/ci/dbtools tools/dbtools/main.nim
-          .cache/ci/dbtools migrate --dir db/migrations
-          .cache/ci/dbtools seed --dir db/seeds
-      # QA-10: `check` runs the import suite, which now refuses to skip. It
-      # needs the small v1 source and the production-shaped source, each with
-      # its own migrated target, so this job provisions all four.
-      - name: "Import: provision the v1 sources and the v2 targets"
-        env:
-          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          IMPORT_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
-          BULK_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_source_test
-        run: |
-          psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
-            -c "CREATE DATABASE bm2_import_source_test" \
-            -c "CREATE DATABASE bm2_import_target_test OWNER bm2_owner TEMPLATE bm2_test" \
-            -c "CREATE DATABASE bm2_import_bulk_source_test" \
-            -c "CREATE DATABASE bm2_import_bulk_target_test OWNER bm2_owner TEMPLATE bm2_test"
-          psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
-            -f ops/dev/v1/schema.sql
-          psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
-            -f ops/dev/v1/fixtures/v1-fixtures.sql
-          psql -v ON_ERROR_STOP=1 -q -d "$BULK_SOURCE_DSN" \
-            -f ops/dev/v1/schema.sql
-          psql -v ON_ERROR_STOP=1 -q -d "$BULK_SOURCE_DSN" \
-            -f testdata/import/production-shaped.sql
-          for dsn in "$IMPORT_SOURCE_DSN" "$BULK_SOURCE_DSN"; do
-            loaded=$(psql -d "$dsn" -tAc "select to_regnamespace('bm')")
-            if [ "$loaded" != "bm" ]; then
-              echo "$dsn has no bm schema" >&2
-              exit 1
-            fi
-          done
+      # QA-25: `check` is the database-free layer. Every suite that opens a
+      # database lives under `tests/integration/` and runs in `api-test`, so
+      # this job has no postgres service and no DSN.
+      # QA-27: `--static` skips the suites too: `api-test` compiles and runs
+      # every one of them, and a compile here would be a second pass over the
+      # same tree in the same run. The web gates run in the `web` job.
       - name: "API: check"
-        env:
-          MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
-          MAJADU_IMPORT_TEST_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_target_test
-          MAJADU_IMPORT_TEST_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
-          MAJADU_IMPORT_BULK_TARGET_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_target_test
-          MAJADU_IMPORT_BULK_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_source_test
-        run: ./task check
+        run: ./task check --static
       # QA-11: a red check leaves the per-suite JUnit report, the failure list
       # and the timing table on the runner; this makes them downloadable.
       - name: "API: upload failure reports"
@@ -354,7 +296,7 @@ jobs:
         with:
           # gitleaks scans the commits in this run, not only the working tree.
           fetch-depth: 0
-      - uses: pnpm/action-setup@9bbca1e9dc2902adb87e8780fe5c98796985a62d # v6.1.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       # No pnpm cache here: the job audits the lockfile without installing, so
       # the store directory never exists and setup-node's post step failed the
       # job trying to save it.
@@ -389,7 +331,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@9bbca1e9dc2902adb87e8780fe5c98796985a62d # v6.1.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -407,6 +349,18 @@ jobs:
       # precache covers the shell and the entry chunk built index.html asks for.
       - name: "Scoreboard: assert the service worker precache"
         run: ./task scoreboard-pwa
+      # QA-11: a failed Vitest run leaves the coverage report and the failure
+      # output; without the upload the runner deletes it.
+      - name: "Web: upload failure reports"
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: web-test-results
+          path: |
+            apps/web/coverage/
+            apps/web/test-results/
+            apps/scoreboard/coverage/
+          if-no-files-found: warn
 
   e2e:
     name: "E2E: browser"
@@ -453,7 +407,7 @@ jobs:
           sudo apt-get install -y libpcre3
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
-      - uses: pnpm/action-setup@9bbca1e9dc2902adb87e8780fe5c98796985a62d # v6.1.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -585,6 +539,16 @@ jobs:
           done
           rm -f .cache-changed.txt
           exit "$status"
+      # QA-11: a survivor is a finding, and the report that names it must outlive
+      # the runner.
+      - name: "Mutation: upload the run"
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mutation-results
+          path: .cache/*/mutation/
+          include-hidden-files: true
+          if-no-files-found: warn
 
   image:
     name: "Image: build"

@@ -37,6 +37,16 @@ The task resets `bm2_e2e`, migrates and seeds it, then starts four servers:
   preview, scores a point, goes offline, reloads from the service worker cache
   and scores again. It takes no screenshots, so it does not depend on the visual
   baseline.
+- **Role boundary** (`authz.spec.ts`, QA-18): replays the member session
+  `global-setup` mints, and asserts both sides of the gate: a member is sent away
+  from the admin settings screen, does not see the new-session control, and gets
+  403 from a settings write and a session create. An anonymous caller gets 401
+  from the same write.
+
+The suite is 40 percent functional: 40 of 100 runs drive a flow, 24 are the
+visual baseline, 2 are the account-menu screenshot, 32 are the axe walk and 2 run
+the static route-coverage guard. A snapshot cannot fail for a permission
+regression, which is why the functional share is stated rather than implied.
 
 Every spec waits for the screen's own data (`VisualRoute.ready`) instead of
 `networkidle`, which never settles on a screen holding a WebSocket open. No spec

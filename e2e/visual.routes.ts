@@ -17,6 +17,12 @@ export type E2eState = {
   occByProject: Record<string, string>
   /** Writable sessions live outside the community the baselines pin. */
   writableCommunitySlug: string
+  /**
+   * A live member session cookie for `e2e-club` (QA-18). The OIDC stub signs in
+   * one identity only, so a lower role cannot be reached through the login
+   * screen; global-setup mints this row and the authz spec replays it.
+   */
+  memberCookie: string
 }
 
 /**
@@ -137,4 +143,8 @@ export const a11yRoutes: readonly VisualRoute[] = [
     path: () => process.env.E2E_SCOREBOARD_URL ?? 'http://127.0.0.1:4173/',
     ready: () => 'text=tap to score',
   },
+  // Static prose the shell links from the account menu. They carry no data, so
+  // the heading is the readiness signal.
+  { name: 'privacy', path: () => '/privacy', ready: () => 'h1' },
+  { name: 'terms', path: () => '/terms', ready: () => 'h1' },
 ]

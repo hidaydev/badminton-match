@@ -22,5 +22,10 @@
 - [ ] `./task build` passes
 - [ ] `./task contract-check` passes (when an HTTP operation changed)
 - [ ] `cd apps/web && pnpm check` passes (when the web client changed)
+- [ ] `./task e2e` passes (when a screen, router or role boundary changed)
+- [ ] `./task coverage` passes (the ratchet, not only the local run)
+- [ ] `./task mutation --only <prefix>` passes (when a module with a write path or an access decision changed)
+- [ ] `./task ci-guards` and `./task deps-check` pass (when a workflow or a dependency changed)
+- [ ] I read `docs/test-plan.md` and this change does not leave an unrecorded gap
 - [ ] I did not push to `main` directly
 - [ ] New user-visible strings are in `apps/web/src/i18n/en.ts`

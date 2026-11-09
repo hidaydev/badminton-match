@@ -36,7 +36,11 @@ pushed.
 ## 2. Release sequence
 
 1. `./task release`: dry run. It prints the bump, the changelog section, and the
-   following commands; it writes or tags nothing.
+   following commands; it writes or tags nothing. It refuses a tree that does
+   not contain `main` (or `origin/main`): merge `main` into the release branch,
+   run the full gate on the merge commit, and tag that commit. Record its SHA in
+   the release notes next to the coverage baseline date, so the number and the
+   tree it describes travel together.
 2. `./task release --apply`: writes `VERSION`, `CHANGELOG.md`, and
    `.cache/release/v<version>.md` (tag message source). It only runs if the
    working tree is clean and the last tag matches `VERSION`.
@@ -56,6 +60,11 @@ pushed.
 6. Wait for `release.yml` to go green and record the digest from the GitHub
    Release body. `release.yml` never creates or moves a tag; the tag always comes
    from the operator.
+7. Record the CI and Coverage run URLs for the tagged commit next to the tag
+   message. The coverage gate has failed at setup before (a cache pin named a
+   commit GitHub could not resolve), so the number is not evidence until its run
+   URL is recorded. `./task deps-check` now fails on a pin GitHub cannot resolve;
+   `./task ci-guards` proves the pin shape.
 
 Before the first signed release, install `cosign` on the VPS, put the public key
 in `/srv/qouver/apps/majadu/env/cosign.pub` (mode 600), and set
@@ -91,7 +100,7 @@ That file stays the rollback input.
 
 ## 4. Exit criteria
 
-A release is not done until all six are true:
+A release is not done until all seven are true:
 
 1. **Digest matches.** `deploy/last-release.json` records the digest used;
    its value must equal the digest in the GitHub Release body, and
@@ -120,6 +129,11 @@ A release is not done until all six are true:
    deleted by the deploy (`podman image prune -f` only drops untagged images);
    delete it by hand after that date, with the digest recorded in the release
    notes.
+7. **The load report for the tagged commit is recorded.** `./task loadtest`
+   against the release candidate with `--pid` on the API process, with its
+   p50/p95/p99, failure count and RSS peak archived in the release evidence
+   (T-074). A release without it has no measured capacity, only a configured
+   ceiling.
 
 If any of them fails, use §5, do not patch on the server.
 

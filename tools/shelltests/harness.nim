@@ -63,6 +63,10 @@ proc newFixture*(name: string): Fixture =
   writeFile(root / "docs" / "handbook" / "flaky-tests.json",
     "{\"test\": \"example\", \"owner\": \"TL-18\", \"firstSeen\": \"2026-01-01\", " &
     "\"expires\": \"2099-01-01\", \"issue\": \"https://example.invalid/1\"}\n")
+  # `./task check` validates the low-coverage manifest too, and a fixture has no
+  # baseline, so an empty entry list is the honest tree.
+  writeFile(root / "docs" / "handbook" / "coverage-debt.json",
+    "{\n  \"entries\": []\n}\n")
 
   let home = root / "home"
   let tmp = root / "tmp"

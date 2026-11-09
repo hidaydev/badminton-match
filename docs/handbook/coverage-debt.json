@@ -1,0 +1,18 @@
+{
+  "note": "Low-coverage exceptions (QA-13). Every file below the 80 percent new-file minimum in coverage-baseline-<platform>.json needs an entry here with an owner and an expiry; ./task coverage-debt fails on a missing or expired entry, and on an entry whose file is no longer below the minimum. An exception is a dated acknowledgement, not a target: raise the file, then delete the entry in the same commit.",
+  "entries": [
+    {"path": "shared/platform-lib/context.nim", "owner": "qa", "expires": "2027-03-31", "reason": "request context accessors exercised only through the HTTP suites"},
+    {"path": "apps/api/src/main.nim", "owner": "qa", "expires": "2027-03-31", "reason": "process bootstrap; the handler it wires is covered by the HTTP suites"},
+    {"path": "tools/accountlifecycle/main.nim", "owner": "qa", "expires": "2027-03-31", "reason": "CLI entrypoint, exercised by hand on the VPS"},
+    {"path": "tools/archcheck/main.nim", "owner": "qa", "expires": "2027-03-31", "reason": "runs as a gate, so the gate is the test"},
+    {"path": "tools/auditretention/main.nim", "owner": "qa", "expires": "2027-03-31", "reason": "CLI entrypoint, covered by the shelltests of its guards"},
+    {"path": "tools/janitorcli/main.nim", "owner": "qa", "expires": "2027-03-31", "reason": "CLI entrypoint, covered by the shelltests of its guards"},
+    {"path": "tools/mutation/main.nim", "owner": "qa", "expires": "2027-03-31", "reason": "runs the manifest; the manifest suite proves its rules"},
+    {"path": "tools/oidc-stub/main.nim", "owner": "qa", "expires": "2027-03-31", "reason": "test double only; e2e exercises it end to end"},
+    {"path": "tools/opstoken/main.nim", "owner": "qa", "expires": "2027-03-31", "reason": "CLI entrypoint, covered by the shelltests of its guards"},
+    {"path": "tools/ownerseed/main.nim", "owner": "qa", "expires": "2027-03-31", "reason": "CLI entrypoint used once during bootstrap"},
+    {"path": "tools/ratinglevels/main.nim", "owner": "qa", "expires": "2027-03-31", "reason": "CLI entrypoint; its store is covered by the rating suites"},
+    {"path": "apps/api/src/auth_middleware.nim", "owner": "security", "expires": "2026-12-31", "reason": "the refusal arms are the debt; the happy path is covered by the session suites"},
+    {"path": "modules/rating/infrastructure/jobs.nim", "owner": "qa", "expires": "2026-12-31", "reason": "job scheduling arms; the projection it drives is covered"}
+  ]
+}

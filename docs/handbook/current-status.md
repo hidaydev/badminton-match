@@ -107,16 +107,16 @@ communities) is still used; v2 pages that were never mounted in the router
 
 | Suite | Command | Note |
 |---|---|---|
-| `nim check`, archcheck, unit and database-backed suites | `./task check` | needs `MAJADU_PG_DSN` |
-| Unit + integration | `./task test` | needs `MAJADU_PG_DSN`; 1,127 assertions in 110 suites (2026-11-08), each suite on its own database; `--timing` and `--shard I/N` are used by the two CI shards, which measured 219 s and 196 s against 406 s for one run |
+| `nim check`, archcheck, unit suites | `./task check` | no database; 60 unit suites |
+| Unit + integration | `./task test` | needs `MAJADU_PG_DSN`; 121 suites (60 unit, 61 integration; 2026-11-10), each suite on its own database; `--timing` and `--shard I/N` are used by the two CI shards, which measured 219 s and 196 s against 406 s for one run |
 | One module | `./task verify <module\|api>` | integration when the DB is present |
 | Contract | `./task contract-check` | fingerprint + generated output |
 | Parity | `./task parity verify` / `./task parity v2 verify` | frozen v1 71 cases/48 routes; v2 143 cases |
 | Tournament ladder | `./task levels` | read/write `rating.levels`; no row = per-game formula |
-| Coverage | `./task coverage` | per file, module and total ratchet against `coverage-baseline-<platform>.json` (88.09% of 19,360 executable lines, Linux baseline measured 2026-11-09, integration; one fresh database per suite, gcov captured per suite, 0.1 pp tolerance for gcov noise, ~10 minutes) |
+| Coverage | `./task coverage` | per file, module and total ratchet against `coverage-baseline-<platform>.json` (88.09% of 19,360 executable lines, Linux baseline measured 2026-11-09, integration; one fresh database per suite, gcov captured per suite, ~10 minutes). The gate's 0.1 pp tolerance is published with the number: 88.09% means a lower bound of 87.99%, and a run between them is inside the noise band, not a regression |
 | Security | part of `./task test` | IDOR, escalation, CSRF, OIDC replay, rate limit, claims |
 | Web | `pnpm check:web` | TypeScript, ESLint, Tailwind guard, Vitest |
-| E2E | `./task e2e` | Playwright: a11y, visual, navigation, writes, OCC, offline, compatibility; 72 checks across two devices and no skip; snapshots per platform in `e2e/__screenshots__/{platform}/` |
+| E2E | `./task e2e` | Playwright: a11y, visual, navigation, writes, OCC, offline, compatibility, role boundary; 100 runs across two devices and no skip, 40 of them functional; snapshots per platform in `e2e/__screenshots__/{platform}/` |
 
 E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
 **POCO F5** (Chromium, 393×873, DPR 2.75), `maxDiffPixels: 0`.

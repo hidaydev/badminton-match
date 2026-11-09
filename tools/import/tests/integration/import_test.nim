@@ -1,6 +1,6 @@
 import std/[json, options, os, osproc, strtabs, strutils, unittest]
 import db/db
-import ../main
+import ../../main
 
 ## Runs only when both databases are named, because an import needs two:
 ##   MAJADU_IMPORT_TEST_SOURCE_DSN  a disposable v1 database (bm.players)

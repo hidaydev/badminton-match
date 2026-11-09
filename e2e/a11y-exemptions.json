@@ -1,0 +1,20 @@
+{
+  "note": "Dated exemptions for the route-coverage guard in a11y.spec.ts (QA-19). Every non-dev, non-redirect route declared in apps/web/src/App.tsx must be in e2e/visual.routes.ts a11yRoutes or listed here. An exemption is a dated acknowledgement that axe does not walk the screen, not a claim that it is accessible.",
+  "entries": [
+    {"path": "/c/*/tournaments/new", "owner": "qa", "expires": "2027-03-31", "reason": "wizard form needs a draft tournament; covered by the createTournament API and the e2e authz gate"},
+    {"path": "/c/*/tournaments/new/*", "owner": "qa", "expires": "2027-03-31", "reason": "format step of the same wizard"},
+    {"path": "/c/*/instagram-post", "owner": "qa", "expires": "2027-03-31", "reason": "the export a11y entry opens /c/:slug/export, which redirects here"},
+    {"path": "/c/*/admin/sessions", "owner": "qa", "expires": "2027-03-31", "reason": "admin table; no fixture state in the a11y walk"},
+    {"path": "/c/*/admin/ratings", "owner": "qa", "expires": "2027-03-31", "reason": "admin ledger; needs a rating source fixture"},
+    {"path": "/c/*/admin/tournaments", "owner": "qa", "expires": "2027-03-31", "reason": "admin table; no fixture state in the a11y walk"},
+    {"path": "/c/*/session/new", "owner": "qa", "expires": "2027-03-31", "reason": "session wizard step; requires an unlocked draft session"},
+    {"path": "/c/*/session/players", "owner": "qa", "expires": "2027-03-31", "reason": "session wizard step"},
+    {"path": "/c/*/session/constraints", "owner": "qa", "expires": "2027-03-31", "reason": "session wizard step"},
+    {"path": "/c/*/session/generate", "owner": "qa", "expires": "2027-03-31", "reason": "session wizard step"},
+    {"path": "/c/*/view", "owner": "qa", "expires": "2027-03-31", "reason": "shared-view route; the share door is scanned as /s/:code"},
+    {"path": "/c/*/s/*", "owner": "qa", "expires": "2027-03-31", "reason": "in-app spectator route; the share door is scanned as /s/:code"},
+    {"path": "/c/*/scoreboard", "owner": "qa", "expires": "2027-03-31", "reason": "in-app wrapper; the standalone PWA is scanned from its own origin"},
+    {"path": "/c/*/rankings/*", "owner": "qa", "expires": "2027-03-31", "reason": "player rating detail needs a rated session fixture; the rankings list is scanned"},
+    {"path": "/invites/*", "owner": "qa", "expires": "2027-03-31", "reason": "needs a live invite token; the invite page is asserted by its component test"}
+  ]
+}

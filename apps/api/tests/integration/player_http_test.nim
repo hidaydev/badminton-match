@@ -5,8 +5,8 @@ import rating/infrastructure/ledger
 import tests/fixtures
 import ../http_support
 
-const
-  port = testPort(18092)
+let
+  port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
   adminEmail = "player-admin@example.com"
   hostEmail = "player-host@example.com"

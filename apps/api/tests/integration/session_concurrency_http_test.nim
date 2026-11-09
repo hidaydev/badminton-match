@@ -14,8 +14,8 @@ import tournament/domain/classic_draw
 import tests/fixtures
 import ../http_support
 
-const
-  port = testPort(18108)
+let
+  port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
   slug = "be08-occ"
   hostEmail = "be08-occ-host@example.com"

@@ -1,7 +1,7 @@
 import std/[exitprocs, json, options, os, strutils, unittest]
 import db/db
-import ../normalizer
-import ../state as parityState
+import ../../normalizer
+import ../../state as parityState
 
 ## The state suites need a database, because the digest is computed by
 ## PostgreSQL and the self-test mutates a row inside a transaction. They never

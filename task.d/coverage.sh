@@ -240,7 +240,7 @@ print_report() {
       printf "%-28s %10d %9.2f%% %7d%% %9d %10d %10d %8.2f%%\n", $1, $2, pct, target, gap, $4, $5, bpct
     }
   ' "$COV/domains.tsv"
-  awk -F'\t' -v total_target="$TARGET_TOTAL" -v files="$COV/files.tsv" '
+  awk -F'\t' -v total_target="$TARGET_TOTAL" -v tol="$TOLERANCE" -v files="$COV/files.tsv" '
     { lf = $1; lh = $2; tbf = $3; tbh = $4 }
     END {
       pct = (lf == 0) ? 0 : (lh * 100 / lf)
@@ -249,7 +249,12 @@ print_report() {
       while ((getline row < files) > 0) count++
       printf "coverage: %d files, %d executable lines, %d covered (%.2f%%)\n", count, lf, lh, pct
       printf "coverage: branches BRF %d, BRH %d (%.2f%%)\n", tbf, tbh, bpct
-      printf "coverage: total target %d%%, gap %d lines\n", total_target, gap
+      # QA-14: a target met inside the noise band of this gate is not a
+      # milestone. Publish the tolerance and the lower bound with the number, so
+      # a run at 91.99 reads as indistinguishable from 92.09 instead of as a
+      # separate achievement.
+      printf "coverage: total target %d%%, lower bound %.2f%% (tolerance %.1f pp), gap %d lines\n", \
+        total_target, total_target - tol, tol, gap
     }
   ' "$COV/total.tsv"
   # QA-05: the branch axis per file, so a file at 100 percent lines with half
@@ -449,6 +454,14 @@ run_gate() {
     fail "${BASELINE#$REPO_ROOT/} has no floor; run ./task coverage --update to seed the v2 baseline"
 
   baseline_rows "$BASELINE" >"$COV/baseline.tsv"
+  # QA-05: a baseline recorded before the branch axis existed has no BRF/BRH, so
+  # the report shows 0 and the number is absent from the committed file. Say so
+  # instead of letting a missing axis read as "no branches".
+  if ! awk -F'\t' '$1 == "total" && $5 + 0 > 0 { found = 1 } END { exit !found }' \
+    "$COV/baseline.tsv"; then
+    printf 'coverage: warning: %s has no branch axis; record it with ./task coverage --update (the Linux baseline needs the update_baseline dispatch)\n' \
+      "${BASELINE#"$REPO_ROOT"/}" >&2
+  fi
   current_rows >"$COV/current.tsv"
   [ -s "$COV/baseline.tsv" ] ||
     fail "${BASELINE#$REPO_ROOT/} has no rows; run ./task coverage --update to seed the v2 baseline"
@@ -550,20 +563,18 @@ run_update() {
       fail "coverage fell below the baseline; pass --allow-decrease to accept the regression"
   fi
 
+  # QA-13: the floor is a high-water mark, not the lowest number ever seen.
+  # Holding an old floor let the total fall 39.6 points while the gate still
+  # said the floor was held. Every --update now records the total it measured;
+  # a real decrease is refused unless --allow-decrease names it above.
   _pct=$(awk -F'\t' '{ printf "%.2f", ($1 == 0) ? 0 : ($2 * 100 / $1) }' "$COV/total.tsv")
   _old_floor=$(baseline_floor "$BASELINE")
-  if [ -n "$_old_floor" ]; then
-    if awk -v n="$_pct" -v f="$_old_floor" 'BEGIN { exit !(n + 0.0001 >= f + 0) }'; then
-      _floor=$_old_floor
-    elif [ "$allow_decrease" -eq 1 ]; then
+  if [ -n "$_old_floor" ] && [ "$allow_decrease" -eq 1 ]; then
+    if awk -v n="$_pct" -v f="$_old_floor" 'BEGIN { exit !(n + 0.0001 < f + 0) }'; then
       printf 'coverage: accepting floor decrease: %s%% -> %s%%\n' "$_old_floor" "$_pct" >&2
-      _floor=$_pct
-    else
-      fail "coverage ${_pct}% is below the baseline floor ${_old_floor}%; pass --allow-decrease to accept it"
     fi
-  else
-    _floor=$_pct
   fi
+  _floor=$_pct
 
   write_baseline "$_out" "$_floor"
   printf 'coverage: baseline written to %s\n' "${_out#$REPO_ROOT/}"

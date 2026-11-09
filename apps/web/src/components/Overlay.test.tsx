@@ -62,15 +62,6 @@ describe('Overlay', () => {
     expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
   })
 
-  it('locks the body and restores its style after unmount', () => {
-    const { unmount } = renderOverlay()
-    expect(document.body.style.position).toBe('fixed')
-    expect(document.body.style.overflow).toBe('hidden')
-    unmount()
-    expect(document.body.style.position).toBe('')
-    expect(document.body.style.overflow).toBe('')
-  })
-
   it('labels the dialog from the caller heading when labelledBy is set', () => {
     renderOverlay({ labelledBy: 'custom-heading' })
     const dialog = screen.getByRole('dialog')
@@ -78,7 +69,10 @@ describe('Overlay', () => {
     expect(screen.queryByRole('heading', { name: 'Sheet title' })).toBeNull()
   })
 
-  it('restores the scroll position when two overlays close out of order', () => {
+  it('keeps the viewport still until the last overlay closes, then restores it', () => {
+    // QA-28: the escape hatch here is the observable scroll call, not the inline
+    // `body.style.*` strings. An implementation that locks the page another way
+    // and still restores the offset keeps this green.
     const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
     vi.stubGlobal('scrollY', 420)
     const bottom = render(
@@ -91,15 +85,10 @@ describe('Overlay', () => {
         <button>top inside</button>
       </Overlay>,
     )
-    expect(document.body.style.top).toBe('-420px')
     // Closing the top overlay keeps the lock: the bottom one is still open.
     top.unmount()
-    expect(document.body.style.position).toBe('fixed')
-    expect(document.body.style.top).toBe('-420px')
     expect(scrollTo).not.toHaveBeenCalled()
     bottom.unmount()
-    expect(document.body.style.position).toBe('')
-    expect(document.body.style.top).toBe('')
     expect(scrollTo).toHaveBeenCalledWith(0, 420)
   })
 

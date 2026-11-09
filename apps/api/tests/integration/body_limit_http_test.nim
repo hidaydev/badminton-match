@@ -15,8 +15,8 @@ import tests/fixtures
 import ../../src/app
 import ../http_support
 
-const
-  port = testPort(18104)
+let
+  port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
   slug = "body-limit-club"
   hostEmail = "limit-host@example.com"

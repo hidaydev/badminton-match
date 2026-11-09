@@ -37,9 +37,9 @@ suite "lib.sh guards":
     defer: removeDir(fixture.root)
     let result = fixture.runLib(""". "$1"
 junit_begin
-junit_record "modules/alpha/tests/alpha_test.nim" 0
-junit_record "tools/import/tests/import_test.nim" 77
-junit_record "apps/api/tests/broken_test.nim" 1
+junit_record "modules/alpha/tests/alpha_test.nim" 0 1234
+junit_record "tools/import/tests/import_test.nim" 77 10
+junit_record "apps/api/tests/broken_test.nim" 1 500
 junit_finish""")
     check result.exitCode == 0
     let report = readFile(
@@ -47,11 +47,15 @@ junit_finish""")
     check report.contains("tests=\"3\"")
     check report.contains("failures=\"1\"")
     check report.contains("skipped=\"1\"")
-    check report.contains("<testcase name=\"modules/alpha/tests/alpha_test.nim\"/>")
+    # QA-20: the duration travels with the result, so slow-test drift is visible
+    # in the uploaded report instead of being lost with the console log.
+    check report.contains("time=\"1.744\"")
     check report.contains(
-      "<testcase name=\"tools/import/tests/import_test.nim\"><skipped/></testcase>")
+      "<testcase name=\"modules/alpha/tests/alpha_test.nim\" time=\"1.234\"/>")
     check report.contains(
-      "<testcase name=\"apps/api/tests/broken_test.nim\"><failure message=\"exit 1\"/></testcase>")
+      "<testcase name=\"tools/import/tests/import_test.nim\" time=\"0.010\"><skipped/></testcase>")
+    check report.contains(
+      "<testcase name=\"apps/api/tests/broken_test.nim\" time=\"0.500\"><failure message=\"exit 1\"/></testcase>")
 
   test "list_test_files hides integration suites unless INTEGRATION=1":
     let fixture = newFixture("lib-list")

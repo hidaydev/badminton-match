@@ -7,10 +7,10 @@ import share/store as shareStore
 import tournament/domain/classic
 import tournament/domain/classic_draw
 import tests/fixtures
-import ../http_support
+import ../../http_support
 
-const
-  port = testPort(18098)
+let
+  port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
   slugA = "sec-club"
   slugB = "sec-other"

@@ -27,9 +27,11 @@ import ../http_support
 import ../../src/app
 import errors
 
-const
-  port = testPort(18106)
+let
+  port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
+
+const
   oidcPort = 18179
   oidcBase = "http://127.0.0.1:" & $oidcPort
   clientId = "be19-client"

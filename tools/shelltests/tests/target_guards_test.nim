@@ -37,7 +37,7 @@ suite "task target guards":
     defer: removeDir(fixture.root)
     let result = fixture.runTask(@["check", "bogus"])
     check result.exitCode == 1
-    check result.stderr.contains("usage: ./task check [--no-run]")
+    check result.stderr.contains("usage: ./task check [--no-run|--static]")
 
   test "check.sh accepts --no-run":
     let fixture = newFixture("check-no-run")
@@ -45,6 +45,14 @@ suite "task target guards":
     let result = fixture.runTask(@["check", "--no-run"])
     check result.exitCode == 0
     check result.stdout.contains("check: ok (unit suites compiled, not run")
+
+  test "check.sh --static skips the suites entirely":
+    ## QA-27: api-check runs this mode; api-test is the job that compiles.
+    let fixture = newFixture("check-static")
+    defer: removeDir(fixture.root)
+    let result = fixture.runTask(@["check", "--static"])
+    check result.exitCode == 0
+    check result.stdout.contains("check: ok (static gates only")
 
   test "verify.sh refuses a module with no tests directory":
     let fixture = newFixture("verify-missing")
