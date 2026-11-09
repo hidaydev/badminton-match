@@ -7,7 +7,7 @@
 // called once by the legacy shell before any screen mounts.
 
 import { toPlayerId, toTimeString } from '../types'
-import type { GameKey, Gender, Player, SessionScoring, SetScore, Tier } from '../types'
+import type { GameKey, Gender, Player, PlayerId, SessionScoring, SetScore, Tier } from '../types'
 import type { CloudSnapshot, PlayerSummary, PlayerStats, SessionMeta } from './types'
 import type { AnyTournamentSnapshot } from '../utils/teamTournament'
 import { isPlaceholderName } from '../utils/placeholders'
@@ -272,6 +272,17 @@ function sessionPlayerMap(participants: V2SessionDetail['participants']): Map<st
   return out
 }
 
+/**
+ * One side of a scheduled game, as the fixed pair `ScheduleSlot` declares. The
+ * API sends a list; a side with one id or none would be a broken schedule, so
+ * the missing slot is the empty id the rest of the v1 tree already uses for
+ * "no player". Spelling the tuple out keeps the schedule shape checked by the
+ * compiler instead of silencing it.
+ */
+function scheduleSide(ids: string[]): [PlayerId, PlayerId] {
+  return [toPlayerId(ids[0] ?? ''), toPlayerId(ids[1] ?? '')]
+}
+
 function toCloudSnapshot(detail: V2SessionDetail): CloudSnapshot {
   const playerMap = sessionPlayerMap(detail.participants)
   const courts = detail.games.reduce((max, game) => Math.max(max, game.court + 1), 1)
@@ -321,13 +332,15 @@ function toCloudSnapshot(detail: V2SessionDetail): CloudSnapshot {
       locked: detail.status === 'locked',
       ...(detail.scoring ? { scoring: detail.scoring } : {}),
     },
-    players: detail.participants.map((participant) => playerMap.get(participant.playerId)!).filter(Boolean),
+    // The map is built from this same list, in this order, so reading its
+    // values is the join without an assertion that the compiler cannot check.
+    players: [...playerMap.values()],
     fixMatches: [],
     schedule: detail.games.map((game) => ({
       slot: game.round,
       court: game.court,
-      teamA: [game.sideA[0] ?? '', game.sideA[1] ?? ''] as never,
-      teamB: [game.sideB[0] ?? '', game.sideB[1] ?? ''] as never,
+      teamA: scheduleSide(game.sideA),
+      teamB: scheduleSide(game.sideB),
     })),
     playedGames,
     gameScores,

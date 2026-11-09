@@ -1,6 +1,6 @@
 // ── Retry policy untuk request() di endpoints.ts ─────────────────────────
-// Pure module: aman diimpor dari test node tanpa mengevaluasi __API_BASE_URL__
-// atau fetch. Kebijakan singkat:
+// Pure module: aman diimpor dari test node tanpa menyentuh fetch atau
+// import.meta.env. Kebijakan singkat:
 //   - read (GET/HEAD/OPTIONS): retry 429/503/500 + network failure (perilaku lama)
 //   - mutation (POST/PUT/PATCH/DELETE): retry hanya 429 (rate limit — request
 //     belum ter-apply) dan network failure sebelum request terkirim. 5xx tidak
