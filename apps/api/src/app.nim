@@ -1342,6 +1342,11 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
     w.release()
     problem(request, 409, "PRESET_LOCKED",
       "clear the recorded sets before changing the format")
+  of wsUnscoredGames:
+    # Only `setLock` reads the games, so a patch cannot produce this state; the
+    # branch keeps the case total.
+    w.release()
+    problem(request, 409, "INVALID_PATCH", "cannot apply patch")
 
 proc swapSession(request: Request, ctx: CommunityContext, user: AuthUser,
                  sessionId: string,
@@ -1442,6 +1447,9 @@ proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 400, "INVALID_PATCH", "cannot lock session")
   of wsPresetLocked:
     problem(request, 409, "PRESET_LOCKED", "session has recorded sets")
+  of wsUnscoredGames:
+    problem(request, 409, "INVALID_PATCH",
+      "a played game has no score; enter the score or unmark the game")
   if outcome.status == wsOk:
     application.hub.sessionChanged(sessionId,
       outcome.record["version"].getInt())

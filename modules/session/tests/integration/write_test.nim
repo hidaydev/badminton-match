@@ -130,6 +130,42 @@ suite "session write":
     check unlocked.record["status"].getStr() == "draft"
     check unlocked.record["approvedAt"].kind == JNull
 
+  test "approval refuses a played game that has no score":
+    # DB-08: `played` is a host flag before the score, and honest while the
+    # session is a draft. Approval is where the game starts to count, so a
+    # played game with no set stops the lock instead of disappearing from the
+    # board while the session page still lists it.
+    discard db.execUpdate(
+      """insert into session.games
+           (community_id, session_id, round_no, court_no, status)
+         values ($1::uuid, $2::uuid, 0, 0, 'played')""",
+      @[textParam(communityId), textParam(sessionId)])
+    check setLock(db, communityId, sessionId, userId, 1,
+      locked = true).status == wsUnscoredGames
+    # The trigger is the guarantee: a writer that skips the check is refused by
+    # the database, and the failed statement leaves the draft in place.
+    var refused = false
+    try:
+      discard db.execUpdate(
+        """update session.sessions set status = 'locked' where id = $1::uuid""",
+        @[textParam(sessionId)])
+    except DbError as error:
+      refused = error.sqlState == "23514"
+    check refused
+    let kept = db.queryOne(
+      "select status, version from session.sessions where id = $1::uuid",
+      @[textParam(sessionId)]).get
+    check kept.get("status") == "draft"
+    check kept.get("version") == "1"
+    discard db.execUpdate(
+      """insert into session.game_sets
+           (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+         values ($1::uuid, $2::uuid, 0, 0, 1, 21, 15)""",
+      @[textParam(communityId), textParam(sessionId)])
+    let locked = setLock(db, communityId, sessionId, userId, 1, locked = true)
+    check locked.status == wsOk
+    check locked.record["status"].getStr() == "locked"
+
   test "lock writes no rating event":
     discard setLock(db, communityId, sessionId, userId, 1, locked = true)
     let events = db.queryOne(
