@@ -2,7 +2,8 @@
 // vite-plugin-pwa at build time only, so unit tests import this instead.
 import { useState } from 'react'
 
-export function useRegisterSW() {
+export function useRegisterSW(_options?: unknown) {
+  void _options
   const needRefresh = useState(false)
   const offlineReady = useState(false)
   return {

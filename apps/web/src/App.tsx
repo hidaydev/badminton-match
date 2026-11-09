@@ -22,7 +22,7 @@ import SettingsPage from './pages/SettingsPage'
 import OwnerSetupPage from './pages/SetupPage'
 import SharedSessionPage from './pages/SharedSessionPage'
 import { useRegisterSW } from 'virtual:pwa-register/react'
-
+import { installUpdateOnVisible } from './pwa/updateCheck'
 // Restored v1 tree. Everything under `legacy/` is the pre-rewrite frontend,
 // rewired through `legacy/router` and `legacy/queries/endpoints`.
 import { AdminProvider, useAdmin } from './legacy/context/AdminContext'
@@ -338,7 +338,11 @@ function AuthedRoutes() {
 }
 
 export default function App() {
-  const { needRefresh: [needRefresh, setNeedRefresh], updateServiceWorker } = useRegisterSW()
+  const { needRefresh: [needRefresh, setNeedRefresh], updateServiceWorker } = useRegisterSW({
+    onRegisteredSW(_swUrl, registration) {
+      if (registration) installUpdateOnVisible(registration)
+    },
+  })
   const [sharedSnapshot] = useState<SharedSnapshot | null>(() =>
     decodeSnapshot(window.location.hash),
   )
