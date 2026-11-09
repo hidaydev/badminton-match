@@ -151,6 +151,8 @@ function isNotFound(error: unknown): boolean {
 
 let playerCache: PlayerSummary[] | null = null
 let playerCacheSlug = ''
+/** The roster read that is in flight, so a second caller joins it instead of repeating it. */
+let playerRequest: { slug: string; promise: Promise<PlayerSummary[]> } | null = null
 /**
  * `<community>\u0000<name>` → id learned from a stats read, so a second read is
  * not a lookup. The same name can be a different player in another community,
@@ -786,6 +788,21 @@ export async function deleteSessionShareLink(id: string): Promise<void> {
 
 export async function listPlayers(signal?: AbortSignal): Promise<PlayerSummary[]> {
   const slug = activeCommunitySlug()
+  // Two owners ask for the roster on the first paint of a community screen:
+  // the ambiguity badge (a query at the shell) and a session snapshot, which
+  // needs gender and tier. One in-flight read is shared instead of issuing the
+  // same 1000-row request twice; whoever leaves first must not cancel a read
+  // the other one is still waiting on, which is why the shared promise follows
+  // the caller that started it rather than the caller that joined it.
+  if (playerRequest !== null && playerRequest.slug === slug) return playerRequest.promise
+  const promise = readPlayers(slug, signal).finally(() => {
+    if (playerRequest !== null && playerRequest.promise === promise) playerRequest = null
+  })
+  playerRequest = { slug, promise }
+  return promise
+}
+
+async function readPlayers(slug: string, signal?: AbortSignal): Promise<PlayerSummary[]> {
   const body = await request<{ items: V2Player[] }>(
     'GET',
     communityPath('/players?limit=1000'),
