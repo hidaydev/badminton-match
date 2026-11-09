@@ -419,5 +419,35 @@ try:
         """select 1 as ok from pg_class c
            join pg_namespace n on n.oid = c.relnamespace
            where n.nspname = 'import' and c.relname = 'row_map'""").isSome
+
+    test "a badge key is catalogued or one of the two imported families":
+      migrate(scratch, migrationsDir)
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('badge-keys', 'Badge Keys', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      let playerId = scratch.queryOne(
+        """insert into player.players (community_id, canonical_name)
+           values ($1::uuid, 'Badge Player') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      discard scratch.execUpdate(
+        """insert into achievement.definitions (key, category, threshold)
+           values ('sessions:5', 'attendance', 5) on conflict do nothing""")
+      for key in ["sessions:5", "tournament:abc", "rank_streak:99"]:
+        discard scratch.execUpdate(
+          """insert into achievement.earned
+               (community_id, player_id, achievement_key)
+             values ($1::uuid, $2::uuid, $3)""",
+          @[textParam(communityId), textParam(playerId), textParam(key)])
+      var state = ""
+      try:
+        discard scratch.execUpdate(
+          """insert into achievement.earned
+               (community_id, player_id, achievement_key)
+             values ($1::uuid, $2::uuid, 'typo:1')""",
+          @[textParam(communityId), textParam(playerId)])
+      except DbError as error:
+        state = error.sqlState
+      check state == "23514"
 finally:
   shutdown()
