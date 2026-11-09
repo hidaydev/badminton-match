@@ -16,6 +16,11 @@
 # Overridable for a rehearsal host: MAJADU_RC_APP_DIR, MAJADU_RC_SERVICE,
 # MAJADU_RC_IMAGE, MAJADU_RC_HEALTH_URL, MAJADU_RC_NETWORK, MAJADU_RC_BRANCH,
 # MAJADU_RC_SKIP_GIT_SYNC, MAJADU_SERVICE_CMD.
+#
+# The host has no Nim toolchain, so QA-01 clause 3 cannot run `./task ci` here.
+# The build is gated on GitHub instead: it only starts when a workflow run for
+# the exact commit finished with success. `MAJADU_RC_SKIP_CI_GATE=1` is the
+# documented emergency bypass and is recorded in last-release.json.
 set -Eeuo pipefail
 
 REPO_NAME="${1:-badminton-match}"
@@ -30,12 +35,14 @@ HEALTH_URL="${MAJADU_RC_HEALTH_URL:-http://127.0.0.1:8081}"
 NETWORK="${MAJADU_RC_NETWORK:-qouver}"
 MONO_DIR="$APP_DIR/repo"
 ENV_FILE="$APP_DIR/env/majadu-rc.env"
+CI_TOKEN_FILE="$APP_DIR/env/github-token"
 STATE_DIR="$APP_DIR/deploy"
 LOG="$APP_DIR/logs/deploy.log"
 LOCK_FILE="$APP_DIR/.deploy.lock"
 
 STEP="start"
 SCHEMA=""
+CI_STATE="unchecked"
 
 mkdir -p "$APP_DIR/logs" "$STATE_DIR"
 
@@ -45,8 +52,8 @@ log() {
 
 fail() {
   log "ERROR: $1 (step: $STEP)"
-  printf '{"step":"%s","message":"%s","at":"%s"}\n' \
-    "$STEP" "$1" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+  printf '{"step":"%s","ci":"%s","message":"%s","at":"%s"}\n' \
+    "$STEP" "$CI_STATE" "$1" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
     >"$STATE_DIR/last-release.json"
   exit 1
 }
@@ -180,6 +187,100 @@ OWNER_DB=$(printf '%s' "$OWNER_DSN" | sed 's/.*\///' | cut -d'?' -f1)
 APP_DB=$(printf '%s' "$APP_DSN" | sed 's/.*\///' | cut -d'?' -f1)
 [ "$OWNER_DB" = "bm2_rc" ] || fail "MAJADU_OWNER_DSN points at '$OWNER_DB', not bm2_rc"
 [ "$APP_DB" = "bm2_rc" ] || fail "MAJADU_PG_DSN points at '$APP_DB', not bm2_rc"
+
+# ---------------------------------------------------------------------------
+# CI gate (QA-01 clause 3). The host has no Nim toolchain, so `./task ci` cannot
+# run here; ask GitHub instead whether this exact commit already passed a
+# workflow, and refuse to build unverified code. Every uncertain answer is a
+# failure: no token, network error, no run, a run still in progress, or any run
+# that did not finish with success. A redeploy of the commit that is already
+# live is allowed without a lookup, because it cannot introduce new code.
+# ---------------------------------------------------------------------------
+STEP="ci-gate"
+
+live_commit() {
+  local from_state from_image
+  from_state=$(sed -n 's/.*"commit":"\([^"]*\)".*/\1/p' \
+    "$STATE_DIR/last-release.json" 2>/dev/null | tail -1 || true)
+  if [ -n "$from_state" ]; then
+    printf '%s\n' "$from_state"
+    return 0
+  fi
+  if podman image exists "$LOCAL_IMAGE:local" 2>/dev/null; then
+    from_image=$(podman image inspect --format \
+      '{{ index .Labels "org.opencontainers.image.revision" }}' \
+      "$LOCAL_IMAGE:local" 2>/dev/null || true)
+    [ -n "$from_image" ] && printf '%s\n' "$from_image"
+  fi
+  return 0
+}
+
+if [ "${MAJADU_RC_SKIP_CI_GATE:-0}" = "1" ]; then
+  CI_STATE="bypassed"
+  log "WARNING: MAJADU_RC_SKIP_CI_GATE=1: building $COMMIT without a CI result. Emergency use only; last-release.json records the bypass."
+elif [ "$(live_commit)" = "$COMMIT" ]; then
+  CI_STATE="already-live"
+  log "ci gate: $COMMIT is already the running release; no CI lookup needed"
+else
+  [ -f "$CI_TOKEN_FILE" ] ||
+    fail "ci gate has no token at $CI_TOKEN_FILE; refusing to build $COMMIT (provision it mode 600, or set MAJADU_RC_SKIP_CI_GATE=1 for an emergency)"
+  TOKEN_MODE=$(file_mode "$CI_TOKEN_FILE")
+  case "$TOKEN_MODE" in
+    600|400) ;;
+    *) fail "$CI_TOKEN_FILE must be mode 600 (found $TOKEN_MODE)" ;;
+  esac
+  CI_TOKEN=$(cat "$CI_TOKEN_FILE")
+  CI_URL="https://api.github.com/repos/$GITHUB_REPO/actions/runs?head_sha=$COMMIT&per_page=100"
+  # The token goes into a private curl config file, never onto the command line.
+  CI_AUTH=$(mktemp "$STATE_DIR/ci-auth.XXXXXX") ||
+    fail "ci gate cannot create a private curl config in $STATE_DIR"
+  chmod 600 "$CI_AUTH"
+  printf 'header = "Authorization: Bearer %s"\n' "$CI_TOKEN" >"$CI_AUTH"
+  CI_BODY=""
+  if ! CI_BODY=$(curl -fsS --max-time 20 \
+    -H "Accept: application/vnd.github+json" \
+    --config "$CI_AUTH" "$CI_URL" 2>/dev/null); then
+    rm -f "$CI_AUTH"
+    fail "ci gate cannot read workflow runs for $COMMIT from api.github.com; refusing to build"
+  fi
+  rm -f "$CI_AUTH"
+
+  CI_COMPACT=$(printf '%s' "$CI_BODY" | tr -d '[:space:]')
+  CI_STATUSES=$(printf '%s' "$CI_COMPACT" |
+    grep -o '"status":"[a-z_]*"' | sed 's/.*:"//; s/"//' || true)
+  CI_CONCLUSIONS=$(printf '%s' "$CI_COMPACT" |
+    grep -o '"conclusion":"[a-z_]*"' | sed 's/.*:"//; s/"//' || true)
+
+  [ -n "$CI_STATUSES" ] ||
+    fail "ci gate found no workflow run for $COMMIT; a push to $BRANCH must pass CI before it is built"
+
+  CI_PENDING=""
+  for ci_status in $CI_STATUSES; do
+    case "$ci_status" in
+      completed) ;;
+      *) CI_PENDING="$CI_PENDING $ci_status" ;;
+    esac
+  done
+  [ -z "$CI_PENDING" ] ||
+    fail "ci gate: workflow runs for $COMMIT are still$CI_PENDING; refusing to build before CI finishes"
+
+  CI_SUCCESS=0
+  CI_BAD=""
+  for ci_conclusion in $CI_CONCLUSIONS; do
+    case "$ci_conclusion" in
+      success) CI_SUCCESS=1 ;;
+      skipped) ;;
+      *) CI_BAD="$CI_BAD $ci_conclusion" ;;
+    esac
+  done
+  [ "$CI_SUCCESS" -eq 1 ] ||
+    fail "ci gate: no successful workflow run for $COMMIT (conclusions:$CI_BAD); refusing to build"
+  [ -z "$CI_BAD" ] ||
+    fail "ci gate: workflow runs for $COMMIT ended as:$CI_BAD; refusing to build"
+
+  CI_STATE="passed"
+  log "ci gate: $COMMIT passed CI"
+fi
 
 # ---------------------------------------------------------------------------
 # Build. The previous :local becomes :prev first, so a failed build still
@@ -327,8 +428,8 @@ else
   cd "$MONO_DIR"
 fi
 
-printf '{"version":"%s","commit":"%s","schema":"%s","branch":"%s","web":"%s","at":"%s"}\n' \
-  "$VERSION" "$COMMIT" "$SCHEMA" "$BRANCH" "$WEB_URL" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+printf '{"version":"%s","commit":"%s","schema":"%s","branch":"%s","ci":"%s","web":"%s","at":"%s"}\n' \
+  "$VERSION" "$COMMIT" "$SCHEMA" "$BRANCH" "$CI_STATE" "$WEB_URL" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
   >"$STATE_DIR/last-release.json"
 
 # Retention: only :local and :prev stay tagged; everything the rotation left

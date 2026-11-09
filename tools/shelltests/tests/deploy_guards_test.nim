@@ -58,6 +58,26 @@ printf '%s\n' "$*" >> "$FAKE_SYSTEMCTL_LOG"
 exit 0
 """
 
+# GitHub answers the CI gate from FAKE_CI_BODY; FAKE_CI_EXIT stands in for a
+# network or HTTP failure. Every other URL is a health probe: exit 0 is enough.
+const ciCurlFake = """#!/bin/sh
+if [ -n "${FAKE_CURL_LOG:-}" ]; then
+  printf '%s\n' "$*" >> "$FAKE_CURL_LOG"
+fi
+case "$*" in
+  *api.github.com*)
+    [ "${FAKE_CI_EXIT:-0}" = "0" ] || exit "$FAKE_CI_EXIT"
+    printf '%s' "${FAKE_CI_BODY-}"
+    ;;
+esac
+exit 0
+"""
+
+const ciSuccessBody = """{"total_count":1,"workflow_runs":[{"status":"completed","conclusion":"success"}]}"""
+const ciFailureBody = """{"total_count":1,"workflow_runs":[{"status":"completed","conclusion":"failure"}]}"""
+const ciPendingBody = """{"total_count":1,"workflow_runs":[{"status":"in_progress","conclusion":null}]}"""
+const ciMissingBody = """{"total_count":0,"workflow_runs":[]}"""
+
 proc touch(path: string, body = "") =
   createDir(path.parentDir)
   writeFile(path, body)
@@ -76,6 +96,32 @@ proc simFakes(fixture: Fixture) =
   fixture.installFake("curl", okFake)
   fixture.installFake("podman", podmanFake)
   fixture.installFake("psql", psqlFake)
+
+proc rcGateFixture(fixture: Fixture, token = true): string =
+  ## Builds the RC tree up to the CI gate: a checkout with VERSION and the
+  ## script, an installed copy, and a private env file that points at bm2_rc.
+  simFakes(fixture)
+  fixture.installFake("git", gitFake)
+  fixture.installFake("curl", ciCurlFake)
+  let rcDir = fixture.root / "rc"
+  let mono = rcDir / "repo"
+  touch(mono / "VERSION", "2.0.0\n")
+  let source = mono / "ops" / "scripts" / "deploy-vps-rc.sh"
+  createDir(source.parentDir)
+  copyFile(opsScriptsDir / "deploy-vps-rc.sh", source)
+  touch(rcDir / "scripts" / "deploy-vps-rc.sh", "old copy\n")
+  privateFile(rcDir / "env" / "majadu-rc.env",
+    "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2_rc\n" &
+    "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2_rc\n")
+  if token:
+    privateFile(rcDir / "env" / "github-token", "secret-token\n")
+  rcDir
+
+proc runRcGate(fixture: Fixture, rcDir: string,
+    extra: seq[(string, string)] = @[]): ShellResult =
+  fixture.runShell(fixture.installOpsScript("deploy-vps-rc.sh"),
+    @["badminton-match", "refs/heads/release/2.0.0-rc.1"],
+    @[("MAJADU_RC_APP_DIR", rcDir), ("MAJADU_RC_SKIP_GIT_SYNC", "1")] & extra)
 
 suite "deploy-vps.sh":
   test "an empty ref is ignored before git or podman":
@@ -252,6 +298,122 @@ suite "deploy-vps-rc.sh":
     check readFile(installed) == readFile(source)
     check readFile(rcDir / "deploy" / "last-release.json")
       .contains("\"step\":\"env-check\"")
+
+  test "the CI gate allows a commit with a successful workflow run":
+    let fixture = newFixture("rc-ci-success")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let curlLog = fixture.root / "curl.log"
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps-rc.sh"),
+      @["badminton-match", "refs/heads/release/2.0.0-rc.1"],
+      @[("MAJADU_RC_APP_DIR", rcDir), ("MAJADU_RC_SKIP_GIT_SYNC", "1"),
+        ("FAKE_CI_BODY", ciSuccessBody), ("FAKE_CURL_LOG", curlLog)])
+    check result.stdout.contains("ci gate: abc1234 passed CI")
+    check result.stdout.contains(
+      "built localhost/majadu-rc-api:local at abc1234")
+    # The token stays in the private curl config, never on the command line.
+    check fileExists(curlLog)
+    check not readFile(curlLog).contains("secret-token")
+    for kind, path in walkDir(rcDir / "deploy"):
+      check not path.extractFilename.startsWith("ci-auth")
+
+  test "the CI gate refuses a failed workflow run":
+    let fixture = newFixture("rc-ci-failed")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps-rc.sh"),
+      @["badminton-match", "refs/heads/release/2.0.0-rc.1"],
+      @[("MAJADU_RC_APP_DIR", rcDir), ("MAJADU_RC_SKIP_GIT_SYNC", "1"),
+        ("FAKE_CI_BODY", ciFailureBody)])
+    check result.exitCode == 1
+    check result.stdout.contains("no successful workflow run for abc1234")
+    check not result.stdout.contains(
+      "built localhost/majadu-rc-api:local")
+    check readFile(rcDir / "deploy" / "last-release.json")
+      .contains("\"step\":\"ci-gate\"")
+
+  test "the CI gate refuses a commit with no workflow run":
+    let fixture = newFixture("rc-ci-missing")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps-rc.sh"),
+      @["badminton-match", "refs/heads/release/2.0.0-rc.1"],
+      @[("MAJADU_RC_APP_DIR", rcDir), ("MAJADU_RC_SKIP_GIT_SYNC", "1"),
+        ("FAKE_CI_BODY", ciMissingBody)])
+    check result.exitCode == 1
+    check result.stdout.contains("found no workflow run for abc1234")
+    check not result.stdout.contains(
+      "built localhost/majadu-rc-api:local")
+
+  test "the CI gate refuses while a run is still in progress":
+    let fixture = newFixture("rc-ci-pending")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps-rc.sh"),
+      @["badminton-match", "refs/heads/release/2.0.0-rc.1"],
+      @[("MAJADU_RC_APP_DIR", rcDir), ("MAJADU_RC_SKIP_GIT_SYNC", "1"),
+        ("FAKE_CI_BODY", ciPendingBody)])
+    check result.exitCode == 1
+    check result.stdout.contains("are still in_progress")
+    check not result.stdout.contains(
+      "built localhost/majadu-rc-api:local")
+
+  test "the CI gate fails closed on a network error":
+    let fixture = newFixture("rc-ci-network")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps-rc.sh"),
+      @["badminton-match", "refs/heads/release/2.0.0-rc.1"],
+      @[("MAJADU_RC_APP_DIR", rcDir), ("MAJADU_RC_SKIP_GIT_SYNC", "1"),
+        ("FAKE_CI_EXIT", "22")])
+    check result.exitCode == 1
+    check result.stdout.contains(
+      "cannot read workflow runs for abc1234 from api.github.com")
+    check not result.stdout.contains(
+      "built localhost/majadu-rc-api:local")
+
+  test "the CI gate fails closed without a token":
+    let fixture = newFixture("rc-ci-no-token")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture, token = false)
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps-rc.sh"),
+      @["badminton-match", "refs/heads/release/2.0.0-rc.1"],
+      @[("MAJADU_RC_APP_DIR", rcDir), ("MAJADU_RC_SKIP_GIT_SYNC", "1")])
+    check result.exitCode == 1
+    check result.stdout.contains("has no token at " &
+      rcDir / "env" / "github-token")
+    check not result.stdout.contains(
+      "built localhost/majadu-rc-api:local")
+
+  test "MAJADU_RC_SKIP_CI_GATE=1 bypasses the gate and is recorded":
+    let fixture = newFixture("rc-ci-bypass")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture, token = false)
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps-rc.sh"),
+      @["badminton-match", "refs/heads/release/2.0.0-rc.1"],
+      @[("MAJADU_RC_APP_DIR", rcDir), ("MAJADU_RC_SKIP_GIT_SYNC", "1"),
+        ("MAJADU_RC_SKIP_CI_GATE", "1")])
+    check result.stdout.contains("WARNING: MAJADU_RC_SKIP_CI_GATE=1")
+    check result.stdout.contains(
+      "built localhost/majadu-rc-api:local at abc1234")
+    # The run stops after the build in this fixture, and the failure record
+    # still carries the bypass so the audit trail survives it.
+    check readFile(rcDir / "deploy" / "last-release.json")
+      .contains("\"ci\":\"bypassed\"")
+
+  test "a redeploy of the live commit skips the gate without a token":
+    let fixture = newFixture("rc-ci-live")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture, token = false)
+    touch(rcDir / "deploy" / "last-release.json",
+      "{\"version\":\"2.0.0\",\"commit\":\"abc1234\"}\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps-rc.sh"),
+      @["badminton-match", "refs/heads/release/2.0.0-rc.1"],
+      @[("MAJADU_RC_APP_DIR", rcDir), ("MAJADU_RC_SKIP_GIT_SYNC", "1")])
+    check result.stdout.contains(
+      "abc1234 is already the running release")
+    check result.stdout.contains(
+      "built localhost/majadu-rc-api:local at abc1234")
 
 suite "cutover.sh":
   test "--from an unknown step exits 2 and names it":
