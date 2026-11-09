@@ -200,16 +200,18 @@ suite "session concurrency HTTP":
 
     let statuses = @[first.response.status, second.response.status]
     # The loser either replays the stored 201 or is refused while the winner is
-    # still in flight: `modules/platform/idempotency.nim:61-63` answers a
-    # claimed-but-incomplete row with a conflict instead of a replay. Both are
-    # that file's contract, so the invariant is what the case asserts.
+    # still in flight. The in-flight case is `IDEMPOTENCY_IN_PROGRESS` (the body
+    # may be identical, so accusing the caller of a conflict would be wrong);
+    # `IDEMPOTENCY_CONFLICT` is the two-body case below. Both are 409 and both
+    # are that file's contract, so the invariant is what the case asserts.
     check statuses.count(201) + statuses.count(409) == 2
     check statuses.count(201) >= 1
     var createdIds: seq[string] = @[]
     for job in [first, second]:
       let body = parseJson(job.response.body)
       if job.response.status == 409:
-        check body["code"].getStr() == "IDEMPOTENCY_CONFLICT"
+        check body["code"].getStr() in ["IDEMPOTENCY_CONFLICT",
+          "IDEMPOTENCY_IN_PROGRESS"]
       else:
         check job.response.status == 201
         createdIds.add(body["id"].getStr())
