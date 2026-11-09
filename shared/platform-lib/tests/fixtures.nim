@@ -143,6 +143,11 @@ proc purgeCommunity*(db: Db, slug: string) =
   ## makes no progress is a real cycle or a table outside the `community_id`
   ## set; it raises with the names instead of leaving rows behind silently.
   db.tx(proc(conn: DbConn) =
+    # 0049 makes `account.audit` append-only for every role, including the owner
+    # this teardown runs as. The opt-in is per transaction, and this one only
+    # removes the rows the test itself created.
+    discard conn.execUpdate(
+      "select set_config('majadu.audit_maintenance', 'on', true)")
     let community = conn.queryOne(
       "select id from platform.community where slug = $1",
       @[textParam(slug)])
@@ -188,3 +193,13 @@ proc purgeCommunity*(db: Db, slug: string) =
     discard conn.execUpdate(
       "delete from platform.community where id = $1::uuid",
       @[textParam(communityId)]))
+
+proc deleteAudit*(db: Db, sql: string, params: seq[DbParam] = @[]) =
+  ## Removes audit rows a suite wrote. `0049` makes `account.audit` append-only
+  ## for every role, so the delete has to carry the same per-transaction opt-in
+  ## the retention tool uses; a suite that wants to prove the refusal calls
+  ## `execUpdate` directly.
+  db.tx(proc(conn: DbConn) =
+    discard conn.execUpdate(
+      "select set_config('majadu.audit_maintenance', 'on', true)")
+    discard conn.execUpdate(sql, params))

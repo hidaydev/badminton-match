@@ -16,7 +16,7 @@ proc dsn(): string = getEnv("MAJADU_PG_DSN")
 proc cleanup() =
   for slug in ["lifeclub", "lifeclub-only"]:
     purgeCommunity(database, slug)
-  discard database.execUpdate(
+  deleteAudit(database,
     """delete from account.audit where actor_id in
          (select id from platform.user where google_sub in ('lc-actor', 'lc-user'))""")
   discard database.execUpdate(

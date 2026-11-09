@@ -18,6 +18,7 @@ import std/[json, options, os, osproc, strtabs, strutils, unittest]
 import account/domain/lifecycle
 import db/db
 import sha256
+import tests/fixtures
 
 const
   # Every subject, token name and ticket this suite writes starts with this, so
@@ -114,7 +115,7 @@ proc cleanup() =
   # generated for this suite.
   if writtenUserIds.len > 0:
     let ids = textParam(writtenUserIds.join(","))
-    discard database.execUpdate(
+    deleteAudit(database,
       """delete from account.audit
          where actor_id::text = any(string_to_array($1, ','))
             or target_id = any(string_to_array($1, ','))""", @[ids])
