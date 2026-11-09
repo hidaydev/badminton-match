@@ -65,7 +65,12 @@ export default function ScoreboardPage() {
   const [isFullscreen, setIsFullscreen] = useState(() => !!document.fullscreenElement)
   const [fsError, setFsError] = useState<string | null>(null)
   const [exportNotice, setExportNotice] = useState<string | null>(null)
-  const [isPortrait, setIsPortrait] = useState(() => window.innerWidth < window.innerHeight)
+  // An installed app is locked to landscape by the manifest; the CSS rotation
+  // exists only for a browser tab, where no lock is possible on iOS.
+  const standalone = window.matchMedia('(display-mode: standalone)').matches
+  const [isPortrait, setIsPortrait] = useState(
+    () => !standalone && window.innerWidth < window.innerHeight,
+  )
 
   const redTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const blueTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -80,7 +85,7 @@ export default function ScoreboardPage() {
   useEffect(() => {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement)
     document.addEventListener('fullscreenchange', onChange)
-    const onResize = () => setIsPortrait(window.innerWidth < window.innerHeight)
+    const onResize = () => setIsPortrait(!standalone && window.innerWidth < window.innerHeight)
     window.addEventListener('resize', onResize)
     return () => {
       document.removeEventListener('fullscreenchange', onChange)

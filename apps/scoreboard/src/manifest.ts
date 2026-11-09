@@ -15,7 +15,8 @@ export const manifest = {
   scope: '/',
   start_url: '/',
   display: 'standalone',
-  orientation: 'any',
+  // iOS honours this for an installed app; the CSS rotation is only for a tab.
+  orientation: 'landscape',
   background_color: '#020617',
   theme_color: '#020617',
   categories: ['sports', 'utilities'],
