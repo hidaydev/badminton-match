@@ -1,4 +1,4 @@
-import std/[json, locks, tables]
+import std/[json, locks, sets, tables]
 import mummy
 import db/db
 import ws_ticket
@@ -20,14 +20,28 @@ type
     userId: string
     ip: string
 
+  RegistryStats* = object
+    ## Sizes plus the number of channel buckets the hub had to touch. A full
+    ## registry scan would raise `channelVisits` by the socket count, so a suite
+    ## reads it to prove a disconnect stays proportional to one channel.
+    sockets*: int
+    channels*: int
+    users*: int
+    ips*: int
+    channelVisits*: int
+
   LiveHub* = ref object
     ## Single-instance fan-out. Mummy hands the websocket handler no request, so
     ## the HTTP upgrade registers the socket here and events find it by value.
+    ## Indexed both ways: an entry per socket, and buckets per channel and per
+    ## principal, so admit, release and broadcast never walk the registry.
     db*: Db
     lock: Lock
-    sockets: seq[SocketEntry]
-    perChannel: Table[string, int]
-    perIp: Table[string, int]
+    entries: Table[WebSocket, SocketEntry]
+    byChannel: Table[string, seq[WebSocket]]
+    byUser: Table[string, HashSet[WebSocket]]
+    byIp: Table[string, int]
+    channelVisits: int
 
 const
   readyFrame* = """{"type":"ready"}"""
@@ -47,8 +61,20 @@ proc channelShare*(linkId: string): string = "share:" & linkId
 proc newHub*(db: Db): LiveHub =
   result = LiveHub(db: db)
   initLock(result.lock)
-  result.perChannel = initTable[string, int]()
-  result.perIp = initTable[string, int]()
+  result.entries = initTable[WebSocket, SocketEntry]()
+  result.byChannel = initTable[string, seq[WebSocket]]()
+  result.byUser = initTable[string, HashSet[WebSocket]]()
+  result.byIp = initTable[string, int]()
+
+proc stats*(hub: LiveHub): RegistryStats =
+  ## Taken under the lock so a suite never reads a half-updated index.
+  acquire(hub.lock)
+  try:
+    RegistryStats(sockets: hub.entries.len, channels: hub.byChannel.len,
+      users: hub.byUser.len, ips: hub.byIp.len,
+      channelVisits: hub.channelVisits)
+  finally:
+    release(hub.lock)
 
 proc decideAdmit*(caps: WatcherCaps, sessionWatchers, ipWatchers,
                   processWatchers: int): AdmitDecision =
@@ -62,29 +88,39 @@ proc decideAdmit*(caps: WatcherCaps, sessionWatchers, ipWatchers,
     return admitFull
   admitAllowed
 
-proc socketIndex(hub: LiveHub, ws: WebSocket): int =
-  ## WebSocket has no exported identity fields, so entries are matched by value.
-  ## The table holds at most `ws.max_watchers_process` entries.
-  for index in 0 ..< hub.sockets.len:
-    if hub.sockets[index].ws == ws:
-      return index
-  -1
+proc watchers*(hub: LiveHub, channel: string): seq[WebSocket] =
+  ## The sockets on one channel. `broadcast` sends to this list outside the lock,
+  ## so the registry is never held while a client is written to.
+  acquire(hub.lock)
+  try:
+    result = hub.byChannel.getOrDefault(channel)
+  finally:
+    release(hub.lock)
 
-proc countOut(hub: LiveHub, entry: SocketEntry) =
-  let channelCount = hub.perChannel.getOrDefault(entry.channel) - 1
-  if channelCount <= 0:
-    hub.perChannel.del(entry.channel)
+proc forget(hub: LiveHub, ws: WebSocket) =
+  ## Drops one socket from every index it appears in. `channelVisits` counts the
+  ## one channel bucket it touches: a registry-wide scan would count every
+  ## socket instead.
+  if not hub.entries.hasKey(ws):
+    return
+  let entry = hub.entries[ws]
+  hub.entries.del(ws)
+  inc hub.channelVisits
+  if hub.byChannel.hasKey(entry.channel):
+    let at = hub.byChannel[entry.channel].find(ws)
+    if at >= 0:
+      hub.byChannel[entry.channel].delete(at)
+    if hub.byChannel[entry.channel].len == 0:
+      hub.byChannel.del(entry.channel)
+  if entry.userId.len > 0:
+    hub.byUser[entry.userId].excl(ws)
+    if hub.byUser[entry.userId].len == 0:
+      hub.byUser.del(entry.userId)
+  let remaining = hub.byIp.getOrDefault(entry.ip) - 1
+  if remaining <= 0:
+    hub.byIp.del(entry.ip)
   else:
-    hub.perChannel[entry.channel] = channelCount
-  let ipCount = hub.perIp.getOrDefault(entry.ip) - 1
-  if ipCount <= 0:
-    hub.perIp.del(entry.ip)
-  else:
-    hub.perIp[entry.ip] = ipCount
-
-proc forget(hub: LiveHub, index: int) =
-  hub.countOut(hub.sockets[index])
-  hub.sockets.delete(index)
+    hub.byIp[entry.ip] = remaining
 
 proc admit*(hub: LiveHub, ws: WebSocket, channel, userId, ip: string,
             caps: WatcherCaps): bool =
@@ -92,13 +128,17 @@ proc admit*(hub: LiveHub, ws: WebSocket, channel, userId, ip: string,
   ## is already reached; the caller answers `full` and closes.
   acquire(hub.lock)
   try:
-    let decision = decideAdmit(caps, hub.perChannel.getOrDefault(channel),
-      hub.perIp.getOrDefault(ip), hub.sockets.len)
+    let decision = decideAdmit(caps, hub.byChannel.getOrDefault(channel).len,
+      hub.byIp.getOrDefault(ip), hub.entries.len)
     if decision == admitFull:
       return false
-    hub.sockets.add(SocketEntry(ws: ws, channel: channel, userId: userId, ip: ip))
-    hub.perChannel[channel] = hub.perChannel.getOrDefault(channel) + 1
-    hub.perIp[ip] = hub.perIp.getOrDefault(ip) + 1
+    hub.entries[ws] = SocketEntry(ws: ws, channel: channel, userId: userId,
+      ip: ip)
+    hub.byChannel.mgetOrPut(channel, @[]).add(ws)
+    if userId.len > 0:
+      hub.byUser.mgetOrPut(userId, initHashSet[WebSocket]()).incl(ws)
+    hub.byIp[ip] = hub.byIp.getOrDefault(ip) + 1
+    inc hub.channelVisits
     true
   finally:
     release(hub.lock)
@@ -106,45 +146,40 @@ proc admit*(hub: LiveHub, ws: WebSocket, channel, userId, ip: string,
 proc release*(hub: LiveHub, ws: WebSocket) =
   acquire(hub.lock)
   try:
-    let index = hub.socketIndex(ws)
-    if index >= 0:
-      hub.forget(index)
+    hub.forget(ws)
   finally:
     release(hub.lock)
 
-proc closeWhere(hub: LiveHub, match: proc(entry: SocketEntry): bool {.closure.},
-                frame: string) =
-  var doomed: seq[WebSocket] = @[]
-  acquire(hub.lock)
-  try:
-    if match != nil:
-      # One pass with a survivor list: deleting from the middle of the sequence
-      # once per match made closing N sockets quadratic.
-      var kept: seq[SocketEntry] = @[]
-      for entry in hub.sockets:
-        if match(entry):
-          doomed.add(entry.ws)
-          hub.countOut(entry)
-        else:
-          kept.add(entry)
-      if doomed.len > 0:
-        hub.sockets = kept
-  finally:
-    release(hub.lock)
+proc closeSockets(doomed: seq[WebSocket], frame: string) =
   for ws in doomed:
     if frame.len > 0:
       ws.send(frame)
     ws.close()
 
-proc broadcast*(hub: LiveHub, channel, frame: string) =
-  var targets: seq[WebSocket] = @[]
+proc closeChannel(hub: LiveHub, channel, frame: string) =
+  let doomed = hub.watchers(channel)
   acquire(hub.lock)
   try:
-    for entry in hub.sockets:
-      if entry.channel == channel:
-        targets.add(entry.ws)
+    for ws in doomed:
+      hub.forget(ws)
   finally:
     release(hub.lock)
+  closeSockets(doomed, frame)
+
+proc closeUser(hub: LiveHub, userId, frame: string) =
+  var doomed: seq[WebSocket] = @[]
+  acquire(hub.lock)
+  try:
+    for ws in hub.byUser.getOrDefault(userId):
+      doomed.add(ws)
+    for ws in doomed:
+      hub.forget(ws)
+  finally:
+    release(hub.lock)
+  closeSockets(doomed, frame)
+
+proc broadcast*(hub: LiveHub, channel, frame: string) =
+  let targets = hub.watchers(channel)
   for ws in targets:
     ws.send(frame)
 
@@ -160,17 +195,14 @@ proc revokePrincipal*(hub: LiveHub, userId: string) =
   if userId.len == 0:
     return
   discard ws_ticket.revokePrincipal(hub.db, userId)
-  hub.closeWhere(proc(entry: SocketEntry): bool = entry.userId == userId,
-    revokedFrame)
+  hub.closeUser(userId, revokedFrame)
 
 proc revokeShare*(hub: LiveHub, linkId: string) =
   ## A rotated or deleted link closes its watchers and drops their tickets.
   if linkId.len == 0:
     return
   discard ws_ticket.revokeShare(hub.db, linkId)
-  let channel = channelShare(linkId)
-  hub.closeWhere(proc(entry: SocketEntry): bool = entry.channel == channel,
-    revokedFrame)
+  hub.closeChannel(channelShare(linkId), revokedFrame)
 
 proc dispatch*(hub: LiveHub, ws: WebSocket, event: WebSocketEvent,
                message: Message) =
