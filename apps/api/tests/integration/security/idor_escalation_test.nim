@@ -7,7 +7,7 @@ import share/store as shareStore
 import tournament/domain/classic
 import tournament/domain/classic_draw
 import tests/fixtures
-import ../http_support
+import ../../http_support
 
 const
   port = testPort(18098)

@@ -5,4 +5,4 @@
 #
 # The import suite is not listed: QA-10 removed its allowance, so CI provisions
 # the four scratch databases it needs and a skip is a failure.
-tools/ratingingest/tests/tick_test.nim	qa	2026-12-31
+tools/ratingingest/tests/integration/tick_test.nim	qa	2026-12-31

@@ -14,7 +14,7 @@ import db/db
 import platform/config/store
 import rating/infrastructure/params
 import rating/read
-import ../main
+import ../../main
 
 const
   slug = "rank-snapshot-test"

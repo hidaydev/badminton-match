@@ -2,7 +2,7 @@ import std/[httpclient, json, strutils, unittest]
 import db/db
 import mummy
 import tests/fixtures
-import ../http_support
+import ../../http_support
 
 const
   port = testPort(18101)

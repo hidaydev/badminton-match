@@ -10,7 +10,7 @@
 ## seeded one, and is deleted in teardown.
 import std/[json, options, os, osproc, strtabs, strutils, unittest]
 import db/db
-import ../main
+import ../../main
 
 const slug = "levels-test"
 

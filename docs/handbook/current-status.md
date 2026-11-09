@@ -107,8 +107,8 @@ communities) is still used; v2 pages that were never mounted in the router
 
 | Suite | Command | Note |
 |---|---|---|
-| `nim check`, archcheck, unit and database-backed suites | `./task check` | needs `MAJADU_PG_DSN` |
-| Unit + integration | `./task test` | needs `MAJADU_PG_DSN`; 1,127 assertions in 110 suites (2026-11-08), each suite on its own database; `--timing` and `--shard I/N` are used by the two CI shards, which measured 219 s and 196 s against 406 s for one run |
+| `nim check`, archcheck, unit suites | `./task check` | no database; 60 unit suites |
+| Unit + integration | `./task test` | needs `MAJADU_PG_DSN`; 121 suites (60 unit, 61 integration; 2026-11-10), each suite on its own database; `--timing` and `--shard I/N` are used by the two CI shards, which measured 219 s and 196 s against 406 s for one run |
 | One module | `./task verify <module\|api>` | integration when the DB is present |
 | Contract | `./task contract-check` | fingerprint + generated output |
 | Parity | `./task parity verify` / `./task parity v2 verify` | frozen v1 71 cases/48 routes; v2 143 cases |

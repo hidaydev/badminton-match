@@ -1,6 +1,6 @@
 import std/[options, os, sets, unittest]
 import db/db
-import ../main
+import ../../main
 
 ## Runs only when a scratch v2 database is named, because a tick reads and
 ## writes it:

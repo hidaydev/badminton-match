@@ -1,7 +1,7 @@
 import std/[json, options, strutils, unittest]
 import db/db
-import ../src/routes_gen
-import ./http_support
+import ../../src/routes_gen
+import ../http_support
 
 # The anonymous request sweep. One server for the whole suite, the same path a
 # probe or a CLI uses, and one expectation per operation read from the access

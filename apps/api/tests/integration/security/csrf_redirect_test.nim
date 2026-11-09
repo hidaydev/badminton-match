@@ -3,7 +3,7 @@ import db/db
 import mummy
 import sha256
 import tests/fixtures
-import ../http_support
+import ../../http_support
 
 const
   port = testPort(18099)

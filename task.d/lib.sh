@@ -236,6 +236,16 @@ list_test_files() {
     done
 }
 
+layer_counts() {
+  # QA-25: the layer is a property of the path, and the runner says how many
+  # suites each layer holds instead of leaving a reader to infer it. Anything
+  # that opens a database lives under tests/integration/ and is not part of the
+  # database-free `check` gate.
+  _unit=$(INTEGRATION=0 list_test_files | wc -l | tr -d ' ')
+  _all=$(INTEGRATION=1 list_test_files | wc -l | tr -d ' ')
+  printf 'suites: %s unit, %s integration\n' "$_unit" "$((_all - _unit))"
+}
+
 api_entrypoint() {
   printf '%s\n' "$REPO_ROOT/apps/api/src/main.nim"
 }

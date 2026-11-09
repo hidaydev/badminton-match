@@ -109,7 +109,7 @@ rewrites it in production, so the session cookie stays first-party. Set
 
 | Command | What it checks |
 |---|---|
-| `./task check` | `nim check`, archcheck, unit and database-backed suites; needs `MAJADU_PG_DSN` |
+| `./task check` | `nim check`, archcheck and the unit suites; no database |
 | `./task test` | unit + integration (needs `MAJADU_PG_DSN`); every suite gets its own database, `--timing` writes per-suite wall time, `--shard I/N` runs one slice, `WORKERS=N` farms the slices across worker databases |
 | `./task ci` | check + build + test + contract fingerprint |
 | `./task coverage` | line coverage per module, ratcheted against `coverage-baseline-<platform>.json` |

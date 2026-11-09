@@ -1,5 +1,5 @@
 #!/bin/sh
-# Fast gate: no release build. Requires a database (D-6).
+# Fast gate: no release build, no database. QA-25.
 . "$(dirname "$0")/lib.sh"
 
 # `--no-run` compiles the unit suites without executing them. `ci` passes it
@@ -16,12 +16,10 @@ esac
 
 require_cmd nim
 
-# D-6: `check` runs the database-backed suites, so the database contract is the
-# same as `test` when suites actually run. Without a DSN the five security
-# suites would silently not run. `--no-run` only compiles them.
-if [ "$run_suites" = "1" ]; then
-  require_test_dsn
-fi
+# QA-25: `check` is the database-free gate. Everything that opens a database or
+# starts a server lives under `tests/integration/` and runs from `./task test`,
+# so a laptop without Postgres can run this one.
+layer_counts
 
 nim_check "$(api_entrypoint)"
 sh "$REPO_ROOT/task.d/deadcode.sh"
@@ -31,15 +29,11 @@ sh "$REPO_ROOT/task.d/deadcode.sh"
 junit_begin
 trap 'junit_finish' EXIT
 
-# QA-06: the database-backed suites get a fresh database per file here too, or
-# a suite that no longer resets its rows fails on whatever the last run left.
 if [ "$run_suites" = "1" ]; then
-  isolation_begin check
   timing_begin check
 fi
 for file in $(list_test_files); do
   if [ "$run_suites" = "1" ]; then
-    isolation_apply "${file#"$REPO_ROOT"/}"
     _start=$(now_ms)
     _code=0
     # The suite output is captured instead of discarded: a failing suite has to
@@ -97,10 +91,10 @@ if [ "$run_suites" = "1" ]; then
   check_skips
 fi
 
-# `check` runs unit and database-backed suites, not the integration set. Say
-# which ones ran instead of letting `ok` imply more than that happened.
+# `check` runs the unit layer, not the integration set. Say which ones ran
+# instead of letting `ok` imply more than that happened.
 if [ "$run_suites" = "1" ]; then
-  printf 'check: ok (unit and database-backed suites; ./task test adds the integration set)\n'
+  printf 'check: ok (unit suites only; ./task test adds the integration set)\n'
 else
   printf 'check: ok (unit suites compiled, not run; ./task test runs them)\n'
 fi

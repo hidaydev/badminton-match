@@ -88,6 +88,7 @@ fi
 
 INTEGRATION=1
 export INTEGRATION
+layer_counts
 
 CACHE_DIR="$REPO_ROOT/.cache/$WORKTREE"
 mkdir -p "$CACHE_DIR"
