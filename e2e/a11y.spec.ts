@@ -19,6 +19,9 @@ for (const route of a11yRoutes) {
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      // Best-practice rule, enabled on purpose: two h1s and a flat outline were
+      // invisible to the WCAG tag set.
+      .options({ rules: { 'heading-order': { enabled: true } } })
       .analyze()
 
     const summary = results.violations.map(

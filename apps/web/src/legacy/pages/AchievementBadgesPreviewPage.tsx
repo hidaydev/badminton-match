@@ -70,7 +70,7 @@ export default function AchievementBadgesPreviewPage() {
   return (
     <div className="flex flex-col gap-6 p-1">
       <div className="rounded-xl border border-border-subtle bg-surface px-5 py-4">
-        <h2 className="text-base font-bold text-fg">Medal & Achievement System Preview</h2>
+        <h1 className="text-base font-bold text-fg">Medal & Achievement System Preview</h1>
         <p className="mt-1 text-xs leading-relaxed text-fg-dim">
           Prestigious metallic hexagonal badges (pointy-top ratio 46.8 x 54). Click any medal below
           to open the tactile Achievement Detail Modal with progress ladders, specular highlights,
@@ -80,9 +80,9 @@ export default function AchievementBadgesPreviewPage() {
 
       {/* ── 1. Milestones by Tier ─────────────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
+        <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
           1. Milestones by Tier (Bronze..Onyx)
-        </p>
+        </h3>
         <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border-subtle bg-surface px-5 py-5">
           {MEDAL_TIER_NAMES.map((name, i) => (
             <div key={name} className="flex flex-col items-center gap-1.5">
@@ -101,9 +101,9 @@ export default function AchievementBadgesPreviewPage() {
 
       {/* ── 2. All 9 Glyph Icons ───────────────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
+        <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
           2. Unique Medal Icons (9 Distinct Glyphs)
-        </p>
+        </h3>
         <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border-subtle bg-surface px-5 py-5">
           {ALL_MEDAL_ICONS.map((icon) => (
             <div key={icon} className="flex flex-col items-center gap-1.5">
@@ -122,9 +122,9 @@ export default function AchievementBadgesPreviewPage() {
 
       {/* ── 3. Event & Tournament Seals ─────────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
+        <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
           3. Event & Tournament Medals (Faceted Dimensional Emblems)
-        </p>
+        </h3>
         <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border-subtle bg-surface px-5 py-5">
           {EVENT_SEEDS.map((seed) => (
             <div key={seed} className="flex flex-col items-center gap-1.5">
@@ -143,9 +143,9 @@ export default function AchievementBadgesPreviewPage() {
 
       {/* ── 4. Locked State ────────────────────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
+        <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
           4. Locked State (Frosted Dark Obsidian Silhouette)
-        </p>
+        </h3>
         <div className="flex flex-wrap items-center gap-5 rounded-xl border border-border-subtle bg-surface px-5 py-5">
           <div className="flex flex-col items-center gap-1.5">
             <AchievementBadge
@@ -174,9 +174,9 @@ export default function AchievementBadgesPreviewPage() {
 
       {/* ── 5. Honeycomb Shelf Layout ───────────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
+        <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
           5. Honeycomb Shelf Layout (Gapless Packing)
-        </p>
+        </h3>
         <div className="rounded-xl border border-border-subtle bg-surface px-4 py-6">
           <MedalHoneycomb
             width={60}

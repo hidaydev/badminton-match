@@ -120,17 +120,17 @@ export default function GroupMatches({ pairs, groups, matches, canEdit, onSetMat
                   <button
                     onClick={() => { onOpenModal(); setActiveMatchId(m.id) }}
                     disabled={!canEdit}
-                    className="flex-1 flex flex-col px-4 pt-3 pb-2.5 hover:bg-elevated/60 active:bg-elevated active:scale-98 transition-transform duration-75 gap-1.5 disabled:cursor-default disabled:hover:bg-transparent disabled:active:bg-transparent disabled:active:scale-100"
+                    className="flex-1 flex flex-col px-4 pt-3 pb-2.5 hover:bg-elevated/60 active:bg-elevated active:scale-98 transition-transform duration-75 gap-1.5 disabled:cursor-default disabled:hover:bg-transparent disabled:active:bg-transparent disabled:active:scale-100 hit44"
                   >
                     <div className="flex items-center gap-2 w-full">
                       <span className="text-xs text-fg flex-1 truncate text-left">{getPairName(m.pairAId)}</span>
-                      <span className="text-xs font-bold font-mono text-accent shrink-0 min-w-14 text-center bg-elevated border border-border-subtle rounded-md px-2 py-1">
+                      <span className="text-xs font-bold font-mono text-accent shrink-0 min-w-14 text-center bg-elevated border border-border-subtle rounded-lg px-2 py-1">
                         {m.scoreA !== null ? `${m.scoreA}–${m.scoreB}` : '—'}
                       </span>
                       <span className="text-xs text-fg flex-1 text-right truncate">{getPairName(m.pairBId)}</span>
                     </div>
                     {m.picName && (
-                      <span className="text-[9px] text-fg-dim leading-none text-center w-full">{m.picName}</span>
+                      <span className="text-[11px] text-fg-dim leading-none text-center w-full">{m.picName}</span>
                     )}
                   </button>
 

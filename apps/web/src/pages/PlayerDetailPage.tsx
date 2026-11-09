@@ -327,7 +327,9 @@ function ClaimRow({ slug, playerId, claim, claimant, admin, own, busy, onRun }: 
     <li className="rounded-xl border border-border-subtle bg-surface p-3">
       <p className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-fg">
         <span className="text-xs text-fg-dim">{claimant}</span>
-        <span className="text-xs text-fg-dim">{t(CLAIM_STATUS_KEY[claim.status])}</span>
+        <span className={`text-xs ${claim.status === 'pending' ? 'text-info' : 'text-fg-dim'}`}>
+          {t(CLAIM_STATUS_KEY[claim.status])}
+        </span>
       </p>
       <p className="mt-1 font-mono text-[10px] text-fg-dim">{formatDay(claim.createdAt)}</p>
       {claim.reason !== '' && <p className="mt-1 text-xs text-fg-dim">{claim.reason}</p>}

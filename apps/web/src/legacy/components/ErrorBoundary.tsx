@@ -67,14 +67,14 @@ export default class ErrorBoundary extends Component<Props, State> {
             {!isChunkErr && (
               <button
                 onClick={this.handleReset}
-                className="text-xs px-3 py-1.5 rounded-lg bg-elevated hover:bg-border text-fg transition-colors"
+                className="text-xs px-3 py-1.5 rounded-lg bg-elevated hover:bg-border text-fg transition-colors hit44"
               >
                 Try again
               </button>
             )}
             <button
               onClick={() => window.location.reload()}
-              className="text-xs px-3 py-1.5 rounded-lg bg-accent/20 hover:bg-accent/30 text-accent transition-colors font-semibold"
+              className="text-xs px-3 py-1.5 rounded-lg bg-accent/20 hover:bg-accent/30 text-accent transition-colors font-semibold hit44"
             >
               Reload page
             </button>

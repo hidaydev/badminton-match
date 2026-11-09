@@ -44,15 +44,17 @@ Both are third-party files: see `THIRD-PARTY-NOTICES.md`.
 | Token | Hex | Tailwind class | Usage |
 |-------|-----|----------------|-------|
 | `--color-accent` | `#e3b341` | `text-accent` | Brand, CTA, highlights |
-| `--color-accent-alt` | `#e3b341` | `text-accent-alt` | Interactive, links (now the same as `accent`) |
+| `--color-accent-alt` | `#6d9dc8` | `text-accent-alt` | Interactive, links |
 
 ### Status
-| Token | Hex | Tailwind class | Usage |
-|-------|-----|----------------|-------|
-| `--color-success` | `#43a57d` | `text-success` | Positive states |
-| `--color-error` | `#d65a5a` | `text-error` | Errors, destructive |
-| `--color-warning` | `#e3b341` | `text-warning` | Warnings (same as `accent`) |
-| `--color-info` | `#5b8fbd` | `text-info` | Informational |
+Every role is a distinct hex. The ratio column is measured on `bg-elevated`,
+the darkest surface a status label sits on (the danger button's hover state).
+| Token | Hex | Tailwind class | Usage | Contrast on `elevated` |
+|-------|-----|----------------|-------|------------------------|
+| `--color-success` | `#43a57d` | `text-success` | Positive states | 5.31:1 |
+| `--color-error` | `#d86f6a` | `text-error` | Errors, destructive | 4.92:1 |
+| `--color-warning` | `#e0985c` | `text-warning` | Warnings | 6.77:1 |
+| `--color-info` | `#5b8fbd` | `text-info` | Informational | 4.69:1 |
 
 ## Token Usage in Components
 
@@ -71,23 +73,48 @@ palette classes (`slate-*`, `indigo-*`). The intended equivalents:
 
 ## Typography Scale
 
-| Level | Classes | Usage |
-|-------|---------|-------|
-| Page Title | `text-xl sm:text-2xl font-bold text-white` | H2 headings |
-| Section Title | `text-sm font-semibold text-white` | Sub-sections |
-| Body | `text-sm text-fg-dim` | Descriptions |
-| Label | `text-xs text-fg-dim` | Form labels |
-| Meta | `text-[10px] font-mono text-fg-dim uppercase` | Timestamps, badges |
-| Micro | `text-[8px] text-fg-dim` | Tiebreaker info |
+The steps are declared in `@theme` (`--text-*`). `text-2xs` (11px) is the floor:
+nothing smaller is allowed, and data never uses a size below `text-xs` (12px).
+
+| Level | Token | Classes | Usage |
+|-------|-------|---------|-------|
+| Page Title | `--text-2xl` / `--text-xl` | `text-xl sm:text-2xl font-bold` | Page `h1` |
+| Section Title | `--text-sm` | `text-sm font-semibold` | Section `h2` |
+| Body | `--text-sm` | `text-sm text-fg-dim` | Descriptions |
+| Label | `--text-xs` | `text-xs text-fg-dim` | Form labels |
+| Meta | `--text-meta` (10px) | `text-[10px] font-mono uppercase tracking-wider` | Single tracked label |
+| Detail | `--text-2xs` (11px) | `text-[11px]` | Compact data, never below |
+
+## Boolean Controls
+
+`components/Checkbox.tsx` and `components/Radio.tsx` wrap the native inputs and
+tint them with `accent-accent` (`accent-color: var(--color-accent)`), so the tick
+or dot is brand gold instead of the UA blue. They carry the 20px box, the focus
+ring and the disabled recipe; a call site passes only behaviour props.
 
 ## Spacing & Radius
 
-| Value | Tailwind | Usage |
-|-------|----------|-------|
-| `1rem` | `rounded-2xl` / `p-4` | Cards |
-| `0.75rem` | `rounded-xl` | Buttons |
-| `0.5rem` | `rounded-lg` | Chips, inputs |
-| `1.5rem` | `gap-6` | Section gaps |
+The scales live in `@theme` (`--spacing`, `--radius-*`, `--shadow-*`, `--ease-*`).
+Four spacing steps, three radii, three elevations, two durations.
+
+| Step | Token | Tailwind | Usage |
+|------|-------|----------|-------|
+| `0.5rem` | Spacing | `p-2` / `gap-2` | Chip and icon padding |
+| `0.75rem` | Spacing | `p-3` / `gap-3` | Row padding |
+| `1rem` | Spacing | `p-4` | Card padding |
+| `1.5rem` | Spacing | `gap-6` | Section gaps |
+
+| Radius | Token | Tailwind | Usage |
+|--------|-------|----------|-------|
+| `0.5rem` | `--radius-lg` | `rounded-lg` | Chips, inputs |
+| `0.75rem` | `--radius-xl` | `rounded-xl` | Buttons |
+| `1rem` | `--radius-2xl` | `rounded-2xl` | Cards |
+
+| Elevation | Token | Tailwind | Usage |
+|-----------|-------|----------|-------|
+| Raised | `--shadow-sm` | `shadow-sm` | Chips, badges |
+| Panel | `--shadow-md` | `shadow-md` | Cards, menus |
+| Sheet | `--shadow-lg` | `shadow-lg` | Overlays |
 
 ## Component Patterns
 
@@ -102,10 +129,14 @@ Components follow the semantic token system. Key patterns:
 
 | Variant | Classes |
 |---------|---------|
-| Primary | `bg-accent text-ground font-semibold rounded-xl min-h-11 px-4` |
+| Primary | `bg-accent text-ground font-semibold rounded-xl min-h-11 px-4 hover:brightness-105` |
 | Secondary | `border border-border text-fg hover:bg-elevated rounded-xl min-h-11 px-4` |
 | Danger | `border border-border text-error hover:bg-elevated rounded-xl min-h-11 px-4` |
 | Icon-only | `min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-fg-dim` |
+
+Every variant shares `active:scale-[0.99]`, `disabled:cursor-not-allowed
+disabled:opacity-50`, and a focused ring. `loading` renders a spinner, sets
+`aria-busy` and disables the button.
 
 Legacy screens still spell the primary CTA as `bg-indigo-400 text-slate-950`. The
 palette remap in `index.css` renders that as `accent`, so the difference is
@@ -121,7 +152,8 @@ box and expand the hit area with `hit44` from
 // Input and Select share one recipe; components/Field.tsx owns it.
 className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3
   text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent
-  disabled:opacity-60"
+  disabled:cursor-not-allowed disabled:opacity-60 read-only:opacity-60
+  aria-invalid:border-error aria-invalid:ring-1 aria-invalid:ring-error"
 
 // The control is the child of a <label>. That is what gives it an accessible
 // name, so there is no id/htmlFor plumbing.
@@ -208,9 +240,10 @@ That is why the footer no longer carries `pb-[max(...)]`.
 | Rule | Implementation |
 |------|---------------|
 | Focus rings | `focus-visible:ring-2` (NOT `focus:ring`) — no tap flash |
-| Touch targets | ≥44px for interactive elements |
+| Touch targets | ≥44px for interactive elements, enforced by `apps/web/scripts/check-touch-targets.mjs` (`check:touch`) |
 | Reduced motion | `@media (prefers-reduced-motion: reduce)` |
 | Screen readers | `aria-label` on icon buttons, `role="dialog"` on modals |
+| Heading order | One `h1` per page (never the wordmark), `h2` per section, `h3` per card; axe `heading-order` runs on every `a11yRoutes` entry |
 | Error text | `role="alert"` only. Adding `aria-live` on top is redundant and is documented as wrong in `legacy/components/ErrorBanner.tsx` |
 | Keyboard nav | `role="button" tabIndex={0}` on score tap zones |
 | Menu | `role="menu"` / `role="menuitem"` on ActionsMenu |

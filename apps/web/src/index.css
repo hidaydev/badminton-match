@@ -6,6 +6,33 @@
   --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
+  /* Type scale. Everything below 12px is a single tracked label, never data;
+     `text-2xs` is the floor. Paired line-heights keep the steps readable. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-meta: 0.625rem;
+  --text-meta--line-height: 0.875rem;
+
+  /* Radius scale: chips and inputs, buttons, cards. Three steps only. */
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+
+  /* Elevation scale: raised row, panel, floating sheet. */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.35);
+  --shadow-md: 0 4px 10px -2px rgb(0 0 0 / 0.45);
+  --shadow-lg: 0 12px 28px -8px rgb(0 0 0 / 0.55);
+
+  /* Motion: one decelerating curve and one spring for tactile presses. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Layout: the two phone viewports the app targets. */
+  --breakpoint-sm: 25rem;
+  --breakpoint-md: 40rem;
+
+  --animate-slide-up: slideUp 0.3s var(--ease-out);
+
   /* ── Neutral: graphite (warm-dark) — remap seluruh scale slate ────────── */
   --color-slate-50:  #eef0f3;
   --color-slate-100: #e2e5e8;
@@ -120,11 +147,15 @@
   --color-fg: #eef0f3;
   --color-fg-dim: #8b939c;
   --color-accent: #e3b341;
-  --color-accent-alt: #e3b341;
+  --color-accent-alt: #6d9dc8;
   --color-success: #43a57d;
-  --color-error: #d65a5a;
-  --color-warning: #e3b341;
+  --color-error: #d86f6a;
+  --color-warning: #e0985c;
   --color-info: #5b8fbd;
+}
+
+:root {
+  color-scheme: dark;
 }
 
 * {

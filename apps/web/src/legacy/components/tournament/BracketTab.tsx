@@ -48,7 +48,7 @@ function MatchCard({
   return (
     <div className={`w-full bg-surface rounded-lg border-l-2 ${borderColor} border-t border-r border-b border-border-subtle overflow-hidden shadow-xs`}>
       <div className="px-2 pt-2 pb-1.5 border-b border-border-subtle flex items-center justify-between">
-        <span className={`text-[8px] font-bold tracking-wide ${labelColor}`}>{label}</span>
+        <span className={`text-[11px] font-bold tracking-wide ${labelColor}`}>{label}</span>
         {showPostIcon && (
           <div className="relative shrink-0">
             <button
@@ -67,14 +67,14 @@ function MatchCard({
       <button
         onClick={() => canEnter && onSelect(match)}
         disabled={!canEnter}
-        className="w-full text-left disabled:opacity-60 hover:bg-elevated/60 disabled:hover:bg-transparent transition-colors"
+        className="w-full text-left disabled:opacity-60 hover:bg-elevated/60 disabled:hover:bg-transparent transition-colors hit44"
       >
         <div className="px-2 pt-2 pb-1">
           <div className="text-xs text-fg font-medium truncate">{getPairName(match.pairAId)}</div>
           {scored ? (
             <div className="text-[10px] font-bold font-mono text-accent text-center my-1">{match.scoreA} – {match.scoreB}</div>
           ) : (
-            <div className="text-[9px] text-fg-dim text-center my-1 font-medium">vs</div>
+            <div className="text-[11px] text-fg-dim text-center my-1 font-medium">vs</div>
           )}
           <div className="text-xs text-fg font-medium truncate">{getPairName(match.pairBId)}</div>
         </div>
@@ -284,7 +284,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
                 showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos[QF_IDS[1]]} onUploadPhoto={openUpload(QF_IDS[1])} />
             </div>
             <Connector />
-            <MatchCard match={sf1} label="SEMI 1" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
+            <MatchCard match={sf1} label="SEMI 1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
               showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos[SF_IDS[0]]} onUploadPhoto={openUpload(SF_IDS[0])} />
             <Connector />
             <MatchCard match={final} label="FINAL" borderColor="border-yellow-500" labelColor="text-yellow-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
@@ -300,7 +300,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
                 showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos[QF_IDS[3]]} onUploadPhoto={openUpload(QF_IDS[3])} />
             </div>
             <Connector />
-            <MatchCard match={sf2} label="SEMI 2" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
+            <MatchCard match={sf2} label="SEMI 2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
               showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos[SF_IDS[1]]} onUploadPhoto={openUpload(SF_IDS[1])} />
             <span /> {/* no connector to 3rd place */}
             <MatchCard match={third} label="3RD" borderColor="border-border" labelColor="text-fg-dim" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}

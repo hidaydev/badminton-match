@@ -158,10 +158,10 @@ describe('players', () => {
     fireEvent.click(summary)
     expect(panel.open).toBe(false)
 
-    // The empty state offers the same panel, so its link has to open it; an
-    // anchor alone would scroll to a closed box and look broken.
+    // The empty state offers the same panel, so its button has to open it; a
+    // plain anchor would scroll to a closed box and look broken.
     await screen.findByText(t('players.empty'))
-    fireEvent.click(screen.getByRole('link', { name: t('players.add') }))
+    fireEvent.click(screen.getByRole('button', { name: t('players.add') }))
     expect(panel.open).toBe(true)
   })
 

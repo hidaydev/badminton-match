@@ -11,19 +11,13 @@ import type { GameKey, Gender, Player, SessionScoring, SetScore, Tier } from '..
 import type { CloudSnapshot, PlayerSummary, PlayerStats, SessionMeta } from './types'
 import type { AnyTournamentSnapshot } from '../utils/teamTournament'
 import { isPlaceholderName } from '../utils/placeholders'
-import { parseRetryAfter, ApiError, shouldRetry } from './retry'
-import { isClientOutdated, reportClientOutdated, reportSessionExpired } from '../../api/errors'
+import { ApiError } from './retry'
+import { API_BASE, request as transport } from '../../api/request'
 
 export { ApiError } from './retry'
 
-/** Same-origin `/api` path; the dev proxy and the production rewrite both strip it. */
-export const BASE_URL: string = import.meta.env.VITE_API_BASE || '/api'
-
-const API_VERSION = '2'
-const API_TIMEOUT_MS = 30_000
-const MAX_RETRIES = 3
-const RETRY_BASE_DELAY_MS = 1_000
-const RETRY_MAX_DELAY_MS = 4_000
+/** Same base as the v2 transport; re-exported for the legacy callers. */
+export const BASE_URL: string = API_BASE
 
 let communitySlug = ''
 
@@ -80,9 +74,6 @@ export function communityApiPath(path: string): string {
   return communityPath(path)
 }
 
-function backoffDelayMs(attempt: number): number {
-  return Math.min(RETRY_BASE_DELAY_MS * 2 ** attempt, RETRY_MAX_DELAY_MS)
-}
 
 // Kept for the legacy AdminContext import surface. Admin access now follows
 // membership role, so no bearer token is ever sent.
@@ -118,79 +109,20 @@ export async function request<T>(
   extraHeaders?: Record<string, string>,
   includeHeaders?: boolean,
 ): Promise<T | { data: T; headers: Headers }> {
-  let lastError: unknown
-  let retryDelayMs = 0
-
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    if (attempt > 0) {
-      await new Promise(resolve => setTimeout(resolve, retryDelayMs))
-    }
-
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
-    const onAbort = () => controller.abort()
-    signal?.addEventListener('abort', onAbort)
-
-    try {
-      const res = await fetch(`${BASE_URL}${path}`, {
-        method,
-        credentials: 'include',
-        headers: {
-          'X-API-Version': API_VERSION,
-          ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-          ...(extraHeaders ?? {}),
-        },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
-      })
-
-      if (!res.ok) {
-        let message = `${res.status} ${res.statusText}`
-        let code: string | null = null
-        let detail: string | null = null
-        try {
-          const json = await res.json() as { detail?: string; message?: string; code?: string }
-          detail = json.detail ?? json.message ?? null
-          message = detail ?? message
-          code = json.code ?? null
-        } catch {
-          // keep HTTP status text
-        }
-        const err = new ApiError(message, code, res.status, detail)
-        // A 410 means the contract moved and a 401 means the cookie is gone.
-        // Both are shell-level states, so signal them for every legacy caller
-        // instead of letting ~90% of traffic render a generic "Failed to load".
-        if (isClientOutdated(err)) reportClientOutdated()
-        if (res.status === 401) reportSessionExpired()
-        if (shouldRetry(method, err, attempt, MAX_RETRIES)) {
-          lastError = err
-          const retryAfter = parseRetryAfter(res.headers.get('Retry-After'))
-          retryDelayMs = retryAfter !== null ? retryAfter * 1_000 : backoffDelayMs(attempt)
-          continue
-        }
-        throw err
-      }
-
-      if (res.status === 204) {
-        return includeHeaders ? { data: undefined as T, headers: res.headers } : (undefined as T)
-      }
-      const data = await res.json() as T
-      return includeHeaders ? { data, headers: res.headers } : data
-    } catch (error) {
-      if (signal?.aborted) throw error
-      if (shouldRetry(method, error, attempt, MAX_RETRIES)) {
-        lastError = error
-        retryDelayMs = backoffDelayMs(attempt)
-        continue
-      }
-      throw error
-    } finally {
-      clearTimeout(timeoutId)
-      signal?.removeEventListener('abort', onAbort)
-    }
+  const headers: Record<string, string> = {
+    ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    ...(extraHeaders ?? {}),
   }
-
-  throw lastError
+  const init: RequestInit = {
+    method,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal,
+    headers,
+  }
+  if (includeHeaders === true) {
+    return await transport<T>(path, init, { includeHeaders: true, maxRetries: 3 })
+  }
+  return await transport<T>(path, init, { maxRetries: 3 })
 }
 
 const enc = encodeURIComponent

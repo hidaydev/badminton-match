@@ -1,6 +1,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
-import { BrowserRouter, Link, Navigate, Route, Routes, useParams } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
 import { useAuth } from './auth/AuthContext'
 import { Button } from './components/Button'
@@ -31,6 +31,7 @@ import SessionLayout from './legacy/components/SessionLayout'
 import GlobalAmbiguousNames from './legacy/context/GlobalAmbiguousNames'
 import UpdateBanner from './legacy/components/UpdateBanner'
 import ErrorBoundary from './legacy/components/ErrorBoundary'
+import { ButtonLink } from './components/Button'
 import HomePage from './legacy/pages/HomePage'
 import SetupPage from './legacy/pages/SetupPage'
 import PlayersWizardPage from './legacy/pages/PlayersPage'
@@ -172,12 +173,9 @@ function CommunityNotFound() {
   return (
     <section className="mx-auto max-w-2xl p-4">
       <PageHeader title={t('community.error.notFound')} />
-      <Link
-        to="/"
-        className="mt-4 inline-flex min-h-11 items-center rounded-xl text-sm text-accent hover:underline focus-visible:ring-2 focus-visible:ring-accent"
-      >
+      <ButtonLink to="/" variant="secondary" className="mt-4 inline-flex items-center">
         {t('nav.home')}
-      </Link>
+      </ButtonLink>
     </section>
   )
 }
@@ -237,12 +235,9 @@ function RootRedirect() {
         {isOwner ? t('home.emptyOwnerHint') : t('home.emptyHint')}
       </p>
       {isOwner ? (
-        <Link
-          to="/owner/communities"
-          className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent"
-        >
+        <ButtonLink to="/owner/communities" className="mt-4 inline-flex items-center">
           {t('home.createCommunity')}
-        </Link>
+        </ButtonLink>
       ) : (
         <>
           <DirectoryList onPick={setJoinSlug} />

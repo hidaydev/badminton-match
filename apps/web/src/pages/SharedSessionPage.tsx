@@ -7,6 +7,7 @@ import type { MessageKey } from '../i18n/en'
 import { formatCompactDate } from '../utils/day'
 import { ordinal } from '../legacy/utils/ordinal'
 import { describeSets } from '../legacy/utils/scoring'
+import { computeDiff, initTallyRow, standardStandingSort, tallyMatch } from '../legacy/utils/tally'
 import { getSharedSession } from '../share/api'
 import type { SharedGame, SharedSession, SharedStanding } from '../share/api'
 import { LoadingState } from '../components/LoadingState'
@@ -46,18 +47,8 @@ const GAME_STATUS: Record<string, MessageKey> = {
 function standingsFromGames(games: SharedGame[]): SharedStanding[] {
   const rows = new Map<string, SharedStanding>()
   const tally = (name: string, pointsFor: number, pointsAgainst: number, won: boolean) => {
-    const row = rows.get(name) ?? {
-      name,
-      wins: 0,
-      losses: 0,
-      pointsFor: 0,
-      pointsAgainst: 0,
-      diff: 0,
-    }
-    if (won) row.wins += 1
-    else row.losses += 1
-    row.pointsFor += pointsFor
-    row.pointsAgainst += pointsAgainst
+    const row = rows.get(name) ?? { name, ...initTallyRow() }
+    tallyMatch(row, pointsFor, pointsAgainst, won)
     rows.set(name, row)
   }
   for (const game of games) {
@@ -68,13 +59,9 @@ function standingsFromGames(games: SharedGame[]): SharedStanding[] {
     for (const name of game.sideA) tally(name, game.scoreA, game.scoreB, aWon)
     for (const name of game.sideB) tally(name, game.scoreB, game.scoreA, !aWon)
   }
-  for (const row of rows.values()) row.diff = row.pointsFor - row.pointsAgainst
+  for (const row of rows.values()) computeDiff(row)
   return [...rows.values()].sort(
-    (a, b) =>
-      b.wins - a.wins ||
-      b.diff - a.diff ||
-      b.pointsFor - a.pointsFor ||
-      a.name.localeCompare(b.name),
+    (a, b) => standardStandingSort(a, b) || a.name.localeCompare(b.name),
   )
 }
 
@@ -340,7 +327,7 @@ export default function SharedSessionPage() {
                                     {headline}
                                   </span>
                                   {tally !== null && (
-                                    <span className="block text-[9px] text-slate-400">
+                                    <span className="block text-[11px] text-slate-400">
                                       {tally}
                                     </span>
                                   )}

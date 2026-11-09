@@ -35,7 +35,7 @@ export default function HomeLayout() {
           {!isHome && (
             <button
               onClick={() => navigate(-1)}
-              className="p-1.5 -ml-1.5 rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all shrink-0"
+              className="p-1.5 -ml-1.5 rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all shrink-0 hit44"
               aria-label={t('shell.back')}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -45,14 +45,14 @@ export default function HomeLayout() {
           )}
           <Link to="/" className="flex items-center gap-2 flex-1">
             <img src="/logo-192.png" alt="" className="w-6 h-6 shrink-0 object-contain" />
-            <h1 className="text-sm font-bold text-fg tracking-tight">MAJADU</h1>
+            <span className="text-sm font-bold text-fg tracking-tight">MAJADU</span>
           </Link>
           <div className="hidden sm:flex items-center gap-2">
             <CommunityPicker />
           </div>
           <button
             onClick={() => window.location.reload()}
-            className="p-1.5 rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all"
+            className="p-1.5 rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all hit44"
             aria-label={t('shell.refresh')}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -72,7 +72,7 @@ export default function HomeLayout() {
               aria-label={t('shell.account')}
               aria-haspopup="menu"
               aria-expanded={accountOpen}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-elevated text-xs font-bold text-fg hover:border-accent active:scale-95 transition-all"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-elevated text-xs font-bold text-fg hover:border-accent active:scale-95 transition-all hit44"
             >
               {(user?.displayName ?? '?').trim().charAt(0).toUpperCase()}
             </button>
@@ -83,7 +83,7 @@ export default function HomeLayout() {
                   aria-hidden="true"
                   tabIndex={-1}
                   onClick={() => setAccountOpen(false)}
-                  className="fixed inset-0 z-20 cursor-default"
+                  className="fixed inset-0 z-20 cursor-default min-h-11"
                 />
                 <div
                   role="menu"
@@ -122,7 +122,7 @@ export default function HomeLayout() {
                               setAccountOpen(false)
                               select(membership.slug)
                             }}
-                            className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${
+                            className={`hit44 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${
                               selected ? 'font-semibold text-accent' : 'text-fg hover:bg-elevated'
                             }`}
                           >
@@ -165,7 +165,7 @@ export default function HomeLayout() {
                         setAccountOpen(false)
                         setSessionsOpen(true)
                       }}
-                      className="rounded-lg px-3 py-2 text-left text-fg hover:bg-elevated"
+                      className="rounded-lg px-3 py-2 text-left text-fg hover:bg-elevated hit44"
                     >
                       {t('sessions.open')}
                     </button>
@@ -176,7 +176,7 @@ export default function HomeLayout() {
                         setAccountOpen(false)
                         void logout()
                       }}
-                      className="rounded-lg px-3 py-2 text-left text-error/80 hover:bg-elevated hover:text-error"
+                      className="rounded-lg px-3 py-2 text-left text-error/80 hover:bg-elevated hover:text-error hit44"
                     >
                       {t('nav.logout')}
                     </button>

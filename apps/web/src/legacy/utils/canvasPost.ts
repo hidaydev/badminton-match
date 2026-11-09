@@ -319,7 +319,7 @@ export function drawBracketRoundCover(options: DrawBracketRoundCoverOptions) {
   if (summaryBg) {
     ctx.drawImage(summaryBg, 0, 0, W, H)
   } else {
-    ctx.fillStyle = '#0f172a'
+    ctx.fillStyle = C.bgDark
     ctx.fillRect(0, 0, W, H)
   }
 

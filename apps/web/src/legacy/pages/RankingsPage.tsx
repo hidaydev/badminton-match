@@ -75,7 +75,7 @@ export default function RankingsPage() {
       <div className="flex flex-col gap-3">
         {/* Header Title */}
         <div className="flex items-baseline justify-between gap-2">
-          <h2 className="text-lg font-bold text-fg">{t('rankings.title')}</h2>
+          <h1 className="text-lg font-bold text-fg">{t('rankings.title')}</h1>
         </div>
 
         {/* Filter Tier Chips */}
@@ -83,7 +83,7 @@ export default function RankingsPage() {
           <button
             type="button"
             onClick={() => handleTierChange('all')}
-            className={`shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border ${
+            className={`hit44 shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border ${
               selectedTier === 'all'
                 ? 'bg-accent/20 text-accent border-accent/60 font-semibold'
                 : 'bg-surface text-fg-dim border-border-subtle hover:text-fg hover:border-border'
@@ -99,7 +99,7 @@ export default function RankingsPage() {
                 key={tier}
                 type="button"
                 onClick={() => handleTierChange(tier)}
-                className={`shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border flex items-center gap-1 ${
+                className={`hit44 shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border flex items-center gap-1 ${
                   isSelected
                     ? 'bg-accent/20 text-accent border-accent/60 font-semibold'
                     : count > 0
@@ -139,7 +139,7 @@ export default function RankingsPage() {
             <button
               type="button"
               onClick={() => void refetch()}
-              className="text-xs font-medium text-accent hover:underline"
+              className="text-xs font-medium text-accent hover:underline hit44"
             >
               Retry
             </button>
@@ -177,15 +177,15 @@ export default function RankingsPage() {
                 <li key={r.player_id}>
                   <button
                     onClick={() => navigate(`/rankings/${r.player_id}`)}
-                    className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-elevated transition-colors ${rowBg}`}
+                    className={`hit44 w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-elevated transition-colors ${rowBg}`}
                   >
                     {/* Rank Number (and Global Rank if filtering by tier) */}
                     <div className="w-9 shrink-0 flex flex-col items-start justify-center">
-                      <span className={`font-mono text-sm leading-none ${rankColor}`}>
+                      <span className={`font-mono text-sm leading-none tabular-nums ${rankColor}`}>
                         #{r.displayRank}
                       </span>
                       {isFilteredTier && (
-                        <span className="text-[9px] font-mono text-fg-dim leading-tight mt-0.5">
+                        <span className="text-[11px] font-mono text-fg-dim leading-tight mt-0.5 tabular-nums">
                           #{r.rank}
                         </span>
                       )}
@@ -193,7 +193,7 @@ export default function RankingsPage() {
 
                     {/* Movement Indicator (▲ / ▼ / ·) when viewing All */}
                     {showDelta && (
-                      <span className="w-3 shrink-0 font-mono text-[10px] leading-none text-center">
+                      <span className="w-3 shrink-0 font-mono text-[10px] leading-none text-center tabular-nums">
                         {r.rank_delta == null || r.rank_delta === 0 ? (
                           <>
                             <span className="text-fg-dim" aria-hidden="true">·</span>
@@ -223,7 +223,7 @@ export default function RankingsPage() {
 
                     {/* Points */}
                     <div className="shrink-0 flex items-center">
-                      <span className="font-mono text-sm font-bold text-fg leading-none">
+                      <span className="font-mono text-sm font-bold text-fg leading-none tabular-nums">
                         {Math.round(r.points).toLocaleString('en-US')}
                       </span>
                     </div>

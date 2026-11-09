@@ -21,6 +21,7 @@ import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { formatDay } from '../utils/day'
 import { Button } from '../components/Button'
+import { Checkbox } from '../components/Checkbox'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
@@ -295,9 +296,8 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
                 )}
               </span>
               {field.kind === 'bool' ? (
-                <input
+                <Checkbox
                   id={id}
-                  type="checkbox"
                   checked={fieldValue(field) === true}
                   disabled={!canEdit || busy || pinned}
                   aria-describedby={pinned ? reasonId : undefined}
@@ -310,7 +310,6 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
                       [field.key]: event.target.checked,
                     }))
                   }}
-                  className="h-5 w-5 rounded border border-border bg-elevated text-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60"
                 />
               ) : field.kind === 'select' ? (
                 <select
@@ -496,7 +495,7 @@ function Invites({
 
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-semibold text-fg">{t('admin.invites')}</h2>
+      <h3 className="text-sm font-semibold text-fg">{t('admin.invites')}</h3>
       <p className="mt-1 text-xs text-fg-dim">{t('admin.invites.hint')}</p>
       <form
         className="mt-2 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end"
@@ -591,7 +590,7 @@ function JoinRequests({
 
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-semibold text-fg">{t('admin.requests')}</h2>
+      <h3 className="text-sm font-semibold text-fg">{t('admin.requests')}</h3>
       {requests.length === 0 ? (
         <p className="mt-2 text-sm text-fg-dim">{t('admin.requests.empty')}</p>
       ) : (
@@ -691,7 +690,7 @@ function PendingClaims({
 
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-semibold text-fg">{t('admin.claims')}</h2>
+      <h3 className="text-sm font-semibold text-fg">{t('admin.claims')}</h3>
       <p className="mt-1 text-xs text-fg-dim">{t('admin.claims.hint')}</p>
       {claims.length === 0 ? (
         <p className="mt-2 text-sm text-fg-dim">{t('admin.claims.empty')}</p>

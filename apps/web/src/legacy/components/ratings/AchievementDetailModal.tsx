@@ -139,7 +139,7 @@ export default function AchievementDetailModal({
               {/* Garis Track Selesai (Gradien Emas/Logam) */}
               {tierLevel > 1 && (
                 <div
-                  className="absolute top-[22px] left-5 h-0.5 bg-gradient-to-r from-amber-600 via-yellow-400 to-cyan-400"
+                  className="absolute top-[22px] left-5 h-0.5 bg-gradient-to-r from-amber-600 via-yellow-400 to-sky-400"
                   style={{
                     width: `calc(${((tierLevel - 1) / (thresholds.length - 1)) * 100}% - 10px)`,
                   }}
@@ -176,7 +176,7 @@ export default function AchievementDetailModal({
 
                       <div className="flex flex-col items-center">
                         <span
-                          className={`text-[9px] font-medium leading-none ${achieved ? 'text-fg' : 'text-fg-dim'}`}
+                          className={`text-[11px] font-medium leading-none ${achieved ? 'text-fg' : 'text-fg-dim'}`}
                         >
                           {tierName}
                         </span>

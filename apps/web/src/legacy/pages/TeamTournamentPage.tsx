@@ -250,7 +250,7 @@ export default function TeamTournamentPage() {
       {publishError && <ErrorBanner message={publishError} />}
       <div className="bg-surface px-4 pt-3 pb-0 border-b border-border-subtle">
         <div className="flex items-center gap-2">
-          <h2 className="text-[1rem] font-bold text-fg leading-tight">{snap.name}</h2>
+          <h1 className="text-[1rem] font-bold text-fg leading-tight">{snap.name}</h1>
           {publish.isPending && <span className="text-xs text-fg-dim">saving…</span>}
         </div>
         <p className="text-xs text-fg-dim mt-0.5 mb-3">
@@ -261,7 +261,7 @@ export default function TeamTournamentPage() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex-1 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+              className={`hit44 flex-1 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
                 tab === t.id ? 'text-accent border-accent' : 'text-fg-dim border-transparent hover:text-fg'
               }`}
             >
@@ -330,7 +330,7 @@ export default function TeamTournamentPage() {
                         <select
                           value={String(slot)}
                           onChange={(e) => assignDrawSlot(k, Number(e.target.value))}
-                          className="w-28 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
+                          className="w-28 bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
                           aria-label={`Slot for ${name}`}
                         >
                           {TEAM_NAMES.map((_, si) => (
@@ -348,7 +348,7 @@ export default function TeamTournamentPage() {
                     <button
                       onClick={handleUndian}
                       disabled={publish.isPending}
-                      className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40"
+                      className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 hit44"
                     >
                       Group Draw (match day)
                     </button>
@@ -360,7 +360,7 @@ export default function TeamTournamentPage() {
               <button
                 onClick={handleBuatFinal}
                 disabled={publish.isPending}
-                className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40"
+                className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 hit44"
               >
                 Create Final (top 2)
               </button>
@@ -428,7 +428,7 @@ export default function TeamTournamentPage() {
                 {/* Export Posts — champion + runner-up photos + download */}
                 {finalPostMode && (
                 <div className="bg-surface border border-border-subtle rounded-lg px-4 py-3 flex flex-col gap-2">
-                  <p className="text-xs text-fg-dim uppercase tracking-wider">Position Photos</p>
+                  <h3 className="text-xs text-fg-dim uppercase tracking-wider">Position Photos</h3>
 
                   {championName && (
                     <div className="flex items-center justify-between">
@@ -436,7 +436,7 @@ export default function TeamTournamentPage() {
                       <div className="relative">
                         <button
                           onClick={() => openFinalUpload('champion')}
-                          className="w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center text-fg-dim hover:text-fg transition-colors"
+                          className="w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center text-fg-dim hover:text-fg transition-colors hit44"
                           aria-label={t('tournament.uploadChampion')}
                         >
                           <Icon name="camera" size={13} strokeWidth={2.2} />
@@ -452,7 +452,7 @@ export default function TeamTournamentPage() {
                       <div className="relative">
                         <button
                           onClick={() => openFinalUpload('runnerup')}
-                          className="w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center text-fg-dim hover:text-fg transition-colors"
+                          className="w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center text-fg-dim hover:text-fg transition-colors hit44"
                           aria-label={t('tournament.uploadRunnerUp')}
                         >
                           <Icon name="camera" size={13} strokeWidth={2.2} />

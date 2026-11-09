@@ -20,7 +20,7 @@ export default function UpdateBanner({ onReload, onDismiss }: UpdateBannerProps)
       aria-labelledby={headingId}
     >
       <div
-        className="relative w-full max-w-lg mx-3 mb-3 pointer-events-auto bg-slate-900 rounded-3xl border border-border flex flex-col overflow-hidden
+        className="relative w-full max-w-lg mx-3 mb-3 pointer-events-auto bg-slate-900 rounded-2xl border border-border flex flex-col overflow-hidden
           animate-[slideUp_0.3s_ease-out]"
         style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 24px))' }}
       >
@@ -58,14 +58,14 @@ export default function UpdateBanner({ onReload, onDismiss }: UpdateBannerProps)
           <button
             onClick={onReload}
             className="w-full py-3.5 rounded-lg bg-yellow-400 text-slate-950 font-bold text-sm
-              active:scale-98 transition-transform"
+              active:scale-98 transition-transform hit44"
           >
             Reload Now
           </button>
           <button
             onClick={onDismiss}
             className="w-full py-3 rounded-lg text-slate-400 font-medium text-sm
-              active:scale-98 transition-transform"
+              active:scale-98 transition-transform hit44"
           >
             Later
           </button>

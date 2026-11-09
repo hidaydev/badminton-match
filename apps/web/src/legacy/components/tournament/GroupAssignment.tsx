@@ -8,7 +8,7 @@ const GROUP_HEAD_CLASS: Record<GroupId, string> = {
   A: 'bg-amber-900 text-yellow-300',
   B: 'bg-blue-900 text-blue-300',
   C: 'bg-green-900 text-green-300',
-  D: 'bg-purple-900 text-purple-300',
+  D: 'bg-sky-900 text-sky-300',
 }
 
 interface ActiveSlot {
@@ -91,7 +91,7 @@ export default function GroupAssignment({
                       key={slotIdx}
                       className="flex items-center gap-1.5 bg-elevated border border-border-subtle rounded-lg px-2 py-1.5"
                     >
-                      <span className="text-[8px] font-bold text-fg-dim" style={{ minWidth: '18px' }}>
+                      <span className="text-[11px] font-bold text-fg-dim" style={{ minWidth: '18px' }}>
                         #{num}
                       </span>
                       <span className="text-xs text-fg truncate flex-1 font-medium">
@@ -100,7 +100,7 @@ export default function GroupAssignment({
                       <button
                         onClick={() => onRemovePairFromGroup(pairId)}
                         aria-label={`Remove ${getPairName(pairId)}`}
-                        className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-md text-fg-dim hover:text-fg hover:bg-surface active:bg-border transition-colors shrink-0 ml-1 text-base leading-none ${hit44}`}
+                        className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg text-fg-dim hover:text-fg hover:bg-surface active:bg-border transition-colors shrink-0 ml-1 text-base leading-none ${hit44}`}
                       >
                         ×
                       </button>
@@ -112,7 +112,7 @@ export default function GroupAssignment({
                   <button
                     key={slotIdx}
                     onClick={() => handleSlotTap(g, slotIdx)}
-                    className={[
+                    className={['hit44', 
                       'flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-left transition-all shadow-xs',
                       active
                         ? 'bg-accent/10 border border-accent ring-2 ring-accent/30'
@@ -120,7 +120,7 @@ export default function GroupAssignment({
                     ].join(' ')}
                   >
                     <span
-                      className={`text-[8px] font-bold ${active ? 'text-accent' : 'text-fg-dim'}`}
+                      className={`text-[11px] font-bold ${active ? 'text-accent' : 'text-fg-dim'}`}
                       style={{ minWidth: '18px' }}
                     >
                       #{num}
@@ -148,7 +148,7 @@ export default function GroupAssignment({
                 key={p.id}
                 onClick={() => handlePairTap(p.id)}
                 disabled={!activeSlot}
-                className={[
+                className={['hit44', 
                   'text-xs rounded-lg px-3 py-2 font-medium transition-all shadow-xs',
                   activeSlot
                     ? 'bg-elevated text-accent border border-accent font-semibold hover:bg-surface active:scale-98'
@@ -167,7 +167,7 @@ export default function GroupAssignment({
         <button
           onClick={onConfirmGroups}
           disabled={isLoading}
-          className="w-full py-3 rounded-xl bg-accent text-slate-950 font-bold text-sm mt-2 disabled:opacity-60 flex items-center justify-center gap-2 hover:bg-accent/90 active:scale-98 transition-all"
+          className="w-full py-3 rounded-xl bg-accent text-slate-950 font-bold text-sm mt-2 disabled:opacity-60 flex items-center justify-center gap-2 hover:bg-accent/90 active:scale-98 transition-all hit44"
         >
           {isLoading && (
             <svg className="animate-spin w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none">

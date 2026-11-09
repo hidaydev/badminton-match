@@ -140,8 +140,8 @@ export default function ScheduleGrid({
         return (
           <div key={s} className="flex items-start gap-4 py-4">
             <div className="flex flex-col items-center w-4 shrink-0 pt-0.5 gap-0.5">
-              <span className="text-xs font-bold text-slate-400">#{s + 1}</span>
-              <span className="text-[8px] text-slate-400 font-medium leading-none">
+              <span className="text-xs font-bold text-slate-400 tabular-nums">#{s + 1}</span>
+              <span className="text-[11px] text-slate-400 font-medium leading-none tabular-nums">
                 {minutesToTime(timeToMinutes(sessionStart) + s * slotMinutes)}
               </span>
             </div>
@@ -182,8 +182,8 @@ export default function ScheduleGrid({
                       <button
                         onClick={() => !pendingTeamSwap && handleTeamClick(tgt)}
                         disabled={!!pendingTeamSwap}
-                        className={`flex items-center justify-center gap-1 min-w-0 min-h-6 px-1.5 py-0.5 rounded-md border transition-colors ${
-                          teamIsSelected ? 'border-amber-400 bg-amber-500/20' : 'bg-slate-800/40 border-slate-700 hover:border-violet-400'
+                        className={`hit44 flex items-center justify-center gap-1 min-w-0 min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
+                          teamIsSelected ? 'border-amber-400 bg-amber-500/20' : 'bg-slate-800/40 border-slate-700 hover:border-sky-400'
                         } ${teamIsDimmed ? 'opacity-30' : ''}`}
                       >
                         {ids.map((id, i) => (
@@ -289,10 +289,10 @@ export default function ScheduleGrid({
                         <button
                           onClick={() => { if (!locked) { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: draftFromScore(savedScore, scoring) })) } }}
                           aria-label={`Score: ${teamANames} ${headline}${setLine ? `, sets ${setLine}` : ''}. Edit score`}
-                          className={`text-[11px] font-bold shrink-0 whitespace-nowrap min-h-6 px-1 leading-tight ${hit44} ${locked ? 'text-slate-300 cursor-default' : 'text-emerald-300 hover:text-emerald-200'}`}
+                          className={`text-[11px] font-bold shrink-0 whitespace-nowrap min-h-6 px-1 leading-tight tabular-nums ${hit44} ${locked ? 'text-slate-300 cursor-default' : 'text-emerald-300 hover:text-emerald-200'}`}
                         >
                           <span className="block">{headline}</span>
-                          {setLine && <span className="block text-[9px] font-medium text-slate-400">{setLine}</span>}
+                          {setLine && <span className="block text-[11px] font-medium text-slate-400 tabular-nums">{setLine}</span>}
                         </button>
                       ) : !locked ? (
                         <button
@@ -322,14 +322,14 @@ export default function ScheduleGrid({
                             type="button"
                             onClick={() => retryScore?.(key)}
                             disabled={saving}
-                            className="min-h-11 rounded-md border border-red-500/70 px-2 text-xs font-bold text-red-200 transition-colors hover:bg-red-800/40 disabled:opacity-50"
+                            className="min-h-11 rounded-lg border border-red-500/70 px-2 text-xs font-bold text-red-200 transition-colors hover:bg-red-800/40 disabled:opacity-50"
                           >
                             {t('session.action.retry')}
                           </button>
                           <button
                             type="button"
                             onClick={() => dismissScoreFailure?.(key)}
-                            className="min-h-11 rounded-md px-2 text-xs text-red-300 underline underline-offset-2 transition-colors hover:text-red-100"
+                            className="min-h-11 rounded-lg px-2 text-xs text-red-300 underline underline-offset-2 transition-colors hover:text-red-100"
                             aria-label={t('session.score.dismiss', { teams: `${teamANames} vs ${teamBNames}` })}
                           >
                             {t('session.action.dismiss')}
@@ -349,7 +349,7 @@ export default function ScheduleGrid({
                         <div className="flex flex-col gap-1.5">
                           {draft.map((row, index) => (
                             <div key={index} className="flex items-center justify-center gap-2">
-                              <span className="w-10 text-right text-[10px] text-slate-400">Set {index + 1}</span>
+                              <span className="w-10 text-right text-[10px] text-slate-400 tabular-nums">Set {index + 1}</span>
                               <input
                                 type="number"
                                 inputMode="numeric"
@@ -357,7 +357,7 @@ export default function ScheduleGrid({
                                 max={99}
                                 value={row.a}
                                 onChange={(e) => updateDraftSet(key, index, 'a', e.target.value)}
-                                className="w-14 bg-slate-800 border border-indigo-700 rounded-lg px-2 py-1.5 text-white font-bold text-lg text-center focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
+                                className="w-14 bg-slate-800 border border-indigo-700 rounded-lg px-2 py-1.5 text-white font-bold text-lg text-center tabular-nums focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
                                 aria-label={`Set ${index + 1} score for ${teamANames}`}
                               />
                               <span className="text-slate-400 font-bold text-lg">–</span>
@@ -368,7 +368,7 @@ export default function ScheduleGrid({
                                 max={99}
                                 value={row.b}
                                 onChange={(e) => updateDraftSet(key, index, 'b', e.target.value)}
-                                className="w-14 bg-elevated border border-border rounded-lg px-2 py-1.5 text-slate-300 font-bold text-lg text-center focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
+                                className="w-14 bg-elevated border border-border rounded-lg px-2 py-1.5 text-slate-300 font-bold text-lg text-center tabular-nums focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
                                 aria-label={`Set ${index + 1} score for ${teamBNames}`}
                               />
                             </div>
@@ -383,7 +383,7 @@ export default function ScheduleGrid({
                               <button
                                 onClick={() => handleClearScore(key)}
                                 disabled={saving}
-                                className="px-3 py-1.5 min-h-6 rounded-lg border border-slate-600 text-slate-300 hover:text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-3 py-1.5 min-h-6 rounded-lg border border-slate-600 text-slate-300 hover:text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed hit44"
                               >
                                 Clear
                               </button>
@@ -391,7 +391,7 @@ export default function ScheduleGrid({
                             <button
                               onClick={() => handleScoreSave(key)}
                               disabled={saving}
-                              className="px-6 py-1.5 min-h-6 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                              className="px-6 py-1.5 min-h-6 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 hit44"
                             >
                               {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
                               {saving ? 'Saving…' : '✓ Save'}

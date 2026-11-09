@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CLIENT_OUTDATED_EVENT } from '../auth/api'
 import { t } from '../i18n'
+import { Button } from './Button'
 
 /**
  * A tab left open across a deploy keeps the bundle it loaded. When the server
@@ -23,13 +24,9 @@ export default function ClientOutdatedBanner() {
       className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-elevated px-4 py-3"
     >
       <p className="text-sm text-fg">{t('app.outdated')}</p>
-      <button
-        type="button"
-        onClick={() => window.location.reload()}
-        className="min-h-11 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent"
-      >
+      <Button className="py-2" onClick={() => window.location.reload()}>
         {t('app.outdated.action')}
-      </button>
+      </Button>
     </div>
   )
 }

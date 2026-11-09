@@ -8,6 +8,7 @@ import { courtLabel } from '../utils/courtLabel'
 import { useLegacySlug, useNavigate } from '../router'
 import { fetchCommunityConfig, fetchScoringPresets } from '../../community/api'
 import type { ScoringPreset } from '../../community/api'
+import { Radio } from '../../components/Radio'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -61,7 +62,7 @@ function NumInput({
           aria-label={`Decrease ${label.toLowerCase()}`}
           disabled={disabled || value <= min}
           onClick={() => onChange(Math.max(min, value - 1))}
-          className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors"
+          className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors hit44"
         >
           −
         </button>
@@ -70,7 +71,7 @@ function NumInput({
           aria-label={`Increase ${label.toLowerCase()}`}
           disabled={disabled || value >= max}
           onClick={() => onChange(Math.min(max, value + 1))}
-          className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors"
+          className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors hit44"
         >
           +
         </button>
@@ -129,8 +130,8 @@ function CourtTimeline({
     'bg-sky-500',
     'bg-emerald-500',
     'bg-amber-500',
-    'bg-rose-500',
-    'bg-violet-500',
+    'bg-red-500',
+    'bg-sky-500',
   ]
 
   const tickCount = Math.round(span / 30) + 1
@@ -278,7 +279,7 @@ export default function SetupPage() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h2 className="text-lg font-bold text-fg mb-0.5">Session Setup</h2>
+        <h1 className="text-lg font-bold text-fg mb-0.5">Session Setup</h1>
         <p className="text-slate-400 text-sm">Configure courts and time slots. Settings lock once session starts.</p>
       </div>
 
@@ -328,14 +329,13 @@ export default function SetupPage() {
                   } ${session.locked ? 'cursor-not-allowed opacity-40' : ''}`}
                 >
                   <span className="flex items-center gap-2">
-                    <input
-                      type="radio"
+                    <Radio
                       name="scoringPreset"
                       value={preset.id}
                       checked={selected}
                       onChange={() => setScoringPreset(toScoring(preset))}
                       disabled={session.locked}
-                      className="h-4 w-4 accent-indigo-500"
+                      className="h-4 w-4"
                     />
                     <span className="text-sm font-semibold text-white">{preset.label}</span>
                   </span>
@@ -457,7 +457,7 @@ export default function SetupPage() {
             <span>Session is active — settings locked</span>
             <button
               onClick={resetSession}
-              className="ml-auto text-xs text-red-400 hover:text-red-300 transition-colors"
+              className="ml-auto text-xs text-red-400 hover:text-red-300 transition-colors hit44"
             >
               Reset All
             </button>
@@ -466,7 +466,7 @@ export default function SetupPage() {
           <button
             onClick={handleLock}
             disabled={!canLock}
-            className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors"
+            className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors hit44"
           >
             Start Session →
           </button>

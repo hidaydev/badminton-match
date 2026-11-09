@@ -77,7 +77,7 @@ export default function PlayerChipRenderer({
       <button
         onClick={() => onSkipToggle?.(gameKey, playerId)}
         aria-pressed={isSkipped}
-        className={`text-xs font-medium min-h-6 px-1.5 py-0.5 rounded-md border transition-colors ${
+        className={`hit44 text-xs font-medium min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
           isSkipped
             ? 'bg-amber-900/50 border-amber-500 text-amber-200 ring-1 ring-amber-500/60 line-through decoration-amber-400'
             : isAbsent
@@ -97,7 +97,7 @@ export default function PlayerChipRenderer({
     return (
       <button
         onClick={() => onReplaceToggle(playerId)}
-        className={`text-xs font-medium min-h-6 px-1.5 py-0.5 rounded-md border transition-colors ${
+        className={`hit44 text-xs font-medium min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
           isActive
             ? 'bg-emerald-900/50 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500/60'
             : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-emerald-400 hover:text-emerald-200'
@@ -122,7 +122,7 @@ export default function PlayerChipRenderer({
           if (hasScore) return
           onChangeSelect(changeTargetForChip)
         }}
-        className={`text-xs font-medium min-h-6 px-1.5 py-0.5 rounded-md border transition-colors ${
+        className={`hit44 text-xs font-medium min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
           isActive
             ? 'bg-sky-900/50 border-sky-500 text-sky-200 ring-1 ring-sky-500/60'
             : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-sky-400 hover:text-sky-200'
@@ -138,7 +138,7 @@ export default function PlayerChipRenderer({
     return (
       <button
         onClick={() => onChipClick(target)}
-        className={`text-xs font-medium min-h-6 px-1.5 py-0.5 rounded-md border transition-colors ${
+        className={`hit44 text-xs font-medium min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
           isSelected
             ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
             : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-indigo-400 hover:text-indigo-200'
@@ -153,7 +153,7 @@ export default function PlayerChipRenderer({
   if (mode === 'swap' && !done && pendingSwap) {
     return (
       <span
-        className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
+        className={`text-xs font-medium px-1.5 py-0.5 rounded-lg border ${
           isSelected
             ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
             : isAbsent
@@ -173,7 +173,7 @@ export default function PlayerChipRenderer({
 
   if (teamTheme) {
     return (
-      <span className="inline-flex items-center min-w-0 max-w-full text-xs font-medium px-0.5 py-0.5 rounded-md border border-transparent text-white" style={{ position: 'relative', overflow: 'visible' }}>
+      <span className="inline-flex items-center min-w-0 max-w-full text-xs font-medium px-0.5 py-0.5 rounded-lg border border-transparent text-white" style={{ position: 'relative', overflow: 'visible' }}>
         <img src={teamTheme.logo} style={{
           position: 'absolute', top: '50%', left: '50%',
           transform: 'translate(-50%, -50%)',
@@ -183,14 +183,14 @@ export default function PlayerChipRenderer({
         <span style={{ position: 'relative' }}>
           <AnnotatedPlayerName name={playerName} />
         </span>
-        {backToBackRun ? <sup className="text-[8px] font-bold text-amber-400 shrink-0 leading-none" style={{ position: 'relative' }}>*{backToBackRun}</sup> : null}
+        {backToBackRun ? <sup className="text-[11px] font-bold text-amber-400 shrink-0 leading-none" style={{ position: 'relative' }}>*{backToBackRun}</sup> : null}
       </span>
     )
   }
 
   return (
     <span
-      className={`inline-flex items-center min-w-0 max-w-full text-xs font-medium px-0.5 py-0.5 rounded-md border ${
+      className={`inline-flex items-center min-w-0 max-w-full text-xs font-medium px-0.5 py-0.5 rounded-lg border ${
         isAbsent
           ? 'border-transparent text-slate-300 line-through'
           : showSkippedIdle
@@ -202,7 +202,7 @@ export default function PlayerChipRenderer({
       title={showSkippedIdle ? 'Skipped in this game' : undefined}
     >
       <AnnotatedPlayerName name={playerName} />{showSkippedIdle ? ' ⊘' : ''}
-      {backToBackRun ? <sup className="text-[8px] font-bold text-amber-400 shrink-0 leading-none">*{backToBackRun}</sup> : null}
+      {backToBackRun ? <sup className="text-[11px] font-bold text-amber-400 shrink-0 leading-none">*{backToBackRun}</sup> : null}
     </span>
   )
 }

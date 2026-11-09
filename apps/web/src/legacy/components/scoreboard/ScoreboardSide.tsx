@@ -70,13 +70,13 @@ export function ScoreboardSide({
             onChange={e => onNameChange(e.target.value)}
             onBlur={onStopEditing}
             onKeyDown={e => { if (e.key === 'Enter') onStopEditing() }}
-            className="bg-transparent text-center text-white/70 font-bold uppercase outline-none border-b border-white/30 w-36"
+            className="bg-transparent text-center text-white/90 font-bold uppercase outline-none border-b border-white/30 w-36"
             style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)', letterSpacing: '0.18em' }}
             aria-label={t('scoreboard.teamName', { side: sideName })}
           />
         ) : (
           <span
-            className={`uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${editValue ? 'text-white/50' : 'text-white/30'}`}
+            className={`uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${editValue ? 'text-white/90' : 'text-white/80'}`}
             style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)', letterSpacing: '0.18em' }}
             onClick={onStartEditing}
           >
@@ -91,7 +91,7 @@ export function ScoreboardSide({
         type="button"
         onClick={onScore}
         aria-label={t('scoreboard.score', { side: sideName, score })}
-        className="w-full flex-1 flex flex-col items-center justify-center cursor-pointer active:brightness-150 duration-75"
+        className="w-full flex-1 flex flex-col items-center justify-center cursor-pointer active:brightness-150 duration-75 hit44"
         style={{ transitionProperty: 'filter' }}
       >
         <span
@@ -107,7 +107,7 @@ export function ScoreboardSide({
         </span>
         <span
           aria-hidden="true"
-          className="text-white/20 tracking-widest mt-3 pointer-events-none"
+          className="text-white/80 tracking-widest mt-3 pointer-events-none"
           style={{ fontSize: 'clamp(0.55rem,1.2vmax,0.75rem)' }}
         >
           {t('scoreboard.tapToScore')}
@@ -117,7 +117,7 @@ export function ScoreboardSide({
       <button
         type="button"
         onClick={onMinus}
-        className={`absolute ${config.minusPosition} top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/60 cursor-pointer active:bg-black/40 transition-colors`}
+        className={`absolute ${config.minusPosition} top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/90 cursor-pointer active:bg-black/40 transition-colors`}
         style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.15)' }}
         aria-label={t('scoreboard.decrease', { side: sideName })}
       >

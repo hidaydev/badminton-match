@@ -232,7 +232,7 @@ export default function ScoreboardPage() {
       {statusNote && (
         <div
           role="status"
-          className="fixed top-0 left-1/2 -translate-x-1/2 z-30 px-3 py-1 rounded-b-lg text-[0.6rem] text-white/50 text-center pointer-events-none"
+          className="fixed top-0 left-1/2 -translate-x-1/2 z-30 px-3 py-1 rounded-b-lg text-[0.6rem] text-white/80 text-center pointer-events-none"
           style={{ background: 'rgba(0,0,0,0.5)', letterSpacing: '0.08em' }}
         >
           {statusNote}

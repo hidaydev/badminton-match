@@ -79,7 +79,7 @@ export default function StandingsTab({
   return (
     <div className="flex flex-col gap-1.5">
       {/* Tiebreaker order strip — hugs top divider */}
-      <div className="flex justify-end gap-1 items-center pl-2 pr-2 -mt-4 pt-1 pb-3 text-[8px] text-slate-400">
+      <div className="flex justify-end gap-1 items-center pl-2 pr-2 -mt-4 pt-1 pb-3 text-[11px] text-slate-400">
         <span>ranked by:</span>
         <span className="font-semibold">W-L</span>
         <span>›</span>
@@ -91,11 +91,11 @@ export default function StandingsTab({
       </div>
       {/* Header */}
       <div className="flex items-center gap-2 pl-2 pr-2 mb-1">
-        <span className="w-8 text-[10px] font-bold text-slate-400 text-center shrink-0">#</span>
+        <span className="w-8 text-[10px] font-bold text-slate-400 text-center shrink-0 tabular-nums">#</span>
         <span className="flex-1 text-[10px] font-bold text-slate-400">Name</span>
-        <span className="w-11 text-[10px] font-bold text-slate-400 text-center shrink-0">W-L</span>
-        <span className="w-9 text-[10px] font-bold text-slate-400 text-center shrink-0">Diff</span>
-        <span className="w-9 text-[10px] font-bold text-slate-400 text-center shrink-0">Pts</span>
+        <span className="w-11 text-[10px] font-bold text-slate-400 text-center shrink-0 tabular-nums">W-L</span>
+        <span className="w-9 text-[10px] font-bold text-slate-400 text-center shrink-0 tabular-nums">Diff</span>
+        <span className="w-9 text-[10px] font-bold text-slate-400 text-center shrink-0 tabular-nums">Pts</span>
       </div>
 
       {/* Leaderboard rows */}
@@ -125,18 +125,18 @@ export default function StandingsTab({
               className={`flex items-center gap-2 pl-2 pr-2 py-2.5 rounded-xl border ${rowBg}`}
             >
               <div className="w-8 flex justify-center shrink-0">
-                <span className={`text-[11px] font-bold font-sans ${rankCls}`}>{ordinal(rank)}</span>
+                <span className={`text-[11px] font-bold font-sans tabular-nums ${rankCls}`}>{ordinal(rank)}</span>
               </div>
               <button
                 type="button"
-                className={`flex-1 min-w-0 truncate text-left cursor-pointer active:opacity-70 ${isFirst ? 'text-sm font-bold text-emerald-300' : isPodium ? 'text-sm font-semibold text-emerald-100/80' : 'text-sm font-medium text-slate-400'}`}
+                className={`hit44 flex-1 min-w-0 truncate text-left cursor-pointer active:opacity-70 ${isFirst ? 'text-sm font-bold text-emerald-300' : isPodium ? 'text-sm font-semibold text-emerald-100/80' : 'text-sm font-medium text-slate-400'}`}
                 onClick={() => setSelectedPlayer({ standing: s, rank })}
               >
                 <AnnotatedPlayerName name={s.player.name} />
               </button>
-              <span className={`w-11 text-[11px] font-semibold text-center shrink-0 ${wlColor}`}>{s.wins}-{s.losses}</span>
-              <span className={`w-9 text-[11px] font-semibold text-center shrink-0 ${diffColor}`}>{diffLabel}</span>
-              <span className="w-9 text-[11px] font-semibold text-center shrink-0 text-slate-400">{s.pointsFor}</span>
+              <span className={`w-11 text-[11px] font-semibold text-center shrink-0 tabular-nums ${wlColor}`}>{s.wins}-{s.losses}</span>
+              <span className={`w-9 text-[11px] font-semibold text-center shrink-0 tabular-nums ${diffColor}`}>{diffLabel}</span>
+              <span className="w-9 text-[11px] font-semibold text-center shrink-0 tabular-nums text-slate-400">{s.pointsFor}</span>
             </li>
           )
         })}

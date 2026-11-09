@@ -77,7 +77,7 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
           <button
             onClick={onInstall}
             className="w-full py-3.5 rounded-lg bg-yellow-400 text-slate-950 font-bold text-sm
-              active:scale-98 transition-transform"
+              active:scale-98 transition-transform hit44"
           >
             Install App
           </button>
@@ -85,7 +85,7 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
         <button
           onClick={onClose}
           className="w-full py-3 rounded-lg text-slate-400 font-medium text-sm
-            active:scale-98 transition-transform"
+            active:scale-98 transition-transform hit44"
         >
           {isIos ? 'Got it' : 'Not now'}
         </button>

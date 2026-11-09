@@ -12,7 +12,7 @@ function PairRow({ name, wins, losses, count }: { name: string; wins: number; lo
       <span className="text-xs text-fg truncate min-w-0 font-medium">
         <AnnotatedPlayerName name={name} />
       </span>
-      <div className="flex items-center gap-1 font-mono text-[10px] shrink-0">
+      <div className="flex items-center gap-1 font-mono text-[10px] shrink-0 tabular-nums">
         <span className="text-emerald-400 font-semibold">{wins}W</span>
         {losses > 0 && <span className="text-red-400 font-semibold">{losses}L</span>}
         <span className="text-fg-dim font-sans">{count}×</span>
@@ -55,7 +55,7 @@ export default function CareerStats({ stats, countedPoints }: {
                   <div className="flex items-center gap-2 shrink-0">
                     {counted && (
                       <span
-                        className="text-[10px] font-mono text-accent bg-accent/10 border border-accent/30 rounded px-1.5 py-0.5 font-bold"
+                        className="text-[10px] font-mono text-accent bg-accent/10 border border-accent/30 rounded px-1.5 py-0.5 font-bold tabular-nums"
                         title={`Rank points contributed: +${Math.round(pts).toLocaleString('en-US')}`}
                       >
                         +{Math.round(pts).toLocaleString('en-US')} pts
@@ -66,7 +66,7 @@ export default function CareerStats({ stats, countedPoints }: {
                         {t('career.absent')}
                       </span>
                     )}
-                    <span className="text-[10px] font-mono text-fg-dim">{s.date.split('-').reverse().join('-')}</span>
+                    <span className="text-[10px] font-mono text-fg-dim tabular-nums">{s.date.split('-').reverse().join('-')}</span>
                   </div>
                 </div>
               )
@@ -77,17 +77,17 @@ export default function CareerStats({ stats, countedPoints }: {
               <button
                 onClick={() => setSessionsPage((p) => Math.max(0, p - 1))}
                 disabled={sessionsPage === 0}
-                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all"
+                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all hit44"
               >
                 {t('common.prev')}
               </button>
-              <span className="text-xs font-mono text-fg-dim">
+              <span className="text-xs font-mono text-fg-dim tabular-nums">
                 {sessionsPage + 1} / {sessionsTotal}
               </span>
               <button
                 onClick={() => setSessionsPage((p) => Math.min(sessionsTotal - 1, p + 1))}
                 disabled={sessionsPage >= sessionsTotal - 1}
-                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all"
+                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all hit44"
               >
                 {t('common.next')}
               </button>
@@ -135,7 +135,7 @@ export default function CareerStats({ stats, countedPoints }: {
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
             {/* Tourn Games */}
             <div className="bg-surface border border-border-subtle rounded-xl p-3 text-center flex flex-col justify-center">
-              <span className="text-xl sm:text-2xl font-bold font-mono text-fg leading-none">
+              <span className="text-xl sm:text-2xl font-bold font-mono text-fg leading-none tabular-nums">
                 {stats.tournamentStats.gamesPlayed}
               </span>
               <span className="text-[10px] sm:text-xs font-sans text-fg-dim uppercase tracking-wider mt-1.5 font-medium">
@@ -145,7 +145,7 @@ export default function CareerStats({ stats, countedPoints }: {
 
             {/* Tourn W - L */}
             <div className="bg-surface border border-border-subtle rounded-xl p-3 text-center flex flex-col justify-center">
-              <div className="text-xl sm:text-2xl font-bold font-mono leading-none flex items-center justify-center gap-1">
+              <div className="text-xl sm:text-2xl font-bold font-mono leading-none flex items-center justify-center gap-1 tabular-nums">
                 <span className="text-emerald-400">{stats.tournamentStats.wins}W</span>
                 <span className="text-fg-dim text-sm font-light">/</span>
                 <span className="text-red-400">{stats.tournamentStats.losses}L</span>
@@ -157,7 +157,7 @@ export default function CareerStats({ stats, countedPoints }: {
 
             {/* Tourn Win Rate */}
             <div className="bg-surface border border-border-subtle rounded-xl p-3 text-center flex flex-col justify-center">
-              <span className="text-xl sm:text-2xl font-bold font-mono text-fg leading-none">
+              <span className="text-xl sm:text-2xl font-bold font-mono text-fg leading-none tabular-nums">
                 {tWinRate}%
               </span>
               {stats.tournamentStats.gamesPlayed > 0 && (
@@ -185,7 +185,7 @@ export default function CareerStats({ stats, countedPoints }: {
                   return (
                     <div key={tItem.share_code || tItem.name} className="flex justify-between items-center text-sm gap-2 py-1.5 border-b border-border-subtle/50 last:border-0">
                       <span className="text-fg font-medium truncate min-w-0">{tItem.name}</span>
-                      <div className="flex items-center gap-2 shrink-0 font-mono text-[10px]">
+                      <div className="flex items-center gap-2 shrink-0 font-mono text-[10px] tabular-nums">
                         {tPts !== undefined && (
                           <span
                             className="text-accent bg-accent/10 border border-accent/30 rounded px-1.5 py-0.5 font-bold"

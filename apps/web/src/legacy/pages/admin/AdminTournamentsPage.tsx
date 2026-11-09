@@ -22,7 +22,7 @@ export default function AdminTournamentsPage() {
         <>
           <section className="flex flex-col gap-3">
             <div className="flex items-center justify-between px-0.5">
-              <p className="text-xs font-semibold text-fg-dim uppercase tracking-wider">{t('admin.sectionTournament')}</p>
+              <h3 className="text-xs font-semibold text-fg-dim uppercase tracking-wider">{t('admin.sectionTournament')}</h3>
               <span className="text-xs font-mono text-fg-dim">{(tournaments ?? []).length} tournaments</span>
             </div>
 
@@ -33,7 +33,7 @@ export default function AdminTournamentsPage() {
                   <p className="text-fg-dim text-xs font-sans text-center">{t('admin.noTournamentsHint')}</p>
                   <button
                     onClick={() => navigate('/tournaments')}
-                    className="text-accent text-xs font-medium hover:underline"
+                    className="text-accent text-xs font-medium hover:underline hit44"
                   >
                     {t('tournaments.backToList')}
                   </button>

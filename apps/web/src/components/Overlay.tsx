@@ -147,7 +147,7 @@ export function Overlay({
       >
         <div className={HANDLE} aria-hidden="true" />
         {dismissible && (
-          <button type="button" className={CLOSE} aria-label={t('common.close')} onClick={onClose}>
+          <button type="button" className={`${CLOSE} hit44`} aria-label={t('common.close')} onClick={onClose}>
             ✕
           </button>
         )}

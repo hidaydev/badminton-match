@@ -1,4 +1,5 @@
 import { ScoreboardControls } from './ScoreboardControls'
+import { PALETTE } from '../../../theme/palette'
 import { t } from '../../../i18n'
 
 export interface OverlayFooterState {
@@ -40,7 +41,7 @@ export function ScoreboardFooter({
       {overlay ? (
         overlay.pendingClose ? (
           <>
-            <span className="text-white/50 text-xs pointer-events-auto">Discard score?</span>
+            <span className="text-white/80 text-xs pointer-events-auto">Discard score?</span>
             <button
               onClick={overlay.onDiscard}
               className="px-4 min-h-11 inline-flex items-center rounded-lg text-white/80 text-sm cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
@@ -51,7 +52,7 @@ export function ScoreboardFooter({
             <button
               onClick={overlay.onKeepScoring}
               className="px-4 min-h-11 inline-flex items-center rounded-lg text-slate-900 font-bold text-sm cursor-pointer active:opacity-80 transition-opacity pointer-events-auto"
-              style={{ background: '#fbbf24' }}
+              style={{ background: PALETTE.accent }}
             >
               Keep scoring
             </button>
@@ -61,7 +62,7 @@ export function ScoreboardFooter({
             <button
               onClick={overlay.onClose}
               disabled={overlay.isSaving}
-              className="px-3 min-w-11 h-11 flex items-center justify-center rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto disabled:opacity-30 disabled:cursor-not-allowed"
+              className="px-3 min-w-11 h-11 flex items-center justify-center rounded-lg text-white/90 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto disabled:opacity-30 disabled:cursor-not-allowed"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
               aria-label={t('scoreboard.close')}
             >
@@ -77,7 +78,7 @@ export function ScoreboardFooter({
               onClick={overlay.onSave}
               disabled={overlay.isSaving}
               className="px-4 h-11 flex items-center rounded-lg text-slate-900 font-bold text-sm cursor-pointer active:opacity-80 transition-opacity pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: '#fbbf24' }}
+              style={{ background: PALETTE.accent }}
             >
               {overlay.isSaving ? (
                 <>
@@ -95,7 +96,7 @@ export function ScoreboardFooter({
         <>
           <button
             onClick={onBack}
-            className="px-3 min-w-11 h-11 flex items-center justify-center rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
+            className="px-3 min-w-11 h-11 flex items-center justify-center rounded-lg text-white/90 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
             style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
             aria-label={t('scoreboard.home')}
           >

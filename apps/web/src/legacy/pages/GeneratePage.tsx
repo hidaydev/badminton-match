@@ -234,7 +234,7 @@ export default function GeneratePage() {
           <span className="text-indigo-300">Viewing a shared schedule</span>
           <button
             onClick={exitSharedView}
-            className="text-xs text-indigo-400 hover:text-white underline underline-offset-2 shrink-0 transition-colors"
+            className="text-xs text-indigo-400 hover:text-white underline underline-offset-2 shrink-0 transition-colors hit44"
           >
             Start your own session
           </button>
@@ -244,7 +244,7 @@ export default function GeneratePage() {
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2 mb-0.5">
-            <h2 className="text-lg font-bold text-fg">Generate Schedule</h2>
+            <h1 className="text-lg font-bold text-fg">Generate Schedule</h1>
           </div>
           <p className="text-slate-400 text-xs sm:text-sm">
             {players.length} players · {selectTotalGames(session)} games · {session.courts} court{session.courts > 1 ? 's' : ''}
@@ -254,7 +254,7 @@ export default function GeneratePage() {
           <div className="flex gap-1.5 shrink-0">
             <button
               onClick={() => setShowSummary(true)}
-              className="text-xs text-indigo-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-indigo-900/50 hover:bg-indigo-800 border border-indigo-700 transition-colors whitespace-nowrap"
+              className="text-xs text-indigo-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-indigo-900/50 hover:bg-indigo-800 border border-indigo-700 transition-colors whitespace-nowrap hit44"
             >
               Summary
             </button>
@@ -264,7 +264,7 @@ export default function GeneratePage() {
                   <button
                     onClick={handleRetryUntilGood}
                     disabled={isGenerating}
-                    className="text-xs text-emerald-400 hover:text-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed px-2.5 py-1.5 rounded-lg bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 transition-colors whitespace-nowrap"
+                    className="text-xs text-emerald-400 hover:text-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed px-2.5 py-1.5 rounded-lg bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 transition-colors whitespace-nowrap hit44"
                   >
                     {isGenerating ? '⏳ Generating…' : '↺ Regenerate'}
                   </button>
@@ -342,7 +342,7 @@ export default function GeneratePage() {
         <button
           onClick={handleRetryUntilGood}
           disabled={players.length < 4 || isGenerating}
-          className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-sm rounded-lg transition-colors"
+          className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-sm rounded-lg transition-colors hit44"
         >
           {isGenerating ? '⏳ Generating…' : '▶ Generate Schedule'}
         </button>

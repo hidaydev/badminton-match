@@ -57,7 +57,7 @@ export default function RatingPlayerPage() {
         <p className="text-error text-sm font-medium">{t('player.loadFailed')}</p>
         <button
           onClick={() => navigate(-1)}
-          className="mt-4 px-4 py-2 rounded-lg bg-elevated border border-border text-xs text-fg hover:bg-surface transition-colors"
+          className="mt-4 px-4 py-2 rounded-lg bg-elevated border border-border text-xs text-fg hover:bg-surface transition-colors hit44"
         >
           {t('common.prev')}
         </button>
@@ -166,7 +166,7 @@ export default function RatingPlayerPage() {
                   {t(rankRow.entries_available > rankRow.counted_entries ? 'player.countedSessionsOf' : 'player.countedSessions', { counted: rankRow.counted_entries, total: rankRow.entries_available })}
                 </p>
                 {rankRow.thin_evidence && (
-                  <span className="inline-block mt-1 text-[10px] font-sans text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20 font-medium">
+                  <span className="inline-block mt-1 text-[10px] font-sans text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-lg border border-amber-400/20 font-medium">
                     {t('player.thinEvidence')}
                   </span>
                 )}
@@ -295,7 +295,7 @@ export default function RatingPlayerPage() {
 
                     {/* Score & Date */}
                     <div className="shrink-0 flex flex-col items-end justify-center gap-1">
-                      <div className="bg-elevated border border-border px-2.5 py-1 rounded-md text-xs font-mono font-bold tracking-tight text-fg shadow-sm">
+                      <div className="bg-elevated border border-border px-2.5 py-1 rounded-lg text-xs font-mono font-bold tracking-tight text-fg shadow-sm">
                         {h.score_a} - {h.score_b}
                       </div>
                       <span className="text-[10px] font-mono text-fg-dim">
@@ -314,7 +314,7 @@ export default function RatingPlayerPage() {
               <button
                 onClick={() => setMatchesPage((p) => Math.max(0, p - 1))}
                 disabled={matchesPage === 0}
-                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all"
+                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all hit44"
               >
                 {t('common.prev')}
               </button>
@@ -324,7 +324,7 @@ export default function RatingPlayerPage() {
               <button
                 onClick={() => setMatchesPage((p) => Math.min(matchTotalPages - 1, p + 1))}
                 disabled={matchesPage >= matchTotalPages - 1}
-                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all"
+                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all hit44"
               >
                 {t('common.next')}
               </button>
@@ -335,9 +335,9 @@ export default function RatingPlayerPage() {
         {/* Section: Career History */}
         <section className="flex flex-col gap-2">
           <div className="flex items-center justify-between px-1">
-            <h2 className="text-xs font-sans font-semibold text-fg-dim uppercase tracking-wider">
+            <h3 className="text-xs font-sans font-semibold text-fg-dim uppercase tracking-wider">
               {t('player.careerHistory')}
-            </h2>
+            </h3>
           </div>
           {stats ? (
             <CareerStats stats={stats} countedPoints={countedPoints} />
@@ -351,9 +351,9 @@ export default function RatingPlayerPage() {
         {/* Section: Medals & Achievements */}
         <section className="flex flex-col gap-2">
           <div className="flex items-center justify-between px-1">
-            <h2 className="text-xs font-sans font-semibold text-fg-dim uppercase tracking-wider">
+            <h3 className="text-xs font-sans font-semibold text-fg-dim uppercase tracking-wider">
               {t('player.medals')}
-            </h2>
+            </h3>
           </div>
           {achLoading && (
             <div className="bg-surface border border-border-subtle rounded-xl p-6 text-center">

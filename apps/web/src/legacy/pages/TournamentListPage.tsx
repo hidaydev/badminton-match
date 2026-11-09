@@ -24,7 +24,7 @@ export default function TournamentListPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-bold text-fg">{t('tournaments.title')}</h2>
+          <h1 className="text-lg font-bold text-fg">{t('tournaments.title')}</h1>
           <span className="text-xs font-mono text-fg-dim font-medium">
             {filtered.length} {t('common.total')}
           </span>
@@ -32,7 +32,7 @@ export default function TournamentListPage() {
         {isAdmin && (
           <button
             onClick={() => navigate('/tournaments/new')}
-            className="px-3.5 py-1.5 rounded-lg bg-accent text-slate-950 text-xs font-bold hover:brightness-110 active:scale-[0.98] transition-all shadow-sm"
+            className="px-3.5 py-1.5 rounded-lg bg-accent text-slate-950 text-xs font-bold hover:brightness-110 active:scale-[0.98] transition-all shadow-sm hit44"
           >
             {t('tournaments.newButton')}
           </button>
@@ -53,7 +53,7 @@ export default function TournamentListPage() {
               key={fmt}
               type="button"
               onClick={() => setSelectedFormat(fmt)}
-              className={`shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border ${
+              className={`hit44 shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border ${
                 isSelected
                   ? 'bg-accent/20 text-accent border-accent/60 font-semibold'
                   : 'bg-surface text-fg-dim border-border-subtle hover:text-fg hover:border-border'
@@ -102,12 +102,12 @@ export default function TournamentListPage() {
               <button
                 key={tItem.id}
                 onClick={() => navigate(`/tournaments/${tItem.id}`)}
-                className="w-full flex items-center gap-3.5 px-3.5 py-3 hover:bg-elevated text-left transition-colors active:bg-elevated/70"
+                className="w-full flex items-center gap-3.5 px-3.5 py-3 hover:bg-elevated text-left transition-colors active:bg-elevated/70 hit44"
               >
                 {/* Date Badge */}
                 <div className="w-11 h-11 rounded-lg bg-elevated border border-border flex flex-col items-center justify-center shrink-0">
                   <span className="text-sm font-bold font-mono text-fg leading-none">{day}</span>
-                  <span className="text-[9px] font-mono font-semibold text-accent uppercase leading-none mt-1">
+                  <span className="text-[11px] font-mono font-semibold text-accent uppercase leading-none mt-1">
                     {month}
                   </span>
                 </div>

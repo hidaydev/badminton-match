@@ -49,7 +49,7 @@ export default function AdminRatingsPage() {
         <>
           <section className="flex flex-col gap-3">
             <div className="flex items-center justify-between px-0.5">
-              <p className="text-xs font-semibold text-fg-dim uppercase tracking-wider">{t('admin.sectionRating')}</p>
+              <h3 className="text-xs font-semibold text-fg-dim uppercase tracking-wider">{t('admin.sectionRating')}</h3>
               <span className="text-xs font-mono text-fg-dim">{(sources ?? []).length} sources</span>
             </div>
 
@@ -150,7 +150,7 @@ export default function AdminRatingsPage() {
               <button
                 onClick={() => runRebuild()}
                 disabled={rebuilding}
-                className="w-full py-2.5 rounded-xl border border-border-subtle bg-surface hover:bg-elevated text-sm font-semibold text-fg hover:text-accent disabled:opacity-40 transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-2.5 rounded-xl border border-border-subtle bg-surface hover:bg-elevated text-sm font-semibold text-fg hover:text-accent disabled:opacity-40 transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-2 hit44"
               >
                 {rebuilding ? (
                   <svg className="animate-spin w-4 h-4 text-accent shrink-0" viewBox="0 0 24 24" fill="none">

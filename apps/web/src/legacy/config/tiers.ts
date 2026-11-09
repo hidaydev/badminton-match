@@ -14,8 +14,8 @@ export const TIER_COLORS: Record<number, string> = {
   2: 'text-green-300',
   3: 'text-yellow-400',
   4: 'text-yellow-300',
-  5: 'text-orange-400',
-  6: 'text-orange-300',
+  5: 'text-amber-400',
+  6: 'text-amber-300',
   7: 'text-red-400',
   8: 'text-red-300',
 }
@@ -25,22 +25,22 @@ export const TIER_BADGE_COLORS: Record<number, string> = {
   2: 'bg-green-500/20 text-green-300 border-green-500',
   3: 'bg-yellow-500/20 text-yellow-400 border-yellow-600',
   4: 'bg-yellow-500/20 text-yellow-300 border-yellow-500',
-  5: 'bg-orange-500/20 text-orange-400 border-orange-600',
-  6: 'bg-orange-500/20 text-orange-300 border-orange-500',
+  5: 'bg-amber-500/20 text-amber-400 border-amber-600',
+  6: 'bg-amber-500/20 text-amber-300 border-amber-500',
   7: 'bg-red-500/20 text-red-400 border-red-600',
   8: 'bg-red-500/20 text-red-300 border-red-500',
 }
 
 // Selected/active pill: dark text on every band. White fails AA on the lighter
-// bands (green-500 3.04:1, orange-500 2.80:1, red-500 3.84:1); slate-900 clears
+// bands (green-500 3.04:1, amber-500 2.80:1, red-500 3.84:1); slate-900 clears
 // 4.5:1 on all eight (5.03:1 worst case, red-500).
 export const TIER_ACTIVE: Record<number, string> = {
   1: 'bg-green-500 text-slate-900',
   2: 'bg-green-400 text-slate-900',
   3: 'bg-yellow-500 text-slate-900',
   4: 'bg-yellow-400 text-slate-900',
-  5: 'bg-orange-500 text-slate-900',
-  6: 'bg-orange-400 text-slate-900',
+  5: 'bg-amber-500 text-slate-900',
+  6: 'bg-amber-400 text-slate-900',
   7: 'bg-red-500 text-slate-900',
   8: 'bg-red-400 text-slate-900',
 }

@@ -37,7 +37,7 @@ function GroupLoadingSkeleton() {
             {[0, 1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="flex items-center px-4 py-3 gap-2">
                 <div className="flex-1 h-4 bg-elevated rounded" />
-                <div className="h-6 w-14 bg-elevated rounded-md shrink-0" />
+                <div className="h-6 w-14 bg-elevated rounded-lg shrink-0" />
                 <div className="flex-1 h-4 bg-elevated rounded" />
               </div>
             ))}
@@ -157,7 +157,7 @@ export default function TournamentPage() {
       {/* Header */}
       <div className="bg-surface px-4 pt-3 pb-0 border-b border-border">
         <div className="flex items-center gap-2">
-          <h2 className="text-[1rem] font-bold text-fg leading-tight">{name}</h2>
+          <h1 className="text-[1rem] font-bold text-fg leading-tight">{name}</h1>
           {groupsFull && (
             isSaving ? (
               <svg className="animate-spin w-3.5 h-3.5 text-fg-dim shrink-0" viewBox="0 0 24 24" fill="none">
@@ -181,7 +181,7 @@ export default function TournamentPage() {
             <button
               key={item.id}
               onClick={() => handleTabChange(item.id)}
-              className={`flex-1 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+              className={`hit44 flex-1 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
                 tab === item.id
                   ? 'text-accent border-accent'
                   : 'text-fg-dim border-transparent hover:text-fg'

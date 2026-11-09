@@ -7,7 +7,7 @@ export type RatingTier = 'D' | 'D+' | 'C' | 'C+' | 'B' | 'B+' | 'A' | 'A+'
 
 export const RATING_TIER_BADGE_COLORS: Record<RatingTier, string> = {
   'D': 'bg-slate-600/40 text-slate-300 border-slate-500',
-  'D+': 'bg-stone-700/40 text-stone-300 border-stone-500',
+  'D+': 'bg-slate-700/40 text-slate-300 border-slate-500',
   'C': 'bg-amber-800/40 text-amber-500 border-amber-700',
   'C+': 'bg-amber-700/40 text-amber-400 border-amber-600',
   'B': 'bg-yellow-700/40 text-yellow-300 border-yellow-600',

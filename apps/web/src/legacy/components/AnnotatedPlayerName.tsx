@@ -62,7 +62,7 @@ export default function AnnotatedPlayerName({
       {/* Floating Tooltip / Popover saat hover & tap */}
       {showTooltip && (
         <span
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 whitespace-nowrap bg-slate-900 border border-slate-700 text-slate-100 text-[11px] font-sans px-2 py-1 rounded-md shadow-xl pointer-events-none"
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 whitespace-nowrap bg-slate-900 border border-slate-700 text-slate-100 text-[11px] font-sans px-2 py-1 rounded-lg shadow-xl pointer-events-none"
           role="tooltip"
         >
           {name}

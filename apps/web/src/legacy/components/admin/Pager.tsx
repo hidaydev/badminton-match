@@ -26,7 +26,7 @@ export default function Pager({ page, total, onPage }: PagerProps) {
       <button
         onClick={() => onPage(page - 1)}
         disabled={page <= 0}
-        className="text-xs px-4 min-h-11 rounded-md border border-border-subtle bg-surface text-fg-dim hover:text-fg disabled:opacity-30 transition-colors cursor-pointer"
+        className="text-xs px-4 min-h-11 rounded-lg border border-border-subtle bg-surface text-fg-dim hover:text-fg disabled:opacity-30 transition-colors cursor-pointer"
       >
         {t('common.prev')}
       </button>
@@ -34,7 +34,7 @@ export default function Pager({ page, total, onPage }: PagerProps) {
       <button
         onClick={() => onPage(page + 1)}
         disabled={page >= pages - 1}
-        className="text-xs px-4 min-h-11 rounded-md border border-border-subtle bg-surface text-fg-dim hover:text-fg disabled:opacity-30 transition-colors cursor-pointer"
+        className="text-xs px-4 min-h-11 rounded-lg border border-border-subtle bg-surface text-fg-dim hover:text-fg disabled:opacity-30 transition-colors cursor-pointer"
       >
         {t('common.next')}
       </button>

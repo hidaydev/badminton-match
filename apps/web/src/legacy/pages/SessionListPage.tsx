@@ -112,7 +112,7 @@ export default function SessionListPage() {
     <div className="flex flex-col gap-3">
       {/* Header Title */}
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-lg font-bold text-fg">{t('sessions.title')}</h2>
+        <h1 className="text-lg font-bold text-fg">{t('sessions.title')}</h1>
         <span className="text-xs font-mono text-fg-dim font-medium">
           {hasFilter ? `${filtered.length} / ${total}` : total} {t('common.total')}
         </span>
@@ -205,12 +205,12 @@ export default function SessionListPage() {
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
             aria-label={t('sessions.filterDate')}
-            className="bg-elevated border border-border rounded-lg px-2.5 py-2 text-xs font-mono text-fg scheme-dark focus:border-accent focus:outline-none"
+            className="bg-elevated border border-border rounded-lg px-2.5 py-2 text-xs font-mono text-fg focus:border-accent focus:outline-none"
           />
           {dateFilter && (
             <button
               onClick={() => setDateFilter('')}
-              className="text-xs text-fg-dim hover:text-fg border border-border rounded-lg px-2.5 py-2 transition-colors active:scale-95"
+              className="text-xs text-fg-dim hover:text-fg border border-border rounded-lg px-2.5 py-2 transition-colors active:scale-95 hit44"
             >
               {t('sessions.clear')}
             </button>
@@ -224,7 +224,7 @@ export default function SessionListPage() {
           <button
             type="button"
             onClick={() => void refetch()}
-            className="text-xs font-medium text-accent hover:underline"
+            className="text-xs font-medium text-accent hover:underline hit44"
           >
             Retry
           </button>
@@ -292,12 +292,12 @@ export default function SessionListPage() {
               <button
                 key={s.id}
                 onClick={() => navigate(`/s/${s.id}`)}
-                className="w-full flex items-center gap-3.5 px-3.5 py-3 hover:bg-elevated text-left transition-colors active:bg-elevated/70"
+                className="w-full flex items-center gap-3.5 px-3.5 py-3 hover:bg-elevated text-left transition-colors active:bg-elevated/70 hit44"
               >
                 {/* Date Badge */}
                 <div className="w-11 h-11 rounded-lg bg-elevated border border-border flex flex-col items-center justify-center shrink-0">
                   <span className="text-sm font-bold font-mono text-fg leading-none">{day}</span>
-                  <span className="text-[9px] font-mono font-semibold text-accent uppercase leading-none mt-1">
+                  <span className="text-[11px] font-mono font-semibold text-accent uppercase leading-none mt-1">
                     {month}
                   </span>
                 </div>
@@ -330,7 +330,7 @@ export default function SessionListPage() {
                       {s.playerCount} <span className="text-[10px] font-sans text-fg-dim font-normal">{t('sessions.players')}</span>
                     </span>
                     <span className="text-[10px] text-fg-dim">
-                      {s.totalGames} <span className="text-[9px] font-sans">{t('sessions.games')}</span>
+                      {s.totalGames} <span className="text-[11px] font-sans">{t('sessions.games')}</span>
                     </span>
                   </div>
                   <svg
@@ -358,7 +358,7 @@ export default function SessionListPage() {
         <button
           onClick={() => loadMore()}
           disabled={isLoadingMore}
-          className="self-center text-xs font-mono text-fg-dim hover:text-fg border border-border rounded-lg px-3 py-2 transition-colors active:scale-95 disabled:opacity-50"
+          className="self-center text-xs font-mono text-fg-dim hover:text-fg border border-border rounded-lg px-3 py-2 transition-colors active:scale-95 disabled:opacity-50 hit44"
         >
           {isLoadingMore ? '…' : t('sessions.loadMore')}
         </button>

@@ -11,6 +11,7 @@ import {
 import type { PlayerStanding } from '../standings'
 import type { StandingRow } from '../tournament'
 import { toPlayerId } from '../../types'
+import { CANVAS_COLORS as C } from '../../config/canvas'
 import { fakeImage, imageLabelOf, installRecordingContext } from '../../../test/recordingContext'
 
 const W = 1080
@@ -52,8 +53,8 @@ describe('drawMatchPost name and score row', () => {
     expect(row).toHaveLength(2)
 
     const [a, b] = row
-    expect(a).toMatchObject({ text: 'RINA / DEWI', x: 60, y: 1160, textAlign: 'left', fillStyle: '#ffffff' })
-    expect(b).toMatchObject({ text: 'SARI / AYU', x: 1020, y: 1160, textAlign: 'right', fillStyle: '#ffffff' })
+    expect(a).toMatchObject({ text: 'RINA / DEWI', x: 60, y: 1160, textAlign: 'left', fillStyle: C.white })
+    expect(b).toMatchObject({ text: 'SARI / AYU', x: 1020, y: 1160, textAlign: 'right', fillStyle: C.white })
 
     const score = rec.fillTexts().filter((t) => t.text === '21 \u2013 18')
     expect(score).toHaveLength(1)
@@ -61,7 +62,7 @@ describe('drawMatchPost name and score row', () => {
       x: 540,
       y: 1160,
       textAlign: 'center',
-      fillStyle: '#facc15',
+      fillStyle: C.accent,
       font: 'bold 42px monospace',
     })
 
@@ -123,7 +124,7 @@ describe('drawMatchPost header selection', () => {
 
     const anniversary = rec.fillTexts().filter((t) => t.text === 'MAJADU 1\u02E2\u1D57 ANNIVERSARY')
     expect(anniversary).toHaveLength(2)
-    expect(anniversary[0]).toMatchObject({ textAlign: 'center', letterSpacing: '8px', fillStyle: '#ffffff' })
+    expect(anniversary[0]).toMatchObject({ textAlign: 'center', letterSpacing: '8px', fillStyle: C.white })
     expect(anniversary[0].x).toBeCloseTo(247.6, 6)
     expect(anniversary[1].x).toBeCloseTo(832.4, 6)
     expect(anniversary[0].index).toBeLessThan(anniversary[1].index)
@@ -148,8 +149,8 @@ describe('drawMatchPost header selection', () => {
 
     const label = rec.fillTexts().filter((t) => t.text === 'MY CUP')
     expect(label).toHaveLength(2)
-    expect(label[0]).toMatchObject({ x: 430, textAlign: 'right', fillStyle: '#ffffff' })
-    expect(label[1]).toMatchObject({ x: 650, textAlign: 'left', fillStyle: '#ffffff' })
+    expect(label[0]).toMatchObject({ x: 430, textAlign: 'right', fillStyle: C.white })
+    expect(label[1]).toMatchObject({ x: 650, textAlign: 'left', fillStyle: C.white })
     expect(label[0].index).toBeLessThan(label[1].index)
 
     expect(rec.texts().some((t) => t.text === 'MAJADU INTERNAL TOURNAMENT 2026')).toBe(false)
@@ -232,12 +233,12 @@ describe('drawStandingsCanvas rows', () => {
       x: 150,
       y: 208,
       textAlign: 'left',
-      fillStyle: '#94a3b8',
+      fillStyle: C.textDim,
     })
     expect(rec.fillTexts().find((t) => t.text === 'TOP 4 OF 12 PLAYERS')).toMatchObject({
       x: 150,
       y: 252,
-      fillStyle: '#facc15',
+      fillStyle: C.accent,
     })
 
     const names = rec.fillTexts().filter((t) => ['RINA', 'SARI', 'TONO', 'UCOK'].includes(t.text))
@@ -247,24 +248,24 @@ describe('drawStandingsCanvas rows', () => {
     expect(names[1].y).toBeCloseTo(441.68, 6)
     expect(names[2].y).toBeCloseTo(509.68, 6)
     expect(names[3].y).toBeCloseTo(577.68, 6)
-    expect(names.map((t) => t.fillStyle)).toEqual(['#facc15', '#cbd5e1', '#fb923c', '#e2e8f0'])
+    expect(names.map((t) => t.fillStyle)).toEqual([C.accent, C.silver, C.warning, C.textPrimary])
 
     const medals = rec.fillTexts().filter((t) => ['\u{1F947}', '\u{1F948}', '\u{1F949}', '4th'].includes(t.text))
     expect(medals.map((t) => t.text)).toEqual(['\u{1F947}', '\u{1F948}', '\u{1F949}', '4th'])
     expect(medals.map((t) => t.x)).toEqual([178, 178, 178, 178])
-    expect(medals[3].fillStyle).toBe('#64748b')
+    expect(medals[3].fillStyle).toBe(C.muted)
 
     const records = rec.fillTexts().filter((t) => t.x === 690 && t.y > 340)
     expect(records.map((t) => t.text)).toEqual(['3-1', '2-2', '2-1', '1-2'])
-    expect(records.every((t) => t.textAlign === 'right' && t.fillStyle === '#4ade80')).toBe(true)
+    expect(records.every((t) => t.textAlign === 'right' && t.fillStyle === C.success)).toBe(true)
 
     const diffs = rec.fillTexts().filter((t) => t.x === 810 && t.y > 340)
     expect(diffs.map((t) => t.text)).toEqual(['+12', '0', '-4', '+2'])
-    expect(diffs.map((t) => t.fillStyle)).toEqual(['#4ade80', '#475569', '#f87171', '#4ade80'])
+    expect(diffs.map((t) => t.fillStyle)).toEqual([C.success, C.border, C.error, C.success])
 
     const points = rec.fillTexts().filter((t) => t.x === 930 && t.y > 340)
     expect(points.map((t) => t.text)).toEqual(['90', '84', '70', '60'])
-    expect(points.every((t) => t.textAlign === 'right' && t.fillStyle === '#ffffff')).toBe(true)
+    expect(points.every((t) => t.textAlign === 'right' && t.fillStyle === C.white)).toBe(true)
   })
 
   it('records no player row when the standings list is empty', () => {
@@ -324,13 +325,13 @@ describe('drawTeamMatchPost', () => {
       x: 540,
       y: 200,
       textAlign: 'center',
-      fillStyle: '#94a3b8',
+      fillStyle: C.textDim,
     })
     expect(rec.fillTexts().find((t) => t.text === 'MATCH RESULT')).toMatchObject({
       x: 540,
       y: 295,
       textAlign: 'center',
-      fillStyle: '#facc15',
+      fillStyle: C.accent,
       font: 'bold italic 88px Arial, sans-serif',
     })
 
@@ -338,25 +339,25 @@ describe('drawTeamMatchPost', () => {
       x: 540,
       y: 903.5,
       textAlign: 'center',
-      fillStyle: '#facc15',
+      fillStyle: C.accent,
     })
     expect(rec.fillTexts().find((t) => t.text === 'GARUDA')).toMatchObject({
       x: 100,
       y: 991,
       textAlign: 'left',
-      fillStyle: '#ffffff',
+      fillStyle: C.white,
     })
     expect(rec.fillTexts().find((t) => t.text === 'RAJAWALI')).toMatchObject({
       x: 980,
       y: 991,
       textAlign: 'right',
-      fillStyle: '#94a3b8',
+      fillStyle: C.textDim,
     })
 
     const tiers = rec.fillTexts().filter((t) => ['MD1', 'WD1', 'XD1'].includes(t.text))
     expect(tiers.map((t) => t.text)).toEqual(['MD1', 'WD1', 'XD1'])
     expect(tiers.map((t) => t.y)).toEqual([1082, 1150, 1218])
-    expect(tiers.every((t) => t.x === 100 && t.textAlign === 'left' && t.fillStyle === '#facc15')).toBe(true)
+    expect(tiers.every((t) => t.x === 100 && t.textAlign === 'left' && t.fillStyle === C.accent)).toBe(true)
 
     const scores = rec.fillTexts().filter((t) => ['21\u201315', '14\u201321', 'vs'].includes(t.text))
     expect(scores.map((t) => t.text)).toEqual(['21\u201315', '14\u201321', 'vs'])
@@ -365,12 +366,12 @@ describe('drawTeamMatchPost', () => {
 
     const namesA = rec.fillTexts().filter((t) => ['ANDI / BUDI', 'EKA / FITRI', 'IRMA / JOKO'].includes(t.text))
     expect(namesA.map((t) => t.x)).toEqual([190, 190, 190])
-    expect(namesA.map((t) => t.fillStyle)).toEqual(['#ffffff', '#94a3b8', '#94a3b8'])
+    expect(namesA.map((t) => t.fillStyle)).toEqual([C.white, C.textDim, C.textDim])
 
     const namesB = rec.fillTexts().filter((t) => ['CECEP / DEDI', 'GITA / HANA', 'KIKI / LALA'].includes(t.text))
     expect(namesB.map((t) => t.x)).toEqual([980, 980, 980])
     expect(namesB.map((t) => t.textAlign)).toEqual(['right', 'right', 'right'])
-    expect(namesB.map((t) => t.fillStyle)).toEqual(['#94a3b8', '#ffffff', '#94a3b8'])
+    expect(namesB.map((t) => t.fillStyle)).toEqual([C.textDim, C.white, C.textDim])
 
     const headerIndex = rec.indexOfText('MAJADU 1\u02E2\u1D57 ANNIVERSARY')
     expect(headerIndex).toBeGreaterThan(tiers[2].index)
@@ -385,18 +386,18 @@ describe('drawDate', () => {
 
     const days = rec.fillTexts().filter((t) => t.text === '12')
     expect(days).toHaveLength(2)
-    expect(days[0].fillStyle).toBe('#000000')
-    expect(days[1].fillStyle).toBe('#F5B400')
+    expect(days[0].fillStyle).toBe(C.black)
+    expect(days[1].fillStyle).toBe(C.brand)
     expect(days[0].font).toBe('200px Granesta, Impact, sans-serif')
     expect(days[0].x).toBeCloseTo(days[1].x + 5, 6)
     expect(days[0].y).toBeCloseTo(days[1].y + 5, 6)
 
     const months = rec.texts().filter((t) => t.text === 'JUL')
     expect(months.map((t) => t.op)).toEqual(['strokeText', 'fillText'])
-    expect(months[0].strokeStyle).toBe('#F5B400')
+    expect(months[0].strokeStyle).toBe(C.brand)
     expect(months[0].lineWidth).toBe(10)
     expect(months[0].lineJoin).toBe('round')
-    expect(months[1].fillStyle).toBe('#111111')
+    expect(months[1].fillStyle).toBe(C.darkText)
     expect(months[1].x).toBeCloseTo(months[0].x, 6)
     expect(months[1].y).toBeCloseTo(months[0].y, 6)
 
@@ -405,7 +406,7 @@ describe('drawDate', () => {
     expect(year[0]).toMatchObject({
       x: 0,
       textAlign: 'center',
-      fillStyle: '#111111',
+      fillStyle: C.darkText,
       font: '72px Edosz, Impact, sans-serif',
     })
     expect(year[0].y).toBeCloseTo(10.84, 6)
@@ -425,7 +426,7 @@ describe('drawDate', () => {
 
     drawDate(rec.ctx, W, '12', 'JUL', '2026')
 
-    const backdrop = rec.callsOf('fillRect').filter((c) => c.state.fillStyle === '#F5B400')
+    const backdrop = rec.callsOf('fillRect').filter((c) => c.state.fillStyle === C.brand)
     expect(backdrop).toHaveLength(1)
     expect(Number(backdrop[0].args[2])).toBeGreaterThan(0)
     expect(Number(backdrop[0].args[0])).toBeCloseTo(-Number(backdrop[0].args[2]) / 2, 6)
@@ -450,13 +451,13 @@ describe('drawBracketRoundCover', () => {
     expect(canvas.width).toBe(W)
     expect(canvas.height).toBe(H)
     expect(rec.callsOf('fillRect')[0]).toMatchObject({ args: [0, 0, W, H] })
-    expect(rec.callsOf('fillRect')[0].state.fillStyle).toBe('#0f172a')
+    expect(rec.callsOf('fillRect')[0].state.fillStyle).toBe(C.bgDark)
 
     expect(rec.fillTexts().find((t) => t.text === 'SEMI FINAL')).toMatchObject({
       x: 540,
       y: 619,
       textAlign: 'center',
-      fillStyle: '#facc15',
+      fillStyle: C.accent,
     })
 
     const labels = rec.fillTexts().filter((t) => t.text === 'SF1' || t.text === 'SF2')
@@ -468,7 +469,7 @@ describe('drawBracketRoundCover', () => {
       x: 442,
       y: 759.6,
       textAlign: 'right',
-      fillStyle: '#e2e8f0',
+      fillStyle: C.textPrimary,
     })
     expect(rec.fillTexts().find((t) => t.text === 'SARI / AYU')).toMatchObject({
       x: 638,
@@ -504,7 +505,7 @@ describe('drawGroupSummary', () => {
     expect(rec.fillTexts().find((t) => t.text === 'GROUP A')).toMatchObject({
       x: 140,
       y: 640,
-      fillStyle: '#facc15',
+      fillStyle: C.accent,
     })
 
     const headers = rec.fillTexts().filter((t) => ['W', 'L', '+/-'].includes(t.text))

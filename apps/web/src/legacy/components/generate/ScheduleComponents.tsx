@@ -29,8 +29,8 @@ function PlayerChip({ player, backToBackRun }: { player: Player; backToBackRun?:
   return (
     <span className="inline-flex items-center gap-1 bg-slate-700 rounded-lg px-2 py-1 text-xs text-white min-w-0 overflow-hidden">
       <span className="overflow-hidden"><AnnotatedPlayerName name={player.name} /></span>
-      {backToBackRun ? <sup className="text-[8px] font-bold text-amber-400 shrink-0">*{backToBackRun}</sup> : null}
-      <span className={`hidden sm:inline text-[10px] font-bold shrink-0 ${player.gender === 'M' ? 'text-blue-400' : 'text-pink-400'}`}>
+      {backToBackRun ? <sup className="text-[11px] font-bold text-amber-400 shrink-0">*{backToBackRun}</sup> : null}
+      <span className={`hidden sm:inline text-[10px] font-bold shrink-0 ${player.gender === 'M' ? 'text-blue-400' : 'text-red-400'}`}>
         {player.gender}
       </span>
       <span className={`hidden sm:inline text-[10px] font-bold shrink-0 ${TIER_COLORS[player.tier]}`}>{TIER_LABELS[player.tier]}</span>
@@ -262,7 +262,7 @@ export function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood,
         {(hasBad || hasWarn) && onRetryUntilGood && (
           <button
             onClick={onRetryUntilGood}
-            className="text-xs px-2.5 py-1 rounded-lg bg-emerald-900/40 hover:bg-emerald-900/60 border border-emerald-800 text-emerald-400 hover:text-emerald-200 transition-colors"
+            className="text-xs px-2.5 py-1 rounded-lg bg-emerald-900/40 hover:bg-emerald-900/60 border border-emerald-800 text-emerald-400 hover:text-emerald-200 transition-colors hit44"
           >
             ↺ Retry until good
           </button>

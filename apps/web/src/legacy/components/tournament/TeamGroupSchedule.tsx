@@ -81,7 +81,7 @@ export default function TeamGroupSchedule({
         <button
           onClick={onDraw}
           disabled={saving}
-          className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40"
+          className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 hit44"
         >
           Group Draw (match day)
         </button>

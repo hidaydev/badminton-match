@@ -19,6 +19,10 @@
   --color-info: rgb(91 143 189);
 }
 
+:root {
+  color-scheme: dark;
+}
+
 * {
   box-sizing: border-box;
 }

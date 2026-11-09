@@ -33,7 +33,7 @@ export function SlotPicker({
           </option>
         ))}
       </select>
-      <span className={`text-[10px] text-center h-3 leading-3 ${selected ? selected.gender === 'M' ? 'text-blue-400' : 'text-pink-400' : 'text-transparent'}`}>
+      <span className={`text-[10px] text-center h-3 leading-3 ${selected ? selected.gender === 'M' ? 'text-blue-400' : 'text-red-400' : 'text-transparent'}`}>
         {selected ? (
           <>
             {selected.gender} · <span className={TIER_COLORS[selected.tier] ?? 'text-slate-400'}>

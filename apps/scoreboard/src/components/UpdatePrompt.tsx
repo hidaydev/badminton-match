@@ -23,7 +23,7 @@ export default function UpdatePrompt({ onUpdate, onDismiss }: UpdatePromptProps)
       <button
         type="button"
         onClick={onDismiss}
-        className="px-2 py-1 text-white/50 cursor-pointer"
+        className="px-2 py-1 text-white/80 cursor-pointer"
       >
         Later
       </button>
