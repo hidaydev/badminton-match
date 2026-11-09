@@ -15,12 +15,16 @@
 #
 # Overridable for a rehearsal host: MAJADU_RC_APP_DIR, MAJADU_RC_SERVICE,
 # MAJADU_RC_IMAGE, MAJADU_RC_HEALTH_URL, MAJADU_RC_NETWORK, MAJADU_RC_BRANCH,
-# MAJADU_RC_SKIP_GIT_SYNC, MAJADU_SERVICE_CMD.
+# MAJADU_RC_SKIP_GIT_SYNC, MAJADU_SERVICE_CMD, MAJADU_RC_CI_WAIT_ATTEMPTS,
+# MAJADU_RC_CI_WAIT_SECONDS, MAJADU_RC_SKIP_CI_GATE.
 #
 # The host has no Nim toolchain, so QA-01 clause 3 cannot run `./task ci` here.
-# The build is gated on GitHub instead: it only starts when a workflow run for
-# the exact commit finished with success. `MAJADU_RC_SKIP_CI_GATE=1` is the
-# documented emergency bypass and is recorded in last-release.json.
+# The build is gated on the CI workflow instead: the newest run of ci.yml for the
+# exact commit must be completed with success. A run that is queued or in
+# progress is waited on while the deploy lock is held, because the webhook fires
+# at push time, before GitHub has finished the workflow.
+# `MAJADU_RC_SKIP_CI_GATE=1` is the documented emergency bypass and is recorded
+# in last-release.json.
 set -Eeuo pipefail
 
 REPO_NAME="${1:-badminton-match}"
@@ -39,6 +43,8 @@ CI_TOKEN_FILE="$APP_DIR/env/github-token"
 STATE_DIR="$APP_DIR/deploy"
 LOG="$APP_DIR/logs/deploy.log"
 LOCK_FILE="$APP_DIR/.deploy.lock"
+CI_WAIT_ATTEMPTS="${MAJADU_RC_CI_WAIT_ATTEMPTS:-40}"
+CI_WAIT_SECONDS="${MAJADU_RC_CI_WAIT_SECONDS:-15}"
 
 STEP="start"
 SCHEMA=""
@@ -190,13 +196,26 @@ APP_DB=$(printf '%s' "$APP_DSN" | sed 's/.*\///' | cut -d'?' -f1)
 
 # ---------------------------------------------------------------------------
 # CI gate (QA-01 clause 3). The host has no Nim toolchain, so `./task ci` cannot
-# run here; ask GitHub instead whether this exact commit already passed a
-# workflow, and refuse to build unverified code. Every uncertain answer is a
-# failure: no token, network error, no run, a run still in progress, or any run
-# that did not finish with success. A redeploy of the commit that is already
-# live is allowed without a lookup, because it cannot introduce new code.
+# run here. The build is pinned to the CI workflow for this repository: the
+# newest run of ci.yml for the exact commit must be completed with success.
+# Every other workflow is ignored, so a Coverage or bot run cannot stand in for
+# CI and an unrelated cancelled run cannot block a healthy commit. A run that is
+# queued or in progress is waited on, because the webhook fires at push time and
+# GitHub needs a moment to finish the workflow; the deploy lock is held for the
+# whole wait. A redeploy of the commit that is already live skips the lookup,
+# because it cannot introduce new code.
 # ---------------------------------------------------------------------------
 STEP="ci-gate"
+CI_WORKFLOW="ci.yml"
+
+case "$CI_WAIT_ATTEMPTS" in
+  ''|*[!0-9]*) fail "MAJADU_RC_CI_WAIT_ATTEMPTS must be a whole number, got '$CI_WAIT_ATTEMPTS'" ;;
+esac
+case "$CI_WAIT_SECONDS" in
+  ''|*[!0-9]*) fail "MAJADU_RC_CI_WAIT_SECONDS must be a whole number, got '$CI_WAIT_SECONDS'" ;;
+esac
+[ "$CI_WAIT_ATTEMPTS" -ge 1 ] ||
+  fail "MAJADU_RC_CI_WAIT_ATTEMPTS must be at least 1"
 
 live_commit() {
   local from_state from_image
@@ -215,10 +234,20 @@ live_commit() {
   return 0
 }
 
+# The token travels on stdin as a curl config, so no file holds it and a signal
+# between two steps cannot leave a copy on disk.
+ci_query() {
+  curl -fsS --max-time 20 \
+    -H "Accept: application/vnd.github+json" \
+    --config - "$CI_URL" 2>/dev/null <<EOF
+header = "Authorization: Bearer $CI_TOKEN"
+EOF
+}
+
 if [ "${MAJADU_RC_SKIP_CI_GATE:-0}" = "1" ]; then
   CI_STATE="bypassed"
   log "WARNING: MAJADU_RC_SKIP_CI_GATE=1: building $COMMIT without a CI result. Emergency use only; last-release.json records the bypass."
-elif [ "$(live_commit)" = "$COMMIT" ]; then
+elif [ -n "$COMMIT" ] && [ "$(live_commit)" = "$COMMIT" ]; then
   CI_STATE="already-live"
   log "ci gate: $COMMIT is already the running release; no CI lookup needed"
 else
@@ -230,56 +259,55 @@ else
     *) fail "$CI_TOKEN_FILE must be mode 600 (found $TOKEN_MODE)" ;;
   esac
   CI_TOKEN=$(cat "$CI_TOKEN_FILE")
-  CI_URL="https://api.github.com/repos/$GITHUB_REPO/actions/runs?head_sha=$COMMIT&per_page=100"
-  # The token goes into a private curl config file, never onto the command line.
-  CI_AUTH=$(mktemp "$STATE_DIR/ci-auth.XXXXXX") ||
-    fail "ci gate cannot create a private curl config in $STATE_DIR"
-  chmod 600 "$CI_AUTH"
-  printf 'header = "Authorization: Bearer %s"\n' "$CI_TOKEN" >"$CI_AUTH"
-  CI_BODY=""
-  if ! CI_BODY=$(curl -fsS --max-time 20 \
-    -H "Accept: application/vnd.github+json" \
-    --config "$CI_AUTH" "$CI_URL" 2>/dev/null); then
-    rm -f "$CI_AUTH"
-    fail "ci gate cannot read workflow runs for $COMMIT from api.github.com; refusing to build"
-  fi
-  rm -f "$CI_AUTH"
+  CI_URL="https://api.github.com/repos/$GITHUB_REPO/actions/workflows/$CI_WORKFLOW/runs?head_sha=$COMMIT&per_page=100"
 
-  CI_COMPACT=$(printf '%s' "$CI_BODY" | tr -d '[:space:]')
-  CI_STATUSES=$(printf '%s' "$CI_COMPACT" |
-    grep -o '"status":"[a-z_]*"' | sed 's/.*:"//; s/"//' || true)
-  CI_CONCLUSIONS=$(printf '%s' "$CI_COMPACT" |
-    grep -o '"conclusion":"[a-z_]*"' | sed 's/.*:"//; s/"//' || true)
-
-  [ -n "$CI_STATUSES" ] ||
-    fail "ci gate found no workflow run for $COMMIT; a push to $BRANCH must pass CI before it is built"
-
-  CI_PENDING=""
-  for ci_status in $CI_STATUSES; do
-    case "$ci_status" in
-      completed) ;;
-      *) CI_PENDING="$CI_PENDING $ci_status" ;;
+  attempt=1
+  while :; do
+    if ! CI_BODY=$(ci_query); then
+      fail "ci gate cannot read $CI_WORKFLOW runs for $COMMIT from api.github.com; refusing to build"
+    fi
+    CI_COMPACT=$(printf '%s' "$CI_BODY" | tr -d '[:space:]')
+    CI_TOTAL=$(printf '%s' "$CI_COMPACT" |
+      sed -n 's/.*"total_count":\([0-9]*\).*/\1/p' | head -1 || true)
+    case "$CI_TOTAL" in
+      ''|*[!0-9]*)
+        fail "ci gate: empty or malformed response for $COMMIT from api.github.com; refusing to build" ;;
     esac
-  done
-  [ -z "$CI_PENDING" ] ||
-    fail "ci gate: workflow runs for $COMMIT are still$CI_PENDING; refusing to build before CI finishes"
+    # per_page=100 is the maximum the API returns in one page. A larger count
+    # would hide runs, and the newest run is the one that decides, so refuse
+    # rather than guess.
+    [ "$CI_TOTAL" -le 100 ] ||
+      fail "ci gate: $CI_TOTAL $CI_WORKFLOW runs for $COMMIT exceed the 100-run page; refusing to decide on a hidden page"
 
-  CI_SUCCESS=0
-  CI_BAD=""
-  for ci_conclusion in $CI_CONCLUSIONS; do
-    case "$ci_conclusion" in
-      success) CI_SUCCESS=1 ;;
-      skipped) ;;
-      *) CI_BAD="$CI_BAD $ci_conclusion" ;;
-    esac
+    # workflow_runs is newest first, and the first status/conclusion pair in the
+    # object belongs to that newest run.
+    CI_STATUS=$(printf '%s' "$CI_COMPACT" |
+      grep -o '"status":"[a-z_]*"' | head -1 | sed 's/.*:"//; s/"//' || true)
+    CI_CONCLUSION=$(printf '%s' "$CI_COMPACT" |
+      grep -o '"conclusion":"[a-z_]*"' | head -1 | sed 's/.*:"//; s/"//' || true)
+
+    if [ -z "$CI_STATUS" ]; then
+      CI_PENDING="no $CI_WORKFLOW run yet"
+    elif [ "$CI_STATUS" != "completed" ]; then
+      CI_PENDING="the newest $CI_WORKFLOW run is $CI_STATUS"
+    elif [ -n "$CI_CONCLUSION" ] && [ "$CI_CONCLUSION" != "success" ]; then
+      fail "ci gate: newest $CI_WORKFLOW run for $COMMIT ended as $CI_CONCLUSION; refusing to build"
+    elif [ "$CI_CONCLUSION" != "success" ]; then
+      fail "ci gate: newest $CI_WORKFLOW run for $COMMIT completed without a conclusion; refusing to build"
+    else
+      break
+    fi
+
+    if [ "$attempt" -ge "$CI_WAIT_ATTEMPTS" ]; then
+      fail "ci gate: $CI_PENDING for $COMMIT after $attempt attempt(s) of ${CI_WAIT_SECONDS}s; refusing to build"
+    fi
+    log "ci gate: $CI_PENDING for $COMMIT; waiting ${CI_WAIT_SECONDS}s (attempt $attempt/$CI_WAIT_ATTEMPTS, deploy lock held)"
+    sleep "$CI_WAIT_SECONDS"
+    attempt=$((attempt + 1))
   done
-  [ "$CI_SUCCESS" -eq 1 ] ||
-    fail "ci gate: no successful workflow run for $COMMIT (conclusions:$CI_BAD); refusing to build"
-  [ -z "$CI_BAD" ] ||
-    fail "ci gate: workflow runs for $COMMIT ended as:$CI_BAD; refusing to build"
 
   CI_STATE="passed"
-  log "ci gate: $COMMIT passed CI"
+  log "ci gate: $COMMIT passed $CI_WORKFLOW"
 fi
 
 # ---------------------------------------------------------------------------

@@ -81,7 +81,10 @@ proc runShell*(fixture: Fixture, script: string, args: seq[string] = @[],
     extraEnv: seq[(string, string)] = @[],
     unsetEnv: seq[string] = @[],
     workingDir: string = ""): ShellResult =
-  ## Runs `/bin/sh <script> <args...>` with the fixture environment.
+  ## Runs `/bin/bash <script> <args...>` with the fixture environment. The
+  ## scripts under test carry a bash shebang and use `set -Eeuo pipefail`,
+  ## which dash rejects; executing them with /bin/sh would prove nothing about
+  ## the Linux CI runner, where /bin/sh is dash.
   var env = newStringTable(modeCaseSensitive)
   for key, value in fixture.env:
     env[key] = value
@@ -90,7 +93,7 @@ proc runShell*(fixture: Fixture, script: string, args: seq[string] = @[],
   for key in unsetEnv:
     env.del(key)
   let cwd = if workingDir.len > 0: workingDir else: fixture.root
-  let process = startProcess("/bin/sh", workingDir = cwd,
+  let process = startProcess("/bin/bash", workingDir = cwd,
     args = @[script] & args, env = env, options = {})
   result.stdout = process.outputStream.readAll()
   result.stderr = process.errorStream.readAll()

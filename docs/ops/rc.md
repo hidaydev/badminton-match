@@ -95,13 +95,17 @@ Push to `release/2.0.0-rc.1` → hook `majadu-monorepo` →
 2. A literal ref guard in the target script; any other ref `exit 0`.
 3. `flock` on `/srv/qouver/apps/majadu-rc/.deploy.lock`.
 4. `git fetch` + `reset --hard origin/release/2.0.0-rc.1`.
-5. `:local` → `:prev`, `podman build` the new image.
-6. `dbtools migrate` + `verify` against `bm2_rc`.
-7. Sync the unit, restart `majadu-rc-api`, wait for `/readyz` for 60 seconds.
-8. `smoke.sh` + `/version` must report the commit just built.
-9. Readiness failure → `:prev` becomes `:local`, restart, the deploy is declared
-   failed.
-10. `image prune`; only `:local` and `:prev` remain tagged.
+5. CI gate: the newest `ci.yml` run for the exact commit must be completed
+   with success. A queued or in-progress run is polled (40 attempts, 15 seconds
+   apart by default) while the deploy lock is held, then the deploy fails
+   closed.
+6. `:local` → `:prev`, `podman build` the new image.
+7. `dbtools migrate` + `verify` against `bm2_rc`.
+8. Sync the unit, restart `majadu-rc-api`, wait for `/readyz` for 60 seconds.
+9. `smoke.sh` + `/version` must report the commit just built.
+10. Readiness failure → `:prev` becomes `:local`, restart, the deploy is declared
+    failed.
+11. `image prune`; only `:local` and `:prev` remain tagged.
 
 ### 4.1 Why there is no second webhook
 
@@ -128,6 +132,44 @@ Seeing the last state:
 cat /srv/qouver/apps/majadu-rc/deploy/last-release.json
 journalctl --user -u majadu-rc-api -n 50 --no-pager
 ```
+
+### 4.2 CI gate
+
+The host has no Nim toolchain, so `./task ci` cannot run there. `deploy-vps-rc.sh`
+asks GitHub instead: it reads the newest run of the `ci.yml` workflow for the
+exact commit being deployed and refuses to build unless that run is `completed`
+with `success`. Other workflows are ignored on purpose, so a Coverage run or a
+bot check cannot stand in for CI and an unrelated cancelled run cannot block a
+healthy commit. A run that is queued or in progress is polled while the deploy
+lock is held (`MAJADU_RC_CI_WAIT_ATTEMPTS`, default 40, and
+`MAJADU_RC_CI_WAIT_SECONDS`, default 15), then the deploy fails closed.
+
+The token is read from `/srv/qouver/apps/majadu-rc/env/github-token`:
+
+| Item | Value |
+|---|---|
+| Path | `/srv/qouver/apps/majadu-rc/env/github-token` |
+| Mode | `600` (or `400`); the script refuses anything world or group readable |
+| Owner | the deploy user, `sachiel` (the same user the webhook runs as) |
+| Scope | fine-grained PAT with `Actions: read` on `hidaydev/badminton-match`, or a classic read-only repo token |
+
+The token is passed to `curl` on stdin as a private config, so no copy is
+written to disk and nothing sensitive appears in the process list. Without the
+file, every RC deploy fails closed.
+
+CI must run for `release/*`. `.github/workflows/ci.yml` currently triggers on
+`main` and `pull_request` only, so the branch has to be added to its `push`
+trigger (or a matching workflow has to cover it) before the gate can pass
+normally.
+
+Emergency bypass: run the deploy by hand with
+`MAJADU_RC_SKIP_CI_GATE=1`. It logs a `WARNING`, builds without a CI result, and
+records `"ci":"bypassed"` in `last-release.json`. Use it only when CI is broken
+and the commit has been verified another way.
+
+The first deploy after merging a change to `deploy-vps-rc.sh` still runs the
+previously installed copy in `/srv/qouver/apps/majadu-rc/scripts/`; the new
+version is installed during that run and is used from the next one.
 
 ## 5. FE in Vercel
 
