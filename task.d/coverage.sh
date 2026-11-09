@@ -454,6 +454,14 @@ run_gate() {
     fail "${BASELINE#$REPO_ROOT/} has no floor; run ./task coverage --update to seed the v2 baseline"
 
   baseline_rows "$BASELINE" >"$COV/baseline.tsv"
+  # QA-05: a baseline recorded before the branch axis existed has no BRF/BRH, so
+  # the report shows 0 and the number is absent from the committed file. Say so
+  # instead of letting a missing axis read as "no branches".
+  if ! awk -F'\t' '$1 == "total" && $5 + 0 > 0 { found = 1 } END { exit !found }' \
+    "$COV/baseline.tsv"; then
+    printf 'coverage: warning: %s has no branch axis; record it with ./task coverage --update (the Linux baseline needs the update_baseline dispatch)\n' \
+      "${BASELINE#"$REPO_ROOT"/}" >&2
+  fi
   current_rows >"$COV/current.tsv"
   [ -s "$COV/baseline.tsv" ] ||
     fail "${BASELINE#$REPO_ROOT/} has no rows; run ./task coverage --update to seed the v2 baseline"
