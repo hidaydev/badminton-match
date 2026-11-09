@@ -39,6 +39,11 @@ test('the scoreboard scores offline from the precache', async ({ page, context }
   await expect(redSide(page)).toContainText('0')
   await redSide(page).click()
   await expect(redSide(page)).toContainText('1')
+  // The score reaches storage in an effect, so wait for the persisted value
+  // before going offline; otherwise the reload can race the write.
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('score-red')))
+    .toBe('1')
 
   await context.setOffline(true)
   await page.reload()

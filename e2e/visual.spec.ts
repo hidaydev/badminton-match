@@ -12,8 +12,9 @@ import { visualRoutes } from './visual.routes'
  *
  * A platform with no baseline fails here rather than skipping: recording is an
  * explicit `./task e2e --update-snapshots` whose diff lands in the pull request.
- * Snapshot tests carry the `@visual` tag so CI can exclude only them while the
- * Linux set is absent; tags and `release/*` branches never take that path.
+ * Snapshot tests carry the `@visual` tag so CI can exclude only them on main and
+ * pull requests while the Linux set is absent; tags and `release/*` branches
+ * never take that path, so a missing baseline fails there.
  */
 
 test.beforeEach(async ({ page }) => {

@@ -206,12 +206,17 @@ jobs:
           psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
             -c "CREATE ROLE \"$(whoami)\" LOGIN SUPERUSER PASSWORD 'postgres'"
       # QA-03: production is Linux and the Linux visual baseline has to be
-      # committed. A missing set fails here with the command that records it;
-      # it is never recorded from a tag build.
+      # committed and non-empty. A missing set fails here with the command that
+      # records it; it is never recorded from a tag build.
       - name: "E2E: require the Linux baseline"
         run: |
-          if [ ! -d e2e/__screenshots__/linux ]; then
-            echo "::error::e2e/__screenshots__/linux is missing, so the visual gate cannot compare anything."
+          present=0
+          if [ -d e2e/__screenshots__/linux ] &&
+            [ -n "$(ls -A e2e/__screenshots__/linux 2>/dev/null)" ]; then
+            present=1
+          fi
+          if [ "$present" = 0 ]; then
+            echo "::error::e2e/__screenshots__/linux is missing or empty and a tag must compare against it."
             echo "::error::Record it deliberately on Linux with ./task e2e --update-snapshots, then review and commit e2e/__screenshots__/linux/."
             exit 1
           fi

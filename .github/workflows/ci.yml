@@ -16,11 +16,13 @@ on:
 permissions:
   contents: read
 
-# One run per commit: a release branch push and the pull request built from the
-# same head SHA share this group, so the second one does not duplicate the first.
-# Only pull requests cancel a run in progress; a branch push queues instead.
+# One run per commit within an event class. Pull requests group by head SHA, so
+# two PR runs for the same commit dedupe; pushes and dispatch runs group by
+# event and ref. A push and a PR for the same SHA therefore never share a group,
+# so a PR run cannot cancel a strict release-push run. Only pull requests cancel
+# a run in progress.
 concurrency:
-  group: "ci-${{ github.workflow }}-${{ github.event.pull_request.head.sha || github.sha }}"
+  group: "ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.head.sha) || format('{0}-{1}', github.event_name, github.ref) }}"
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
