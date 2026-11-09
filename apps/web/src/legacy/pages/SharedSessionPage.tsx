@@ -120,17 +120,46 @@ export default function SharedSessionPage() {
     )
   }
 
-  if (isError || !snapshot) {
+  // A failed read and a missing session are different screens: reporting a
+  // dropped connection as "not found" tells the host their session is gone and
+  // offers only a way out. Only a 404 says not found; everything else keeps the
+  // screen and offers a retry.
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-ground text-fg flex flex-col">
+        {header}
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
+          <span className="text-slate-300 text-sm">{t('session.error.load')}</span>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <button
+              onClick={() => void refetch()}
+              className="inline-flex min-h-11 items-center rounded-lg bg-elevated px-4 text-xs font-semibold text-fg hover:bg-border transition-colors"
+            >
+              {t('session.action.retry')}
+            </button>
+            <Link
+              to={communityHref(slug, '/')}
+              className="inline-flex min-h-11 items-center text-xs text-indigo-400 hover:text-white underline underline-offset-2"
+            >
+              {t('session.backToCommunity')}
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!snapshot) {
     return (
       <div className="min-h-screen bg-ground text-fg flex flex-col">
         {header}
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <span className="text-slate-300 text-sm">Session not found.</span>
+          <span className="text-slate-300 text-sm">{t('session.error.notFound')}</span>
           <button
             onClick={() => navigate('/')}
             className="text-xs text-indigo-400 hover:text-white underline underline-offset-2 hit44"
           >
-            Go to home
+            {t('session.backToCommunity')}
           </button>
         </div>
       </div>
