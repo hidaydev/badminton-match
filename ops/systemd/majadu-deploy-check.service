@@ -1,0 +1,14 @@
+# Independent deploy reconciliation, started by majadu-deploy-check.timer.
+#
+# A missed webhook delivery is indistinguishable from "nothing to deploy" in
+# deploy-vps.sh: both exit 0. This unit compares the latest GitHub release with
+# deploy/deployed-version and pages when they disagree for more than an hour.
+[Unit]
+Description=Majadu deploy drift check
+Wants=network-online.target
+After=network-online.target
+OnFailure=majadu-alert@%N.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /srv/qouver/apps/majadu/scripts/deploy-check.sh

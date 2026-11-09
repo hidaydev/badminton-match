@@ -661,3 +661,76 @@ suite "deploy-dispatch.sh":
       appDir(fixture) & @[("MAJADU_RC_APP_DIR", rcDir)])
     check result.exitCode == 1
     check result.stdout.contains("dispatch: " & rcDir & "/scripts/deploy-vps-rc.sh is missing")
+
+const releaseTagCurl = """#!/bin/sh
+printf '%s' '{"tag_name":"v2.0.0","body":"digest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}'
+exit 0
+"""
+
+const systemctlLogFake = """#!/bin/sh
+printf '%s\n' "$*" >> "$FAKE_SYSTEMCTL_LOG"
+exit 0
+"""
+
+suite "webhook routing and deploy drift":
+  test "the committed webhook definition routes to the dispatcher":
+    let body = readFile(repoDir / "ops" / "webhook" / "webhook.json")
+    check body.contains("deploy-dispatch.sh")
+    check not body.contains("\"execute-command\": \"/srv/qouver/apps/majadu/scripts/deploy-vps.sh\"")
+
+  test "install-webhook --check names a stale execute-command":
+    let fixture = newFixture("webhook-check-stale")
+    defer: removeDir(fixture.root)
+    let target = fixture.root / "config" / "webhook.json"
+    touch(target,
+      "{\"execute-command\": \"/srv/qouver/apps/majadu/scripts/deploy-vps.sh\"," &
+      "\"trigger-rule\": {}}\n")
+    let result = fixture.runShell(
+      fixture.installOpsScript("install-webhook.sh"),
+      @["--check"],
+      appDir(fixture) & @[("MAJADU_WEBHOOK_CONFIG", target)])
+    check result.exitCode == 1
+    check result.stdout.contains("deploy-dispatch.sh")
+
+  test "install-webhook replaces the command and keeps the HMAC secret":
+    let fixture = newFixture("webhook-install")
+    defer: removeDir(fixture.root)
+    let target = fixture.root / "config" / "webhook.json"
+    touch(target,
+      "{\n  \"execute-command\": \"/srv/qouver/apps/majadu/scripts/deploy-vps.sh\",\n" &
+      "  \"command-working-directory\": \"/srv/qouver/apps/majadu\",\n" &
+      "  \"trigger-rule\": {\"match\": {\"secret\": \"keep-me\"}}\n}\n")
+    let result = fixture.runShell(
+      fixture.installOpsScript("install-webhook.sh"), @[],
+      appDir(fixture) & @[("MAJADU_WEBHOOK_CONFIG", target)])
+    check result.exitCode == 0
+    let body = readFile(target)
+    check body.contains("deploy-dispatch.sh")
+    check body.contains("keep-me")
+    check mode600(target)
+
+  test "deploy-check alerts when deployed-version is missing":
+    let fixture = newFixture("deploy-check-missing")
+    defer: removeDir(fixture.root)
+    fixture.installFake("curl", releaseTagCurl)
+    let log = fixture.root / "systemctl.log"
+    fixture.installFake("systemctl", systemctlLogFake)
+    let result = fixture.runShell(
+      fixture.installOpsScript("deploy-check.sh"), @[],
+      appDir(fixture) & @[("FAKE_SYSTEMCTL_LOG", log)])
+    check result.exitCode == 1
+    check readFile(log).contains("start majadu-alert@deploy-check.service")
+
+  test "deploy-check is quiet when deployed-version matches":
+    let fixture = newFixture("deploy-check-match")
+    defer: removeDir(fixture.root)
+    fixture.installFake("curl", releaseTagCurl)
+    let log = fixture.root / "systemctl.log"
+    fixture.installFake("systemctl", systemctlLogFake)
+    touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
+    let result = fixture.runShell(
+      fixture.installOpsScript("deploy-check.sh"), @[],
+      appDir(fixture) & @[("FAKE_SYSTEMCTL_LOG", log)])
+    check result.exitCode == 0
+    check result.stdout.contains("matches the latest release")
+    check not fileExists(log)
