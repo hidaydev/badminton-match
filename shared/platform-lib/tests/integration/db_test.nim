@@ -97,6 +97,44 @@ suite "database layer":
     check db.queryOne(
       "select id from t004_probe where id = $1", @[intParam(4)]).isNone
 
+  test "a bound facade joins the caller's transaction":
+    # The write the facade performs must roll back with the transaction that
+    # owns the connection: it is the same transaction, not a second one.
+    var caught = false
+    try:
+      db.tx(proc(conn: DbConn) =
+        let scoped = db.boundTo(conn)
+        discard scoped.execUpdate(
+          "insert into t004_probe (id) values ($1)", @[intParam(5)])
+        check scoped.queryOne(
+          "select id from t004_probe where id = $1", @[intParam(5)]).isSome
+        raise newException(ValueError, "boom")
+      )
+    except ValueError:
+      caught = true
+    check caught
+    check db.queryOne(
+      "select id from t004_probe where id = $1", @[intParam(5)]).isNone
+
+  test "a nested tx on a bound facade becomes a savepoint":
+    # A helper that opens its own transaction, fails and rolls back must leave
+    # the caller's transaction usable: the savepoint contains the damage.
+    db.tx(proc(conn: DbConn) =
+      let scoped = db.boundTo(conn)
+      try:
+        scoped.tx(proc(inner: DbConn) =
+          discard inner.execUpdate(
+            "insert into t004_probe (id) values ($1)", @[intParam(6)])
+          raise newException(ValueError, "inner boom"))
+      except ValueError:
+        discard
+      discard scoped.execUpdate(
+        "insert into t004_probe (id) values ($1)", @[intParam(7)]))
+    check db.queryOne(
+      "select id from t004_probe where id = $1", @[intParam(6)]).isNone
+    check db.queryOne(
+      "select id from t004_probe where id = $1", @[intParam(7)]).isSome
+
   test "a NULL column reads as none":
     let row = Row(names: @["note"], values: @[none(string)])
     check row.getOpt("note").isNone
