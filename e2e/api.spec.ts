@@ -11,6 +11,7 @@ import { expect, request, test } from 'playwright/test'
  * The browser projects ignore this file; the `api` project runs it once.
  */
 const apiURL = process.env.E2E_API_URL ?? 'http://127.0.0.1:18093'
+const flagURL = process.env.E2E_FLAG_API_URL ?? 'http://127.0.0.1:18094'
 
 /**
  * The limit this deployment really has, read from the seed the harness applies
@@ -120,4 +121,23 @@ test('QAE-02: a body past the transport ceiling leaves the API serving', async (
   expect(health.status()).toBe(200)
   expect((await health.json()).status).toBe('ok')
   await api.dispose()
+})
+
+test('QAE-03: MAJADU_TEST_ROUTES cannot degrade a release build', async () => {
+  // The harness starts this instance from the same binary with the flag set.
+  // A release build compiles the flag out, so every answer below belongs to the
+  // real application. The stub would answer `{"status":"stub"}` on /healthz,
+  // 404 on /readyz and 404 on every data route while /healthz stayed 200, which
+  // is the process an orchestrator would keep in service.
+  const flag = await request.newContext({ baseURL: flagURL })
+
+  const health = await flag.get('/healthz')
+  expect(health.status()).toBe(200)
+  expect((await health.json()).status).toBe('ok')
+
+  expect((await flag.get('/readyz')).status()).toBe(200)
+
+  const data = await flag.get('/c/qae-probe/sessions')
+  expect(data.status()).toBe(401)
+  await flag.dispose()
 })
