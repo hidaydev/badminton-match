@@ -484,5 +484,42 @@ try:
       except DbError as error:
         state = error.sqlState
       check state == "23514"
+
+    test "the community timezone is a known zone and a court may cross midnight":
+      migrate(scratch, migrationsDir)
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('zone-check', 'Zone Check', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      var state = ""
+      try:
+        discard scratch.execUpdate(
+          "update platform.community set timezone = 'Asia/Jakrta' where id = $1::uuid",
+          @[textParam(communityId)])
+      except DbError as error:
+        state = error.sqlState
+      check state == "23514"
+      check scratch.queryOne(
+        """select 1 as ok from pg_timezone_names where name = 'Asia/Jakarta'""")
+        .isSome
+
+      let sessionId = scratch.queryOne(
+        """insert into session.sessions
+             (community_id, session_date, status, source)
+           values ($1::uuid, '2026-11-02', 'draft', 'manual') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      discard scratch.execUpdate(
+        """insert into session.courts
+             (community_id, session_id, court_index, court_name,
+              start_time, end_time)
+           values ($1::uuid, $2::uuid, 0, 'Late court', '22:00', '01:00')""",
+        @[textParam(communityId), textParam(sessionId)])
+      let court = scratch.queryOne(
+        """select start_time::text as start_time, end_time::text as end_time
+           from session.courts
+           where community_id = $1::uuid and session_id = $2::uuid""",
+        @[textParam(communityId), textParam(sessionId)]).get
+      check court.get("start_time") == "22:00:00"
+      check court.get("end_time") == "01:00:00"
 finally:
   shutdown()
