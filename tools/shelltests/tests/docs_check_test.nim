@@ -23,6 +23,14 @@ proc seed(fixture: Fixture) =
   touch(fixture.root / "docs" / "ops" / "release.md",
     "   git push origin refs/tags/v<version>\n   git push origin main\n")
   touch(fixture.root / "apps" / "api" / "src" / "app.nim", "# app\n")
+  touch(fixture.root / "package.json",
+    "{\n  \"packageManager\": \"pnpm@12.17.0\"\n}\n")
+  touch(fixture.root / ".github" / "workflows" / "ci.yml",
+    "jobs:\n  web:\n    steps:\n      - uses: actions/setup-node@x\n" &
+    "        with:\n          node-version: 26\n")
+  touch(fixture.root / "CONTRIBUTING.md",
+    "| Node.js | 26 | `.github/workflows/ci.yml` |\n" &
+    "| pnpm | 12.17.0 | `packageManager` in `package.json` |\n")
   touch(fixture.root / "docs" / "handbook" / "requirements.md",
     "| REQ-001 | a requirement | `apps/api/src/app.nim` | met |\n")
 
@@ -102,3 +110,14 @@ suite "incident policy":
     let result = fixture.runTask(@["docs-check"])
     check result.exitCode == 1
     check result.stderr.contains("references modules/gone/gone_test.nim")
+
+  test "a CONTRIBUTING version that drifts from its source fails":
+    let fixture = newFixture("docs-tool-version")
+    defer: removeDir(fixture.root)
+    seed(fixture)
+    let contributing = fixture.root / "CONTRIBUTING.md"
+    writeFile(contributing,
+      readFile(contributing).replace("| Node.js | 26 |", "| Node.js | 22 |"))
+    let result = fixture.runTask(@["docs-check"])
+    check result.exitCode == 1
+    check result.stderr.contains("does not state Node.js 26")

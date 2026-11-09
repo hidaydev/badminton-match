@@ -18,8 +18,8 @@ Pin the same versions the project uses. They are recorded in `deps.lock`,
 |---|---|---|
 | Nim | 2.4.0 | `deps.lock`, `.github/workflows/ci.yml` |
 | PostgreSQL | 18.x | CI uses `postgres:18.6` |
-| Node.js | 22 | `.github/workflows/ci.yml` |
-| pnpm | 11.25.0 | `packageManager` in `package.json` |
+| Node.js | 26 | `.github/workflows/ci.yml` |
+| pnpm | 12.17.0 | `packageManager` in `package.json` |
 
 You also need a POSIX shell and `psql`. Nim packages are installed by hand into
 `~/.nimble/pkgs2`; `./task deps-check` verifies what is installed against

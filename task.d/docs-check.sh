@@ -93,6 +93,28 @@ check_requirement_paths() {
 
 check_requirement_paths
 
+# ISO-21: the prerequisites table is a copy of three files, so a copy is what
+# drifts. The versions are read from their source and the table has to agree.
+check_tool_versions() {
+  file="CONTRIBUTING.md"
+  [ -f "$REPO_ROOT/$file" ] || { report "$file is missing"; return 0; }
+  node_version=$(grep -E '^[[:space:]]*node-version:' \
+    "$REPO_ROOT/.github/workflows/ci.yml" |
+    head -1 | grep -oE '[0-9]+([.][0-9]+)*' | head -1)
+  pnpm_version=$(grep -oE '"packageManager":[[:space:]]*"pnpm@[0-9.]+"' \
+    "$REPO_ROOT/package.json" | head -1 | sed 's/.*pnpm@//;s/"$//')
+  if [ -z "$node_version" ] || [ -z "$pnpm_version" ]; then
+    report "cannot read the Node or pnpm version from ci.yml and package.json"
+    return 0
+  fi
+  grep -q "^| Node.js | $node_version |" "$REPO_ROOT/$file" ||
+    report "$file does not state Node.js $node_version from ci.yml"
+  grep -q "^| pnpm | $pnpm_version |" "$REPO_ROOT/$file" ||
+    report "$file does not state pnpm $pnpm_version from package.json"
+}
+
+check_tool_versions
+
 if [ "$problems" -ne 0 ]; then
   printf 'docs-check: %d problem(s)\n' "$problems" >&2
   exit 1
