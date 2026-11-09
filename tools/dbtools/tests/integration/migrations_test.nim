@@ -384,5 +384,29 @@ try:
           """select 1 as ok from pg_indexes
              where schemaname = 'session' and indexname = $1""",
           @[textParam(name)]).isSome
+
+    test "config values must match their declared type and bounds":
+      migrate(scratch, migrationsDir)
+      var typeState = ""
+      try:
+        discard scratch.execUpdate(
+          """insert into platform.config (key, value_type, value, scope)
+             values ('t', 'int', '"x"', 'platform')""")
+      except DbError as error:
+        typeState = error.sqlState
+      check typeState == "23514"
+      var boundState = ""
+      try:
+        discard scratch.execUpdate(
+          """insert into platform.config
+               (key, value_type, value, min_value, max_value, scope)
+             values ('t.bound', 'int', '999', 1, 10, 'platform')""")
+      except DbError as error:
+        boundState = error.sqlState
+      check boundState == "23514"
+      # The seed values pass the same checks on a fresh database.
+      seed(scratch, seedsDir)
+      let snapshot = loadSnapshot(scratch)
+      check snapshot.values.len == allKeys.len
 finally:
   shutdown()
