@@ -48,6 +48,11 @@
 # file under the included roots that has no row in the report is scored 0%, so an
 # untested module cannot disappear from the denominator.
 #
+# Measurement can be sharded (`--shard I/N`). A shard only measures its slice,
+# writes its parts and prints the report for that slice; it never runs the
+# ratchet. `--parts DIR` merges every shard's parts and is the only mode that
+# judges, so no partial report can stand in for the whole-tree verdict.
+#
 # gcov is read after every binary rather than once at the end: the nimcache is
 # shared, so the next compile rewrites `.gcno` files whose old counters are still
 # on disk. gcov refuses such a pair and reports the file as 0%, which used to
@@ -74,21 +79,33 @@ TOLERANCE=0.1
 usage() {
   cat <<'EOF'
 usage: ./task coverage [--update [--allow-decrease]] [--model DIR]
+                       [--shard I/N] [--parts DIR]
 
   --update          rewrite coverage-baseline.json with this run's measurement
   --allow-decrease  with --update, accept and print each total, domain or file
                     decrease instead of refusing it
   --model DIR       judge task.d/fixtures/coverage/DIR instead of measuring the
                     tree; no compilation, no database
+  --shard I/N       measure only slice I of N of the sorted test list (1-based);
+                    its parts land in a shard-specific directory and the ratchet
+                    is deferred to --parts
+  --parts DIR       skip measurement: merge every *.info under DIR, then build
+                    and judge the report. Needs lcov and the source tree only.
 
   --update writes nothing to a model: it prints the accepted regressions and
   leaves the regenerated baseline in the worktree cache.
+
+  --shard measures only and never runs the ratchet. --parts is the only mode
+  that judges the merged report, and it is what the merge job runs.
 EOF
 }
 
 update=0
 allow_decrease=0
 model=""
+parts=""
+shard_index=1
+shard_total=1
 timing_begin coverage
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -97,6 +114,23 @@ while [ "$#" -gt 0 ]; do
     --model)
       [ "$#" -ge 2 ] || fail "--model needs a directory"
       model=$2
+      shift
+      ;;
+    --parts)
+      [ "$#" -ge 2 ] || fail "--parts needs a directory"
+      parts=$2
+      shift
+      ;;
+    --shard)
+      [ "$#" -ge 2 ] || { usage >&2; fail "--shard needs I/N"; }
+      shard_index=${2%%/*}
+      shard_total=${2##*/}
+      case "$shard_index$shard_total" in
+        *[!0-9]*|"") usage >&2; fail "--shard needs I/N, got '$2'" ;;
+      esac
+      [ "$shard_total" -ge 1 ] && [ "$shard_index" -ge 1 ] &&
+        [ "$shard_index" -le "$shard_total" ] ||
+        { usage >&2; fail "--shard out of range: $2"; }
       shift
       ;;
     -h|--help)
@@ -110,6 +144,16 @@ done
 
 if [ "$allow_decrease" -eq 1 ] && [ "$update" -ne 1 ]; then
   fail "--allow-decrease only means anything with --update"
+fi
+
+if [ -n "$model" ] && [ -n "$parts" ]; then
+  fail "--model and --parts are mutually exclusive"
+fi
+if [ -n "$parts" ] && { [ "$shard_index" -ne 1 ] || [ "$shard_total" -ne 1 ]; }; then
+  fail "--parts merges the whole set; drop --shard"
+fi
+if [ "$shard_total" -gt 1 ] && [ "$update" -eq 1 ]; then
+  fail "--shard measures a slice only; --update needs a full run or merged --parts"
 fi
 
 # ---------------------------------------------------------------------------
@@ -509,122 +553,187 @@ fi
 require_cmd awk
 
 NIMCACHE_COV="$COV/nim"
+PARTS_DIR="$COV/parts"
+if [ "$shard_total" -gt 1 ]; then
+  # One directory per shard, so two measurements on the same machine (or two
+  # downloaded artifacts) never overwrite each other's parts.
+  PARTS_DIR="$COV/parts-${shard_index}-of-${shard_total}"
+fi
 
-if [ -n "${MAJADU_PG_DSN:-}" ]; then
-  INTEGRATION=1
+if [ -n "$parts" ]; then
+  # Parts mode. The shard jobs already compiled and ran the suites; this run
+  # only merges their `.info` files. No Nim, no gcov, no database: the merge
+  # reads the source tree for file sizes and the baseline, and `lcov` is the
+  # only toolchain the ratchet job installs.
+  require_cmd lcov
+  require_cmd git
+  [ -d "$parts" ] || fail "no such parts directory: $parts"
+  _info_count=$(find "$parts" -type f -name '*.info' | wc -l | tr -d ' ')
+  [ "$_info_count" -gt 0 ] ||
+    fail "no *.info parts in ${parts#"$REPO_ROOT"/}: nothing to merge"
+
+  # The same checks run_gate makes, made before the merge instead of after: a
+  # baseline with no per-file rows cannot judge anything.
+  if [ "$update" -eq 0 ]; then
+    [ -f "$BASELINE" ] ||
+      fail "missing ${BASELINE#"$REPO_ROOT"/}; run ./task coverage --update first"
+    grep -q '^  "files": {' "$BASELINE" ||
+      fail "${BASELINE#"$REPO_ROOT"/} has no per-file rows; run ./task coverage --update to seed the v2 baseline"
+  fi
+
+  # Stage outside $COV before clearing it: --parts may point at a directory a
+  # previous shard run left inside the cache, and that directory must survive
+  # the copy. Artifacts arrive one directory per shard, so flattening the
+  # relative path into the part name keeps two shards from colliding.
+  _stage="$REPO_ROOT/.cache/$WORKTREE/coverage-parts-stage.$$"
+  rm -rf "$_stage"
+  mkdir -p "$_stage"
+  _copy_status=0
+  ( cd "$parts" && find . -type f -name '*.info' -print ) |
+    while IFS= read -r _rel; do
+      _rel=${_rel#./}
+      cp "$parts/$_rel" "$_stage/$(printf '%s' "$_rel" | tr '/' '_')" || exit 1
+    done || _copy_status=$?
+  [ "$_copy_status" -eq 0 ] ||
+    fail "cannot copy parts from ${parts#"$REPO_ROOT"/}"
+
+  rm -rf "$COV"
+  mkdir -p "$PARTS_DIR"
+  mv "$_stage"/*.info "$PARTS_DIR"/ ||
+    fail "cannot stage parts from ${parts#"$REPO_ROOT"/}"
+  rm -rf "$_stage"
+  printf 'coverage: merging %s part(s) from %s\n' \
+    "$_info_count" "${parts#"$REPO_ROOT"/}"
 else
-  INTEGRATION=0
-fi
-export INTEGRATION
+  if [ -n "${MAJADU_PG_DSN:-}" ]; then
+    INTEGRATION=1
+  else
+    INTEGRATION=0
+  fi
+  export INTEGRATION
 
-# A baseline measured without integration is not the same measurement as the one
-# the gate compares against: it is lower, and writing it would silently lower
-# every floor. Refuse before spending the run instead of recording a number that
-# means something else.
-if [ "$update" -eq 1 ] && [ "$INTEGRATION" -ne 1 ]; then
-  fail "refusing --update without MAJADU_PG_DSN: the baseline is an integration measurement"
-fi
+  # A baseline measured without integration is not the same measurement as the one
+  # the gate compares against: it is lower, and writing it would silently lower
+  # every floor. Refuse before spending the run instead of recording a number that
+  # means something else.
+  if [ "$update" -eq 1 ] && [ "$INTEGRATION" -ne 1 ]; then
+    fail "refusing --update without MAJADU_PG_DSN: the baseline is an integration measurement"
+  fi
 
-# The same checks run_gate makes, made before half an hour of compiles instead of
-# after: a baseline with no per-file rows cannot judge anything.
-if [ "$update" -eq 0 ]; then
-  [ -f "$BASELINE" ] ||
-    fail "missing ${BASELINE#"$REPO_ROOT"/}; run ./task coverage --update first"
-  grep -q '^  "files": {' "$BASELINE" ||
-    fail "${BASELINE#"$REPO_ROOT"/} has no per-file rows; run ./task coverage --update to seed the v2 baseline"
-fi
+  # The same checks run_gate makes, made before half an hour of compiles instead of
+  # after: a baseline with no per-file rows cannot judge anything.
+  if [ "$update" -eq 0 ]; then
+    [ -f "$BASELINE" ] ||
+      fail "missing ${BASELINE#"$REPO_ROOT"/}; run ./task coverage --update first"
+    grep -q '^  "files": {' "$BASELINE" ||
+      fail "${BASELINE#"$REPO_ROOT"/} has no per-file rows; run ./task coverage --update to seed the v2 baseline"
+  fi
 
-require_cmd nim
-require_cmd lcov
-require_cmd geninfo
-require_cmd git
+  require_cmd nim
+  require_cmd lcov
+  require_cmd geninfo
+  require_cmd git
 
-# A fresh nimcache per run: stale .gcda from an earlier build would be merged
-# into this run and inflate the numbers.
-rm -rf "$COV"
-mkdir -p "$COV/bin" "$NIMCACHE_COV"
+  # A fresh nimcache per run: stale .gcda from an earlier build would be merged
+  # into this run and inflate the numbers.
+  rm -rf "$COV"
+  mkdir -p "$COV/bin" "$NIMCACHE_COV" "$PARTS_DIR"
 
-case "$(uname -s)" in
-  Darwin)
-    gcov_tool="$COV/llvm-gcov"
-    printf '#!/bin/sh\nexec xcrun llvm-cov gcov "$@"\n' >"$gcov_tool"
-    chmod +x "$gcov_tool"
-    ;;
-  *)
-    gcov_tool=gcov
-    ;;
-esac
+  case "$(uname -s)" in
+    Darwin)
+      gcov_tool="$COV/llvm-gcov"
+      printf '#!/bin/sh\nexec xcrun llvm-cov gcov "$@"\n' >"$gcov_tool"
+      chmod +x "$gcov_tool"
+      ;;
+    *)
+      gcov_tool=gcov
+      ;;
+  esac
 
-printf 'coverage: building and running tests (integration=%s)\n' "$INTEGRATION"
-mkdir -p "$COV/parts"
-# QA-06: a suite that cleans up after itself still leans on its neighbours, so
-# every file gets a fresh database, exactly as `./task test` gives it one.
-if [ "$INTEGRATION" -eq 1 ]; then
-  isolation_begin coverage
-fi
-for file in $(list_test_files); do
-  name=$(printf '%s' "$file" | sed "s|$REPO_ROOT/||" | tr '/.' '__')
+  printf 'coverage: building and running tests (integration=%s)\n' "$INTEGRATION"
+  # QA-06: a suite that cleans up after itself still leans on its neighbours, so
+  # every file gets a fresh database, exactly as `./task test` gives it one.
   if [ "$INTEGRATION" -eq 1 ]; then
-    isolation_apply "${file#"$REPO_ROOT"/}"
+    isolation_begin coverage
   fi
-  _suite_start=$(now_ms)
-  # Each suite is measured alone, from an empty set of counters.
-  #
-  # Selecting this suite's files by age (`-newer` a marker) is not enough: when
-  # a module was recompiled since its `.gcda` was written, the gcov runtime
-  # refuses to merge the pair ("corrupt arc tag"), leaves the stale file where
-  # it is, and every later suite decodes that module as zero. The nimcache is
-  # kept between coverage runs, so one edited file poisoned a whole measurement:
-  # `shared/platform-lib/db/db.nim` reported 17.8% while every integration suite
-  # was using it.
-  #
-  # Deleting the counters first means the files present after the run are
-  # exactly the instrumented objects this binary loaded, so the capture is the
-  # suite's own coverage and no corrupt pair can outlive the suite that made it.
-  find "$NIMCACHE_COV" -name '*.gcda' -delete 2>/dev/null || true
-  if ! nim c --hints:off --nimcache:"$NIMCACHE_COV" \
-    --passC:--coverage --passL:--coverage --lineDir:on \
-    -o:"$COV/bin/$name" "$file" >"$COV/last-test.log" 2>&1; then
-    tail -20 "$COV/last-test.log" >&2
-    fail "test failed to compile under coverage: ${file#"$REPO_ROOT"/}"
-  fi
-  _status=0
-  "$COV/bin/$name" >>"$COV/last-test.log" 2>&1 || _status=$?
-  if [ "$_status" -eq 77 ]; then
-    printf 'coverage: skipped %s (reserved status 77)\n' "${file#"$REPO_ROOT"/}"
-    timing_add "${file#"$REPO_ROOT"/}" "$(( $(now_ms) - _suite_start ))" 77
-    continue
-  fi
-  if [ "$_status" -ne 0 ]; then
-    tail -20 "$COV/last-test.log" >&2
-    fail "test failed under coverage instrumentation: ${file#"$REPO_ROOT"/}"
-  fi
-  timing_add "${file#"$REPO_ROOT"/}" "$(( $(now_ms) - _suite_start ))" 0
-  # Capture before the next compile touches the cache. The set is small: the
-  # counters were deleted before this binary ran, so only the objects it loaded
-  # are here. A part that fails to decode is a bug in this script, not a reason
-  # to record a zero, so `gcov` errors are fatal rather than ignored. `mismatch`
-  # is the one exception: gcov 13 reports a different end line for the
-  # compiler-generated `eqdestroy` of a module than the `.gcno` recorded, which
-  # is a Nim/gcov artifact rather than a decoding failure.
-  find "$NIMCACHE_COV" -name '*.gcda' >"$COV/captured.list"
-  if [ -s "$COV/captured.list" ]; then
-    geninfo --output-filename "$COV/parts/$name.info" \
-      --rc branch_coverage=0 \
-      --ignore-errors source,unsupported,unused,mismatch \
-      --gcov-tool "$gcov_tool" $(cat "$COV/captured.list") \
-      >>"$COV/lcov-capture.log" 2>&1 ||
-      { tail -10 "$COV/lcov-capture.log" >&2
-        fail "gcov capture failed after ${file#"$REPO_ROOT"/}"; }
-  fi
-done
+  index=0
+  ran=0
+  for file in $(list_test_files); do
+    index=$((index + 1))
+    shard_keeps "$index" "$shard_total" "$shard_index" || continue
+    ran=$((ran + 1))
+    name=$(printf '%s' "$file" | sed "s|$REPO_ROOT/||" | tr '/.' '__')
+    if [ "$INTEGRATION" -eq 1 ]; then
+      isolation_apply "${file#"$REPO_ROOT"/}"
+    fi
+    _suite_start=$(now_ms)
+    # Each suite is measured alone, from an empty set of counters.
+    #
+    # Selecting this suite's files by age (`-newer` a marker) is not enough: when
+    # a module was recompiled since its `.gcda` was written, the gcov runtime
+    # refuses to merge the pair ("corrupt arc tag"), leaves the stale file where
+    # it is, and every later suite decodes that module as zero. The nimcache is
+    # kept between coverage runs, so one edited file poisoned a whole measurement:
+    # `shared/platform-lib/db/db.nim` reported 17.8% while every integration suite
+    # was using it.
+    #
+    # Deleting the counters first means the files present after the run are
+    # exactly the instrumented objects this binary loaded, so the capture is the
+    # suite's own coverage and no corrupt pair can outlive the suite that made it.
+    find "$NIMCACHE_COV" -name '*.gcda' -delete 2>/dev/null || true
+    if ! nim c --hints:off --nimcache:"$NIMCACHE_COV" \
+      --passC:--coverage --passL:--coverage --lineDir:on \
+      -o:"$COV/bin/$name" "$file" >"$COV/last-test.log" 2>&1; then
+      tail -20 "$COV/last-test.log" >&2
+      fail "test failed to compile under coverage: ${file#"$REPO_ROOT"/}"
+    fi
+    _status=0
+    "$COV/bin/$name" >>"$COV/last-test.log" 2>&1 || _status=$?
+    if [ "$_status" -eq 77 ]; then
+      printf 'coverage: skipped %s (reserved status 77)\n' "${file#"$REPO_ROOT"/}"
+      timing_add "${file#"$REPO_ROOT"/}" "$(( $(now_ms) - _suite_start ))" 77
+      continue
+    fi
+    if [ "$_status" -ne 0 ]; then
+      tail -20 "$COV/last-test.log" >&2
+      fail "test failed under coverage instrumentation: ${file#"$REPO_ROOT"/}"
+    fi
+    timing_add "${file#"$REPO_ROOT"/}" "$(( $(now_ms) - _suite_start ))" 0
+    # Capture before the next compile touches the cache. The set is small: the
+    # counters were deleted before this binary ran, so only the objects it loaded
+    # are here. A part that fails to decode is a bug in this script, not a reason
+    # to record a zero, so `gcov` errors are fatal rather than ignored. `mismatch`
+    # is the one exception: gcov 13 reports a different end line for the
+    # compiler-generated `eqdestroy` of a module than the `.gcno` recorded, which
+    # is a Nim/gcov artifact rather than a decoding failure.
+    find "$NIMCACHE_COV" -name '*.gcda' >"$COV/captured.list"
+    if [ -s "$COV/captured.list" ]; then
+      geninfo --output-filename "$PARTS_DIR/$name.info" \
+        --rc branch_coverage=0 \
+        --ignore-errors source,unsupported,unused,mismatch \
+        --gcov-tool "$gcov_tool" $(cat "$COV/captured.list") \
+        >>"$COV/lcov-capture.log" 2>&1 ||
+        { tail -10 "$COV/lcov-capture.log" >&2
+          fail "gcov capture failed after ${file#"$REPO_ROOT"/}"; }
+    fi
+  done
 
-if [ -z "$(ls "$COV"/parts/*.info 2>/dev/null)" ]; then
-  fail "no gcov data was produced; the compiler did not accept --coverage"
+  if [ "$shard_total" -gt 1 ]; then
+    printf 'coverage: shard %s/%s measured %s of %s suite(s)\n' \
+      "$shard_index" "$shard_total" "$ran" "$index"
+  fi
+
+  if [ -z "$(ls "$PARTS_DIR"/*.info 2>/dev/null)" ]; then
+    if [ "$ran" -eq 0 ]; then
+      fail "shard $shard_index/$shard_total kept no suite; check --shard"
+    fi
+    fail "no gcov data was produced; the compiler did not accept --coverage"
+  fi
+
+  printf 'coverage: capturing gcov data\n'
 fi
 
-printf 'coverage: capturing gcov data\n'
-cat "$COV"/parts/*.info >"$COV/raw.info"
+cat "$PARTS_DIR"/*.info >"$COV/raw.info"
 
 # generated C -> Nim source, keyed by cache file name.
 #
@@ -811,6 +920,15 @@ print_report
 printf '\n'
 timing_summary coverage
 printf '\n'
+
+# A shard measures and reports, but never judges: its report covers a slice, so
+# a ratchet verdict on it would be wrong in both directions. `--parts` is the
+# only mode that judges, and the merge job runs it over every shard's parts.
+if [ -z "$parts" ] && [ "$shard_total" -gt 1 ]; then
+  printf 'coverage: shard %s/%s measured only; the merged ratchet runs in the merge job (--parts)\n' \
+    "$shard_index" "$shard_total"
+  exit 0
+fi
 
 if [ "$update" -eq 1 ]; then
   run_update "$BASELINE"
