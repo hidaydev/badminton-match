@@ -46,7 +46,6 @@ proc shareable*(status: string): bool =
   ## list instead of two.
   status in ["locked", "published", "completed"]
 
-
 proc aadFor(communityId, linkId: string): string =
   ## Binds a ciphertext to the exact row and community it was minted for.
   communityId & "|" & linkId
