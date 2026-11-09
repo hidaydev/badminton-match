@@ -26,6 +26,12 @@ proc ownerAccess*(): Access =
   ## Platform-owner management: no community membership is involved.
   Access(isSession: true, ownerOnly: true)
 
+proc denyAccess*(): Access =
+  ## The fail-closed default: no caller satisfies it. A shape the table below
+  ## does not name is refused rather than handed to any member, so forgetting
+  ## an entry costs a 403 instead of a silent grant (SQ-06).
+  Access(deny: true)
+
 proc operationAccess*(verb, path: string): Access =
   ## One row per operation shape. Contract verbs get the class the matrix
   ## declares; an unknown verb on a known shape keeps the shape's default, so
@@ -105,5 +111,6 @@ proc operationAccess*(verb, path: string): Access =
     of "rankings":
       return readAccess()
     else:
-      discard
-  readAccess()
+      # A family segment the table does not name is not a member read.
+      return denyAccess()
+  denyAccess()
