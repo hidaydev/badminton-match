@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/check-precache.mjs",
     "preview": "vite preview",
     "lint": "eslint .",
     "check:types": "tsc -b --pretty false",
@@ -14,7 +14,8 @@
     "check": "pnpm run check:types && pnpm run check:lint && pnpm run check:tailwind && pnpm run check:touch && pnpm run check:docpaths && pnpm test",
     "test": "vitest run --coverage",
     "check:touch": "node scripts/check-touch-targets.mjs",
-    "check:docpaths": "node scripts/check-doc-paths.mjs"
+    "check:docpaths": "node scripts/check-doc-paths.mjs",
+    "check:precache": "node scripts/check-precache.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
