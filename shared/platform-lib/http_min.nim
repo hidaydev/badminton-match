@@ -1,11 +1,29 @@
-import std/[net, strutils, uri]
+import std/[monotimes, nativesockets, net, strutils, times, uri]
 
 type HttpMinError* = object of CatchableError
 
+## One bound for connect, send and the whole read. A peer that accepts the
+## connection and stops sending used to block the calling worker thread
+## forever, and in the JWKS path that blocked every other login behind it
+## (SQ-09). Callers that must answer instead of raising catch `HttpMinError`.
+const defaultTimeoutMs* = 10000
+
+proc elapsedMs(started: MonoTime): int =
+  (getMonoTime() - started).inMilliseconds.int
+
+proc remainingMs(deadline: MonoTime): int =
+  ## Milliseconds left before the request as a whole is abandoned. The bound is
+  ## on the exchange rather than on one `recv`, so a peer that drips one byte
+  ## at a time cannot hold a worker open by staying just under each read.
+  result = (deadline - getMonoTime()).inMilliseconds.int
+
 proc httpRequest*(url, verb: string, body = "",
-                  headers: openArray[(string, string)] = []): (int, string) =
+                  headers: openArray[(string, string)] = [],
+                  timeoutMs = defaultTimeoutMs): (int, string) =
   ## Minimal HTTP/1.1 client for plain http (tests, OIDC stub). HTTPS goes
   ## through std/httpclient when the binary is built with -d:ssl.
+  let started = getMonoTime()
+  let deadline = started + initDuration(milliseconds = timeoutMs)
   let parsed = parseUri(url)
   if parsed.scheme != "http":
     raise newException(HttpMinError, "httpRequest only supports http://")
@@ -17,7 +35,11 @@ proc httpRequest*(url, verb: string, body = "",
     (if parsed.query.len > 0: "?" & parsed.query else: "")
   let socket = newSocket()
   defer: socket.close()
-  socket.connect(parsed.hostname, port)
+  try:
+    socket.connect(parsed.hostname, port, timeoutMs)
+  except TimeoutError:
+    raise newException(HttpMinError, "connect to " & parsed.hostname &
+      " timed out after " & $timeoutMs & " ms")
   var request = verb & " " & target & " HTTP/1.1\r\nHost: " & parsed.hostname &
     "\r\nConnection: close\r\n"
   for (key, value) in headers:
@@ -26,9 +48,24 @@ proc httpRequest*(url, verb: string, body = "",
     request.add("Content-Length: " & $body.len & "\r\n")
   request.add("\r\n")
   request.add(body)
+  var writable = @[socket.getFd]
+  if remainingMs(deadline) <= 0 or selectWrite(writable, remainingMs(deadline)) <= 0:
+    raise newException(HttpMinError, "request to " & url &
+      " timed out after " & $elapsedMs(started) & " ms")
   socket.send(request)
   var data = ""
   while true:
+    let left = remainingMs(deadline)
+    if left <= 0:
+      raise newException(HttpMinError, "read from " & parsed.hostname &
+        " timed out after " & $elapsedMs(started) & " ms")
+    var readable = @[socket.getFd]
+    let ready = selectRead(readable, left)
+    if ready == 0:
+      raise newException(HttpMinError, "read from " & parsed.hostname &
+        " timed out after " & $elapsedMs(started) & " ms")
+    if ready < 0:
+      raise newException(HttpMinError, "read from " & parsed.hostname & " failed")
     let chunk = socket.recv(8192)
     if chunk.len == 0:
       break

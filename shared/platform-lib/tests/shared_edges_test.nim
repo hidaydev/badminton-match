@@ -7,7 +7,7 @@
 ## import: `fail`, `usageFail` and `flags` exit the process and read its command
 ## line, so only a child process can observe them.
 
-import std/[net, os, osproc, strutils, unittest]
+import std/[monotimes, net, os, osproc, strutils, times, unittest]
 import mummy
 import ../hex
 import ../http_min
@@ -113,6 +113,26 @@ suite "http_min":
     except HttpMinError as error:
       message = error.msg
     check message.contains("missing host")
+
+  test "a listener that accepts and never answers cannot block the client":
+    ## SQ-09: a peer that completes the handshake and then stays silent used to
+    ## hold the calling worker thread forever. The listen backlog accepts the
+    ## connection, nothing reads it, and the read must give up on the bound.
+    let listener = newSocket()
+    defer: listener.close()
+    listener.setSockOpt(OptReuseAddr, true)
+    listener.bindAddr(Port(0), "127.0.0.1")
+    listener.listen()
+    let port = listener.getLocalAddr()[1]
+    let started = getMonoTime()
+    var message = ""
+    try:
+      discard httpRequest("http://127.0.0.1:" & $port.int & "/jwks", "GET",
+        timeoutMs = 250)
+    except HttpMinError as error:
+      message = error.msg
+    check message.contains("timed out")
+    check (getMonoTime() - started).inMilliseconds < 5000
 
   test "the status and the body come back from a local listener":
     ## The stub is mummy, the same server `apps/api/tests/http_support.nim`
