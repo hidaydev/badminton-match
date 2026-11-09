@@ -55,3 +55,15 @@ suite "workflow contract":
     check text.contains(
       "needs: [api-check, api-test, contract, supply-chain, web, e2e, mutation, image, coverage-gate]")
 
+  # OPS-20: the coverage gate used the distro tools and could be cancelled by
+  # the next push.
+  test "coverage.yml measures with the locked tools and cannot be cancelled on main":
+    let text = readFile(repoDir / ".github" / "workflows" / "coverage.yml")
+    check text.contains("gcovr==8.8")
+    check text.contains("--branch v2.6")
+    check text.contains("./task deps-check")
+    check text.contains("cancel-in-progress: ${{ github.event_name == 'pull_request' }}")
+    check not text.contains("apt-get install -y lcov gcovr")
+    # A rewritten PR history has no merge base, and the workflow refuses it
+    # instead of inheriting the skip in task.d/coverage.sh.
+    check text.contains("git merge-base HEAD \"origin/$BASE_REF\"")
