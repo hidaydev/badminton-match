@@ -194,7 +194,15 @@ nim_run() {
   _file=$1
   shift
   _bin=$(test_binary "$_file")
-  nim c $CHECK_FLAGS --nimcache:"$NIMCACHE_BUILD" -o:"$_bin" "$_file" >/dev/null
+  # The caller runs this as `nim_run ... || status=$?`, which turns `set -e` off
+  # for everything inside the function. A compile failure therefore has to be
+  # read explicitly, and the binary is removed first so a stale build from an
+  # earlier checkout can never stand in for one that did not compile.
+  rm -f "$_bin"
+  if ! nim c $CHECK_FLAGS --nimcache:"$NIMCACHE_BUILD" -o:"$_bin" "$_file" >/dev/null; then
+    printf 'compile failed: %s\n' "$_file" >&2
+    return 1
+  fi
   # `_suite_status`, not `_status`: a caller that records the result in `_status`
   # would otherwise read this function's skip code (77) as its own.
   _suite_status=0
@@ -206,7 +214,11 @@ nim_run_check() {
   _file=$1
   shift
   _bin=$(test_binary "$_file")
-  nim c $CHECK_FLAGS --nimcache:"$NIMCACHE_CHECK" -o:"$_bin" "$_file" >/dev/null
+  rm -f "$_bin"
+  if ! nim c $CHECK_FLAGS --nimcache:"$NIMCACHE_CHECK" -o:"$_bin" "$_file" >/dev/null; then
+    printf 'compile failed: %s\n' "$_file" >&2
+    return 1
+  fi
   _suite_status=0
   "$_bin" "$@" || _suite_status=$?
   handle_suite_status "$_suite_status" "$_file"
