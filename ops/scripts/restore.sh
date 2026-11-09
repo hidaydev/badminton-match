@@ -63,21 +63,39 @@ if { [ "$TARGET" = "bm" ] || [ "$TARGET" = "bm2" ]; } && [ "$FORCE" -ne 1 ]; the
   exit 2
 fi
 
-# The database pg_restore writes into comes from --dsn, not from --target, so
-# the allow-list above is only a guard when both name the same database.
-dsn_database() {
-  local dsn=$1 rest path
+# The authority is everything after "://" up to the first "/"; the path (the
+# database name plus any query) follows that slash. A DSN without a slash has no
+# path, and libpq does not parse a query without one, so a "?" inside the
+# authority (a password, for example) must never be read as a query start.
+dsn_authority() {
+  local dsn=$1 rest
   case "$dsn" in
-    postgres://*) rest=${dsn#*://} ;;
-    postgresql://*) rest=${dsn#*://} ;;
+    postgres://*|postgresql://*) rest=${dsn#*://} ;;
     *) return 1 ;;
   esac
   case "$rest" in
-    */*) path=/${rest#*/} ;;
+    */*) printf '%s\n' "${rest%%/*}" ;;
+    *) printf '%s\n' "$rest" ;;
+  esac
+}
+
+dsn_path() {
+  local dsn=$1 rest
+  case "$dsn" in
+    postgres://*|postgresql://*) rest=${dsn#*://} ;;
     *) return 1 ;;
   esac
+  case "$rest" in
+    */*) printf '%s\n' "${rest#*/}" ;;
+    *) return 1 ;;
+  esac
+}
+
+# The database is the path up to the query; the query starts only after it.
+dsn_database() {
+  local path
+  path=$(dsn_path "$1") || return 1
   path=${path%%\?*}
-  path=${path#/}
   [ -n "$path" ] || return 1
   printf '%s\n' "$path"
 }
@@ -123,12 +141,20 @@ url_decode_key() {
 }
 
 dsn_query() {
-  case "$1" in
-    *\?*) printf '%s\n' "${1#*\?}" ;;
+  local path
+  path=$(dsn_path "$1") || return 0
+  case "$path" in
+    *\?*) printf '%s\n' "${path#*\?}" ;;
   esac
 }
 
 QUERY=$(dsn_query "$DSN")
+case "$QUERY" in
+  *';'*)
+    echo "restore: --dsn query contains ';', which libpq reads as a conninfo separator; refusing" >&2
+    exit 2
+    ;;
+esac
 if [ -n "$QUERY" ]; then
   rest=$QUERY
   while [ -n "$rest" ]; do
@@ -194,17 +220,14 @@ fi
 # so --recreate refuses it instead of silently dropping a database on whatever
 # server the local socket happens to point at.
 maintenance_dsn() {
-  local dsn=$1 scheme rest authority path query hostport host
+  local dsn=$1 scheme authority path query hostport host
   case "$dsn" in
     postgres://*) scheme="postgres" ;;
     postgresql://*) scheme="postgresql" ;;
     *) return 1 ;;
   esac
-  rest=${dsn#*://}
-  case "$rest" in
-    */*) authority=${rest%%/*}; path=/${rest#*/} ;;
-    *) authority=$rest; path="" ;;
-  esac
+  authority=$(dsn_authority "$dsn") || return 1
+  path=$(dsn_path "$dsn") || path=""
   [ -n "$authority" ] || return 1
   query=""
   case "$path" in
