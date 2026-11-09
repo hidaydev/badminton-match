@@ -117,7 +117,36 @@ Journal retention is bounded by `ops/journald/majadu.conf` (200 MB, 30 days).
 Install it on the host as described in the file header, then confirm with
 `journalctl --disk-usage`.
 
-## 5. What is still missing
+## 5. Capacity statement
+
+The service is one process on one host. The host measured for this project is
+2 vCPU, 7.4 GB RAM and a 512 MB container limit (`ops/systemd/majadu-api.container`).
+The configured ceilings are:
+
+| Resource | Ceiling | Source |
+|---|---|---|
+| concurrent session watchers, process | 500 | `ws.max_watchers_process` |
+| concurrent watchers per session | 50 | `ws.max_watchers_per_session` |
+| concurrent watchers per address | 20 | `ws.max_watchers_per_ip` |
+| requests per minute per route and identity | 300 | `platform.config` seed |
+| API memory | 512 MB | `MemoryMax` in the unit |
+
+Those are safety limits, not measurements. The measured capacity is recorded by
+the T-074 soak test on the host above, using the committed load test:
+
+```sh
+./task loadtest --http https://api.qouver.com/majadu/readyz \
+  --requests 100000 --concurrency 50
+```
+
+The watcher half needs a file of single-use watcher URLs (`--ws-file`), because
+a ticket cannot be replayed. Until that run is recorded here, the 500-watcher
+ceiling is a configuration default and the capacity claim is unproven. A run
+that reaches 500 watchers and 100,000 requests without a 5xx, a rejected
+upgrade or an OOM is the acceptance evidence; a lower measured ceiling is the
+number to configure, not the default.
+
+## 6. What is still missing
 
 Being honest about gaps is more useful than a runbook that assumes tools that do
 not exist:
