@@ -9,6 +9,15 @@ Status: the sequence below follows the scripts present in the repo
 rehearsal is what proves the Quadlet, Caddy, and `:v1-final` steps; until that
 rehearsal is done, treat every step here as untested.
 
+Before the window, run `cutover.sh --check --version v<version>`. It validates
+the tools and resolves the signed release digest without taking the lock or
+writing a step marker, and it exits 2 when `podman` is missing. The documented
+host has no `psql`, `pg_dump` or `pg_restore`; `cutover.sh`, `backup.sh` and
+`restore.sh` detect that and run those clients inside the PostgreSQL container
+(`MAJADU_PG_CONTAINER`, default `qouver-postgres`) instead of installing
+packages during the maintenance window. The container path is the supported one
+on this host; the host-binary path remains for a host that already has them.
+
 ## 0. Principles that must not be violated
 
 - The v1 image is tagged `:v1-final` **before** v1 is shut down. If tagging
@@ -198,7 +207,10 @@ sudo /srv/qouver/apps/majadu/scripts/rollback.sh --abandon-data
 Rollback first counts how many bm2 rows were written after `completed_at`
 (sessions, games, players, tournaments, rating events) and **refuses to run** if
 there are writes without `--abandon-data`; the number that will be lost is
-printed in the error message and in the log. Add `--drop-bm2` if the bm2
+printed in the error message and in the log. The count runs through the host
+`psql` or, on this host, through the PostgreSQL container; when neither client is
+available the script refuses instead of skipping the guard, and
+`--abandon-data` records that the count is unknown. Add `--drop-bm2` if the bm2
 database should be dropped as well, rather than left behind for inspection.
 
 Rollback restores `:v1-final`, the unit and env saved during `preserve-v1`, then
@@ -236,6 +248,10 @@ If the rollback itself fails, do not rerun the cutover: recover by hand from
       (checker cron or manual).
 - [ ] No `majadu-alert@` in the journal.
 - [ ] The daily `bm2` backup runs and can be read (`pg_restore --list`).
+- [ ] The last `bm2` dump was restored into a scratch database, `bm2_app` read
+      `select 1 from platform.community`, `select count(*) from
+      dbtools.schema_migrations` matched the file count, and `dbtools verify`
+      exited 0.
 - [ ] The first session created by a real user shows up on the leaderboard.
 - [ ] `rating.snapshots` gained yesterday's date
       (`select max(taken_on) from rating.snapshots`), and the arrows on the
