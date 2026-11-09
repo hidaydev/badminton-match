@@ -1,9 +1,11 @@
-import std/[httpclient, json, options, os, sequtils, strutils, unittest]
+import std/[httpclient, json, options, sequtils, strutils, unittest]
 import db/db
 import account/domain/roles
 import community/infrastructure/[community_store, membership]
 import tests/fixtures
 import ../http_support
+
+const expectedVersion = staticRead("../../../../VERSION").strip()
 
 let
   port = testPort()
@@ -11,7 +13,6 @@ let
   ownerEmail = "http-owner@example.com"
   adminEmail = "http-admin@example.com"
   memberEmail = "http-member@example.com"
-  expectedVersion = staticRead("../../../../VERSION").strip()
 
 var
   database: Db
