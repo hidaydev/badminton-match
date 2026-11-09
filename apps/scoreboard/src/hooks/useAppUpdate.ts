@@ -8,7 +8,12 @@ export interface AppUpdate {
 
 export interface AppUpdateOptions {
   reload?: () => void
+  /** How often an open board asks the registration for a new worker. */
+  updateIntervalMs?: number
 }
+
+/** The hall tablet stays on one screen all day, so this is its only poll. */
+export const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000
 
 function reloadPage() {
   window.location.reload()
@@ -21,6 +26,7 @@ function reloadPage() {
 // no-op, so the scoreboard keeps working in a plain browser.
 export function useAppUpdate(options: AppUpdateOptions = {}): AppUpdate {
   const reload = options.reload ?? reloadPage
+  const updateIntervalMs = options.updateIntervalMs ?? UPDATE_CHECK_INTERVAL_MS
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const reloadPending = useRef(false)
@@ -31,6 +37,7 @@ export function useAppUpdate(options: AppUpdateOptions = {}): AppUpdate {
     const container = navigator.serviceWorker
     let mounted = true
     let registration: ServiceWorkerRegistration | null = null
+    let poll: ReturnType<typeof setInterval> | null = null
 
     const showWaiting = (worker: ServiceWorker) => {
       setWaiting(worker)
@@ -56,14 +63,21 @@ export function useAppUpdate(options: AppUpdateOptions = {}): AppUpdate {
       registration = reg
       if (reg.waiting && container.controller) showWaiting(reg.waiting)
       reg.addEventListener('updatefound', onUpdateFound)
+      // The browser checks the worker script on navigation and roughly daily,
+      // and this board never navigates. Ask explicitly so a deploy reaches a
+      // device that has been open since the morning.
+      if (typeof reg.update === 'function') {
+        poll = setInterval(() => { void reg.update() }, updateIntervalMs)
+      }
     })
 
     return () => {
       mounted = false
+      if (poll !== null) clearInterval(poll)
       container.removeEventListener('controllerchange', onControllerChange)
       registration?.removeEventListener('updatefound', onUpdateFound)
     }
-  }, [reload])
+  }, [reload, updateIntervalMs])
 
   const applyUpdate = useCallback(() => {
     if (!waiting) return
