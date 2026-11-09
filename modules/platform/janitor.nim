@@ -1,4 +1,4 @@
-import std/[json, strutils, times]
+import std/[json, times]
 import db/db
 import clock
 import config/registry
