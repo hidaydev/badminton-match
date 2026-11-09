@@ -263,6 +263,12 @@ suite "deploy-vps.sh":
     # A token file keeps AUTH non-empty (bash 3.2 treats "${AUTH[@]}" on an
     # empty array as unbound under set -u) and the podman fake answers login.
     privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+    # A successful release is already recorded; the failed attempt must leave it
+    # intact and write its own record beside it.
+    touch(fixture.root / "deploy" / "last-release.json",
+      "{\"version\":\"1.9.0\",\"commit\":\"abc\",\"digest\":\"sha256:" &
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"," &
+      "\"schema\":\"0031_old\",\"at\":\"2026-10-01T00:00:00Z\"}\n")
     # Everything before the restart succeeds; `false` stands in for a systemctl
     # that refuses the restart, which used to exit through set -e without a log
     # line, an alert or a state record.
@@ -276,8 +282,14 @@ suite "deploy-vps.sh":
     let deployLog = readFile(fixture.root / "logs" / "deploy.log")
     check deployLog.contains("ERROR: command failed at line")
     check deployLog.contains("(step: restart)")
-    check readFile(fixture.root / "deploy" / "last-release.json")
+    check readFile(fixture.root / "deploy" / "last-attempt.json")
       .contains("\"step\":\"restart\"")
+    check readFile(fixture.root / "deploy" / "last-attempt.json")
+      .contains("\"version\":\"1.9.0\"")
+    check readFile(fixture.root / "deploy" / "last-release.json")
+      .contains("\"version\":\"1.9.0\"")
+    check readFile(fixture.root / "deploy" / "last-release.json")
+      .contains("\"schema\":\"0031_old\"")
     check readFile(systemctlLog).contains("start majadu-alert@deploy.service")
 
   test "an owner DSN left in the API env stops the deploy":
@@ -300,7 +312,7 @@ suite "deploy-vps.sh":
     let toolsFile = fixture.root / "env" / "majadu-tools.env"
     check result.stdout.contains(
       envFile & ":2 must not contain MAJADU_OWNER_DSN; move it to " & toolsFile)
-    check readFile(fixture.root / "deploy" / "last-release.json")
+    check readFile(fixture.root / "deploy" / "last-attempt.json")
       .contains("\"step\":\"env-split\"")
 
   test "a missing tool env fails before the release lookup":
@@ -390,7 +402,7 @@ suite "deploy-vps.sh":
     check result.exitCode == 1
     check result.stdout.contains(
       "must carry exactly one 'digest: sha256:...' line")
-    check readFile(fixture.root / "deploy" / "last-release.json")
+    check readFile(fixture.root / "deploy" / "last-attempt.json")
       .contains("\"step\":\"resolve-digest\"")
 
 suite "deploy-vps-rc.sh":
@@ -481,7 +493,7 @@ suite "deploy-vps-rc.sh":
     # about the install, not the deploy that follows.
     check result.exitCode != 0
     check readFile(installed) == readFile(source)
-    check readFile(rcDir / "deploy" / "last-release.json")
+    check readFile(rcDir / "deploy" / "last-attempt.json")
       .contains("\"step\":\"env-check\"")
 
   test "the CI gate allows a commit whose ci.yml run succeeded":
@@ -544,7 +556,7 @@ suite "deploy-vps-rc.sh":
       "newest ci.yml run for abc1234 ended as failure")
     check not result.stdout.contains(
       "built localhost/majadu-rc-api:local")
-    check readFile(rcDir / "deploy" / "last-release.json")
+    check readFile(rcDir / "deploy" / "last-attempt.json")
       .contains("\"step\":\"ci-gate\"")
 
   test "the CI gate refuses a completed run with a null conclusion":
@@ -688,7 +700,7 @@ suite "deploy-vps-rc.sh":
       "built localhost/majadu-rc-api:local at abc1234")
     # The run stops after the build in this fixture, and the failure record
     # still carries the bypass so the audit trail survives it.
-    check readFile(rcDir / "deploy" / "last-release.json")
+    check readFile(rcDir / "deploy" / "last-attempt.json")
       .contains("\"ci\":\"bypassed\"")
 
   test "a redeploy of the live commit skips the gate without a token":

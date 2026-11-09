@@ -57,11 +57,23 @@ log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"
 }
 
+json_field() {
+  sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p" "$1" 2>/dev/null | head -1
+}
+
+# The running release record survives a failed attempt: the failure belongs in
+# last-attempt.json, next to the version, schema and digest it was serving.
 fail() {
+  local run_version run_schema
   log "ERROR: $1 (step: $STEP)"
-  printf '{"step":"%s","ci":"%s","message":"%s","at":"%s"}\n' \
-    "$STEP" "$CI_STATE" "$1" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-    >"$STATE_DIR/last-release.json"
+  run_version=$(json_field "$STATE_DIR/last-release.json" version)
+  run_schema=$(json_field "$STATE_DIR/last-release.json" schema)
+  : "${run_version:=${VERSION:-unknown}}"
+  : "${run_schema:=${SCHEMA:-unknown}}"
+  printf '{"step":"%s","ci":"%s","message":"%s","version":"%s","schema":"%s","at":"%s"}\n' \
+    "$STEP" "$CI_STATE" "$1" "$run_version" "$run_schema" \
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+    >"$STATE_DIR/last-attempt.json"
   exit 1
 }
 

@@ -32,7 +32,7 @@
 # The ERR trap is installed at the top level, so `set -E` is what carries it into
 # functions and command substitutions. Without it a failure inside `service` or
 # `wait_ready` exits through `set -e` with no ERROR line, no alert and no
-# last-release.json.
+# last-attempt.json.
 set -Eeuo pipefail
 
 REPO_NAME="${1:-badminton-match}"
@@ -82,12 +82,27 @@ require_private_file() {
   esac
 }
 
+json_field() {
+  sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p" "$1" 2>/dev/null | head -1
+}
+
+# A failed attempt must not erase the record of what is still serving. The
+# failure goes to last-attempt.json with the running release's version, schema
+# and digest copied in; last-release.json is written only by a successful
+# deploy and is the input a rollback or an audit reads.
 fail() {
-  local message="$1"
+  local message="$1" run_version run_schema run_digest
   log "ERROR: $message (step: $STEP)"
-  printf '{"step":"%s","message":"%s","at":"%s"}\n' \
-    "$STEP" "$message" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-    >"$STATE_DIR/last-release.json"
+  run_version=$(json_field "$STATE_DIR/last-release.json" version)
+  run_schema=$(json_field "$STATE_DIR/last-release.json" schema)
+  run_digest=$(json_field "$STATE_DIR/last-release.json" digest)
+  : "${run_version:=${VERSION:-unknown}}"
+  : "${run_schema:=${SCHEMA:-unknown}}"
+  : "${run_digest:=${DIGEST:-unknown}}"
+  printf '{"step":"%s","message":"%s","version":"%s","schema":"%s","digest":"%s","at":"%s"}\n' \
+    "$STEP" "$message" "$run_version" "$run_schema" "$run_digest" \
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+    >"$STATE_DIR/last-attempt.json"
   alert
   exit 1
 }
@@ -307,8 +322,8 @@ log "pulled $REGISTRY_IMAGE@$DIGEST"
 # a migration marked `-- contract` is refused here and applied by hand one
 # release later, so a deploy can never be the step that removes the old shape.
 # ---------------------------------------------------------------------------
-# The previous release's schema is read before `migrate`, because every failure
-# from here on replaces last-release.json with the failure record.
+# The previous release's schema is read before `migrate`: a later failure writes
+# last-attempt.json and leaves last-release.json as the record of what runs.
 PREV_SCHEMA=$(sed -n 's/.*"schema":"\([^"]*\)".*/\1/p' \
   "$STATE_DIR/last-release.json" 2>/dev/null | tail -1 || true)
 [ -n "$PREV_SCHEMA" ] || PREV_SCHEMA="unknown"
@@ -459,6 +474,11 @@ if [ -n "$CONTAINER_IMAGE" ] && [ "$CONTAINER_IMAGE" != "$LOCAL_ID" ]; then
 fi
 
 printf '%s\n' "$VERSION" >"$STATE_DIR/deployed-version"
+# release-rollback.sh needs the previous release's identity after this record is
+# replaced; the image label is not guaranteed to carry it.
+if [ -f "$STATE_DIR/last-release.json" ]; then
+  cp -f "$STATE_DIR/last-release.json" "$STATE_DIR/last-release.json.prev"
+fi
 printf '{"version":"%s","commit":"%s","digest":"%s","schema":"%s","at":"%s"}\n' \
   "$VERSION" "$NEW_REV" "$DIGEST" "$SCHEMA" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
   >"$STATE_DIR/last-release.json"

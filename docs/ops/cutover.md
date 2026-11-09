@@ -40,7 +40,8 @@ rehearsal is done, treat every step here as untested.
 │   └── site-*.caddy           # copied by cutover.sh from ops/caddy/
 ├── cutover/                   # cutover.step, v1-final.digest, snapshot.*,
 │                              # majadu-api.container.v1, env-target.v1
-├── deploy/                    # deployed-version, last-release.json
+├── deploy/                    # deployed-version, last-release.json,
+│                              # last-release.json.prev, last-attempt.json
 ├── backups/                   # mode 700; daily dump + bm-cutover-*.dump
 └── logs/                      # deploy.log, cutover.log, caddy-access.log
 ```
