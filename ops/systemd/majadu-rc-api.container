@@ -27,13 +27,28 @@ AutoUpdate=local
 UserNS=keep-id:uid=10001
 NoNewPrivileges=true
 DropCapability=ALL
+# Same hardening as production: this unit runs branch code.
+ReadOnly=true
+Tmpfs=/tmp:size=64m
+Tmpfs=/run:size=8m
+PidsLimit=256
+DevicePolicy=closed
+# Podman rotates the container's own json log past this size.
+LogSizeMax=10m
+HealthCmd=/bin/bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /readyz HTTP/1.0\r\n\r\n" >&3 && read -r line <&3 && case "$line" in *" 200 "*) exit 0;; esac; exit 1'
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=20s
 
 [Service]
 # on-failure, not always: a deliberate stop (rebuild, rollback, maintenance)
 # must stay stopped.
 Restart=on-failure
 RestartSec=3
+MemoryHigh=400M
 MemoryMax=512M
+LimitNOFILE=8192
 
 [Install]
 WantedBy=default.target

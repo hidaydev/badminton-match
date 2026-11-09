@@ -1382,6 +1382,19 @@ suite "systemd units":
     for kind, path in walkDir(unitsDir):
       check not readFile(path).contains("majadu-alert@%n.service")
 
+  # OPS-16: both API units carry the same runtime hardening. The host-side
+  # proof is `podman inspect` after a deploy; these assertions keep a future
+  # edit from dropping a line on one unit only.
+  test "both API units harden the container":
+    for unit in ["majadu-api.container", "majadu-rc-api.container"]:
+      let text = readFile(unitsDir / unit)
+      for key in ["ReadOnly=true", "Tmpfs=/tmp:size=64m",
+                  "Tmpfs=/run:size=8m", "PidsLimit=256",
+                  "DevicePolicy=closed", "LogSizeMax=10m",
+                  "MemoryHigh=400M", "LimitNOFILE=8192",
+                  "HealthCmd=", "OnFailure=majadu-alert@%N.service"]:
+        check text.contains(key)
+
   test "the RC deploy installs the alert template":
     let script = readFile(opsScriptsDir / "deploy-vps-rc.sh")
     check script.contains("ops/systemd/majadu-alert@.service")

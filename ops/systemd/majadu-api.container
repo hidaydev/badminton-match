@@ -32,13 +32,38 @@ AutoUpdate=local
 UserNS=keep-id:uid=10001
 NoNewPrivileges=true
 DropCapability=ALL
+# The image is immutable at run time: the API writes only to the /logs volume,
+# so anything that lands elsewhere in the image is a defect or an intrusion. The
+# two tmpfs mounts are the only writable scratch space a process may need.
+ReadOnly=true
+Tmpfs=/tmp:size=64m
+Tmpfs=/run:size=8m
+# A fork bomb in the container stops at the pid limit instead of starving the
+# host, and the descriptor limit keeps a leak from exhausting the system table.
+PidsLimit=256
+DevicePolicy=closed
+# Podman rotates the container's own json log past this size.
+LogSizeMax=10m
+# Health is checked from inside the container against the loopback listener, so
+# an operator sees `unhealthy` instead of a process that accepts TCP and fails
+# every request. Debian ships bash, and /dev/tcp is the only HTTP client the
+# runtime image has.
+HealthCmd=/bin/bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /readyz HTTP/1.0\r\n\r\n" >&3 && read -r line <&3 && case "$line" in *" 200 "*) exit 0;; esac; exit 1'
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=20s
 
 [Service]
 # on-failure, not always: a deliberate stop (cutover, rollback, maintenance) must
 # stay stopped. StartLimit* above bounds the crash case.
 Restart=on-failure
 RestartSec=3
+# MemoryHigh starts reclaiming before MemoryMax kills the process, so the OOM
+# kill is the last resort rather than the first symptom.
+MemoryHigh=400M
 MemoryMax=512M
+LimitNOFILE=8192
 
 [Install]
 WantedBy=default.target
