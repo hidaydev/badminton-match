@@ -37,7 +37,7 @@ const HEADER = 'shrink-0 pl-5 pr-14 pt-3 pb-2'
 const BODY = 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4'
 const FOOTER = 'shrink-0 border-t border-border-subtle px-5 pt-3'
 const CLOSE =
-  'absolute right-2 top-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-fg-dim hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent'
+  'absolute right-2 top-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-fg-dim hover:bg-elevated focus-ring'
 
 // One lock for the whole module: the first overlay records the scroll position,
 // the last one restores it. `overflow: hidden` alone is not enough on iOS.

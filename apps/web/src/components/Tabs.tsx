@@ -21,7 +21,7 @@ type TabsProps = {
 }
 
 const DEFAULT_TAB =
-  'inline-flex min-h-11 items-center text-xs font-semibold px-4 rounded-lg transition-colors'
+  'focus-ring inline-flex min-h-11 items-center text-xs font-semibold px-4 rounded-lg transition-colors'
 const DEFAULT_ACTIVE = 'bg-accent text-ground'
 const DEFAULT_INACTIVE = 'text-fg-dim hover:text-fg'
 

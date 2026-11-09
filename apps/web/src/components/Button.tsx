@@ -10,7 +10,7 @@ type Variant = 'primary' | 'secondary' | 'danger'
 type Size = 'md' | 'sm'
 
 const BASE =
-  'min-h-11 rounded-xl transition-[filter,transform] duration-150 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100'
+  'min-h-11 rounded-xl transition-[filter,transform] duration-150 active:scale-[0.99] focus-ring disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100'
 
 const VARIANT = {
   primary: 'bg-accent font-semibold text-ground hover:brightness-105',
