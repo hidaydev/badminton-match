@@ -1,7 +1,8 @@
 import std/[strutils]
 
 const
-  domainTables = ["session.", "player.", "rating.", "tournament.", "community."]
+  domainTables = ["session.", "player.", "rating.", "tournament.", "community.",
+    "achievement."]
   # `cli.nim` is the process edge for every tool: `dsnOrFail` reads the DSN that
   # used to be read in sixteen `main.nim` files.
   envAllowlist = ["shared/platform-lib/clock.nim", "shared/platform-lib/cli.nim"]
