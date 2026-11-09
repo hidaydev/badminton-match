@@ -278,7 +278,8 @@ jobs:
           trivyignores: .trivyignore
 
   web:
-    name: "Web: build"    runs-on: ubuntu-24.04
+    name: "Web: build"
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -449,6 +450,29 @@ jobs:
         run: |
           docker build -f apps/api/Dockerfile \
             --build-arg APP_COMMIT="$COMMIT" -t majadu-api:ci .
+
+  notify:
+    name: "Notify: red main build"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: [gate]
+    # Only a red push to main pages someone; a red pull request is already
+    # visible to its author. The webhook is the same one majadu-alert@ posts to.
+    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: "Notify: post the failure"
+        env:
+          WEBHOOK: ${{ secrets.MAJADU_ALERT_WEBHOOK }}
+          SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "::warning::MAJADU_ALERT_WEBHOOK is not configured; the red main build is only in GitHub"
+            exit 0
+          fi
+          curl -fsS -m 10 -H "Content-Type: application/json" \
+            --data "{\"text\":\"majadu: main CI failed at $SHA $RUN_URL\"}" \
+            "$WEBHOOK"
 
   gate:
     name: "Gate"

@@ -162,11 +162,15 @@ not exist:
   exist. The shelltests assert the specifier and the template presence because a
   macOS checkout cannot run systemd; on the host, prove the expansion with
   `systemd-analyze verify ~/.config/systemd/user/majadu-janitor.service` (and
-  the other installed units) after a deploy. Without
+  the other installed units) after a deploy. The alert unit now retries a
+  webhook three times with backoff and appends an undelivered message to
+  `logs/alert-dead-letter.log`; without
   `/srv/qouver/apps/majadu/env/alert.env` (mode 600) the message only goes to
-  the journal, it is not sent off the machine. Journal retention and shipping
-  the journal off-host are not configured; those are VPS steps, not files in
-  this repo.
+  the journal, it is not sent off the machine. A red push to `main` and a red
+  nightly also post to the same webhook from their `notify` job when
+  `MAJADU_ALERT_WEBHOOK` is configured. Journal retention is in the repository
+  (`ops/journald/majadu.conf`), but installing it and shipping the journal
+  off-host are VPS steps.
 - `readyz` used to be just a probe; now `majadu-readyz.timer` hits it every 5
   minutes and a failure becomes an alert. Internal metrics exist on
   `MAJADU_METRICS_PORT` (default 9090, bound to 127.0.0.1 inside the container

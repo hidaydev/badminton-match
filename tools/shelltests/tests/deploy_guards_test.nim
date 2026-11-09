@@ -885,6 +885,33 @@ suite "cutover.sh":
     check result.exitCode == 0
     check result.stdout.contains("One manual cutover from the v1 database")
 
+  test "--check uses the container when the host has no database clients":
+    let fixture = newFixture("cutover-check-container")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("curl", releaseCurlFake)
+    fixture.installFake("caddy", okFake)
+    for tool in ["psql", "pg_dump", "pg_restore"]:
+      removeFile(fixture.binDir / tool)
+    touch(fixture.root / "env" / "majadu-prod.env.v2", "")
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--check", "--version", "2.0.0"], appDir(fixture))
+    check result.exitCode == 0
+    check result.stdout.contains(
+      "database tools via podman exec qouver-postgres")
+    check result.stdout.contains("cutover --check: ok")
+
+  test "--check exits 2 when podman is missing":
+    let fixture = newFixture("cutover-check-nopodman")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    removeFile(fixture.binDir / "podman")
+    touch(fixture.root / "env" / "majadu-prod.env.v2", "")
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--check", "--version", "2.0.0"], appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains("cutover --check: podman is required")
+
   test "a missing required tool exits 2":
     let fixture = newFixture("cutover-tool")
     defer: removeDir(fixture.root)
@@ -1087,7 +1114,7 @@ suite "rollback.sh":
     check result.stdout.contains(
       "ERROR: :v1-final is gone; v2 cannot be rolled back safely")
 
-  test "the abandoned-row guard is skipped without an owner DSN":
+  test "no owner DSN without --abandon-data refuses to roll back":
     let fixture = newFixture("rollback-no-owner")
     defer: removeDir(fixture.root)
     simFakes(fixture)
@@ -1100,11 +1127,26 @@ suite "rollback.sh":
         ("FAKE_PSQL_LOG", psqlLog),
         ("FAKE_ABANDONED", "3"),
       ])
-    check result.exitCode == 0
-    check result.stdout.contains("rollback complete")
-    check result.stdout.contains(
-      "WARNING: no owner DSN available; the abandoned-row guard will be skipped")
+    check result.exitCode == 1
+    check result.stdout.contains("cannot count bm2 rows written since the cutover")
+    check result.stdout.contains("Pass --abandon-data")
+    check not result.stdout.contains("rollback complete")
     check not fileExists(psqlLog)
+
+  test "no owner DSN with --abandon-data states that the count is unknown":
+    let fixture = newFixture("rollback-no-owner-abandon")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    createDir(fixture.root / "caddy")
+    let result = fixture.runShell(fixture.installOpsScript("rollback.sh"),
+      @["--abandon-data"], appDir(fixture) & @[
+        ("MAJADU_CADDY_VALIDATE", "true"),
+        ("MAJADU_CADDY_RELOAD", "true"),
+      ])
+    check result.exitCode == 0
+    check result.stdout.contains(
+      "WARNING: no owner DSN; --abandon-data given and the abandoned-row count is unknown")
+    check result.stdout.contains("rollback complete")
 
   test "a positive abandoned count is refused without --abandon-data":
     let fixture = newFixture("rollback-abandoned")
@@ -1125,7 +1167,7 @@ suite "rollback.sh":
     check result.stdout.contains(
       "WARNING: " & toolsFile & " is missing; reading the owner DSN from " & v2File)
     check result.stdout.contains(
-      "ERROR: 3 row(s) were written to v2 since the cutover; rollback discards them. " &
+      "ERROR: 3 row(s) were written to bm2 since the cutover; rollback discards them. " &
       "Re-run with --abandon-data to confirm that loss.")
 
   test "--abandon-data accepts the same count":
@@ -1154,7 +1196,7 @@ suite "rollback.sh":
     fixture.installFake("systemctl", systemctlLogFake)
     createDir(fixture.root / "caddy")
     let result = fixture.runShell(fixture.installOpsScript("rollback.sh"),
-      @[], appDir(fixture) & @[
+      @["--abandon-data"], appDir(fixture) & @[
         ("MAJADU_CADDY_VALIDATE", "true"),
         ("MAJADU_CADDY_RELOAD", "false"),
         ("FAKE_SYSTEMCTL_LOG", systemctlLog),
@@ -1305,6 +1347,12 @@ suite "systemd units":
   # `systemd-analyze verify` after a deploy; that is documented in
   # docs/ops/operations.md.
   let unitsDir = repoDir / "ops" / "systemd"
+
+  test "the alert unit retries and keeps a dead-letter copy":
+    let text = readFile(unitsDir / "majadu-alert@.service")
+    check text.contains("After=network-online.target")
+    check text.contains("for attempt in 1 2 3")
+    check text.contains("alert-dead-letter.log")
 
   test "every alerting unit has exactly one OnFailure naming the template":
     var units = 0
