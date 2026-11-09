@@ -199,12 +199,13 @@ during an incident, and the query each one answers:
 | `http_request_duration_seconds_sum` / `_count` | mean latency of one route |
 | `db_pool_available` / `db_pool_in_use` / `db_pool_size` | whether the pool is the reason requests queue |
 | `identity_resolution{source}` | whether anonymous traffic collapsed into one `peer` bucket behind the CDN |
+| `share_key_problems_total` | a live share link references a `key_id` `SHARE_CODE_KEYS` no longer holds (restore the key, do not issue a new link) |
 
 Read them with one command, from the host:
 
 ```sh
 podman exec majadu-api curl -fsS http://127.0.0.1:9090/metrics \
-  | grep -E '^(http_request|db_pool|identity_resolution)'
+  | grep -E '^(http_request|db_pool|identity_resolution|share_key_problems)'
 ```
 
 For a latency answer, keep the buckets and compute the quantile:
