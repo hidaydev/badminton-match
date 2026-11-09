@@ -1,6 +1,7 @@
 #!/bin/sh
 # Line coverage for the Nim sources, with a per-file ratchet against a committed
-# baseline.
+# baseline. Branch coverage is measured and reported on the same run (QA-05),
+# but it is not part of the ratchet until the numbers are stable.
 #
 #   ./task coverage
 #       measure, then judge the report against coverage-baseline-<platform>.json.
@@ -180,17 +181,33 @@ derive_totals() {
       n = split($1, part, "/")
       if (part[1] == "modules" || part[1] == "apps") domain = part[1] "/" part[2]
       else domain = part[1]
+      brf = ($4 == "" ? 0 : $4 + 0)
+      brh = ($5 == "" ? 0 : $5 + 0)
       lf[domain] += $2
       lh[domain] += $3
+      bf[domain] += brf
+      bh[domain] += brh
       tlf += $2
       tlh += $3
+      tbf += brf
+      tbh += brh
     }
     END {
-      printf "%d\t%d\n", tlf, tlh > total_out
-      for (domain in lf) printf "%s\t%d\t%d\n", domain, lf[domain], lh[domain] > domain_out
+      printf "%d\t%d\t%d\t%d\n", tlf, tlh, tbf, tbh > total_out
+      for (domain in lf) printf "%s\t%d\t%d\t%d\t%d\n", domain, lf[domain], lh[domain], bf[domain], bh[domain] > domain_out
     }
   ' "$COV/files.tsv"
   sort -o "$COV/domains.tsv" "$COV/domains.tsv"
+}
+
+# A model may carry the line axis only. The branch axis is then zero, which
+# reads as "not measured" in the report instead of being invented.
+normalize_columns() {
+  awk -F'\t' -v out="$1.tmp" '
+    { printf "%s\t%s\t%s\t%s\t%s\n", $1, $2, $3,
+        ($4 == "" ? 0 : $4), ($5 == "" ? 0 : $5) > out }
+  ' "$1"
+  mv "$1.tmp" "$1"
 }
 
 # The exclusions are a policy; these are the proofs they held. They run on every
@@ -212,25 +229,38 @@ prove_report() {
 }
 
 print_report() {
-  printf '%-28s %10s %10s %8s %9s\n' "domain" "lines" "cover" "target" "gap"
+  printf '%-28s %10s %10s %8s %9s %10s %10s %9s\n' \
+    "domain" "lines" "cover" "target" "gap" "BRF" "BRH" "branch"
   awk -F'\t' -v tools="$TARGET_TOOLS" -v def="$TARGET_DEFAULT" '
     {
       pct = ($2 == 0) ? 0 : ($3 * 100 / $2)
       target = ($1 == "tools") ? tools : def
       gap = (pct < target) ? int(($2 * (target - pct) / 100) + 0.999) : 0
-      printf "%-28s %10d %9.2f%% %7d%% %9d\n", $1, $2, pct, target, gap
+      bpct = ($4 == 0) ? 0 : ($5 * 100 / $4)
+      printf "%-28s %10d %9.2f%% %7d%% %9d %10d %10d %8.2f%%\n", $1, $2, pct, target, gap, $4, $5, bpct
     }
   ' "$COV/domains.tsv"
   awk -F'\t' -v total_target="$TARGET_TOTAL" -v files="$COV/files.tsv" '
-    { lf = $1; lh = $2 }
+    { lf = $1; lh = $2; tbf = $3; tbh = $4 }
     END {
       pct = (lf == 0) ? 0 : (lh * 100 / lf)
+      bpct = (tbf == 0) ? 0 : (tbh * 100 / tbf)
       gap = (pct < total_target) ? int((lf * (total_target - pct) / 100) + 0.999) : 0
       while ((getline row < files) > 0) count++
       printf "coverage: %d files, %d executable lines, %d covered (%.2f%%)\n", count, lf, lh, pct
+      printf "coverage: branches BRF %d, BRH %d (%.2f%%)\n", tbf, tbh, bpct
       printf "coverage: total target %d%%, gap %d lines\n", total_target, gap
     }
   ' "$COV/total.tsv"
+  # QA-05: the branch axis per file, so a file at 100 percent lines with half
+  # its branches untested is visible next to the file that carries it.
+  printf '%-60s %8s %8s %9s\n' "branch coverage by file" "BRF" "BRH" "branch"
+  awk -F'\t' '
+    {
+      bpct = ($4 == 0) ? 0 : ($5 * 100 / $4)
+      printf "%-60s %8d %8d %8.2f%%\n", $1, $4, $5, bpct
+    }
+  ' "$COV/files.tsv"
 }
 
 baseline_rows() {
@@ -246,7 +276,19 @@ baseline_rows() {
       lh = body
       sub(/.*"covered": /, "", lh)
       sub(/[^0-9].*/, "", lh)
-      printf "%s\t%s\t%d\t%d\n", kind, key, lf, lh
+      bf = 0
+      bh = 0
+      if (index(body, "\"branches\": ") > 0) {
+        bf = body
+        sub(/.*"branches": /, "", bf)
+        sub(/[^0-9].*/, "", bf)
+      }
+      if (index(body, "\"coveredBranches\": ") > 0) {
+        bh = body
+        sub(/.*"coveredBranches": /, "", bh)
+        sub(/[^0-9].*/, "", bh)
+      }
+      printf "%s\t%s\t%d\t%d\t%d\t%d\n", kind, key, lf, lh, bf, bh
     }
     /^  "total":/ { emit("total", $0); next }
     /^  "domains":/ { section = "domain"; next }
@@ -262,14 +304,14 @@ baseline_floor() {
 }
 
 current_rows() {
-  awk -F'\t' '{ printf "total\ttotal\t%d\t%d\n", $1, $2 }' "$COV/total.tsv"
-  awk -F'\t' '{ printf "domain\t%s\t%d\t%d\n", $1, $2, $3 }' "$COV/domains.tsv"
-  awk -F'\t' '{ printf "file\t%s\t%d\t%d\n", $1, $2, $3 }' "$COV/files.tsv"
+  awk -F'\t' '{ printf "total\ttotal\t%d\t%d\t%d\t%d\n", $1, $2, $3, $4 }' "$COV/total.tsv"
+  awk -F'\t' '{ printf "domain\t%s\t%d\t%d\t%d\t%d\n", $1, $2, $3, $4, $5 }' "$COV/domains.tsv"
+  awk -F'\t' '{ printf "file\t%s\t%d\t%d\t%d\t%d\n", $1, $2, $3, $4, $5 }' "$COV/files.tsv"
 }
 
 baseline_block() {
   awk -F'\t' '
-    { if (n++) printf ",\n"; printf "    \"%s\": {\"lines\": %d, \"covered\": %d}", $1, $2, $3 }
+    { if (n++) printf ",\n"; printf "    \"%s\": {\"lines\": %d, \"covered\": %d, \"branches\": %d, \"coveredBranches\": %d}", $1, $2, $3, $4, $5 }
     END { if (n) printf "\n" }
   ' "$1"
 }
@@ -279,12 +321,14 @@ write_baseline() {
   _floor=$2
   _lf=$(cut -f1 "$COV/total.tsv")
   _lh=$(cut -f2 "$COV/total.tsv")
+  _bf=$(cut -f3 "$COV/total.tsv")
+  _bh=$(cut -f4 "$COV/total.tsv")
   mkdir -p "$(dirname "$_out")"
   {
     printf '{\n'
     printf '  "measured": "%s",\n' "$(date -u '+%Y-%m-%d')"
     printf '  "floor": %s,\n' "$_floor"
-    printf '  "total": {"lines": %s, "covered": %s},\n' "$_lf" "$_lh"
+    printf '  "total": {"lines": %s, "covered": %s, "branches": %s, "coveredBranches": %s},\n' "$_lf" "$_lh" "$_bf" "$_bh"
     printf '  "domains": {\n'
     baseline_block "$COV/domains.tsv"
     printf '  },\n'
@@ -545,6 +589,7 @@ if [ -n "$model" ]; then
   fi
   BASELINE="$model/baseline.json"
   printf 'coverage: model %s\n' "${model#"$REPO_ROOT"/}"
+  normalize_columns "$COV/files.tsv"
   prove_report
   derive_totals
   print_report
@@ -739,8 +784,8 @@ else
     find "$NIMCACHE_COV" -name '*.gcda' >"$COV/captured.list"
     if [ -s "$COV/captured.list" ]; then
       geninfo --output-filename "$PARTS_DIR/$name.info" \
-        --rc branch_coverage=0 \
-        --ignore-errors source,unsupported,unused,mismatch \
+        --rc branch_coverage=1 \
+        --ignore-errors source,unsupported,unused,mismatch,inconsistent \
         --gcov-tool "$gcov_tool" $(cat "$COV/captured.list") \
         >>"$COV/lcov-capture.log" 2>&1 ||
         { tail -10 "$COV/lcov-capture.log" >&2
@@ -943,7 +988,7 @@ for area in apps/api/src modules shared/platform-lib tools; do
     grep -Fxq "$rel" "$COV/measured.list" && continue
     lines=$(grep -cvE '^[[:space:]]*(#|$)' "$src" || true)
     [ "${lines:-0}" -gt 0 ] || lines=1
-    printf '%s\t%d\t0\n' "$rel" "$lines"
+    printf '%s\t%d\t0\t0\t0\n' "$rel" "$lines"
   done
 done >>"$COV/unmeasured.tsv"
 if [ -s "$COV/unmeasured.tsv" ]; then
@@ -954,6 +999,52 @@ fi
 if [ ! -s "$COV/files.tsv" ]; then
   fail "no covered module was attributed to the repository"
 fi
+
+normalize_columns "$COV/files.tsv"
+
+# QA-05: the branch axis. gcov records one BRDA per (line, block, branch) and
+# a `-` instead of a count when the branch never ran. The same record can
+# appear in several parts, so the highest count wins, which is what "covered by
+# at least one suite" means. Branch coverage is reported next to the line
+# number but is not part of the ratchet until the numbers are stable.
+awk -F: -v root="$REPO_ROOT/" '
+  /^SF:/ {
+    file = $2
+    rel = ""
+    if (index(file, root) == 1) rel = substr(file, length(root) + 1)
+    next
+  }
+  /^BRDA:/ {
+    if (rel == "") next
+    split($2, part, ",")
+    key = rel SUBSEP part[1] SUBSEP part[2] SUBSEP part[3]
+    taken = (part[4] == "-") ? 0 : part[4] + 0
+    if (!(key in hits) || taken > hits[key]) hits[key] = taken
+    next
+  }
+  END {
+    for (key in hits) {
+      split(key, part, SUBSEP)
+      found[part[1]]++
+      if (hits[key] > 0) covered[part[1]]++
+    }
+    for (file in found) printf "%s\t%d\t%d\n", file, found[file], covered[file] + 0
+  }
+' "$COV/remapped.info" >"$COV/branches.tsv"
+
+awk -F'\t' -v branchfile="$COV/branches.tsv" '
+  BEGIN {
+    while ((getline line < branchfile) > 0) {
+      split(line, part, "\t")
+      brf[part[1]] = part[2]
+      brh[part[1]] = part[3]
+    }
+  }
+  {
+    printf "%s\t%s\t%s\t%d\t%d\n", $1, $2, $3, brf[$1] + 0, brh[$1] + 0
+  }
+' "$COV/files.tsv" >"$COV/files.branch.tmp"
+mv "$COV/files.branch.tmp" "$COV/files.tsv"
 
 sort -o "$COV/files.tsv" "$COV/files.tsv"
 

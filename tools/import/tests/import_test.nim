@@ -10,9 +10,17 @@ import ../main
 
 let sourceDsn = getEnv("MAJADU_IMPORT_TEST_SOURCE_DSN")
 let targetDsn = getEnv("MAJADU_IMPORT_TEST_DSN")
+# QA-10: the production-shaped case needs its own pair, because the verifier
+# compares every v1 row with the mapping of one community and the small fixture
+# would otherwise carry the bulk rows into every other case.
+let bulkSourceDsn = getEnv("MAJADU_IMPORT_BULK_SOURCE_DSN")
+let bulkTargetDsn = getEnv("MAJADU_IMPORT_BULK_TARGET_DSN")
 
-if sourceDsn.len == 0 or targetDsn.len == 0:
-  echo "SKIP import suite: MAJADU_IMPORT_TEST_SOURCE_DSN / MAJADU_IMPORT_TEST_DSN not set"
+if sourceDsn.len == 0 or targetDsn.len == 0 or bulkSourceDsn.len == 0 or
+   bulkTargetDsn.len == 0:
+  echo "SKIP import suite: MAJADU_IMPORT_TEST_SOURCE_DSN / " &
+    "MAJADU_IMPORT_TEST_DSN / MAJADU_IMPORT_BULK_SOURCE_DSN / " &
+    "MAJADU_IMPORT_BULK_TARGET_DSN not set"
   quit(77)
 
 const verifyProbe = "IMPORT_TEST_VERIFY"
@@ -460,6 +468,63 @@ suite "v1 import":
     check run.output.contains("title differs for v1 session " &
       session.get("old_id"))
 
+
+  test "the production-shaped fixture imports every player and game":
+    # QA-10: 104 players and 1,040 games, with unicode names and a null tier.
+    # The fixture lives in testdata/import/production-shaped.sql and is loaded
+    # by CI into its own source database, so this case never shares rows with
+    # the small fixture above.
+    let bulkSource = openDb(bulkSourceDsn, 1)
+    defer: bulkSource.close()
+    let bulkTarget = openDb(bulkTargetDsn, 1)
+    defer: bulkTarget.close()
+    let players = bulkSource.queryOne(
+      "select count(*)::int as n from bm.players").get.get("n")
+    let games = bulkSource.queryOne(
+      "select count(*)::int as n from bm.scheduled_games").get.get("n")
+    check parseInt(players) >= 100
+    check parseInt(games) >= 1000
+
+    discard importEtl(bulkSource, bulkTarget, "import-bulk", "Import Bulk",
+      "Asia/Jakarta", false)
+    let community = bulkTarget.queryOne(
+      "select id::text as id from platform.community where slug = 'import-bulk'"
+      ).get.get("id")
+    let importedPlayers = bulkTarget.queryOne(
+      """select count(*)::int as n from player.players
+         where community_id = $1::uuid""", @[textParam(community)]).get.get("n")
+    let importedSessions = bulkTarget.queryOne(
+      """select count(*)::int as n from session.sessions
+         where community_id = $1::uuid""", @[textParam(community)]).get.get("n")
+    let importedGames = bulkTarget.queryOne(
+      """select count(*)::int as n from session.games
+         where community_id = $1::uuid""", @[textParam(community)]).get.get("n")
+    check importedPlayers == players
+    check importedSessions == "130"
+    check importedGames == games
+
+    # Field equality across the three domains the fixture models, through the
+    # same verifier cutover uses. A row that arrived with a renamed or dropped
+    # field is a problem here.
+    var problems = verifyPlayers(bulkSource, bulkTarget, community)
+    problems.add verifySessions(bulkSource, bulkTarget, community)
+    problems.add verifyGames(bulkSource, bulkTarget, community)
+    for problem in problems:
+      checkpoint problem
+    check problems.len == 0
+
+    # The legacy shape is part of the fixture, not decoration: a unicode name
+    # and a null tier must survive the import unchanged.
+    let unicode = bulkTarget.queryOne(
+      """select count(*)::int as n from player.players
+         where community_id = $1::uuid and canonical_name ~ '[^\\x00-\\x7F]'""",
+      @[textParam(community)]).get.get("n")
+    let nullTier = bulkTarget.queryOne(
+      """select count(*)::int as n from player.players
+         where community_id = $1::uuid and tier is null""",
+      @[textParam(community)]).get.get("n")
+    check parseInt(unicode) > 0
+    check parseInt(nullTier) > 0
 
   test "verify refuses an empty community instead of reporting it clean":
     # An import that read nothing leaves all eight domains empty. Reporting
