@@ -8,6 +8,16 @@
 
 import std/sets
 
+## The four game slots as text, with an empty slot as the empty string. Four
+## queries used to spell this projection out; one migration touching
+## `session.games` would have needed four edits. The alias names are part of the
+## contract with `sides()` (SQ-16).
+const gameSideColumns* =
+  """coalesce(side_a1::text, '') as side_a1,
+              coalesce(side_a2::text, '') as side_a2,
+              coalesce(side_b1::text, '') as side_b1,
+              coalesce(side_b2::text, '') as side_b2"""
+
 type
   GameSides* = object
     ## The four slots split into sides. `present` drops empty slots and absent

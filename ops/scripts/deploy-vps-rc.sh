@@ -55,29 +55,26 @@ CI_WAIT_SECONDS="${MAJADU_RC_CI_WAIT_SECONDS:-15}"
 STEP="start"
 SCHEMA=""
 CI_STATE="unchecked"
+# The alert instance this script starts on failure; deploy-common.sh reads it.
+ALERT_UNIT="deploy-rc"
 
 install -d -m 700 "$APP_DIR/logs" "$STATE_DIR"
 : >>"$LOG"
 chmod 600 "$LOG" 2>/dev/null || true
 
-log() {
-  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"
-}
+# Shared helpers: log, json_field, alert, file_mode, service, wait_ready. Both
+# deploy paths source the same file (SQ-16); a missing copy is a failed deploy,
+# not a reason to fall back to a second implementation.
+COMMON_LIB="$(cd "$(dirname "$0")" && pwd)/deploy-common.sh"
+if [ ! -f "$COMMON_LIB" ]; then
+  echo "deploy-vps-rc.sh: missing $COMMON_LIB" >&2
+  exit 1
+fi
+# shellcheck source=deploy-common.sh
+. "$COMMON_LIB"
 
-json_field() {
-  # A missing state file is the first deploy, not a failure. GNU sed exits 2 on
-  # it, and `set -o pipefail` turned that into a failed `fail()` before its
-  # message was written.
-  [ -f "$1" ] || return 0
-  sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p" "$1" 2>/dev/null | head -1
-}
-
-# The same sink production uses: an RC push that fails is the signal this
-# instance exists to produce, so it must not be the one that stays silent.
-alert() {
-  if systemctl --user list-unit-files 'majadu-alert@.service' >/dev/null 2>&1; then
-    systemctl --user start majadu-alert@deploy-rc.service >/dev/null 2>&1 || true
-  fi
+file_owner() {
+  stat -c '%u' "$1" 2>/dev/null || stat -f '%u' "$1" 2>/dev/null || echo "?"
 }
 
 # The running release record survives a failed attempt: the failure belongs in
@@ -107,38 +104,11 @@ fail() {
 
 trap 'fail "command failed at line $LINENO"' ERR
 
-file_mode() {
-  stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null || echo "?"
-}
-
-file_owner() {
-  stat -c '%u' "$1" 2>/dev/null || stat -f '%u' "$1" 2>/dev/null || echo "?"
-}
-
-service() {
-  if [ -n "${MAJADU_SERVICE_CMD:-}" ]; then
-    "$MAJADU_SERVICE_CMD" "$@"
-  else
-    systemctl --user "$@"
-  fi
-}
-
 run_tool() {
   local entry="$1" dsn="$2"
   shift 2
   podman run --rm --network "$NETWORK" -e MAJADU_PG_DSN="$dsn" \
     --entrypoint "$entry" "$LOCAL_IMAGE:local" "$@"
-}
-
-wait_ready() {
-  local deadline=$((SECONDS + 60))
-  while [ "$SECONDS" -lt "$deadline" ]; do
-    if curl -fsS --max-time 3 "$HEALTH_URL/readyz" >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 2
-  done
-  return 1
 }
 
 # Fail closed: anything that is not a push to the RC branch must not deploy.
@@ -215,6 +185,20 @@ else
   install -m 755 "$SELF_SRC" "$SELF_INSTALL.new.$$"
   mv -f "$SELF_INSTALL.new.$$" "$SELF_INSTALL"
   log "deploy script installed from the checkout; the next push runs it"
+fi
+# The deployed copy sources deploy-common.sh from its own directory (SQ-16), so
+# the library is installed in the same step. This run already loaded its own
+# copy; the install is for the next push.
+SELF_LIB_SRC="$MONO_DIR/ops/scripts/deploy-common.sh"
+SELF_LIB="$SELF_DIR/deploy-common.sh"
+[ -f "$SELF_LIB_SRC" ] ||
+  fail "$SELF_LIB_SRC is missing from the checkout"
+bash -n "$SELF_LIB_SRC" ||
+  fail "$SELF_LIB_SRC does not pass bash -n; keeping the installed deploy library"
+if ! cmp -s "$SELF_LIB_SRC" "$SELF_LIB"; then
+  install -m 755 "$SELF_LIB_SRC" "$SELF_LIB.new.$$"
+  mv -f "$SELF_LIB.new.$$" "$SELF_LIB"
+  log "deploy library refreshed from the checkout"
 fi
 
 # ---------------------------------------------------------------------------

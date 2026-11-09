@@ -3,6 +3,7 @@ import db/db
 import ./scoring
 import ./lifecycle
 import ./schedule
+import ./sides
 import skips
 
 type
@@ -214,10 +215,7 @@ proc sessionGuard(conn: DbConn, communityId, sessionId: string,
 proc readContent(conn: DbConn, communityId, sessionId: string,
                  target: SwapTarget): Option[GameContent] =
   let row = conn.queryOne(
-    """select coalesce(side_a1::text, '') as a1,
-              coalesce(side_a2::text, '') as a2,
-              coalesce(side_b1::text, '') as b1,
-              coalesce(side_b2::text, '') as b2,
+    """select """ & gameSideColumns & """,
               status
        from session.games
        where community_id = $1::uuid and session_id = $2::uuid
@@ -228,8 +226,8 @@ proc readContent(conn: DbConn, communityId, sessionId: string,
     return none(GameContent)
   let game = row.get
   var content = GameContent(
-    slots: Slots(a1: game.get("a1"), a2: game.get("a2"),
-                 b1: game.get("b1"), b2: game.get("b2")),
+    slots: Slots(a1: game.get("side_a1"), a2: game.get("side_a2"),
+                 b1: game.get("side_b1"), b2: game.get("side_b2")),
     status: game.get("status"))
   for entry in conn.query(
     """select score_a, score_b from session.game_sets

@@ -48,6 +48,16 @@ proc validateValue(spec: KeySpec, value: JsonNode) =
   of ctJson:
     discard
 
+proc communitySettings*(db: Db, communityId: string): JsonNode =
+  ## The community overrides the registry reads as L2. One reader for the API,
+  ## the workers and the tools: the settings row is one query and every copy
+  ## used to live in its own file (SQ-16), so a column or a cast had to be
+  ## changed in five places at once.
+  let row = db.queryOne(
+    """select values::text as values from community.settings
+       where community_id = $1::uuid""", @[textParam(communityId)])
+  if row.isSome: parseJson(row.get.get("values")) else: newJObject()
+
 proc loadSnapshot*(db: Db): Snapshot =
   ## Reads every registry key. Missing keys, wrong types, a scope that disagrees
   ## with the registry or values outside the frozen bounds refuse to start: there

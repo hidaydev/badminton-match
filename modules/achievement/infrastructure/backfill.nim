@@ -435,13 +435,6 @@ proc writeAwards(conn: DbConn, communityId, earnedAt: string,
       params)
     start = last
 
-proc communitySettings(db: Db, communityId: string): JsonNode =
-  ## L2 overrides, read the way the API and the ticker read them.
-  let row = db.queryOne(
-    """select values::text as values from community.settings
-       where community_id = $1::uuid""", @[textParam(communityId)])
-  if row.isSome: parseJson(row.get.get("values")) else: newJObject()
-
 proc backfill*(db: Db, communityId, asOf: string,
                params: RatingParams): BackfillResult =
   ## Awards every threshold the current data qualifies for and revokes the

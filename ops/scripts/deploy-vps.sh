@@ -61,23 +61,22 @@ LOCK_FILE="$APP_DIR/.deploy.lock"
 
 STEP="start"
 SCHEMA=""
+# The alert instance this script starts on failure; deploy-common.sh reads it.
+ALERT_UNIT="deploy"
 install -d -m 700 "$APP_DIR/logs" "$STATE_DIR"
 : >>"$LOG"
 chmod 600 "$LOG" 2>/dev/null || true
 
-log() {
-  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"
-}
-
-alert() {
-  if systemctl --user list-unit-files 'majadu-alert@.service' >/dev/null 2>&1; then
-    systemctl --user start majadu-alert@deploy.service >/dev/null 2>&1 || true
-  fi
-}
-
-file_mode() {
-  stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null || echo "?"
-}
+# Shared helpers: log, json_field, alert, file_mode, service, wait_ready. Both
+# deploy paths source the same file (SQ-16); a missing copy is a failed deploy,
+# not a reason to fall back to a second implementation.
+COMMON_LIB="$(cd "$(dirname "$0")" && pwd)/deploy-common.sh"
+if [ ! -f "$COMMON_LIB" ]; then
+  echo "deploy-vps.sh: missing $COMMON_LIB" >&2
+  exit 1
+fi
+# shellcheck source=deploy-common.sh
+. "$COMMON_LIB"
 
 require_private_file() {
   local path="$1" mode
@@ -116,14 +115,6 @@ atomic_write() {
   mv -f "$tmp" "$dest"
 }
 
-json_field() {
-  # A missing state file is the first deploy, not a failure. GNU sed exits 2 on
-  # it, and `set -o pipefail` turned that into a failed `fail()` before its
-  # message was written.
-  [ -f "$1" ] || return 0
-  sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p" "$1" 2>/dev/null | head -1
-}
-
 # A failed attempt must not erase the record of what is still serving. The
 # failure goes to last-attempt.json with the running release's version, schema
 # and digest copied in; last-release.json is written only by a successful
@@ -146,14 +137,6 @@ fail() {
 }
 
 trap 'fail "command failed at line $LINENO"' ERR
-
-service() {
-  if [ -n "${MAJADU_SERVICE_CMD:-}" ]; then
-    "$MAJADU_SERVICE_CMD" "$@"
-  else
-    systemctl --user "$@"
-  fi
-}
 
 # One-shot tool from the image that was just pulled, not from :local: :local may
 # still be the previous release until the rotation step runs.
@@ -210,6 +193,17 @@ if [ "${MAJADU_SKIP_GIT_SYNC:-0}" != "1" ] && [ -f "$REPO_SCRIPT" ] && ! cmp -s 
   TMP="$SELF.new.$$"
   if cp -f "$REPO_SCRIPT" "$TMP" && bash -n "$TMP" && chmod 755 "$TMP"; then
     mv -f "$TMP" "$SELF"
+    # The new script sources deploy-common.sh from its own directory, so the
+    # library has to move with it before the re-exec, not at the later
+    # script-sync step. A syntax check here would not prove the library is
+    # usable, so a missing file stops the deploy instead of falling back.
+    REPO_LIB="$MONO_DIR/ops/scripts/deploy-common.sh"
+    SELF_LIB="$(dirname "$SELF")/deploy-common.sh"
+    [ -f "$REPO_LIB" ] ||
+      fail "$REPO_LIB is missing from the checkout; cannot install the shared deploy library"
+    if ! cmp -s "$REPO_LIB" "$SELF_LIB"; then
+      install -m 755 "$REPO_LIB" "$SELF_LIB"
+    fi
     log "deploy script updated from the repository; re-executing"
     exec "$SELF" "$REPO_NAME" "$REF"
   fi
@@ -497,17 +491,6 @@ for SRC in "$MONO_DIR"/ops/scripts/*.sh; do
   mv -f "$TMP" "$SCRIPTS_DIR/$NAME"
   log "script $NAME updated from the repository"
 done
-
-wait_ready() {
-  local deadline=$((SECONDS + 60))
-  while [ "$SECONDS" -lt "$deadline" ]; do
-    if curl -fsS --max-time 3 "$HEALTH_URL/readyz" >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 2
-  done
-  return 1
-}
 
 STEP="restart"
 service restart "$SERVICE" >>"$LOG" 2>&1

@@ -257,6 +257,7 @@ psql_super -c "drop database if exists $STAGING_DB with (force)"
 # script, so a fix that only lands in the checkout never stays behind.
 mkdir -p "$APP_DIR/scripts" "$APP_DIR/caddy"
 install -m 755 "$MONO_DIR/ops/scripts/deploy-vps-rc.sh" "$APP_DIR/scripts/deploy-vps-rc.sh"
+install -m 755 "$MONO_DIR/ops/scripts/deploy-common.sh" "$APP_DIR/scripts/deploy-common.sh"
 install -m 644 "$MONO_DIR/ops/caddy/site-rc.caddy" "$APP_DIR/caddy/site-rc.caddy"
 install -m 644 "$MONO_DIR/ops/systemd/majadu-rc-api.container" \
   "$HOME/.config/containers/systemd/majadu-rc-api.container"

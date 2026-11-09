@@ -19,12 +19,6 @@ const
 
 Requires MAJADU_PG_DSN. Every mode is idempotent, so running twice is safe."""
 
-proc communitySettings(db: Db, communityId: string): JsonNode =
-  let row = db.queryOne(
-    """select values::text as values from community.settings
-       where community_id = $1::uuid""", @[textParam(communityId)])
-  if row.isSome: parseJson(row.get.get("values")) else: newJObject()
-
 proc communityIdOf(db: Db, slug: string): string =
   let row = db.queryOne(
     "select id from platform.community where slug = $1", @[textParam(slug)])

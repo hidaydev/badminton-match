@@ -180,6 +180,7 @@ proc rcGateFixture(fixture: Fixture, token = true): string =
   let source = mono / "ops" / "scripts" / "deploy-vps-rc.sh"
   createDir(source.parentDir)
   copyFile(opsScriptsDir / "deploy-vps-rc.sh", source)
+  copyFile(opsScriptsDir / "deploy-common.sh", source.parentDir / "deploy-common.sh")
   touch(rcDir / "scripts" / "deploy-vps-rc.sh", "old copy\n")
   privateFile(rcDir / "env" / "majadu-rc.env",
     "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2_rc\n")
@@ -689,6 +690,7 @@ suite "deploy-vps-rc.sh":
     let source = mono / "ops" / "scripts" / "deploy-vps-rc.sh"
     createDir(source.parentDir)
     copyFile(opsScriptsDir / "deploy-vps-rc.sh", source)
+    copyFile(opsScriptsDir / "deploy-common.sh", source.parentDir / "deploy-common.sh")
     let installed = rcDir / "scripts" / "deploy-vps-rc.sh"
     touch(installed, "old copy\n")
     let result = fixture.runShell(fixture.installOpsScript("deploy-vps-rc.sh"),

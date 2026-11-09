@@ -3,7 +3,7 @@
 ## the same order `tools/ratingingest` does. A request therefore never holds the
 ## community advisory lock or a pool connection for the length of a rebuild.
 
-import std/[json, locks, options, os, times]
+import std/[locks, os, times]
 import clock
 import db/db
 import logger
@@ -111,14 +111,6 @@ proc waitIdle*(jobs: RatingJobs, timeoutMs = 5000): bool =
       return true
     sleep(5)
   jobs.idle
-
-proc communitySettings(db: Db, communityId: string): JsonNode =
-  ## Read the way the CLI reads it, so the worker and a manual rebuild see the
-  ## same L2 overrides.
-  let row = db.queryOne(
-    """select values::text as values from community.settings
-       where community_id = $1::uuid""", @[textParam(communityId)])
-  if row.isSome: parseJson(row.get.get("values")) else: newJObject()
 
 proc process(jobs: RatingJobs, job: Job) =
   let snapshot = loadSnapshot(jobs.db)
