@@ -16,6 +16,9 @@ export default defineConfig({
       workbox: {
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         navigateFallback: '/index.html',
+        // A navigation to the API must reach the server, never the cached shell;
+        // otherwise an offline API call looks like a document load.
+        navigateFallbackDenylist: [/^\/api\//, /^\/ws/],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,jpeg,webmanifest}'],
         // The manifest body is injected by the plugin; ignoring it here keeps
         // one entry instead of two.
