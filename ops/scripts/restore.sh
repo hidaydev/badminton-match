@@ -64,48 +64,56 @@ if { [ "$TARGET" = "bm" ] || [ "$TARGET" = "bm2" ]; } && [ "$FORCE" -ne 1 ]; the
 fi
 
 # libpq splits a URI-like DSN as scheme://userinfo@authority/path?query.
-# userinfo ends at the first "@", and the authority ends at the first "/" or
-# "?" after it. A "?" that appears before any "/" is a query with no path; libpq
-# would then take the database from dbname, so this script refuses that shape
-# instead of guessing where the write goes.
-dsn_hostpart() {
-  local dsn=$1 rest
-  case "$dsn" in
-    postgres://*|postgresql://*) rest=${dsn#*://} ;;
+# Userinfo only exists before the first path slash, so an "@" in a query value
+# is not a userinfo separator, and a "?" inside userinfo is literal text. When
+# the text before the first slash carries "@", the authority is the userinfo
+# plus the host up to the next "/" or "?"; otherwise it ends at the first "/"
+# or "?". A "?" before any path is a query with no path, which libpq would feed
+# to dbname, so this script refuses that shape instead of guessing where the
+# write goes.
+dsn_rest() {
+  case "$1" in
+    postgres://*|postgresql://*) printf '%s\n' "${1#*://}" ;;
     *) return 1 ;;
   esac
+}
+
+dsn_tail() {
+  local rest pre at userinfo host authority
+  rest=$(dsn_rest "$1") || return 1
   case "$rest" in
-    *@*) printf '%s\n' "${rest#*@}" ;;
-    *) printf '%s\n' "$rest" ;;
+    */*) pre=${rest%%/*} ;;
+    *) pre=$rest ;;
   esac
+  case "$pre" in
+    *@*)
+      at=${rest#*@}
+      case "$at" in
+        *[/?]*) host=${at%%[/?]*} ;;
+        *) host=$at ;;
+      esac
+      userinfo=${rest%%@*}@
+      authority=$userinfo$host
+      ;;
+    *) authority=${rest%%[?/]*} ;;
+  esac
+  printf '%s\n' "${rest#"$authority"}"
 }
 
 dsn_authority() {
-  local dsn=$1 rest userinfo host
-  case "$dsn" in
-    postgres://*|postgresql://*) rest=${dsn#*://} ;;
-    *) return 1 ;;
-  esac
-  case "$rest" in
-    *@*) userinfo=${rest%%@*}@; host=${rest#*@} ;;
-    *) userinfo=""; host=$rest ;;
-  esac
-  case "$host" in
-    *[?/]*) printf '%s\n' "$userinfo${host%%[?/]*}" ;;
-    *) printf '%s\n' "$userinfo$host" ;;
-  esac
+  local rest tail
+  rest=$(dsn_rest "$1") || return 1
+  tail=$(dsn_tail "$1") || return 1
+  printf '%s\n' "${rest%"$tail"}"
 }
 
 dsn_path() {
-  local host before pathq
-  host=$(dsn_hostpart "$1") || return 1
-  before=${host%%\?*}
-  # A query before the first slash, or no slash at all, leaves no path.
-  case "$before" in
-    */*) ;;
+  local tail pathq
+  tail=$(dsn_tail "$1") || return 1
+  case "$tail" in
+    /*) pathq=${tail#/} ;;
     *) return 1 ;;
   esac
-  pathq=${host#*/}
   printf '%s\n' "${pathq%%\?*}"
 }
 
@@ -159,11 +167,11 @@ url_decode_key() {
 }
 
 dsn_query() {
-  local host
-  host=$(dsn_hostpart "$1") || return 0
+  local tail
+  tail=$(dsn_tail "$1") || return 0
   dsn_path "$1" >/dev/null 2>&1 || return 0
-  case "$host" in
-    *\?*) printf '%s\n' "${host#*\?}" ;;
+  case "$tail" in
+    *\?*) printf '%s\n' "${tail#*\?}" ;;
   esac
 }
 
