@@ -143,8 +143,41 @@ Artifacts already on the RC branch:
 Why build on the VPS: the RC deploys on every push, while the release path sits
 behind a signed tag + `VERSION`. Production still uses the GHCR digest path.
 
-### 5.2 `bootstrap-rc.sh`
+### 5.1.1 The self-install guard and the host residual
 
+`deploy-vps-rc.sh` refreshes its installed copy from the checkout it just
+synced, because the webhook runs the installed file. The incoming copy is host
+code on the next push, so it is validated first: `bash -n` must pass, the
+installed file and its directory must be owned by the deploy user, and the
+replace is an atomic rename. A script that fails either check is not installed;
+the current run keeps its own inode and the next push starts from a rejected
+branch instead of executing it.
+
+That guard is not user separation. The RC deploy and the webhook daemon still
+run as the same Unix user that owns `/srv/qouver/apps/majadu`, so a push to the
+RC branch can read `majadu-prod.env`, the production podman store and the
+`qouver` network. Closing that is a host change, not a repository change:
+
+1. Create a dedicated `majadu-rc` user and a `majadu-rc` group. Make
+   `/srv/qouver/apps/majadu` and `/srv/qouver/apps/majadu/env` readable only by
+   the production user (`chmod 700` on `env`, the directory is already mode 700
+   in the runbook).
+2. Move `/srv/qouver/apps/majadu-rc` and `~/.config/systemd/user` for the RC
+   units to `majadu-rc`, and run the webhook daemon that invokes the RC script
+   as that user (a second daemon, or a per-hook `setuid` wrapper).
+3. Install the RC deploy script root-owned (mode 755) rather than letting the
+   branch replace its own copy.
+
+Verification, once the user exists:
+
+```sh
+sudo -u majadu-rc cat /srv/qouver/apps/majadu/env/majadu-prod.env   # must fail
+sudo -u majadu-rc ls /srv/qouver/apps/majadu/env                   # must fail
+```
+
+Until those two commands fail, treat the RC as production with a different port.
+
+### 5.2 `bootstrap-rc.sh`
 One time only, and it does not touch production:
 
 1. Build the image from the RC branch.
