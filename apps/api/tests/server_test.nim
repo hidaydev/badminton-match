@@ -63,6 +63,14 @@ suite "metrics listener":
     check text.contains("""method="GET",route="unmatched",status="404"}""")
     check not text.contains("/nope/one")
 
+  test "an explicit quota label survives a 404":
+    # `route()` hands the contract shape (or `/unmatched`) to both the limiter
+    # and the counter, so a 404 from a matched route must not be renamed here.
+    discard recordResponse("GET", "/c/acme/players/missing", 404,
+      "/c/{slug}/players/{id}")
+    check metricsText().contains(
+      """route="/c/{slug}/players/{id}",status="404"}""")
+
 suite "healthz":
   test "returns ok without touching the database":
     let outcome = route("/healthz", testRoutes = false)

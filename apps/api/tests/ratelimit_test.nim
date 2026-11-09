@@ -1,4 +1,5 @@
 import std/[unittest]
+import ../src/quota_route
 import ../src/ratelimit
 
 suite "rate limiter":
@@ -95,4 +96,23 @@ suite "rate limiter":
     discard limiter.hit("share|code" & $(index - 1), 1200, now, "")
     check limiter.bucketTotal() == maxBuckets
     check not limiter.hit("route|/auth/start|" & address, 300, now,
+      address).allowed
+
+  test "invented paths cannot mint pinned route buckets":
+    ## The quota label is the matched contract shape. Two thousand invented
+    ## paths collapse to the single "unmatched" label, so they cannot push the
+    ## table into the sweep that evicts the exhausted address budget.
+    let limiter = newLimiter()
+    let address = "198.51.100.33"
+    for _ in 0 ..< 300:
+      discard limiter.hit("route|/auth/start|" & address, 300, 1000.0, address)
+    check not limiter.hit("route|/auth/start|" & address, 300, 1000.0,
+      address).allowed
+    for index in 0 ..< 2000:
+      let label = quotaRoute("/zzz" & $index)
+      check label == UnmatchedRoute
+      discard limiter.hit("route|" & label & "|" & address, 300,
+        1000.0, address)
+    check limiter.bucketTotal() <= 2
+    check not limiter.hit("route|/auth/start|" & address, 300, 1000.0,
       address).allowed

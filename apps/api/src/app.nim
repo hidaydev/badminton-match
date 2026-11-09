@@ -15,9 +15,7 @@ import config_routes
 import errors as platformErrors
 import live
 import logger
-# `templateRoute` (rate-limit labels) is the only symbol used here; the counter
-# registry is never incremented and no route renders it.
-import metrics
+import quota_route
 import ratelimit
 import route_access
 import security_headers
@@ -99,9 +97,9 @@ type
 
 var application: App
 
-# `route()` computes the route template once and `send` hands it to the counter
-# instead of asking `templateRoute` again. Each connection is served on a single
-# worker thread, so a threadvar cannot leak a label between requests.
+# `route()` computes the quota label once and `send` hands it to the counter
+# instead of deriving it again. Each connection is served on a single worker
+# thread, so a threadvar cannot leak a label between requests.
 var currentRouteLabel {.threadvar.}: string
 
 proc randomHex*(count: int): string =
@@ -3159,6 +3157,10 @@ proc detailForSqlState(state: string): string =
 proc route(request: Request) =
   try:
     let path = request.path
+    # The quota label is derived from the contract shape before any database
+    # read, so even a 500 from the config snapshot carries this request's label
+    # instead of the previous one's.
+    currentRouteLabel = quotaRoute(path)
     let parts = path.split('/')
     let verb = request.httpMethod
     # The one access table: the test in modules/account compares this with
@@ -3168,9 +3170,9 @@ proc route(request: Request) =
     # One id per request: every audit row written while serving it and the
     # access-log line share it, so a 500 can be paired with the write before it.
     beginRequest()
-    # One template per request: the quota bucket and the counter label both use
-    # it, so the same path cannot be labelled two ways.
-    currentRouteLabel = templateRoute(path)
+    # One label per request: the quota bucket and the counter label both use
+    # the matched contract shape, never the raw path. An unmatched request gets
+    # one shared label, so invented URLs cannot mint pinned buckets.
     if rejectLargeBody(request, snapshot):
       return
     if rejectCrossSite(request, snapshot):
