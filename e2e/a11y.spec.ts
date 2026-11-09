@@ -17,14 +17,18 @@ for (const route of a11yRoutes) {
     // a readiness check that matches one is not waiting for the screen.
     await page.locator(route.ready(state())).filter({ visible: true }).first().waitFor()
 
-    const results = await new AxeBuilder({ page })
+    const wcag = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      // Best-practice rule, enabled on purpose: two h1s and a flat outline were
-      // invisible to the WCAG tag set.
-      .options({ rules: { 'heading-order': { enabled: true } } })
+      .analyze()
+    // `heading-order` is tagged best-practice, so it cannot ride along with the
+    // WCAG tag filter. `.options()` replaces the filter rather than adding to
+    // it, so ask for the rule by id in a second pass: a filtered run would
+    // silently drop it again.
+    const headings = await new AxeBuilder({ page })
+      .withRules(['heading-order'])
       .analyze()
 
-    const summary = results.violations.map(
+    const summary = [...wcag.violations, ...headings.violations].map(
       (violation) =>
         `${violation.id} (${violation.impact}): ${violation.nodes
           .map((node) => node.target.join(' '))

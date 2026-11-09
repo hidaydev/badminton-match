@@ -22,7 +22,7 @@ function props(overrides: Partial<ScoreboardSideProps> = {}): ScoreboardSideProp
 }
 
 const scoreButton = (name = 'Arya', score = 7) =>
-  screen.getByRole('button', { name: `${name}, score ${score}. Add a point` })
+  screen.getByRole('button', { name: `${name}, ${score}, tap to score` })
 
 describe('ScoreboardSide', () => {
   it('shows the score and the name, and fills the background by side', () => {

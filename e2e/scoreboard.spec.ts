@@ -19,7 +19,7 @@ const scoreboardURL =
  * matching on the name keeps the locator off the blue half even after a swap.
  */
 function redSide(page: Page) {
-  return page.getByRole('button', { name: /^RED, score \d+\. Add a point$/ })
+  return page.getByRole('button', { name: /^RED, \d+, tap to score$/ })
 }
 
 async function precacheShell(page: Page) {

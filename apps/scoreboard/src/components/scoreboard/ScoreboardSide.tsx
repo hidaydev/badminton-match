@@ -91,7 +91,7 @@ export function ScoreboardSide({
       <button
         type="button"
         onClick={onScore}
-        aria-label={`${displayName}, score ${score}. Add a point`}
+        aria-label={`${displayName}, ${score}, tap to score`}
         className="score-face w-full flex-1 flex flex-col items-center justify-center cursor-pointer duration-75"
       >
         <span

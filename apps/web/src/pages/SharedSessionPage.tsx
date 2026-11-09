@@ -190,7 +190,7 @@ export default function SharedSessionPage() {
   }
 
   return (
-    <section className="mx-auto flex w-full max-w-xl flex-col p-4">
+    <main className="mx-auto flex w-full max-w-xl flex-col p-4">
       <header className="flex items-baseline justify-between gap-3">
         <p className="text-sm font-semibold text-accent">{t('shared.title')}</p>
         {session !== null && (
@@ -417,6 +417,6 @@ export default function SharedSessionPage() {
           </div>
         </>
       )}
-    </section>
+    </main>
   )
 }

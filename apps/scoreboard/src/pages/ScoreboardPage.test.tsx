@@ -10,10 +10,10 @@ function renderPage(store: Record<string, string> = {}) {
 }
 
 const halfOf = (name: string) =>
-  screen.getByRole('button', { name: new RegExp(`^${name}, score`) })
+  screen.getByRole('button', { name: new RegExp(`^${name}, \\d+, tap to score$`) })
 
 const scoreFaces = () =>
-  screen.getAllByRole('button', { name: /, score \d+\. Add a point$/ })
+  screen.getAllByRole('button', { name: /, \d+, tap to score$/ })
 
 beforeEach(() => {
   resetStorageStatus()
@@ -106,8 +106,8 @@ describe('ScoreboardPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Swap sides' }))
 
     const halves = scoreFaces()
-    expect(halves[0]).toHaveAccessibleName('Bowo, score 1. Add a point')
-    expect(halves[1]).toHaveAccessibleName('Arya, score 3. Add a point')
+    expect(halves[0]).toHaveAccessibleName('Bowo, 1, tap to score')
+    expect(halves[1]).toHaveAccessibleName('Arya, 3, tap to score')
   })
 
   it('restores stored names, ignores the old colour defaults and falls back to the labels', () => {
