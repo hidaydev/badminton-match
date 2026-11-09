@@ -495,7 +495,7 @@ function Invites({
 
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-semibold text-fg">{t('admin.invites')}</h2>
+      <h3 className="text-sm font-semibold text-fg">{t('admin.invites')}</h3>
       <p className="mt-1 text-xs text-fg-dim">{t('admin.invites.hint')}</p>
       <form
         className="mt-2 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end"
@@ -590,7 +590,7 @@ function JoinRequests({
 
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-semibold text-fg">{t('admin.requests')}</h2>
+      <h3 className="text-sm font-semibold text-fg">{t('admin.requests')}</h3>
       {requests.length === 0 ? (
         <p className="mt-2 text-sm text-fg-dim">{t('admin.requests.empty')}</p>
       ) : (
@@ -690,7 +690,7 @@ function PendingClaims({
 
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-semibold text-fg">{t('admin.claims')}</h2>
+      <h3 className="text-sm font-semibold text-fg">{t('admin.claims')}</h3>
       <p className="mt-1 text-xs text-fg-dim">{t('admin.claims.hint')}</p>
       {claims.length === 0 ? (
         <p className="mt-2 text-sm text-fg-dim">{t('admin.claims.empty')}</p>

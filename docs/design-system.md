@@ -243,6 +243,7 @@ That is why the footer no longer carries `pb-[max(...)]`.
 | Touch targets | ≥44px for interactive elements, enforced by `apps/web/scripts/check-touch-targets.mjs` (`check:touch`) |
 | Reduced motion | `@media (prefers-reduced-motion: reduce)` |
 | Screen readers | `aria-label` on icon buttons, `role="dialog"` on modals |
+| Heading order | One `h1` per page (never the wordmark), `h2` per section, `h3` per card; axe `heading-order` runs on every `a11yRoutes` entry |
 | Error text | `role="alert"` only. Adding `aria-live` on top is redundant and is documented as wrong in `legacy/components/ErrorBanner.tsx` |
 | Keyboard nav | `role="button" tabIndex={0}` on score tap zones |
 | Menu | `role="menu"` / `role="menuitem"` on ActionsMenu |

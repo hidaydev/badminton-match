@@ -112,7 +112,7 @@ export default function SessionListPage() {
     <div className="flex flex-col gap-3">
       {/* Header Title */}
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-lg font-bold text-fg">{t('sessions.title')}</h2>
+        <h1 className="text-lg font-bold text-fg">{t('sessions.title')}</h1>
         <span className="text-xs font-mono text-fg-dim font-medium">
           {hasFilter ? `${filtered.length} / ${total}` : total} {t('common.total')}
         </span>

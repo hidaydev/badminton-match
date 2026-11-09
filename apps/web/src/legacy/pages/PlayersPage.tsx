@@ -369,7 +369,7 @@ export default function PlayersPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h2 className="text-lg font-bold text-fg mb-0.5">Players</h2>
+          <h1 className="text-lg font-bold text-fg mb-0.5">Players</h1>
           <p className="text-slate-400 text-sm">Click name to rename · Click badge to toggle gender/tier.</p>
         </div>
         <span className={`text-sm font-semibold px-3 py-1 rounded-full border ${

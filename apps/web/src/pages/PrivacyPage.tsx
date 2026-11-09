@@ -24,10 +24,10 @@ export default function PrivacyPage() {
           <li>{t('privacy.data.logs')}</li>
         </ul>
 
-        <h2 className="mt-8 text-lg font-semibold text-fg">{t('privacy.why.heading')}</h2>
+        <h3 className="mt-8 text-lg font-semibold text-fg">{t('privacy.why.heading')}</h3>
         <p className="mt-2 text-sm leading-relaxed text-fg-dim">{t('privacy.why.body')}</p>
 
-        <h2 className="mt-8 text-lg font-semibold text-fg">{t('privacy.where.heading')}</h2>
+        <h3 className="mt-8 text-lg font-semibold text-fg">{t('privacy.where.heading')}</h3>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-relaxed text-fg-dim">
           <li>{t('privacy.where.database')}</li>
           <li>{t('privacy.where.web')}</li>
@@ -36,7 +36,7 @@ export default function PrivacyPage() {
           <li>{t('privacy.where.api')}</li>
         </ul>
 
-        <h2 className="mt-8 text-lg font-semibold text-fg">{t('privacy.cookies.heading')}</h2>
+        <h3 className="mt-8 text-lg font-semibold text-fg">{t('privacy.cookies.heading')}</h3>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-relaxed text-fg-dim">
           <li>{t('privacy.cookies.session')}</li>
           <li>{t('privacy.cookies.flow')}</li>
@@ -45,10 +45,10 @@ export default function PrivacyPage() {
           <li>{t('privacy.cookies.thirdParty')}</li>
         </ul>
 
-        <h2 className="mt-8 text-lg font-semibold text-fg">{t('privacy.share.heading')}</h2>
+        <h3 className="mt-8 text-lg font-semibold text-fg">{t('privacy.share.heading')}</h3>
         <p className="mt-2 text-sm leading-relaxed text-fg-dim">{t('privacy.share.body')}</p>
 
-        <h2 className="mt-8 text-lg font-semibold text-fg">{t('privacy.retention.heading')}</h2>
+        <h3 className="mt-8 text-lg font-semibold text-fg">{t('privacy.retention.heading')}</h3>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-relaxed text-fg-dim">
           <li>{t('privacy.retention.sessions')}</li>
           <li>{t('privacy.retention.temporary')}</li>
@@ -58,7 +58,7 @@ export default function PrivacyPage() {
         </ul>
         <p className="mt-3 text-sm leading-relaxed text-fg-dim">{t('privacy.deletion.body')}</p>
 
-        <h2 className="mt-8 text-lg font-semibold text-fg">{t('privacy.contact.heading')}</h2>
+        <h3 className="mt-8 text-lg font-semibold text-fg">{t('privacy.contact.heading')}</h3>
         <p className="mt-2 text-sm leading-relaxed text-fg-dim">
           {t('privacy.contact.body')}{' '}
           <a
@@ -70,7 +70,7 @@ export default function PrivacyPage() {
           .
         </p>
 
-        <h2 className="mt-8 text-lg font-semibold text-fg">{t('privacy.changes.heading')}</h2>
+        <h3 className="mt-8 text-lg font-semibold text-fg">{t('privacy.changes.heading')}</h3>
         <p className="mt-2 text-sm leading-relaxed text-fg-dim">{t('privacy.changes.body')}</p>
 
         <Link

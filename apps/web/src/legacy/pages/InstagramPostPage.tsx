@@ -398,7 +398,7 @@ export default function InstagramPostPage() {
           >
             Create
           </p>
-          <h2 className="text-lg font-bold text-yellow-400 tracking-tight leading-none">Instagram Post</h2>
+          <h1 className="text-lg font-bold text-yellow-400 tracking-tight leading-none">Instagram Post</h1>
         </div>
         <input
           type="date"

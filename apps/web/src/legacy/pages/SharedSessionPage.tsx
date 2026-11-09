@@ -91,8 +91,9 @@ export default function SharedSessionPage() {
         </button>
         <Link to="/" className="flex items-center gap-2">
           <img src="/logo-192.png" alt="" className="w-6 h-6 shrink-0 object-contain" />
-          <h1 className="text-sm font-bold text-fg tracking-tight">MAJADU</h1>
+          <span className="text-sm font-bold text-fg tracking-tight">MAJADU</span>
         </Link>
+        <h1 className="sr-only">{snapshot?.session.title || t('sessions.title')}</h1>
         {/* The logo also resolves to the community; this labelled link makes
             the way back explicit on a screen outside HomeLayout. */}
         <Link

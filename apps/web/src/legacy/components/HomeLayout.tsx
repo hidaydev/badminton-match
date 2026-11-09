@@ -45,7 +45,7 @@ export default function HomeLayout() {
           )}
           <Link to="/" className="flex items-center gap-2 flex-1">
             <img src="/logo-192.png" alt="" className="w-6 h-6 shrink-0 object-contain" />
-            <h1 className="text-sm font-bold text-fg tracking-tight">MAJADU</h1>
+            <span className="text-sm font-bold text-fg tracking-tight">MAJADU</span>
           </Link>
           <div className="hidden sm:flex items-center gap-2">
             <CommunityPicker />

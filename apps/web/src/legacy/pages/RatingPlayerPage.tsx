@@ -335,9 +335,9 @@ export default function RatingPlayerPage() {
         {/* Section: Career History */}
         <section className="flex flex-col gap-2">
           <div className="flex items-center justify-between px-1">
-            <h2 className="text-xs font-sans font-semibold text-fg-dim uppercase tracking-wider">
+            <h3 className="text-xs font-sans font-semibold text-fg-dim uppercase tracking-wider">
               {t('player.careerHistory')}
-            </h2>
+            </h3>
           </div>
           {stats ? (
             <CareerStats stats={stats} countedPoints={countedPoints} />
@@ -351,9 +351,9 @@ export default function RatingPlayerPage() {
         {/* Section: Medals & Achievements */}
         <section className="flex flex-col gap-2">
           <div className="flex items-center justify-between px-1">
-            <h2 className="text-xs font-sans font-semibold text-fg-dim uppercase tracking-wider">
+            <h3 className="text-xs font-sans font-semibold text-fg-dim uppercase tracking-wider">
               {t('player.medals')}
-            </h2>
+            </h3>
           </div>
           {achLoading && (
             <div className="bg-surface border border-border-subtle rounded-xl p-6 text-center">

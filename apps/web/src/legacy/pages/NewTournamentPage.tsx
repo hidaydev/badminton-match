@@ -29,7 +29,7 @@ export default function NewTournamentPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-bold text-fg">New Tournament</h2>
+        <h1 className="text-lg font-bold text-fg">New Tournament</h1>
         <p className="text-xs text-fg-dim">Select the tournament format you want to run</p>
       </div>
 

@@ -15,7 +15,7 @@ export default function ConstraintsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h2 className="text-lg font-bold text-fg mb-0.5">Constraints</h2>
+          <h1 className="text-lg font-bold text-fg mb-0.5">Constraints</h1>
           <p className="text-slate-400 text-sm">Define fixed matches. Pin to time & court or leave flexible for the generator.</p>
         </div>
         {fixMatches.length > 0 && (

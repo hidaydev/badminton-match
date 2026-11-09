@@ -46,7 +46,7 @@ export default function SessionLayout() {
           </button>
           <Link to="/" className="flex items-center gap-2">
             <img src="/logo-192.png" alt="" className="w-6 h-6 shrink-0 object-contain" />
-            <h1 className="text-sm font-bold text-fg tracking-tight whitespace-nowrap">MAJADU</h1>
+            <span className="text-sm font-bold text-fg tracking-tight whitespace-nowrap">MAJADU</span>
           </Link>
           {locked && (
             <div className="ml-auto flex items-center gap-2 shrink-0">

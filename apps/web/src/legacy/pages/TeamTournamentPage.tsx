@@ -250,7 +250,7 @@ export default function TeamTournamentPage() {
       {publishError && <ErrorBanner message={publishError} />}
       <div className="bg-surface px-4 pt-3 pb-0 border-b border-border-subtle">
         <div className="flex items-center gap-2">
-          <h2 className="text-[1rem] font-bold text-fg leading-tight">{snap.name}</h2>
+          <h1 className="text-[1rem] font-bold text-fg leading-tight">{snap.name}</h1>
           {publish.isPending && <span className="text-xs text-fg-dim">saving…</span>}
         </div>
         <p className="text-xs text-fg-dim mt-0.5 mb-3">
@@ -428,7 +428,7 @@ export default function TeamTournamentPage() {
                 {/* Export Posts — champion + runner-up photos + download */}
                 {finalPostMode && (
                 <div className="bg-surface border border-border-subtle rounded-lg px-4 py-3 flex flex-col gap-2">
-                  <p className="text-xs text-fg-dim uppercase tracking-wider">Position Photos</p>
+                  <h3 className="text-xs text-fg-dim uppercase tracking-wider">Position Photos</h3>
 
                   {championName && (
                     <div className="flex items-center justify-between">

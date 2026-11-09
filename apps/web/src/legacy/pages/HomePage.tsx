@@ -61,6 +61,7 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col gap-4 pt-1">
+      <h1 className="sr-only">{current?.name ?? t('home.appSection')}</h1>
       {/* Hero CTA — New Session (host/admin only; members read sessions). */}
       {isAdmin && (
         <button

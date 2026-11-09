@@ -246,7 +246,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
       {/* The standalone route is a counter, not a match screen: say so. */}
       {!overlay && (
         <div className="sr-only">
-          <h1>{t('scoreboard.title')}</h1>
+          <h1 className="text-xl font-bold text-fg">{t('scoreboard.title')}</h1>
           <p>{t('scoreboard.notLinked')}</p>
         </div>
       )}
