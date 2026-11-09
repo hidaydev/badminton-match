@@ -254,5 +254,107 @@ try:
       let last = scratch.queryOne(
         "select version from dbtools.schema_migrations order by version desc limit 1").get
       check last.get("version") == "0036_oauth_flow_key_id"
+
+    test "the last migration applies to a populated schema from the previous version":
+      # QA-16: every other case here starts from nothing. The upgrade path the
+      # next release has to take is a migration over live rows, and it is where a
+      # rewrite or a dropped column without a backfill shows up. This builds the
+      # schema at N-1, inserts a row per core table, then applies N and proves
+      # the rows and the pre-existing columns survived.
+      let files = sqlFiles(migrationsDir)
+      check files.len > 1
+      let last = files[^1]
+      let upgradeName = checkedName("bm2_mig_up_" & $getCurrentProcessId())
+      let staging = getTempDir() / ("majadu-upgrade-" & $getCurrentProcessId())
+      removeDir(staging)
+      createDir(staging)
+      for index in 0 ..< files.len - 1:
+        copyFile(migrationsDir / files[index], staging / files[index])
+
+      discard admin.execUpdate("drop database if exists " & upgradeName &
+        " with (force)")
+      discard admin.execUpdate("create database " & upgradeName)
+      let up = openDb(databaseDsn(getEnv("MAJADU_PG_DSN"), upgradeName), 1)
+      try:
+        migrate(up, staging)
+        const
+          communityId = "11111111-1111-4111-8111-111111111111"
+          userId = "22222222-2222-4222-8222-222222222222"
+          sessionId = "33333333-3333-4333-8333-333333333333"
+        discard up.execUpdate(
+          """insert into platform.community (id, slug, name, timezone)
+             values ($1::uuid, 'upgrade-probe', 'Upgrade Probe', 'UTC')""",
+          @[textParam(communityId)])
+        discard up.execUpdate(
+          """insert into platform.user (id, google_sub, email_hash, display_name)
+             values ($1::uuid, 'upgrade-probe', 'upgrade@example.invalid',
+                     'Upgrade Probe')""",
+          @[textParam(userId)])
+        discard up.execUpdate(
+          """insert into community.membership (community_id, user_id, role)
+             values ($1::uuid, $2::uuid, 'member')""",
+          @[textParam(communityId), textParam(userId)])
+        discard up.execUpdate(
+          """insert into session.sessions
+               (id, community_id, title, session_date, status, source)
+             values ($1::uuid, $2::uuid, 'Upgrade Probe', '2026-01-01',
+                     'draft', 'manual')""",
+          @[textParam(sessionId), textParam(communityId)])
+
+        # Every column that exists before N. A migration that drops one without a
+        # backfill fails the comparison below, which is the point.
+        let columns = up.query(
+          """select table_schema, table_name, column_name
+               from information_schema.columns
+              where table_schema in ('platform', 'community', 'session',
+                                     'rating', 'tournament', 'account',
+                                     'share', 'auth', 'achievement')
+              order by 1, 2, 3""")
+
+        # N is not in the staging directory yet, so this applies exactly one file.
+        copyFile(migrationsDir / last, staging / last)
+        migrate(up, staging)
+
+        check verifyProblems(up, staging).len == 0
+        let ledger = up.queryOne(
+          "select version from dbtools.schema_migrations order by version desc limit 1").get
+        check ledger.get("version") == last.changeFileExt("")
+
+        var missing: seq[string] = @[]
+        for row in columns:
+          let found = up.queryOne(
+            """select 1 as ok from information_schema.columns
+                where table_schema = $1 and table_name = $2
+                  and column_name = $3""",
+            @[textParam(row.get("table_schema")),
+              textParam(row.get("table_name")),
+              textParam(row.get("column_name"))])
+          if found.isNone:
+            missing.add(row.get("table_schema") & "." & row.get("table_name") &
+              "." & row.get("column_name"))
+        checkpoint("columns dropped without a backfill: " & missing.join(", "))
+        check missing.len == 0
+
+        if missing.len == 0:
+          check up.queryOne(
+            "select display_name from platform.user where id = $1::uuid",
+            @[textParam(userId)]).get.get("display_name") == "Upgrade Probe"
+          check up.queryOne(
+            "select name from platform.community where id = $1::uuid",
+            @[textParam(communityId)]).get.get("name") == "Upgrade Probe"
+          check up.queryOne(
+            """select title, status, source from session.sessions
+                where id = $1::uuid""",
+            @[textParam(sessionId)]).get.get("title") == "Upgrade Probe"
+          check up.queryOne(
+            """select role from community.membership
+                where community_id = $1::uuid and user_id = $2::uuid""",
+            @[textParam(communityId), textParam(userId)]).get.get("role") == "member"
+      finally:
+        up.close()
+        discard admin.execUpdate("drop database if exists " & upgradeName &
+          " with (force)")
+        removeDir(staging)
+
 finally:
   shutdown()
