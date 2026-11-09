@@ -335,3 +335,34 @@ suite "honest test rules":
     check found[0].contains("x_test.nim:4")
     check honestTestViolations("modules/session/tests/x_test.nim", source,
       ["modules/session/tests/x_test.nim"]).len == 0
+
+suite "delivery SQL rule":
+  test "SQL in a handler is a finding":
+    let source = "proc handler() =\n" &
+      "  let sql = \"select id from session.sessions where community_id = $1\"\n"
+    let found = deliverySqlViolations("apps/api/src/app.nim", source)
+    check found.len == 1
+    check found[0].contains("move it to modules/<name>/application")
+
+  test "one routine entry exempts its SQL and application.db":
+    let source = "proc handler() =\n" &
+      "  discard application.db.execUpdate(\n" &
+      "    \"delete from platform.idempotency_keys where key = $1\")\n"
+    check deliverySqlViolations("apps/api/src/app.nim", source).len == 2
+    check deliverySqlViolations("apps/api/src/app.nim", source,
+      ["apps/api/src/app.nim:handler"]).len == 0
+
+  test "a new routine in an allowlisted file is still a finding":
+    let source = "proc old() =\n" &
+      "  let sql = \"select id from session.sessions where community_id = $1\"\n" &
+      "proc fresh() =\n" &
+      "  let sql = \"select id from player.players where community_id = $1\"\n"
+    let found = deliverySqlViolations("apps/api/src/app.nim", source,
+      ["apps/api/src/app.nim:old"])
+    check found.len == 1
+    check found[0].contains("fresh")
+
+  test "a module and a test file are outside the rule":
+    let source = "let sql = \"select id from session.sessions where community_id = $1\"\n"
+    check deliverySqlViolations("modules/session/write.nim", source).len == 0
+    check deliverySqlViolations("apps/api/tests/x_test.nim", source).len == 0

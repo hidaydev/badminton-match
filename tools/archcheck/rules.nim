@@ -726,6 +726,59 @@ proc enclosingRoutine(source: string, offset: int): string =
         return name
   ""
 
+proc deliverySqlAllowed(file, routine: string,
+                        allowed: openArray[string]): bool =
+  ## `path/` exempts a whole tree, `path` a whole file, `path:routine` every
+  ## statement in one routine. The delivery allowlist names the handlers that
+  ## still own SQL while BE-06 moves them into `modules/<name>/application/`.
+  for entry in allowed:
+    if entry.len == 0:
+      continue
+    if entry.endsWith("/") and file.startsWith(entry):
+      return true
+    if entry == file:
+      return true
+    if routine.len > 0 and entry == file & ":" & routine:
+      return true
+
+proc deliverySqlViolations*(path, source: string,
+                            allowed: openArray[string] = []): seq[string] =
+  ## BE-06: the delivery layer must not hold SQL or the application pool. A
+  ## handler calls an application service, which owns the transaction and the
+  ## statement; anything still here is a documented exception until the batch
+  ## moves it. A new routine with SQL fails without an allowlist entry.
+  let file = normalize(path)
+  if not file.startsWith("apps/") or file.contains("/tests/"):
+    return
+  for statement in sqlStatements(source):
+    let text = statement.text.strip().toLowerAscii()
+    if not (text.startsWith("select ") or text.startsWith("insert ") or
+            text.startsWith("update ") or text.startsWith("delete ") or
+            text.startsWith("with ") or text.startsWith("--")):
+      continue
+    let routine = enclosingRoutine(source, statement.offset)
+    if deliverySqlAllowed(file, routine, allowed):
+      continue
+    result.add(file & ":" & $lineOf(source, statement.offset) &
+      ": SQL in the delivery layer; move it to modules/<name>/application" &
+      (if routine.len > 0: " (proc " & routine & ")" else: ""))
+  # `application.db` is the process-global pool. A store call receives a `Db`
+  # and a route should not reach for the global itself.
+  let originalLines = source.splitLines()
+  let codeLines = stripStrings(originalLines)
+  var offset = 0
+  var reported: seq[string] = @[]
+  for index in 0 ..< codeLines.len:
+    if codeLines[index].contains("application.db"):
+      let routine = enclosingRoutine(source, offset)
+      if not deliverySqlAllowed(file, routine, allowed) and
+          routine notin reported:
+        result.add(file & ":" & $(index + 1) &
+          ": delivery layer holds application.db; inject the service instead" &
+          (if routine.len > 0: " (proc " & routine & ")" else: ""))
+        reported.add(routine)
+    offset += originalLines[index].len + 1
+
 proc violationsFor*(path, source: string,
                     allowed: openArray[string] = []): seq[string] =
   let file = normalize(path)
