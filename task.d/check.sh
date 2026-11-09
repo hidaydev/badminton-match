@@ -46,8 +46,9 @@ for file in $(list_test_files); do
     # say why in the job log. A pass stays quiet.
     _log=$(mktemp "${TMPDIR:-/tmp}/majadu-check.XXXXXX")
     nim_run_check "$file" >"$_log" 2>&1 || _code=$?
-    junit_record "${file#"$REPO_ROOT"/}" "$_code"
-    timing_add "${file#"$REPO_ROOT"/}" "$(( $(now_ms) - _start ))" "$_code"
+    _elapsed=$(( $(now_ms) - _start ))
+    junit_record "${file#"$REPO_ROOT"/}" "$_code" "$_elapsed"
+    timing_add "${file#"$REPO_ROOT"/}" "$_elapsed" "$_code"
     if [ "$_code" -ne 0 ]; then
       printf 'check: %s failed with exit %s\n' "${file#"$REPO_ROOT"/}" \
         "$_code" >&2

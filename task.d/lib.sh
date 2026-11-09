@@ -105,9 +105,11 @@ junit_begin() {
 }
 
 junit_record() {
-  # $1 suite path, $2 exit status (0 passed, 77 skipped, anything else failed)
+  # $1 suite path, $2 exit status (0 passed, 77 skipped, anything else failed),
+  # $3 wall time in milliseconds (QA-20: a result without a duration cannot show
+  # slow-test drift, and drift is what turns a green suite into a flaky one).
   [ -n "$JUNIT_DIR" ] || return 0
-  printf '%s\t%s\n' "$1" "$2" >>"$JUNIT_DIR/results.tsv"
+  printf '%s\t%s\t%s\n' "$1" "$2" "${3:-0}" >>"$JUNIT_DIR/results.tsv"
 }
 
 junit_finish() {
@@ -118,27 +120,29 @@ junit_finish() {
   awk -F"$(printf '\t')" '
     {
       total++
+      seconds += $3 / 1000
       if ($2 == 77) skipped++
       else if ($2 != 0) failures++
     }
     END {
       printf "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-      printf "<testsuites tests=\"%d\" failures=\"%d\" skipped=\"%d\">\n", total, failures, skipped
-      printf "  <testsuite name=\"nim\" tests=\"%d\" failures=\"%d\" skipped=\"%d\">\n", total, failures, skipped
+      printf "<testsuites tests=\"%d\" failures=\"%d\" skipped=\"%d\" time=\"%.3f\">\n", total, failures, skipped, seconds
+      printf "  <testsuite name=\"nim\" tests=\"%d\" failures=\"%d\" skipped=\"%d\" time=\"%.3f\">\n", total, failures, skipped, seconds
     }
   ' "$JUNIT_DIR/results.tsv" >"$JUNIT_DIR/junit.xml"
-  while IFS="$(printf '\t')" read -r _suite _code; do
+  while IFS="$(printf '\t')" read -r _suite _code _ms; do
     [ -n "$_suite" ] || continue
     _name=$(printf '%s' "$_suite" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' \
       -e 's/>/\&gt;/g' -e 's/"/\&quot;/g')
+    _time=$(awk -v ms="${_ms:-0}" 'BEGIN { printf "%.3f", ms / 1000 }')
     if [ "$_code" = "0" ]; then
-      printf '    <testcase name="%s"/>\n' "$_name" >>"$JUNIT_DIR/junit.xml"
+      printf '    <testcase name="%s" time="%s"/>\n' "$_name" "$_time" >>"$JUNIT_DIR/junit.xml"
     elif [ "$_code" = "77" ]; then
-      printf '    <testcase name="%s"><skipped/></testcase>\n' "$_name" \
-        >>"$JUNIT_DIR/junit.xml"
+      printf '    <testcase name="%s" time="%s"><skipped/></testcase>\n' \
+        "$_name" "$_time" >>"$JUNIT_DIR/junit.xml"
     else
-      printf '    <testcase name="%s"><failure message="exit %s"/></testcase>\n' \
-        "$_name" "$_code" >>"$JUNIT_DIR/junit.xml"
+      printf '    <testcase name="%s" time="%s"><failure message="exit %s"/></testcase>\n' \
+        "$_name" "$_time" "$_code" >>"$JUNIT_DIR/junit.xml"
     fi
   done <"$JUNIT_DIR/results.tsv"
   printf '  </testsuite>\n</testsuites>\n' >>"$JUNIT_DIR/junit.xml"

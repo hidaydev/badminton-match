@@ -231,9 +231,10 @@ for file in $files; do
   _skips_before=$SKIP_COUNT
   run_status=0
   nim_run "$file" || run_status=$?
-  junit_record "$rel" "$run_status"
+  _elapsed=$(( $(now_ms) - _start ))
+  junit_record "$rel" "$run_status" "$_elapsed"
   if [ "$timing" = "1" ]; then
-    timing_add "$rel" "$(( $(now_ms) - _start ))" "$run_status"
+    timing_add "$rel" "$_elapsed" "$run_status"
   fi
 
   verdict=PASS
