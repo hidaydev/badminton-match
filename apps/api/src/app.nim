@@ -25,7 +25,7 @@ import sha256
 import share/crypto
 import share/store as shareStore
 import session/write as sessionWrite
-import session/lifecycle as sessionLifecycle
+import session/application/detail as sessionDetail
 import session/standings as sessionStandings
 import session/schedule as sessionSchedule
 import session/scoring as sessionScoring
@@ -300,6 +300,12 @@ proc configSnapshot(): Snapshot =
   ## so `route` takes one snapshot per request and hands it to the handler. This
   ## stays for helpers that read a single key and are called outside that chain.
   application.config.snapshot(application.db)
+
+proc database(): Db =
+  ## The process pool, named once. A handler receives it from here instead of
+  ## reaching for the global in every routine; the archcheck allowlist records
+  ## this single routine as the documented exception (BE-06).
+  application.db
 
 proc scoringPresets(snapshot: Snapshot): seq[sessionScoring.ScoringRules] =
   ## The platform list. It is reference data for the wizard, not a community
@@ -2011,22 +2017,12 @@ proc readyz(request: Request) =
     problem(request, 503, "NOT_READY", detail)
 
 proc sessionVersionNow(communityId, sessionId: string): int =
-  let row = application.db.queryOne(
-    """select version from session.sessions
-       where community_id = $1::uuid and id = $2::uuid""",
-    @[textParam(communityId), textParam(sessionId)])
-  if row.isSome: parseInt(row.get.get("version")) else: 0
+  sessionDetail.versionOf(database(), communityId, sessionId)
 
 proc sessionApproved(communityId, sessionId: string): bool =
   ## The same two-column test the rating ledger uses: an approval stamp with a
   ## status outside the approved set would otherwise let a draft be rated.
-  let row = application.db.queryOne(
-    """select 1 as ok from session.sessions
-       where community_id = $1::uuid and id = $2::uuid
-         and approved_at is not null
-         and status in """ & sessionLifecycle.approvedStatuses,
-    @[textParam(communityId), textParam(sessionId)])
-  row.isSome
+  sessionDetail.isApproved(database(), communityId, sessionId)
 
 proc ingestSessionRating(request: Request, ctx: CommunityContext,
                          user: AuthUser, sessionId: string) =
@@ -2468,49 +2464,38 @@ proc scoringJson(rules: sessionScoring.ScoringRules): JsonNode =
   result["changeEndsAt"] =
     if rules.changeEndsAt.isSome: %rules.changeEndsAt.get else: newJNull()
 
-proc gameSets(db: Db, communityId, sessionId: string,
-              round, court: int): JsonNode =
+proc gameSets(entries: seq[sessionDetail.GameSet]): JsonNode =
   result = newJArray()
-  for entry in db.query(
-    """select set_no, score_a, score_b from session.game_sets
-       where community_id = $1::uuid and session_id = $2::uuid
-         and round_no = $3 and court_no = $4
-       order by set_no""",
-    @[textParam(communityId), textParam(sessionId),
-      intParam(round.int64), intParam(court.int64)]):
-    result.add(%*{
-      "set": parseInt(entry.get("set_no")),
-      "a": parseInt(entry.get("score_a")),
-      "b": parseInt(entry.get("score_b"))})
+  for entry in entries:
+    result.add(%*{"set": entry.setNo, "a": entry.a, "b": entry.b})
 
-proc gamePayload(entry: Row): JsonNode =
+proc gameJson(game: sessionDetail.Game): JsonNode =
   ## One match from the results view. `scoreA/scoreB` are total points, kept
   ## under the old names so existing readers do not break; the winner comes from
   ## sets, never from comparing totals.
   var sideA = newJArray()
   var sideB = newJArray()
-  let split = sessionSides.sides(entry.get("side_a1"), entry.get("side_a2"),
-    entry.get("side_b1"), entry.get("side_b2"), initHashSet[string](),
-    initHashSet[string]())
+  let split = sessionSides.sides(game.sideA1, game.sideA2, game.sideB1,
+    game.sideB2, initHashSet[string](), initHashSet[string]())
   for playerId in split.presentA:
     sideA.add(%playerId)
   for playerId in split.presentB:
     sideB.add(%playerId)
-  let winner = entry.get("winner")
   # A match with no set has no score. Keeping NULL here matters: the legacy
   # adapter treats a non-null 0-0 as a recorded result.
-  let scored = parseInt(entry.get("sets_played")) > 0
+  let scored = game.setsPlayed > 0
   %*{
-    "round": parseInt(entry.get("round_no")),
-    "court": parseInt(entry.get("court_no")),
+    "round": game.roundNo,
+    "court": game.courtNo,
     "sideA": sideA,
     "sideB": sideB,
-    "scoreA": if scored: %parseInt(entry.get("points_a")) else: newJNull(),
-    "scoreB": if scored: %parseInt(entry.get("points_b")) else: newJNull(),
-    "setsWonA": parseInt(entry.get("sets_a")),
-    "setsWonB": parseInt(entry.get("sets_b")),
-    "winner": if winner == "a": %"A" elif winner == "b": %"B" else: newJNull(),
-    "status": entry.get("status"),
+    "scoreA": if scored: %game.pointsA else: newJNull(),
+    "scoreB": if scored: %game.pointsB else: newJNull(),
+    "setsWonA": game.setsA,
+    "setsWonB": game.setsB,
+    "winner": if game.winner == "a": %"A" elif game.winner == "b": %"B" else: newJNull(),
+    "sets": gameSets(game.sets),
+    "status": game.status,
   }
 
 proc getSessionDetail(request: Request, ctx: CommunityContext,
@@ -2518,68 +2503,38 @@ proc getSessionDetail(request: Request, ctx: CommunityContext,
   ## The whole session in one read: header, who is playing and the games. The
   ## schedule has a write endpoint but no read of its own, and a page cannot
   ## render games it has no keys for.
-  let row = application.db.queryOne(
-    """select id, title, session_date::text as session_date,
-              to_char(start_time, 'HH24:MI') as start_time, slot_minutes,
-              status, version, scoring_rules
-       from session.sessions where id = $1 and community_id = $2""",
-    @[textParam(sessionId), textParam(ctx.communityId)])
-  if row.isNone:
+  let loaded = sessionDetail.load(database(), ctx.communityId, sessionId)
+  if loaded.isNone:
     problem(request, 404, "NOT_FOUND", "session not found")
     return
-  let rules = sessionScoring.parseSnapshotNode(
-    parseJson(row.get.get("scoring_rules")))
-  let etag = "\"" & row.get.get("version") & "\""
+  let session = loaded.get
+  let etag = "\"" & $session.version & "\""
   # A poll that already has this version costs a 304 instead of the full read.
   if ifNoneMatchHits(request, etag):
     send(request, 304, @[("ETag", etag), ("Cache-Control", "no-store")], "")
     return
   var participants = newJArray()
-  for entry in application.db.query(
-    """select p.player_id, pl.canonical_name as name, p.is_absent
-       from session.participants p
-       join player.players pl on pl.id = p.player_id
-       where p.community_id = $1::uuid and p.session_id = $2::uuid
-       order by pl.canonical_name""",
-    @[textParam(ctx.communityId), textParam(sessionId)]):
-    participants.add(%*{"playerId": entry.get("player_id"),
-      "name": entry.get("name"), "absent": entry.get("is_absent") == "t"})
+  for entry in session.participants:
+    participants.add(%*{"playerId": entry.playerId, "name": entry.name,
+      "absent": entry.absent})
   var games = newJArray()
-  for entry in application.db.query(
-    """select round_no, court_no, status, winner, points_a, points_b,
-              sets_played, sets_a, sets_b,
-              coalesce(side_a1::text, '') as side_a1,
-              coalesce(side_a2::text, '') as side_a2,
-              coalesce(side_b1::text, '') as side_b1,
-              coalesce(side_b2::text, '') as side_b2
-       from session.game_results
-       where community_id = $1::uuid and session_id = $2::uuid
-       order by round_no, court_no""",
-    @[textParam(ctx.communityId), textParam(sessionId)]):
-    var game = gamePayload(entry)
-    game["sets"] = gameSets(application.db, ctx.communityId, sessionId,
-      parseInt(entry.get("round_no")), parseInt(entry.get("court_no")))
-    games.add(game)
+  for game in session.games:
+    games.add(gameJson(game))
   var skipped = newJObject()
-  for entry in application.db.query(
-    """select round_no, court_no, player_id::text as player_id
-       from session.game_skips
-       where community_id = $1::uuid and session_id = $2::uuid
-       order by round_no, court_no, player_id""",
-    @[textParam(ctx.communityId), textParam(sessionId)]):
-    let gameKey = entry.get("round_no") & "-" & entry.get("court_no")
-    if not skipped.hasKey(gameKey):
-      skipped[gameKey] = newJArray()
-    skipped[gameKey].add(%entry.get("player_id"))
+  for entry in session.skips:
+    let key = $entry.roundNo & "-" & $entry.courtNo
+    if not skipped.hasKey(key):
+      skipped[key] = newJArray()
+    skipped[key].add(%entry.playerId)
   jsonResponse(request, 200, %*{
-    "id": row.get.get("id"),
-    "title": row.get.get("title"),
-    "date": row.get.get("session_date"),
-    "startTime": row.get.get("start_time"),
-    "slotMinutes": parseInt(row.get.get("slot_minutes")),
-    "status": row.get.get("status"),
-    "version": parseInt(row.get.get("version")),
-    "scoring": scoringJson(rules),
+    "id": session.id,
+    "title": session.title,
+    "date": session.date,
+    "startTime": session.startTime,
+    "slotMinutes": session.slotMinutes,
+    "status": session.status,
+    "version": session.version,
+    "scoring": scoringJson(session.rules),
     "participants": participants,
     "games": games,
     "skippedPlayers": skipped},
@@ -2591,25 +2546,12 @@ proc getGameRoute(request: Request, ctx: CommunityContext, sessionId,
   if key.isNone:
     problem(request, 400, "INVALID_GAME_KEY", "gameKey must be round-court")
     return
-  let row = application.db.queryOne(
-    """select round_no, court_no, status, winner, points_a, points_b,
-              sets_played, sets_a, sets_b,
-              coalesce(side_a1::text, '') as side_a1,
-              coalesce(side_a2::text, '') as side_a2,
-              coalesce(side_b1::text, '') as side_b1,
-              coalesce(side_b2::text, '') as side_b2
-       from session.game_results
-       where community_id = $1::uuid and session_id = $2::uuid
-         and round_no = $3 and court_no = $4""",
-    @[textParam(ctx.communityId), textParam(sessionId),
-      intParam(key.get[0].int64), intParam(key.get[1].int64)])
-  if row.isNone:
+  let found = sessionDetail.loadGame(database(), ctx.communityId, sessionId,
+    key.get[0], key.get[1])
+  if found.isNone:
     problem(request, 404, "NOT_FOUND", "game not found")
     return
-  var payload = gamePayload(row.get)
-  payload["sets"] = gameSets(application.db, ctx.communityId, sessionId,
-    key.get[0], key.get[1])
-  jsonResponse(request, 200, payload)
+  jsonResponse(request, 200, gameJson(found.get))
 
 proc getShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
                   sessionId: string) =
@@ -2649,6 +2591,10 @@ proc resolveShare(code: string): Option[JsonNode] =
   let value = found.get
   let rules = sessionSchedule.sessionRules(application.db, value.communityId,
     value.sessionId)
+  # Every set of the session in one statement: the public payload is polled by
+  # a whole group chat and must not cost one query per game.
+  let allSets = sessionDetail.setsByGame(application.db, value.communityId,
+    value.sessionId)
   var games = newJArray()
   for row in application.db.query(
     """select r.id, r.round_no, r.court_no, r.status, r.winner,
@@ -2685,8 +2631,8 @@ proc resolveShare(code: string): Option[JsonNode] =
       "setsWonA": parseInt(row.get("sets_a")),
       "setsWonB": parseInt(row.get("sets_b")),
       "winner": if winner == "a": %"A" elif winner == "b": %"B" else: newJNull(),
-      "sets": gameSets(application.db, value.communityId, value.sessionId,
-        parseInt(row.get("round_no")), parseInt(row.get("court_no"))),
+      "sets": gameSets(allSets.sets(parseInt(row.get("round_no")),
+        parseInt(row.get("court_no")))),
       "status": row.get("status"),
     })
   var shared = %*{
@@ -2853,11 +2799,7 @@ proc playerStats(request: Request, ctx: CommunityContext, playerId: string,
 proc sessionPlayerIds(communityId, sessionId: string): seq[string] =
   ## The players who took part in one session. A share code opens that session,
   ## so the public board it serves is this set and never the whole community.
-  for row in application.db.query(
-    """select player_id from session.participants
-       where community_id = $1::uuid and session_id = $2::uuid""",
-    @[textParam(communityId), textParam(sessionId)]):
-    result.add(row.get("player_id"))
+  sessionDetail.participantIds(database(), communityId, sessionId)
 
 proc getSharedRanking(request: Request, code, playerId: string,
                       snapshot: Snapshot) =

@@ -1,6 +1,7 @@
 import std/[locks, options, strutils, times]
 when defined(posix):
   import std/posix
+import std/atomics
 import db_connector/postgres
 
 type
@@ -126,10 +127,22 @@ var
   countingStatements {.threadvar.}: bool
   transactionStatements {.threadvar.}: int
   savepointSeq {.threadvar.}: int
+  # Every statement the process has issued, across threads. A read route cannot
+  # use `statementsInTransaction` (it opens no transaction) and a suite cannot
+  # read a threadvar of the worker thread that served the request, so the read
+  # side is counted process-wide.
+  statementsAll: Atomic[int]
 
 proc countStatement() =
+  discard statementsAll.fetchAdd(1)
   if countingStatements:
     inc transactionStatements
+
+proc statementsIssued*(): int =
+  ## Statements executed since the process started, over every thread. A suite
+  ## reads the delta around one call to prove a read costs a fixed number of
+  ## round trips regardless of how many rows it returns.
+  statementsAll.load()
 
 proc statementsInTransaction*(): int =
   ## How many statements the most recent transaction sent, `BEGIN`/`COMMIT`
