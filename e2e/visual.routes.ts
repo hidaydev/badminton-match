@@ -131,18 +131,6 @@ export const visualRoutes: readonly VisualRoute[] = [
     path: () => '/owner/communities',
     ready: (state) => `text=${state.communityName}`,
   },
-  // The scoreboard is a separate deployable on its own preview port, so its
-  // route is an absolute URL. It needs no session, but it is the only surface
-  // with coloured backgrounds, which is why it belongs in the visual and a11y
-  // baseline. The build stamp changes on every build, so it is hidden; the
-  // first-visit install sheet is suppressed so the shot is the scoring surface.
-  {
-    name: 'scoreboard',
-    path: () => process.env.E2E_SCOREBOARD_BASE_URL ?? 'http://127.0.0.1:4173/',
-    ready: () => 'text=tap to score',
-    hide: ['[data-testid="build-stamp"]'],
-    suppressInstallSheet: true,
-  },
 ]
 
 /**
@@ -157,6 +145,22 @@ export const a11yRoutes: readonly VisualRoute[] = [
     name: 'shared',
     path: (state) => `/s/${state.shareCode}`,
     ready: (state) => `text=${state.sessionTitle}`,
+  },
+  // CMP-19: the scoreboard is a separate deployable on its own preview port, so
+  // its route is an absolute URL. It needs no session, but it is the only
+  // surface with coloured backgrounds, which is why it is in the a11y walk
+  // already. It joins `visualRoutes` when its PNGs exist for both platforms:
+  // CI only compares, so a list entry without a baseline fails every ref rather
+  // than recording one. The build stamp changes on every build and the
+  // first-visit install sheet covers the scoring surface, so the recorded shot
+  // needs the `hide` entry and `suppressInstallSheet` already honoured by
+  // `visual.spec.ts`.
+  {
+    name: 'scoreboard',
+    path: () => process.env.E2E_SCOREBOARD_BASE_URL ?? 'http://127.0.0.1:4173/',
+    ready: () => 'text=tap to score',
+    hide: ['[data-testid="build-stamp"]'],
+    suppressInstallSheet: true,
   },
   // Static prose the shell links from the account menu. They carry no data, so
   // the heading is the readiness signal.
