@@ -14,3 +14,6 @@ export type {
 export { useEscapeKey } from './hooks/useEscapeKey'
 export { useFocusTrap } from './hooks/useFocusTrap'
 export { usePwaInstall } from './hooks/usePwaInstall'
+
+export { Overlay } from './Overlay'
+export type { OverlayProps } from './Overlay'
