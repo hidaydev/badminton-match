@@ -41,8 +41,8 @@ export function subscribeStorageStatus(listener: Listener): () => void {
   }
 }
 
-// Clears the fallback cache and the warning so a later render starts fresh.
-// Used by tests and after site data is cleared.
+// Clears the in-memory fallback and the unavailable flag. Tests call this
+// between renders so one blocked-storage case cannot leak into the next.
 export function resetStorageStatus(): void {
   memory.clear()
   unavailable = false

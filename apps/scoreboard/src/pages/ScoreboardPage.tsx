@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, Fragment } from 'react'
 import { ScoreboardSide, ScoreboardDivider, ScoreboardFooter } from '../components/scoreboard'
 import type { ScoreboardSideProps } from '../components/scoreboard'
 import { useStorageUnavailable } from '../hooks/useStorageUnavailable'
+import { usePersistentStorage } from '../hooks/usePersistentStorage'
 import { readStoredValue, writeStoredValue } from '../utils/storage'
 
 const LS_RED = 'score-red'
@@ -39,6 +40,7 @@ async function exitFullscreen() {
 
 export default function ScoreboardPage() {
   const storageUnavailable = useStorageUnavailable()
+  const { status: persistenceStatus, requestPersistence } = usePersistentStorage()
   const [red, setRed] = useState(() => readScore(LS_RED))
   const [blue, setBlue] = useState(() => readScore(LS_BLUE))
   const [redName, setRedName] = useState(() => {
@@ -94,8 +96,8 @@ export default function ScoreboardPage() {
   }, [])
 
   // triggerPop is stable (useCallback with [] deps), safe to use without dep
-  const addRed = useCallback(() => { setRed(r => Math.min(99, r + 1)); triggerPop('red') }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  const addBlue = useCallback(() => { setBlue(b => Math.min(99, b + 1)); triggerPop('blue') }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const addRed = useCallback(() => { requestPersistence(); setRed(r => Math.min(99, r + 1)); triggerPop('red') }, [requestPersistence]) // eslint-disable-line react-hooks/exhaustive-deps
+  const addBlue = useCallback(() => { requestPersistence(); setBlue(b => Math.min(99, b + 1)); triggerPop('blue') }, [requestPersistence]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const minusRed = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -169,6 +171,14 @@ export default function ScoreboardPage() {
     onStopEditing: () => setEditingBlue(false),
   }
 
+  const statusNote = storageUnavailable
+    ? 'Scores are not being saved on this device'
+    : persistenceStatus === 'persisted'
+      ? 'Scores are saved on this device'
+      : persistenceStatus === 'not-persisted' || persistenceStatus === 'error'
+        ? 'Scores may be cleared by the browser'
+        : null
+
   const redEl = <ScoreboardSide {...redSide} />
   const blueEl = <ScoreboardSide {...blueSide} />
   const sides = isSwapped ? [blueEl, redEl] : [redEl, blueEl]
@@ -189,13 +199,13 @@ export default function ScoreboardPage() {
           {fsError}
         </div>
       )}
-      {storageUnavailable && (
+      {statusNote && (
         <div
           role="status"
           className="fixed top-0 left-1/2 -translate-x-1/2 z-30 px-3 py-1 rounded-b-lg text-[0.6rem] text-white/50 text-center pointer-events-none"
           style={{ background: 'rgba(0,0,0,0.5)', letterSpacing: '0.08em' }}
         >
-          Scores are not being saved on this device
+          {statusNote}
         </div>
       )}
       <ScoreboardFooter

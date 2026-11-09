@@ -44,12 +44,27 @@ function installServiceWorker(container: Record<string, unknown>) {
   })
 }
 
+function installContainer(registration: unknown, controller: unknown = {}) {
+  const listeners = new Map<string, () => void>()
+  const container = {
+    controller,
+    ready: Promise.resolve(registration),
+    addEventListener: vi.fn((event: string, listener: () => void) => {
+      listeners.set(event, listener)
+    }),
+    removeEventListener: vi.fn(),
+    fire: (event: string) => listeners.get(event)?.(),
+  }
+  installServiceWorker(container)
+  return container
+}
+
 afterEach(() => {
   Reflect.deleteProperty(navigator, 'serviceWorker')
 })
 
-function Harness() {
-  const { needRefresh, applyUpdate, dismiss } = useAppUpdate()
+function Harness({ reload }: { reload?: () => void } = {}) {
+  const { needRefresh, applyUpdate, dismiss } = useAppUpdate({ reload })
   return (
     <div>
       <span>{needRefresh ? 'refresh' : 'idle'}</span>
@@ -142,5 +157,39 @@ describe('useAppUpdate', () => {
 
     expect(screen.getByText('idle')).toBeInTheDocument()
     expect(worker.postMessage).not.toHaveBeenCalled()
+  })
+
+  it('reloads once when the new worker takes control after an update', async () => {
+    const worker = fakeWorker('installed')
+    const registration = fakeRegistration({ waiting: worker })
+    const container = installContainer(registration)
+    const reload = vi.fn()
+
+    await act(async () => {
+      render(<Harness reload={reload} />)
+    })
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'apply' }))
+    })
+    act(() => {
+      container.fire('controllerchange')
+    })
+
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not reload when no update is pending', async () => {
+    const registration = fakeRegistration({ waiting: fakeWorker('installed') })
+    const container = installContainer(registration)
+    const reload = vi.fn()
+
+    await act(async () => {
+      render(<Harness reload={reload} />)
+    })
+    act(() => {
+      container.fire('controllerchange')
+    })
+
+    expect(reload).not.toHaveBeenCalled()
   })
 })

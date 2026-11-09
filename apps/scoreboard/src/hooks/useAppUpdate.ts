@@ -6,12 +6,21 @@ export interface AppUpdate {
   dismiss: () => void
 }
 
+export interface AppUpdateOptions {
+  reload?: () => void
+}
+
+function reloadPage() {
+  window.location.reload()
+}
+
 // Watches the registration that vite-plugin-pwa installs in `prompt` mode.
 // A worker that reaches `installed` while another one controls the page is
 // waiting for SKIP_WAITING; until it gets that message the installed app stays
 // on the old bundle. Without a service worker or a waiting worker this is a
 // no-op, so the scoreboard keeps working in a plain browser.
-export function useAppUpdate(): AppUpdate {
+export function useAppUpdate(options: AppUpdateOptions = {}): AppUpdate {
+  const reload = options.reload ?? reloadPage
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const reloadPending = useRef(false)
@@ -38,7 +47,7 @@ export function useAppUpdate(): AppUpdate {
     }
 
     const onControllerChange = () => {
-      if (reloadPending.current) window.location.reload()
+      if (reloadPending.current) reload()
     }
 
     container.addEventListener('controllerchange', onControllerChange)
@@ -54,7 +63,7 @@ export function useAppUpdate(): AppUpdate {
       container.removeEventListener('controllerchange', onControllerChange)
       registration?.removeEventListener('updatefound', onUpdateFound)
     }
-  }, [])
+  }, [reload])
 
   const applyUpdate = useCallback(() => {
     if (!waiting) return
