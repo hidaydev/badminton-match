@@ -1,4 +1,5 @@
 import { t } from '../i18n'
+import { Select } from '../components/Field'
 import { useCommunity } from './CommunityContext'
 
 /**
@@ -15,18 +16,18 @@ export default function CommunityPicker() {
       <label htmlFor="community-picker" className="text-xs text-fg-dim">
         {t('community.label')}
       </label>
-      <select
+      <Select
         id="community-picker"
         value={current?.slug ?? ''}
         onChange={(event) => select(event.target.value)}
-        className="min-h-11 rounded-xl bg-elevated border border-border px-2 py-1.5 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
+        className="w-auto"
       >
         {memberships.map((membership) => (
           <option key={membership.id} value={membership.slug}>
             {membership.name}
           </option>
         ))}
-      </select>
+      </Select>
     </div>
   )
 }

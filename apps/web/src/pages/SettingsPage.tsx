@@ -24,7 +24,7 @@ import { Button } from '../components/Button'
 import { CollapsiblePanel } from '../components/CollapsiblePanel'
 import { Checkbox } from '../components/Checkbox'
 import { ErrorText } from '../components/ErrorText'
-import { Field, Input } from '../components/Field'
+import { Field, Input, Select } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
 import { PageHeader } from '../components/PageHeader'
 
@@ -313,35 +313,37 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
                   }}
                 />
               ) : field.kind === 'select' ? (
-                <select
-                  id={id}
-                  value={String(fieldValue(field) ?? '')}
-                  disabled={!canEdit || busy}
-                  onChange={(event) =>
-                    setEdits((current) => ({ ...current, [field.key]: event.target.value }))
-                  }
-                  className="min-h-11 w-40 rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60"
-                >
+                <div className="w-40">
+                  <Select
+                    id={id}
+                    value={String(fieldValue(field) ?? '')}
+                    disabled={!canEdit || busy}
+                    onChange={(event) =>
+                      setEdits((current) => ({ ...current, [field.key]: event.target.value }))
+                    }
+                  >
                   {presets.map((preset) => (
                     <option key={preset.id} value={preset.id}>{preset.label}</option>
                   ))}
-                  {presets.every((preset) => preset.id !== String(fieldValue(field))) && (
-                    <option value={String(fieldValue(field) ?? '')}>
-                      {String(fieldValue(field) ?? '')}
-                    </option>
-                  )}
-                </select>
+                    {presets.every((preset) => preset.id !== String(fieldValue(field))) && (
+                      <option value={String(fieldValue(field) ?? '')}>
+                        {String(fieldValue(field) ?? '')}
+                      </option>
+                    )}
+                  </Select>
+                </div>
               ) : (
-                <input
-                  id={id}
-                  type={field.kind === 'number' ? 'number' : 'text'}
-                  value={String(fieldValue(field) ?? '')}
-                  disabled={!canEdit || busy}
-                  onChange={(event) =>
-                    setEdits((current) => ({ ...current, [field.key]: event.target.value }))
-                  }
-                  className="min-h-11 w-40 rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60"
-                />
+                <div className="w-40">
+                  <Input
+                    id={id}
+                    type={field.kind === 'number' ? 'number' : 'text'}
+                    value={String(fieldValue(field) ?? '')}
+                    disabled={!canEdit || busy}
+                    onChange={(event) =>
+                      setEdits((current) => ({ ...current, [field.key]: event.target.value }))
+                    }
+                  />
+                </div>
               )}
               {pinned && (
                 <p id={reasonId} className="w-full text-xs text-fg-dim">
@@ -425,7 +427,7 @@ function MemberRow({
         <span className="flex items-center gap-2">
           <label className="text-xs text-fg-dim">
             <span className="sr-only">{t('admin.members.role', { name: member.displayName })}</span>
-            <select
+            <Select
               value={member.role}
               disabled={busy}
               onChange={(event) =>
@@ -433,14 +435,13 @@ function MemberRow({
                   setMemberRole(slug, member.userId, event.target.value as CommunityRole),
                 )
               }
-              className="min-h-11 rounded-xl border border-border bg-elevated px-2 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
             >
               {ROLES.map((role) => (
                 <option key={role} value={role}>
                   {t(ROLE_LABEL[role])}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           {!confirming && (
             <Button
@@ -520,17 +521,16 @@ function Invites({
         </Field>
         <label className="text-xs text-fg-dim">
           {t('admin.invites.role')}
-          <select
+          <Select
             value={role}
             onChange={(event) => setRole(event.target.value as CommunityRole)}
-            className="mt-1 min-h-11 rounded-xl border border-border bg-elevated px-2 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
           >
             {ROLES.map((value) => (
               <option key={value} value={value}>
                 {t(ROLE_LABEL[value])}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <Button
           type="submit"
@@ -610,7 +610,7 @@ function JoinRequests({
                   <span className="sr-only">
                     {t('admin.requests.roleOf', { name: request.displayName })}
                   </span>
-                  <select
+                  <Select
                     value={roles[request.id] ?? 'member'}
                     disabled={busy}
                     onChange={(event) =>
@@ -619,14 +619,13 @@ function JoinRequests({
                         [request.id]: event.target.value as CommunityRole,
                       }))
                     }
-                    className="min-h-11 rounded-xl border border-border bg-elevated px-2 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
                   >
                     {ROLES.map((role) => (
                       <option key={role} value={role}>
                         {t(ROLE_LABEL[role])}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 <Button
                   disabled={busy}
