@@ -3,6 +3,11 @@
 # The runner prints `N skipped` and fails on an undocumented or expired entry.
 # A skipped suite never counts as passed; this file only keeps the skip visible.
 #
-# The import suite is not listed: QA-10 removed its allowance, so CI provisions
-# the four scratch databases it needs and a skip is a failure.
-tools/ratingingest/tests/integration/tick_test.nim	qa	2026-12-31
+# SQ-17: the file is empty on purpose: every suite in the tree has the database
+# it needs in the jobs that run it. `ci.yml` (including the RC branch) and
+# `release.yml` provision the four import databases and set
+# MAJADU_IMPORT_TEST_DSN / MAJADU_IMPORT_TEST_SOURCE_DSN, and the ratingingest
+# tick reads MAJADU_PG_DSN, which those jobs always set. A suite that still
+# exits 77 is therefore a failure, not a visible skip: the previous exception
+# for tools/ratingingest/tests/integration/tick_test.nim was removed on
+# 2026-11-10 with the DSN guarantee in place.
