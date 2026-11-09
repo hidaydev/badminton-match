@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { Button } from '../components/Button'
+import { CollapsiblePanel } from '../components/CollapsiblePanel'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input } from '../components/Field'
 import { PageHeader } from '../components/PageHeader'
@@ -106,10 +107,7 @@ export default function SetupPage() {
       )}
 
       {user?.platformOwner === true && (
-        <details className="mt-8 rounded-2xl border border-border-subtle bg-surface p-4">
-          <summary className="min-h-11 cursor-pointer text-sm font-semibold text-fg">
-            {t('setup.create')}
-          </summary>
+        <CollapsiblePanel className="mt-8" title={t('setup.create')}>
           <form
             onSubmit={(event) => {
               event.preventDefault()
@@ -167,7 +165,7 @@ export default function SetupPage() {
               {t('setup.submit')}
             </Button>
           </form>
-        </details>
+        </CollapsiblePanel>
       )}
     </main>
     </>

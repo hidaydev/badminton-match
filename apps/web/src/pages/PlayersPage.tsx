@@ -7,6 +7,7 @@ import { createPlayer } from '../players/api'
 import { usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
 import { Button } from '../components/Button'
+import { CollapsiblePanel } from '../components/CollapsiblePanel'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input, Select } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
@@ -195,14 +196,12 @@ export default function PlayersPage() {
       )}
 
       {canManage && (
-        <details
+        <CollapsiblePanel
           ref={addPanel}
           id="players-add"
-          className="mt-8 scroll-mt-20 rounded-2xl border border-border-subtle bg-surface p-4"
+          className="mt-8 scroll-mt-20"
+          title={t('players.add')}
         >
-          <summary className="min-h-11 cursor-pointer text-sm font-semibold text-fg">
-            {t('players.add')}
-          </summary>
           <form
             onSubmit={(event) => {
               event.preventDefault()
@@ -259,7 +258,7 @@ export default function PlayersPage() {
               {t('players.add.submit')}
             </Button>
           </form>
-        </details>
+        </CollapsiblePanel>
       )}
     </section>
   )

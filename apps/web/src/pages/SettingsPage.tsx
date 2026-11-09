@@ -21,6 +21,7 @@ import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { formatDay } from '../utils/day'
 import { Button } from '../components/Button'
+import { CollapsiblePanel } from '../components/CollapsiblePanel'
 import { Checkbox } from '../components/Checkbox'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input } from '../components/Field'
@@ -266,11 +267,11 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
   }
 
   return (
-    <details className="mt-8 rounded-2xl border border-border-subtle bg-surface p-4">
-      <summary className="min-h-11 cursor-pointer text-sm font-semibold text-fg">
-        {t('community.settings')}
-      </summary>
-      <p className="mt-1 text-xs text-fg-dim">{t('community.settingsHint')}</p>
+    <CollapsiblePanel
+      className="mt-8"
+      title={t('community.settings')}
+      hint={t('community.settingsHint')}
+    >
       <form
         className="mt-3 space-y-3"
         onSubmit={(event) => {
@@ -364,7 +365,7 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
           </div>
         )}
       </form>
-    </details>
+    </CollapsiblePanel>
   )
 }
 

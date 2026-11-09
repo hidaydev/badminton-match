@@ -18,6 +18,8 @@ import { usePlayerDetail, usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
 import { formatDay } from '../utils/day'
 import { Button } from '../components/Button'
+import { Card } from '../components/Card'
+import { CollapsiblePanel } from '../components/CollapsiblePanel'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input, Select } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
@@ -246,10 +248,7 @@ function EditPlayer({ slug, player, busy, onRun }: EditProps) {
   const [aliasesTouched, setAliasesTouched] = useState(false)
 
   return (
-    <details className="mt-4 rounded-2xl border border-border-subtle bg-surface p-4">
-      <summary className="min-h-11 cursor-pointer text-sm font-semibold text-fg">
-        {t('playerAdmin.edit')}
-      </summary>
+    <CollapsiblePanel className="mt-4" title={t('playerAdmin.edit')}>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <Field label={t('players.add.name')}>
           <Input
@@ -305,7 +304,7 @@ function EditPlayer({ slug, player, busy, onRun }: EditProps) {
       >
         {t('playerAdmin.save')}
       </Button>
-    </details>
+    </CollapsiblePanel>
   )
 }
 
@@ -408,10 +407,7 @@ function MergePanel({
   const others = candidates.filter((candidate) => candidate.id !== playerId)
 
   return (
-    <details className="mt-8 rounded-2xl border border-border-subtle bg-surface p-4">
-      <summary className="min-h-11 cursor-pointer text-sm font-semibold text-fg">
-        {t('playerAdmin.merge')}
-      </summary>
+    <CollapsiblePanel className="mt-8" title={t('playerAdmin.merge')}>
       <p className="mt-2 text-xs text-fg-dim">{t('playerAdmin.merge.hint')}</p>
       <div className="mt-2 flex flex-wrap items-end gap-2">
         <Field label={t('playerAdmin.merge.source')} className="min-w-0 flex-1">
@@ -448,7 +444,7 @@ function MergePanel({
           {loadingMore ? t('players.loadingMore') : t('players.loadMore')}
         </Button>
       )}
-    </details>
+    </CollapsiblePanel>
   )
 }
 
@@ -479,11 +475,7 @@ function DeletePanel({
   }
 
   return (
-    <div
-      role="group"
-      aria-label={t('playerAdmin.delete')}
-      className="mt-6 rounded-2xl border border-border-subtle bg-surface p-4"
-    >
+    <Card role="group" aria-label={t('playerAdmin.delete')} padding="md" className="mt-6">
       <p className="text-sm text-fg-dim">{t('playerAdmin.delete.confirm')}</p>
       {error !== null && (
         <ErrorText className="mt-2">{error}</ErrorText>
@@ -509,6 +501,6 @@ function DeletePanel({
           {t('playerAdmin.delete.cancel')}
         </Button>
       </div>
-    </div>
+    </Card>
   )
 }
