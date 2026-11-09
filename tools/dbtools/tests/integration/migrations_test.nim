@@ -521,5 +521,76 @@ try:
         @[textParam(communityId), textParam(sessionId)]).get
       check court.get("start_time") == "22:00:00"
       check court.get("end_time") == "01:00:00"
+
+    test "every table with updated_at bumps its version":
+      migrate(scratch, migrationsDir)
+      for table in ["tournament.matches", "tournament.pairs",
+                    "tournament.teams", "tournament.team_partai"]:
+        let parts = table.split('.')
+        check scratch.queryOne(
+          """select 1 as ok from information_schema.columns
+             where table_schema = $1 and table_name = $2
+               and column_name = 'version'""",
+          @[textParam(parts[0]), textParam(parts[1])]).isSome
+      let stamped = scratch.query(
+        """select table_schema, table_name from information_schema.columns
+           where column_name = 'updated_at'
+             and table_schema in ('session', 'player', 'rating', 'tournament',
+                                  'community')
+           order by 1, 2""")
+      check stamped.len >= 8
+      for row in stamped:
+        let found = scratch.queryOne(
+          """select 1 as ok from pg_trigger t
+             join pg_class c on c.oid = t.tgrelid
+             join pg_namespace n on n.oid = c.relnamespace
+             join pg_proc p on p.oid = t.tgfoid
+             join pg_namespace pn on pn.oid = p.pronamespace
+             where n.nspname = $1 and c.relname = $2
+               and pn.nspname = 'session' and p.proname = 'bump_version'
+               and not t.tgisinternal""",
+          @[textParam(row.get("table_schema")), textParam(row.get("table_name"))])
+        checkpoint(row.get("table_schema") & "." & row.get("table_name"))
+        check found.isSome
+
+      # One real match update proves the trigger is wired, not just present.
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('version-trigger', 'Version Trigger', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      var playerIds: seq[string] = @[]
+      for name in ["Version A", "Version B", "Version C", "Version D"]:
+        playerIds.add(scratch.queryOne(
+          """insert into player.players (community_id, canonical_name)
+             values ($1::uuid, $2) returning id""",
+          @[textParam(communityId), textParam(name)]).get.get("id"))
+      let tournamentId = scratch.queryOne(
+        """insert into tournament.tournaments (community_id, name, status)
+           values ($1::uuid, 'Version Cup', 'active') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      var pairIds: seq[string] = @[]
+      for index in 0 .. 1:
+        pairIds.add(scratch.queryOne(
+          """insert into tournament.pairs
+               (community_id, tournament_id, display_name, player_a_id, player_b_id)
+             values ($1::uuid, $2::uuid, $3, $4::uuid, $5::uuid) returning id""",
+          @[textParam(communityId), textParam(tournamentId),
+            textParam("Version Pair " & $index), textParam(playerIds[index * 2]),
+            textParam(playerIds[index * 2 + 1])]).get.get("id"))
+      let matchId = scratch.queryOne(
+        """insert into tournament.matches
+             (community_id, tournament_id, round_no, pair_a_id, pair_b_id)
+           values ($1::uuid, $2::uuid, 1, $3::uuid, $4::uuid) returning id""",
+        @[textParam(communityId), textParam(tournamentId), textParam(pairIds[0]),
+          textParam(pairIds[1])]).get.get("id")
+      discard scratch.execUpdate(
+        """update tournament.matches
+           set score_a = 21, score_b = 15, status = 'played'
+           where community_id = $1::uuid and id = $2::uuid""",
+        @[textParam(communityId), textParam(matchId)])
+      check scratch.queryOne(
+        """select version from tournament.matches
+           where community_id = $1::uuid and id = $2::uuid""",
+        @[textParam(communityId), textParam(matchId)]).get.get("version") == "2"
 finally:
   shutdown()
