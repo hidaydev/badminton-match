@@ -137,6 +137,18 @@ proc statementsInTransaction*(): int =
   ## row count.
   transactionStatements
 
+proc measureStatements*(body: proc()): int =
+  ## Test hook: statements `body` sends, whatever connections it checks out.
+  ## A read that costs one statement per row must fail this without wrapping the
+  ## body in a transaction, which would change which connection it uses.
+  countingStatements = true
+  transactionStatements = 0
+  try:
+    body()
+    transactionStatements
+  finally:
+    countingStatements = false
+
 proc bindValues(params: seq[DbParam]): BoundParams =
   result.values = cast[cstringArray](alloc0(params.len * sizeof(cstring)))
   result.backing = newSeq[string](params.len)
