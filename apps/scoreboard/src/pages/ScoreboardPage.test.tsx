@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import ScoreboardPage from './ScoreboardPage'
+import { resetStorageStatus } from '../utils/storage'
 
 function renderPage(store: Record<string, string> = {}) {
   for (const [key, value] of Object.entries(store)) localStorage.setItem(key, value)
@@ -8,11 +9,19 @@ function renderPage(store: Record<string, string> = {}) {
 }
 
 const halfOf = (name: string) =>
-  screen.getByText(name).closest('[role="button"]') as HTMLElement
+  screen.getByRole('button', { name: new RegExp(`^${name}, score`) })
+
+const scoreFaces = () =>
+  screen.getAllByRole('button', { name: /, score \d+\. Add a point$/ })
+
+beforeEach(() => {
+  resetStorageStatus()
+})
 
 afterEach(() => {
   vi.useRealTimers()
   localStorage.clear()
+  Reflect.deleteProperty(navigator, 'storage')
   // `fullscreenElement` and the viewport are defined per test; leaving them set
   // makes the next render start in fullscreen or in portrait.
   Object.defineProperty(document, 'fullscreenElement', { value: null, configurable: true })
@@ -84,7 +93,7 @@ describe('ScoreboardPage', () => {
   })
 
   it('swaps the two halves and keeps their scores with them', () => {
-    const { container } = renderPage({
+    renderPage({
       'name-red': 'Arya',
       'name-blue': 'Bowo',
       'score-red': '3',
@@ -93,11 +102,9 @@ describe('ScoreboardPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Swap sides' }))
 
-    const halves = container.querySelectorAll('[role="button"]')
-    expect(halves[0]).toHaveTextContent('Bowo')
-    expect(halves[0]).toHaveTextContent('1')
-    expect(halves[1]).toHaveTextContent('Arya')
-    expect(halves[1]).toHaveTextContent('3')
+    const halves = scoreFaces()
+    expect(halves[0]).toHaveAccessibleName('Bowo, score 1. Add a point')
+    expect(halves[1]).toHaveAccessibleName('Arya, score 3. Add a point')
   })
 
   it('restores stored names, ignores the old colour defaults and falls back to the labels', () => {
@@ -129,6 +136,30 @@ describe('ScoreboardPage', () => {
 
     expect(localStorage.getItem('name-blue')).toBe('Bowo S')
     expect(screen.getByText('Bowo S')).toBeInTheDocument()
+  })
+
+  it('does not score when a space is typed into the team name', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    fireEvent.click(screen.getByText('Arya'))
+    const input = screen.getByLabelText('Red team name')
+    fireEvent.change(input, { target: { value: 'Red Team' } })
+    fireEvent.keyDown(input, { key: ' ' })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(within(halfOf('Red Team')).getByText('0')).toBeInTheDocument()
+    expect(localStorage.getItem('score-red')).toBe('0')
+  })
+
+  it('does not score on Space or Enter on the minus button', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo', 'score-red': '2' })
+
+    const minus = screen.getByRole('button', { name: 'Decrease red score' })
+    fireEvent.keyDown(minus, { key: ' ' })
+    fireEvent.keyDown(minus, { key: 'Enter' })
+
+    expect(within(halfOf('Arya')).getByText('2')).toBeInTheDocument()
+    expect(localStorage.getItem('score-red')).toBe('2')
   })
 
   it('says fullscreen is unavailable instead of failing silently', async () => {
@@ -207,5 +238,124 @@ describe('ScoreboardPage', () => {
     renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo', 'score-red': 'abc' })
 
     expect(within(halfOf('Arya')).getByText('0')).toBeInTheDocument()
+  })
+
+  it('asks for persistent storage once on the first nonzero score', async () => {
+    const persist = vi.fn(async () => true)
+    Object.defineProperty(navigator, 'storage', { value: { persist }, configurable: true })
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    expect(persist).not.toHaveBeenCalled()
+    fireEvent.click(halfOf('Arya'))
+    await act(async () => {})
+    fireEvent.click(halfOf('Arya'))
+    await act(async () => {})
+
+    expect(persist).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('status')).toHaveTextContent('Scores are saved on this device')
+  })
+
+  it('does not ask for persistent storage on load', () => {
+    const persist = vi.fn(async () => true)
+    Object.defineProperty(navigator, 'storage', { value: { persist }, configurable: true })
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo', 'score-red': '3' })
+
+    expect(persist).not.toHaveBeenCalled()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('does not ask for persistent storage while the score stays zero', () => {
+    const persist = vi.fn(async () => true)
+    Object.defineProperty(navigator, 'storage', { value: { persist }, configurable: true })
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Decrease red score' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reset scores' }))
+
+    expect(persist).not.toHaveBeenCalled()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('keeps scoring when navigator.storage is missing', () => {
+    Reflect.deleteProperty(navigator, 'storage')
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    fireEvent.click(halfOf('Arya'))
+
+    expect(within(halfOf('Arya')).getByText('1')).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('keeps scoring and notes a denied request when persist rejects', async () => {
+    const persist = vi.fn(async () => {
+      throw new Error('denied')
+    })
+    Object.defineProperty(navigator, 'storage', { value: { persist }, configurable: true })
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    fireEvent.click(halfOf('Arya'))
+    await act(async () => {})
+
+    expect(within(halfOf('Arya')).getByText('1')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Scores may be cleared by the browser')
+  })
+
+  it('keeps scoring when persist throws synchronously', async () => {
+    const persist = vi.fn(() => {
+      throw new Error('blocked')
+    })
+    Object.defineProperty(navigator, 'storage', { value: { persist }, configurable: true })
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    fireEvent.click(halfOf('Arya'))
+    await act(async () => {})
+
+    expect(within(halfOf('Arya')).getByText('1')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Scores may be cleared by the browser')
+  })
+
+  it('keeps scoring and says scores may be cleared when persistence is not granted', async () => {
+    const persist = vi.fn(async () => false)
+    Object.defineProperty(navigator, 'storage', { value: { persist }, configurable: true })
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    fireEvent.click(halfOf('Arya'))
+    await act(async () => {})
+
+    expect(within(halfOf('Arya')).getByText('1')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Scores may be cleared by the browser')
+  })
+
+  it('keeps scoring in memory when localStorage is blocked, and says so', () => {
+    const blocked = () => {
+      throw new DOMException('blocked', 'SecurityError')
+    }
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(blocked)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(blocked)
+
+    renderPage()
+    expect(screen.getByText('RED')).toBeInTheDocument()
+
+    fireEvent.click(halfOf('RED'))
+
+    expect(within(halfOf('RED')).getByText('1')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Scores are not being saved on this device',
+    )
+  })
+
+  it('restores scores from memory after a remount while storage is blocked', () => {
+    const blocked = () => {
+      throw new DOMException('blocked', 'SecurityError')
+    }
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(blocked)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(blocked)
+
+    const first = renderPage()
+    fireEvent.click(halfOf('RED'))
+    first.unmount()
+
+    render(<ScoreboardPage />)
+    expect(within(halfOf('RED')).getByText('1')).toBeInTheDocument()
   })
 })

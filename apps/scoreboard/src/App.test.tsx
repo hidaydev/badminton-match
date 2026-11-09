@@ -1,7 +1,21 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { act } from 'react'
 import App from './App'
+
+const updateMock = vi.hoisted(() => ({
+  needRefresh: false,
+  applyUpdate: vi.fn(),
+  dismiss: vi.fn(),
+}))
+
+vi.mock('./hooks/useAppUpdate', () => ({
+  useAppUpdate: () => ({
+    needRefresh: updateMock.needRefresh,
+    applyUpdate: updateMock.applyUpdate,
+    dismiss: updateMock.dismiss,
+  }),
+}))
 
 const iphoneAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) Safari/605.1'
 
@@ -10,6 +24,12 @@ function setUserAgent(agent: string) {
 }
 
 const today = () => new Date().toDateString()
+
+beforeEach(() => {
+  updateMock.needRefresh = false
+  updateMock.applyUpdate.mockClear()
+  updateMock.dismiss.mockClear()
+})
 
 describe('App', () => {
   it('renders the scoreboard underneath everything else', () => {
@@ -74,5 +94,26 @@ describe('App', () => {
     render(<App />)
 
     expect(screen.queryByRole('dialog', { name: 'Install app' })).not.toBeInTheDocument()
+  })
+
+  it('shows the update prompt when a worker is waiting', () => {
+    setUserAgent('Mozilla/5.0 (X11; Linux x86_64) Chrome/131.0')
+    updateMock.needRefresh = true
+
+    render(<App />)
+
+    expect(screen.getByRole('status')).toHaveTextContent('A new version is available')
+  })
+
+  it('activates the waiting worker from the prompt', async () => {
+    setUserAgent('Mozilla/5.0 (X11; Linux x86_64) Chrome/131.0')
+    updateMock.needRefresh = true
+    render(<App />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Reload' }))
+    })
+
+    expect(updateMock.applyUpdate).toHaveBeenCalledTimes(1)
   })
 })

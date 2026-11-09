@@ -1,12 +1,15 @@
 import { useState, useCallback, useEffect, useRef, Fragment } from 'react'
 import { ScoreboardSide, ScoreboardDivider, ScoreboardFooter } from '../components/scoreboard'
 import type { ScoreboardSideProps } from '../components/scoreboard'
+import { useStorageUnavailable } from '../hooks/useStorageUnavailable'
+import { usePersistentStorage } from '../hooks/usePersistentStorage'
+import { readStoredValue, writeStoredValue } from '../utils/storage'
 
 const LS_RED = 'score-red'
 const LS_BLUE = 'score-blue'
 
-function readLS(key: string) {
-  const v = localStorage.getItem(key)
+function readScore(key: string) {
+  const v = readStoredValue(key)
   if (v === null) return 0
   const parsed = parseInt(v, 10)
   return Number.isFinite(parsed) ? parsed : 0
@@ -36,14 +39,16 @@ async function exitFullscreen() {
 }
 
 export default function ScoreboardPage() {
-  const [red, setRed] = useState(() => readLS(LS_RED))
-  const [blue, setBlue] = useState(() => readLS(LS_BLUE))
+  const storageUnavailable = useStorageUnavailable()
+  const { status: persistenceStatus, requestPersistence } = usePersistentStorage()
+  const [red, setRed] = useState(() => readScore(LS_RED))
+  const [blue, setBlue] = useState(() => readScore(LS_BLUE))
   const [redName, setRedName] = useState(() => {
-    const v = localStorage.getItem('name-red')
+    const v = readStoredValue('name-red')
     return (v === 'Red' || v === null) ? '' : v
   })
   const [blueName, setBlueName] = useState(() => {
-    const v = localStorage.getItem('name-blue')
+    const v = readStoredValue('name-blue')
     return (v === 'Blue' || v === null) ? '' : v
   })
   const [editingRed, setEditingRed] = useState(false)
@@ -59,10 +64,10 @@ export default function ScoreboardPage() {
   const blueTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fsErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => { localStorage.setItem(LS_RED, String(red)) }, [red])
-  useEffect(() => { localStorage.setItem(LS_BLUE, String(blue)) }, [blue])
-  useEffect(() => { localStorage.setItem('name-red', redName) }, [redName])
-  useEffect(() => { localStorage.setItem('name-blue', blueName) }, [blueName])
+  useEffect(() => { writeStoredValue(LS_RED, String(red)) }, [red])
+  useEffect(() => { writeStoredValue(LS_BLUE, String(blue)) }, [blue])
+  useEffect(() => { writeStoredValue('name-red', redName) }, [redName])
+  useEffect(() => { writeStoredValue('name-blue', blueName) }, [blueName])
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement)
@@ -91,8 +96,8 @@ export default function ScoreboardPage() {
   }, [])
 
   // triggerPop is stable (useCallback with [] deps), safe to use without dep
-  const addRed = useCallback(() => { setRed(r => Math.min(99, r + 1)); triggerPop('red') }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  const addBlue = useCallback(() => { setBlue(b => Math.min(99, b + 1)); triggerPop('blue') }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const addRed = useCallback(() => { setRed(r => Math.min(99, r + 1)); triggerPop('red'); requestPersistence() }, [requestPersistence]) // eslint-disable-line react-hooks/exhaustive-deps
+  const addBlue = useCallback(() => { setBlue(b => Math.min(99, b + 1)); triggerPop('blue'); requestPersistence() }, [requestPersistence]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const minusRed = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -166,6 +171,14 @@ export default function ScoreboardPage() {
     onStopEditing: () => setEditingBlue(false),
   }
 
+  const statusNote = storageUnavailable
+    ? 'Scores are not being saved on this device'
+    : persistenceStatus === 'persisted'
+      ? 'Scores are saved on this device'
+      : persistenceStatus === 'not-persisted' || persistenceStatus === 'error'
+        ? 'Scores may be cleared by the browser'
+        : null
+
   const redEl = <ScoreboardSide {...redSide} />
   const blueEl = <ScoreboardSide {...blueSide} />
   const sides = isSwapped ? [blueEl, redEl] : [redEl, blueEl]
@@ -184,6 +197,15 @@ export default function ScoreboardPage() {
           style={{ maxWidth: '80vw', background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}
         >
           {fsError}
+        </div>
+      )}
+      {statusNote && (
+        <div
+          role="status"
+          className="fixed top-0 left-1/2 -translate-x-1/2 z-30 px-3 py-1 rounded-b-lg text-[0.6rem] text-white/50 text-center pointer-events-none"
+          style={{ background: 'rgba(0,0,0,0.5)', letterSpacing: '0.08em' }}
+        >
+          {statusNote}
         </div>
       )}
       <ScoreboardFooter
