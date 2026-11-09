@@ -26,9 +26,17 @@ proc createSession*(db: Db, userId: string, absoluteDays: int): string =
        values ($1::uuid, decode($2,'hex'), now() + make_interval(days => $3))""",
     @[textParam(userId), textParam(sha256Hex(result)), intParam(absoluteDays.int64)])
 
-proc resolve*(db: Db, token: string, idleDays: int): Option[SessionUser] =
-  ## One statement both checks the session and refreshes `last_seen_at`:
-  ## revoked, idle-expired or absolutely expired rows never match.
+proc resolve*(db: Db, token: string, idleDays: int,
+              touchSeconds = 60): Option[SessionUser] =
+  ## Checks the session and refreshes `last_seen_at`, at most once per
+  ## `touchSeconds`. Revoked, idle-expired or absolutely expired rows never
+  ## match.
+  ##
+  ## The touch is a write, and a page that polls turns every poll into one WAL
+  ## record, one heap write and one row lock. The update is therefore its own
+  ## data-modifying CTE with `last_seen_at` in the predicate: while the session
+  ## was seen within the window the statement only reads, so a poll costs no
+  ## write and two concurrent requests do not serialise on the row.
   if token.len == 0:
     return none(SessionUser)
   let row = db.queryOne(
@@ -39,10 +47,17 @@ proc resolve*(db: Db, token: string, idleDays: int): Option[SessionUser] =
            and s.revoked_at is null
            and s.absolute_expires_at > now()
            and s.last_seen_at > now() - make_interval(days => $2)
+           and s.last_seen_at < now() - make_interval(secs => $3)
          returning s.user_id)
        select u.id, u.display_name, u.email_hash, u.is_platform_owner
-       from touched t join platform.user u on u.id = t.user_id""",
-    @[textParam(sha256Hex(token)), intParam(idleDays.int64)])
+       from account.sessions s
+       join platform.user u on u.id = s.user_id
+       where s.token_hash = decode($1,'hex')
+         and s.revoked_at is null
+         and s.absolute_expires_at > now()
+         and s.last_seen_at > now() - make_interval(days => $2)""",
+    @[textParam(sha256Hex(token)), intParam(idleDays.int64),
+      intParam(touchSeconds.int64)])
   if row.isNone:
     return none(SessionUser)
   let value = row.get

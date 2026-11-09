@@ -1,5 +1,6 @@
 import std/[options, os, unittest]
 import db/db
+import sha256
 import tests/fixtures
 import ../../infrastructure/session_store
 
@@ -73,3 +74,38 @@ suite "session store":
       if row.current:
         current.inc
     check current == 1
+
+  test "a hundred polls in one window touch the row at most once":
+    ## BE-07. The touch is a write, so a page that polls must not turn every
+    ## poll into one. The window starts at the insert (last_seen_at = now()),
+    ## so the first poll inside it is already a read-only statement.
+    let token = createSession(db, userId, 30)
+    var changes = 0
+    var previous = ""
+    for _ in 0 ..< 100:
+      check resolve(db, token, 7).isSome
+      let seen = db.queryOne(
+        """select last_seen_at::text as seen from account.sessions
+           where token_hash = decode($1,'hex')""",
+        @[textParam(sha256Hex(token))]).get.get("seen")
+      if previous.len > 0 and seen != previous:
+        changes.inc
+      previous = seen
+    check changes == 0
+
+  test "the touch lands again once the window has passed":
+    let token = createSession(db, userId, 30)
+    discard db.execUpdate(
+      """update account.sessions set last_seen_at = now() - interval '2 minutes'
+         where token_hash = decode($1,'hex')""",
+      @[textParam(sha256Hex(token))])
+    let before = db.queryOne(
+      """select last_seen_at::text as seen from account.sessions
+         where token_hash = decode($1,'hex')""",
+      @[textParam(sha256Hex(token))]).get.get("seen")
+    check resolve(db, token, 7).isSome
+    let afterTouch = db.queryOne(
+      """select last_seen_at::text as seen from account.sessions
+         where token_hash = decode($1,'hex')""",
+      @[textParam(sha256Hex(token))]).get.get("seen")
+    check afterTouch != before
