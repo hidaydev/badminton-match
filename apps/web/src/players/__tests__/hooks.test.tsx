@@ -111,6 +111,49 @@ describe('usePlayers', () => {
     expect(result.current.items).toHaveLength(52)
   })
 
+  it('reads a page once when loadMore is called twice before the answer lands', async () => {
+    const server = stubFetch()
+    const { result } = renderHook(() => usePlayers('acme', ''))
+
+    await server.deliver(0, { body: { items: makePlayers(50) } })
+    await waitFor(() => expect(result.current.items).toHaveLength(50))
+
+    act(() => {
+      result.current.loadMore()
+      result.current.loadMore()
+    })
+
+    expect(server.calls).toHaveLength(2)
+    expect(server.calls[1].url).toBe('/api/c/acme/players?cursor=p50&limit=50')
+
+    await server.deliver(1, { body: { items: makePlayers(2, 'tail') } })
+
+    await waitFor(() => expect(result.current.items).toHaveLength(52))
+    expect(result.current.items?.map((row) => row.id).slice(50)).toEqual(['tail1', 'tail2'])
+    expect(result.current.loadingMore).toBe(false)
+  })
+
+  it('drops a follow-up page failure that belongs to a list the user already reloaded', async () => {
+    const server = stubFetch()
+    const { result } = renderHook(() => usePlayers('acme', ''))
+
+    await server.deliver(0, { body: { items: makePlayers(50) } })
+    await waitFor(() => expect(result.current.items).toHaveLength(50))
+
+    act(() => result.current.loadMore())
+    act(() => result.current.reload())
+    expect(server.calls).toHaveLength(3)
+
+    await server.deliver(2, { body: { items: makePlayers(50, 'fresh') } })
+    await waitFor(() => expect(result.current.items?.[0].id).toBe('fresh1'))
+
+    await server.deliver(1, { status: 500, body: {} })
+
+    expect(result.current.error).toBeNull()
+    expect(result.current.items).toHaveLength(50)
+    expect(result.current.loadingMore).toBe(false)
+  })
+
   it('replaces the accumulated list when the search term changes', async () => {
     const server = stubFetch()
     const { result, rerender } = renderHook(({ query }) => usePlayers('acme', query), {

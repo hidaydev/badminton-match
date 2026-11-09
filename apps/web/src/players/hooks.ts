@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from '../auth/api'
 import { getPlayer, getMyPlayer, listClaims, listPlayers, PLAYER_PAGE } from './api'
 import type { Player, PlayerClaim } from './api'
@@ -60,15 +60,27 @@ export function usePlayers(slug: string | null, query: string): {
   const [failure, setFailure] = useState<{ key: string; error: PlayersError } | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [loadingMore, setLoadingMore] = useState(false)
+  // State is not visible to a second click before React re-renders, so the
+  // in-flight flag a guard needs has to be a ref. The generation is bumped by
+  // every fresh read of the list, so a late answer or failure from a previous
+  // read cannot land on the one the user is looking at.
+  const pageReadInFlight = useRef<number | null>(null)
+  const generation = useRef(0)
 
   useEffect(() => {
     if (slug === null || key === null) return
     let active = true
+    const readGeneration = generation.current + 1
+    generation.current = readGeneration
+    // A page read started against the old list is abandoned: its answer is
+    // ignored below and it no longer holds the load-more guard.
+    pageReadInFlight.current = null
 
     listPlayers(slug, { q: query, limit: PLAYER_PAGE })
       .then((items) => {
-        if (!active) return
+        if (!active || generation.current !== readGeneration) return
         setFailure(null)
+        setLoadingMore(false)
         setPage({
           key,
           items,
@@ -76,8 +88,9 @@ export function usePlayers(slug: string | null, query: string): {
         })
       })
       .catch((problem: unknown) => {
-        if (!active) return
+        if (!active || generation.current !== readGeneration) return
         setFailure({ key, error: settleError(problem) })
+        setLoadingMore(false)
         setPage(null)
       })
 
@@ -91,10 +104,13 @@ export function usePlayers(slug: string | null, query: string): {
 
   const loadMore = useCallback(() => {
     if (slug === null || key === null || current === null) return
-    if (current.cursor === null || loadingMore) return
+    if (current.cursor === null || pageReadInFlight.current !== null) return
+    const readGeneration = generation.current
+    pageReadInFlight.current = readGeneration
     setLoadingMore(true)
     listPlayers(slug, { q: query, limit: PLAYER_PAGE, cursor: current.cursor })
       .then((items) => {
+        if (generation.current !== readGeneration) return
         setPage((previous) =>
           previous === null || previous.key !== key
             ? previous
@@ -106,9 +122,15 @@ export function usePlayers(slug: string | null, query: string): {
               },
         )
       })
-      .catch((problem: unknown) => setFailure({ key, error: settleError(problem) }))
-      .finally(() => setLoadingMore(false))
-  }, [slug, query, key, current, loadingMore])
+      .catch((problem: unknown) => {
+        if (generation.current !== readGeneration) return
+        setFailure({ key, error: settleError(problem) })
+      })
+      .finally(() => {
+        if (pageReadInFlight.current === readGeneration) pageReadInFlight.current = null
+        if (generation.current === readGeneration) setLoadingMore(false)
+      })
+  }, [slug, query, key, current])
 
   return {
     items: current === null ? null : current.items,
