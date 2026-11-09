@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { listMembers } from '../community/adminApi'
@@ -452,7 +452,7 @@ function MergePanel({
   )
 }
 
-function DeletePanel({
+export function DeletePanel({
   slug,
   playerId,
   busy,
@@ -463,7 +463,11 @@ function DeletePanel({
 }) {
   const navigate = useNavigate()
   const [armed, setArmed] = useState(false)
+  const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // A second tap can arrive before the disabled state is on screen, so the
+  // guard is a ref that is already set when the first request starts.
+  const inFlight = useRef(false)
 
   if (!armed) {
     return (
@@ -476,6 +480,24 @@ function DeletePanel({
         {t('playerAdmin.delete')}
       </Button>
     )
+  }
+
+  const remove = async () => {
+    if (inFlight.current) return
+    inFlight.current = true
+    setPending(true)
+    setError(null)
+    try {
+      await deletePlayer(slug, playerId)
+      // The page it would reload is gone, so the list is the way back. The
+      // panel deliberately stays pending: the row no longer exists and a
+      // second request would only report a 404 for the delete that worked.
+      navigate(`/c/${encodeURIComponent(slug)}/players`)
+    } catch (problem) {
+      setError(describePlayerError(problem))
+      inFlight.current = false
+      setPending(false)
+    }
   }
 
   return (
@@ -491,19 +513,15 @@ function DeletePanel({
       <div className="mt-3 flex flex-wrap gap-2">
         <Button
           variant="danger"
-          disabled={busy}
-          onClick={() => {
-            setError(null)
-            deletePlayer(slug, playerId)
-              // The page it would reload is gone, so the list is the way back.
-              .then(() => navigate(`/c/${encodeURIComponent(slug)}/players`))
-              .catch((problem: unknown) => setError(describePlayerError(problem)))
-          }}
+          disabled={busy || pending}
+          loading={pending}
+          onClick={() => void remove()}
         >
-          {t('playerAdmin.delete.confirmAction')}
+          {pending ? t('playerAdmin.delete.pending') : t('playerAdmin.delete.confirmAction')}
         </Button>
         <Button
           variant="secondary"
+          disabled={busy || pending}
           onClick={() => setArmed(false)}
         >
           {t('playerAdmin.delete.cancel')}

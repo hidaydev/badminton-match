@@ -434,6 +434,7 @@ export const en = {
   'playerAdmin.delete': 'Delete player',
   'playerAdmin.delete.confirm': 'The player, its claims and its rating history go with it.',
   'playerAdmin.delete.confirmAction': 'Delete',
+  'playerAdmin.delete.pending': 'Deleting…',
   'playerAdmin.delete.cancel': 'Cancel',
 
   'player.claim.status.pending': 'Pending',
