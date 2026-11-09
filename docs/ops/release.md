@@ -53,6 +53,11 @@ pushed.
 6. Wait for `release.yml` to go green and record the digest from the GitHub
    Release body. `release.yml` never creates or moves a tag; the tag always comes
    from the operator.
+7. Record the CI and Coverage run URLs for the tagged commit next to the tag
+   message. The coverage gate has failed at setup before (a cache pin named a
+   commit GitHub could not resolve), so the number is not evidence until its run
+   URL is recorded. `./task deps-check` now fails on a pin GitHub cannot resolve;
+   `./task ci-guards` proves the pin shape.
 
 Before the first signed release, install `cosign` on the VPS, put the public key
 in `/srv/qouver/apps/majadu/env/cosign.pub` (mode 600), and set
