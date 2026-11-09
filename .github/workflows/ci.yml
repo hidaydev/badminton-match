@@ -318,6 +318,18 @@ jobs:
       # precache covers the shell and the entry chunk built index.html asks for.
       - name: "Scoreboard: assert the service worker precache"
         run: ./task scoreboard-pwa
+      # QA-11: a failed Vitest run leaves the coverage report and the failure
+      # output; without the upload the runner deletes it.
+      - name: "Web: upload failure reports"
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: web-test-results
+          path: |
+            apps/web/coverage/
+            apps/web/test-results/
+            apps/scoreboard/coverage/
+          if-no-files-found: warn
 
   e2e:
     name: "E2E: browser"
@@ -510,6 +522,16 @@ jobs:
           done
           rm -f .cache-changed.txt
           exit "$status"
+      # QA-11: a survivor is a finding, and the report that names it must outlive
+      # the runner.
+      - name: "Mutation: upload the run"
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mutation-results
+          path: .cache/*/mutation/
+          include-hidden-files: true
+          if-no-files-found: warn
 
   image:
     name: "Image: build"

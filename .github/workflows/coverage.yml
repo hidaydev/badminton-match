@@ -148,6 +148,19 @@ jobs:
           MAJADU_IMPORT_BULK_TARGET_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_target_test
           MAJADU_IMPORT_BULK_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_source_test
         run: ./task coverage --shard "$SHARD"
+      # QA-11: a shard that fails under instrumentation leaves the last suite log
+      # and the timing table behind.
+      - name: "Coverage: upload this shard's failure log"
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-failure-${{ matrix.shard }}
+          path: |
+            .cache/*/coverage/last-test.log
+            .cache/*/coverage/lcov-capture.log
+            .cache/*/timing/*.tsv
+          include-hidden-files: true
+          if-no-files-found: warn
       # Only a successful shard uploads. The condition is omitted, so the step
       # inherits the default `success()`: a failed measurement is not presented
       # as a complete slice, and `if-no-files-found: error` still catches a
