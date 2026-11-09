@@ -27,6 +27,7 @@ const
   baseUrl = "http://127.0.0.1:" & $uint16(port)
   slug = "read-smoke"
   otherSlug = "read-smoke-other"
+  legacySlug = "read-smoke-legacy"
   adminEmail = "read-smoke-admin@example.com"
 
 var
@@ -36,7 +37,8 @@ var
   adminCookie, hostCookie, memberCookie: string
   players: seq[string]
   ghostPlayerId: string
-  sessionId, tournamentId, shareCode: string
+  sessionId, tournamentId, shareCode, legacySessionId: string
+  legacyCommunityId: string
 
 proc bootstrap() =
   database = openDb(dsn(), 1)
@@ -45,6 +47,7 @@ proc bootstrap() =
   # other HTTP suites use.
   purgeCommunity(database, slug)
   purgeCommunity(database, otherSlug)
+  purgeCommunity(database, legacySlug)
   discard database.execUpdate(
     """delete from account.sessions where user_id in
          (select id from platform.user where google_sub like 'read-smoke-%')""")
@@ -122,6 +125,20 @@ proc bootstrap() =
   discard newJoinRequest(database, communityId, askerId)
   shareCode = shareStore.issue(database, loadKeyring(keysJson, "1"), communityId,
     sessionId, ownerId, 30)
+  # A pre-code link: version one handed out `/s/{sessionId}`, and migration 0033
+  # marked every row that existed then. It was created before the sunset window
+  # so the retirement run has something to clear.
+  legacyCommunityId = newCommunity(database, legacySlug, "Legacy Smoke")
+  legacySessionId = newSession(database, legacyCommunityId, "Legacy Night",
+    "2026-11-09")
+  discard shareStore.issue(database, loadKeyring(keysJson, "1"),
+    legacyCommunityId, legacySessionId, ownerId, 30)
+  discard database.execUpdate(
+    """update session.links
+       set legacy_id_ok = true, expires_at = null,
+           created_at = now() - interval '40 days'
+       where community_id = $1::uuid and session_id = $2::uuid""",
+    @[textParam(legacyCommunityId), textParam(legacySessionId)])
 
   startServer(newTestApp(database), port, baseUrl)
 
@@ -419,6 +436,24 @@ suite "authenticated read smoke":
     check payload["community"]["slug"].getStr() == slug
     check payload["games"].len == 2
     check payload["standings"]["items"].len == 4
+
+  test "the pre-code session id shortcut is bounded then retired":
+    ## BE-13. The session id is visible to every member and embedded in client
+    ## state, so it must not stay a public capability after the window.
+    expectRead(call(baseUrl, HttpGet, "/s/" & legacySessionId), "legacyShare", 200)
+    let outcome = shareStore.retireLegacy(database, 30)
+    check outcome.bounded >= 1
+    check outcome.retired >= 1
+    # The row is now bounded and its shortcut cleared: the id answers 404 while
+    # the code minted for that session still resolves.
+    let after = call(baseUrl, HttpGet, "/s/" & legacySessionId)
+    expectRead(after, "legacyShare", 404)
+    let row = database.queryOne(
+      """select legacy_id_ok, expires_at is not null as bounded
+         from session.links where community_id = $1::uuid and session_id = $2::uuid""",
+      @[textParam(legacyCommunityId), textParam(legacySessionId)])
+    check row.get.get("legacy_id_ok") == "f"
+    check row.get.get("bounded") == "t"
 
   test "listSharedRankings serves the session's four players":
     let response = call(baseUrl, HttpGet, "/s/" & shareCode & "/rankings")

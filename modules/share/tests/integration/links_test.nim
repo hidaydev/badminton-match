@@ -132,6 +132,65 @@ suite "share links":
     check resolve(db, keyring, sessionId).isNone
     check resolve(db, keyring, code).isNone
 
+  test "retiring the legacy shortcut bounds it and clears the id":
+    ## BE-13. A row that never expires makes the session id a permanent public
+    ## capability, so the retirement run gives it a window and clears the
+    ## shortcut once the window has passed.
+    discard issue(db, keyring, communityId, sessionId, userId, 30)
+    discard db.execUpdate(
+      """update session.links
+         set legacy_id_ok = true, expires_at = null,
+             created_at = now() - interval '40 days'
+         where community_id = $1::uuid and session_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)])
+    check resolve(db, keyring, sessionId).isSome
+    # A dry run reports the work and writes nothing.
+    let dry = retireLegacy(db, 30, dryRun = true)
+    check dry.bounded >= 1
+    check dry.retired >= 1
+    let untouched = db.queryOne(
+      """select legacy_id_ok, expires_at is null as open from session.links
+         where community_id = $1::uuid and session_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)])
+    check untouched.get.get("legacy_id_ok") == "t"
+    check untouched.get.get("open") == "t"
+    # The real run bounds the row and retires the shortcut.
+    let outcome = retireLegacy(db, 30)
+    check outcome.bounded >= 1
+    check outcome.retired >= 1
+    let after = db.queryOne(
+      """select legacy_id_ok, expires_at is not null as bounded
+         from session.links
+         where community_id = $1::uuid and session_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)])
+    check after.get.get("legacy_id_ok") == "f"
+    check after.get.get("bounded") == "t"
+    check resolve(db, keyring, sessionId).isNone
+    # A second run finds nothing left on this row.
+    discard retireLegacy(db, 30)
+    let second = db.queryOne(
+      """select legacy_id_ok from session.links
+         where community_id = $1::uuid and session_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)])
+    check second.get.get("legacy_id_ok") == "f"
+
+  test "a legacy row inside the window keeps the id":
+    discard issue(db, keyring, communityId, sessionId, userId, 30)
+    discard db.execUpdate(
+      """update session.links
+         set legacy_id_ok = true, expires_at = null
+         where community_id = $1::uuid and session_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)])
+    discard retireLegacy(db, 30)
+    check resolve(db, keyring, sessionId).isSome
+    let row = db.queryOne(
+      """select legacy_id_ok, expires_at > now() as pending
+         from session.links
+         where community_id = $1::uuid and session_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)])
+    check row.get.get("legacy_id_ok") == "t"
+    check row.get.get("pending") == "t"
+
   test "liveLinks lists only the live rows":
     discard issue(db, keyring, communityId, sessionId, userId, 30)
     let live = liveLinks(db, communityId, sessionId)

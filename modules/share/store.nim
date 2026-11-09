@@ -159,10 +159,54 @@ proc revokeLive*(db: Db, communityId, sessionId: string): seq[string] =
   result = db.txRet(proc(conn: DbConn): seq[string] =
     revokeLiveConn(conn, communityId, sessionId))
 
+type
+  LegacyRetirement* = object
+    ## What one `retireLegacy` run did. `bounded` rows used to be live forever
+    ## and now carry an expiry; `retired` rows no longer answer for their
+    ## session id.
+    bounded*: int
+    retired*: int
+
+proc retireLegacy*(db: Db, windowDays: int, dryRun = false): LegacyRetirement =
+  ## Gives the pre-code shortcut a sunset. 0033 marked every row that existed
+  ## when codes landed, and `expires_at is null` means "live forever", so the
+  ## session id was a permanent public capability: every member sees it in URLs
+  ## and payloads, and a removed member keeps reading through it.
+  ##
+  ## One run bounds those rows to `windowDays` from now and clears the shortcut
+  ## on rows whose window has passed (or whose link is already expired), so a
+  ## second run leaves nothing to retire. `dryRun` counts without writing, which
+  ## is what an operator needs before a cutover.
+  if windowDays < 1:
+    raise newException(ValueError, "windowDays must be at least 1")
+  let openSql = """from session.links
+    where legacy_id_ok and expires_at is null"""
+  let staleSql = """from session.links
+    where legacy_id_ok
+      and (expires_at is null or expires_at <= now()
+           or created_at < now() - make_interval(days => $1))"""
+  if dryRun:
+    result.bounded = db.queryOne(
+      "select count(*)::int as n " & openSql).get.getInt("n")
+    result.retired = db.queryOne(
+      "select count(*)::int as n " & staleSql,
+      @[intParam(windowDays.int64)]).get.getInt("n")
+    return
+  # Bound first: the update is idempotent because the predicate requires a NULL
+  # expiry, so a second run finds nothing to do.
+  result.bounded = db.execUpdate(
+    """update session.links
+       set expires_at = now() + make_interval(days => $1)
+       where legacy_id_ok and expires_at is null""",
+    @[intParam(windowDays.int64)])
+  result.retired = db.execUpdate(
+    """update session.links set legacy_id_ok = false
+       where legacy_id_ok
+         and (expires_at is null or expires_at <= now()
+              or created_at < now() - make_interval(days => $1))""",
+    @[intParam(windowDays.int64)])
+
 proc rotateKeys*(db: Db, keyring: Keyring, fromKeyId, toKeyId: string): int =
-  ## Rotating the *key*: every live link still sealed with `fromKeyId` is
-  ## re-encrypted under the active key with a fresh nonce. Rows already on the
-  ## target key are skipped, so running it twice changes nothing the second time.
   if fromKeyId == toKeyId:
     return 0
   let rows = db.query(

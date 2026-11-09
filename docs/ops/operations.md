@@ -73,6 +73,7 @@ Filling rules:
 | Daily | The deploy log grows without rotation | `ls -l /srv/qouver/apps/majadu/logs` |
 | Monthly | Migrations and seeds still match the schema | `./task ci` on a dev machine with `MAJADU_PG_DSN` |
 | Yearly | The access list above is still accurate | review by hand, revoke what is unused |
+| Once, after the cutover | The pre-code `/s/{sessionId}` shortcut still answers for rows that existed before codes | `./task sharekeys retire-legacy --older-than 30 --dry-run`, then without `--dry-run` |
 
 `deploy-vps.sh` runs `dbtools migrate` then `dbtools verify` from the newly
 pulled image, using `MAJADU_OWNER_DSN` from `majadu-tools.env`, before the unit

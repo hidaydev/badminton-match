@@ -104,6 +104,25 @@ suite "rotate":
     check run.status == 2
     check run.output.contains("unknown argument: --nope")
 
+suite "retire-legacy":
+  test "without --older-than it is a usage failure":
+    let run = runTool(@["retire-legacy"])
+    check run.status == 2
+    check run.output.contains("retire-legacy needs --older-than")
+
+  test "a window that is not a whole number is a usage failure":
+    let notANumber = runTool(@["retire-legacy", "--older-than", "thirty"])
+    check notANumber.status == 2
+    check notANumber.output.contains("--older-than must be a whole number of days")
+    let zero = runTool(@["retire-legacy", "--older-than", "0"])
+    check zero.status == 2
+    check zero.output.contains("--older-than must be at least 1")
+
+  test "a missing DSN is a runtime failure, not a usage one":
+    let run = runTool(@["retire-legacy", "--older-than", "30"])
+    check run.status == 1
+    check run.output.contains("MAJADU_PG_DSN is required")
+
 suite "usage":
   test "no subcommand and an unknown subcommand both print the usage block":
     let none = runTool(@[])
