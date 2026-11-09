@@ -128,14 +128,18 @@ export default function InstagramPostPage() {
         setPhotoOffset(prev => clampOffset(prev.x, prev.y, userPhoto, newZoom))
         return
       }
-      if (!dragStart.current || !userPhoto) return
+      const start = dragStart.current
+      if (!start || !userPhoto) return
       const touch = e.touches[0]
       const pos = toCanvasCoords(touch.clientX, touch.clientY)
-      const dx = pos.x - dragStart.current.x
-      const dy = pos.y - dragStart.current.y
+      const dx = pos.x - start.x
+      const dy = pos.y - start.y
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       rafRef.current = requestAnimationFrame(() => {
-        setPhotoOffset(clampOffset(dragStart.current!.ox + dx, dragStart.current!.oy + dy, userPhoto, photoZoom))
+        // The pointer can lift before this frame runs; `mouseup`/`touchend`
+        // nulls the ref, so the frame must not dereference it.
+        if (!dragStart.current) return
+        setPhotoOffset(clampOffset(start.ox + dx, start.oy + dy, userPhoto, photoZoom))
       })
     }
     canvas.addEventListener('touchmove', handler, { passive: false })
@@ -150,23 +154,25 @@ export default function InstagramPostPage() {
   }, [userPhoto, photoOffset, toCanvasCoords])
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!dragStart.current || !userPhoto) return
+    const start = dragStart.current
+    if (!start || !userPhoto) return
     const pos = toCanvasCoords(e.clientX, e.clientY)
-    const dx = pos.x - dragStart.current.x
-    const dy = pos.y - dragStart.current.y
+    const dx = pos.x - start.x
+    const dy = pos.y - start.y
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     rafRef.current = requestAnimationFrame(() => {
-      setPhotoOffset(clampOffset(dragStart.current!.ox + dx, dragStart.current!.oy + dy, userPhoto, photoZoom))
+      if (!dragStart.current) return
+      setPhotoOffset(clampOffset(start.ox + dx, start.oy + dy, userPhoto, photoZoom))
     })
   }, [toCanvasCoords, userPhoto, clampOffset, photoZoom])
 
   const onMouseUp = useCallback(() => {
-    dragStart.current = null
-    setIsDragging(false)
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
+    dragStart.current = null
+    setIsDragging(false)
   }, [])
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
@@ -186,13 +192,13 @@ export default function InstagramPostPage() {
   }, [userPhoto, photoOffset, photoZoom, toCanvasCoords])
 
   const onTouchEnd = useCallback(() => {
-    dragStart.current = null
-    pinchStart.current = null
-    setIsDragging(false)
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
+    dragStart.current = null
+    pinchStart.current = null
+    setIsDragging(false)
   }, [])
 
   const [showDownloadSheet, setShowDownloadSheet] = useState(false)
