@@ -1,6 +1,7 @@
 import std/[httpclient, json, strutils, unittest]
 import db/db
 import mummy
+import tests/fixtures
 import ../http_support
 
 const
@@ -40,3 +41,48 @@ suite "security: rate limit":
     # A different client address keeps its own bucket on the same route.
     expectStatus(call(baseUrl, HttpGet, "/healthz",
       extra = [("X-Client-IP", "203.0.113.9")]), 200)
+
+  test "random unknown session cookies stay in the address bucket":
+    # SEC-01/QAE-01: a cookie is only an identity once the database confirms
+    # it. Every request below carries a different forged value from the same
+    # address, so the address budget must still stop it.
+    var blocked: HttpResult
+    var allowed = 0
+    for index in 0 ..< 400:
+      let response = call(baseUrl, HttpGet, "/healthz",
+        cookie = "forged-" & $index,
+        extra = [("X-Client-IP", "198.51.100.23")])
+      if response.status == 200:
+        inc allowed
+      else:
+        blocked = response
+        break
+    check allowed >= 299
+    expectStatus(blocked, 429)
+    check blocked.json["code"].getStr() == "RATE_LIMITED"
+
+  test "a genuine session keeps one bucket across addresses":
+    # The validated cookie is the identity, so rotating the address header must
+    # not reset the budget for a signed-in caller either.
+    discard database.execUpdate(
+      """delete from account.sessions where user_id in
+           (select id from platform.user where google_sub = 'ratelimit-session')""")
+    discard database.execUpdate(
+      "delete from platform.user where google_sub = 'ratelimit-session'")
+    let userId = newUser(database, "ratelimit-session",
+      "ratelimit-session@example.com", "Rate Limit")
+    let cookie = cookieFor(database, userId)
+    var blocked: HttpResult
+    var allowed = 0
+    for index in 0 ..< 400:
+      let address =
+        if index mod 2 == 0: "192.0.2.10" else: "192.0.2.11"
+      let response = call(baseUrl, HttpGet, "/healthz", cookie = cookie,
+        extra = [("X-Client-IP", address)])
+      if response.status == 200:
+        inc allowed
+      else:
+        blocked = response
+        break
+    check allowed >= 299
+    expectStatus(blocked, 429)

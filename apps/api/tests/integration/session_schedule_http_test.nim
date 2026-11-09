@@ -841,12 +841,13 @@ suite "session schedule HTTP":
       ifMatch = "\"4\"")
     expectStatus(reopened, 200)
     check events() == "0"
-    let stale = database.queryOne(
+    # The badge shelf is reconciled by the rating worker after the response.
+    waitForRatingJobs()
+    check database.queryOne(
       """select 1 as ok from achievement.earned
          where community_id = $1::uuid and player_id = $2::uuid
            and achievement_key = 'games:200'""",
-      @[textParam(communityId), textParam(players[0])])
-    check stale.isNone
+      @[textParam(communityId), textParam(players[0])]).isNone
 
   test "locking a session without a playable game writes no event":
     let created = call(baseUrl, HttpPost, "/c/sched-club/sessions", hostCookie,

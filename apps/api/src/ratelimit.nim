@@ -5,6 +5,7 @@ type
     windowStart*: float
     count*: int
     lastSeen*: float
+    address*: string
 
   Limiter* = ref object
     ## Fixed-window counters in process memory. The window is one minute, which
@@ -23,6 +24,10 @@ const
   ## Hard ceiling on the table. An anonymous client can mint a key per path it
   ## invents, so the table is swept and bounded instead of growing forever.
   maxBuckets = 4096
+  ## A single address may hold at most this many buckets. Session identities
+  ## are the only keys a client can mint, so this bounds cookie rotation even
+  ## before the global sweep runs.
+  maxBucketsPerAddress* = 16
   sweepIntervalSeconds = 5.0
 
 proc newLimiter*(): Limiter =
@@ -49,9 +54,39 @@ proc sweep(limiter: Limiter, now: float) =
   for index in 0 ..< excess:
     limiter.buckets.del(keys[index][1])
 
-proc hit*(limiter: Limiter, key: string, limit: int, now: float): Decision =
+proc evictForAddress(limiter: Limiter, address: string) =
+  ## Called with the lock held when a new key would push this address past its
+  ## cap. The least recently used bucket of that address goes first, so one
+  ## client cannot evict another address's buckets.
+  var victim = ""
+  var oldest = 0.0
+  var owned = 0
+  for key, bucket in limiter.buckets:
+    if bucket.address != address:
+      continue
+    inc owned
+    if victim.len == 0 or bucket.lastSeen < oldest:
+      victim = key
+      oldest = bucket.lastSeen
+  if owned >= maxBucketsPerAddress and victim.len > 0:
+    limiter.buckets.del(victim)
+
+proc bucketCountFor*(limiter: Limiter, address: string): int =
+  ## How many buckets one address currently owns. The regression test for the
+  ## per-address cap reads this instead of guessing from the global table.
+  acquire(limiter.lock)
+  try:
+    for _, bucket in limiter.buckets:
+      if bucket.address == address:
+        inc result
+  finally:
+    release(limiter.lock)
+
+proc hit*(limiter: Limiter, key: string, limit: int, now: float,
+          address = ""): Decision =
   ## Returns the remaining allowance decision for one request. A limit of zero
-  ## disables the check for that key.
+  ## disables the check for that key. `address` ties a minted key to the client
+  ## that asked for it, which is what bounds the table per client.
   if limit <= 0:
     return Decision(allowed: true, retryAfter: 0)
   acquire(limiter.lock)
@@ -59,9 +94,13 @@ proc hit*(limiter: Limiter, key: string, limit: int, now: float): Decision =
     if now >= limiter.nextSweep:
       limiter.sweep(now)
       limiter.nextSweep = now + sweepIntervalSeconds
+    let known = limiter.buckets.hasKey(key)
+    if not known and address.len > 0:
+      limiter.evictForAddress(address)
     var bucket = limiter.buckets.getOrDefault(key)
     if bucket.windowStart == 0 or now - bucket.windowStart >= windowSeconds:
       bucket = Bucket(windowStart: now, count: 0)
+    bucket.address = address
     bucket.lastSeen = now
     if bucket.count >= limit:
       let elapsed = now - bucket.windowStart

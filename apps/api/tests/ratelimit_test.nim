@@ -27,3 +27,13 @@ suite "rate limiter":
     let limiter = newLimiter()
     for _ in 0 ..< 100:
       check limiter.hit("k", 0, 1000.0).allowed
+
+  test "one address cannot mint more than its bucket cap":
+    let limiter = newLimiter()
+    for index in 0 ..< maxBucketsPerAddress + 8:
+      discard limiter.hit("user:" & $index, 10, 1000.0, "203.0.113.7")
+    check limiter.bucketCountFor("203.0.113.7") == maxBucketsPerAddress
+    # Another address keeps its own allowance and is not evicted by the first.
+    discard limiter.hit("user:elsewhere", 10, 1000.0, "203.0.113.8")
+    check limiter.bucketCountFor("203.0.113.8") == 1
+    check limiter.bucketCountFor("203.0.113.7") == maxBucketsPerAddress

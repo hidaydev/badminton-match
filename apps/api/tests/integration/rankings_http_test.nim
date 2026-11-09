@@ -466,12 +466,21 @@ suite "rankings HTTP":
          where id = $1::uuid""", @[textParam(sessionId)])
     let rebuiltAfterUndo = call(baseUrl, HttpPost, "/c/rank-club/ratings/rebuild",
       adminCookie)
-    expectStatus(rebuiltAfterUndo, 200)
+    expectStatus(rebuiltAfterUndo, 202)
+    check parseJson(rebuiltAfterUndo.body)["status"].getStr() == "accepted"
+    check parseJson(rebuiltAfterUndo.body)["job"].getStr().len > 0
+    # The replay runs on the worker, so wait for it before the following tests
+    # read the board.
+    waitForRatingJobs()
+    check database.queryOne(
+      """select 1 as ok from rating.events
+         where community_id = $1::uuid and event_type = 'session'
+           and source_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)]).isSome
 
-  test "a failed rebuild leaves the deleted source in place":
-    # The delete and the rebuild share one transaction, so a rebuild that fails
-    # must put back the event it already removed and answer with the mapped
-    # client error, not a 500 that leaves the caller unsure what landed.
+  test "removing a rating source queues the replay instead of running it":
+    # The delete and its evidence share one transaction; the ledger replay is a
+    # worker job. Holding the request open for the replay is the BE-01 outage.
     let adminId = database.queryOne(
       """select user_id from community.membership m
          join platform.user u on u.id = m.user_id
@@ -481,42 +490,33 @@ suite "rankings HTTP":
       """select id from rating.events
          where community_id = $1::uuid and source_id = $2::uuid""",
       @[textParam(communityId), textParam(sessionId)]).get.get("id")
-    # The rebuild only writes an event when some approved session has one, and
-    # the source being deleted must not be approved for the route to proceed.
-    # A second approved session gives the rebuild the insert that fails.
-    let filler = newSession(database, communityId, "Failing rebuild",
-      status = "locked", approved = true)
     discard database.execUpdate(
       """update session.sessions set status = 'draft', approved_at = null
          where id = $1::uuid""", @[textParam(sessionId)])
-    discard database.execUpdate(
-      """create or replace function rankings_http_fail_rebuild()
-           returns trigger as $$
-         begin
-           raise exception 'rebuild refused' using errcode = '23514';
-         end;
-         $$ language plpgsql""")
-    discard database.execUpdate(
-      """drop trigger if exists rankings_http_fail_rebuild on rating.events""")
-    discard database.execUpdate(
-      """create trigger rankings_http_fail_rebuild before insert on rating.events
-         for each row execute function rankings_http_fail_rebuild()""")
     let status = call(baseUrl, HttpDelete,
       "/c/rank-club/rating-sources/" & eventId, adminCookie)
-    expectProblem(status, 400)
+    expectStatus(status, 200)
+    check parseJson(status.body)["removedDeltas"].kind == JInt
     check database.queryOne(
       """select 1 as ok from rating.events where id = $1::uuid""",
-      @[textParam(eventId)]).isSome
-    discard database.execUpdate(
-      """drop trigger rankings_http_fail_rebuild on rating.events""")
-    discard database.execUpdate("drop function rankings_http_fail_rebuild()")
-    discard database.execUpdate(
-      """delete from session.sessions where id = $1::uuid""",
-      @[textParam(filler)])
+      @[textParam(eventId)]).isNone
+    waitForRatingJobs()
+    check database.queryOne(
+      """select 1 as ok from rating.events where id = $1::uuid""",
+      @[textParam(eventId)]).isNone
     # Put the shared fixture back the way the following tests expect it.
     discard database.execUpdate(
       """update session.sessions set status = 'locked', approved_at = now()
          where id = $1::uuid""", @[textParam(sessionId)])
+    let rebuild = call(baseUrl, HttpPost, "/c/rank-club/ratings/rebuild",
+      adminCookie)
+    expectStatus(rebuild, 202)
+    waitForRatingJobs()
+    check database.queryOne(
+      """select 1 as ok from rating.events
+         where community_id = $1::uuid and event_type = 'session'
+           and source_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)]).isSome
 
   test "a share code publishes only the players of its session":
     # A second session puts one more player on the community board, so the

@@ -1,8 +1,21 @@
-import std/[options, os, strutils, times, unittest]
+import std/[atomics, options, os, strutils, times, unittest]
 import ../../db/db
 
 proc dsn(): string =
   getEnv("MAJADU_PG_DSN")
+
+type
+  HolderArgs = object
+    db: Db
+    started: ptr Atomic[int]
+
+proc holdConnection(args: HolderArgs) {.thread.} =
+  ## Keeps the only connection checked out long enough for the caller's
+  ## `MAJADU_DB_ACQUIRE_TIMEOUT_MS` to expire.
+  {.cast(gcsafe).}:
+    args.db.tx(proc(conn: DbConn) =
+      args.started[].store(1, moRelaxed)
+      sleep(600))
 
 suite "database layer":
   var db: Db
@@ -110,6 +123,42 @@ suite "database layer":
     check at == parse("2026-11-07T05:00:00.500Z",
       "yyyy-MM-dd'T'HH:mm:ss'.'fff'Z'", utc())
     check at.nanosecond == 500_000_000
+
+  test "every pooled connection carries the configured timeouts":
+    putEnv("MAJADU_DB_STATEMENT_TIMEOUT_MS", "750")
+    putEnv("MAJADU_DB_LOCK_TIMEOUT_MS", "250")
+    let probe = openDb(dsn(), 2)
+    defer:
+      probe.close()
+      delEnv("MAJADU_DB_STATEMENT_TIMEOUT_MS")
+      delEnv("MAJADU_DB_LOCK_TIMEOUT_MS")
+    let settings = probe.connectionTimeouts()
+    check settings.len == 2
+    for (statement, lock) in settings:
+      check statement == "750ms"
+      check lock == "250ms"
+
+  test "pool checkout raises DbPoolTimeout at the configured deadline":
+    putEnv("MAJADU_DB_ACQUIRE_TIMEOUT_MS", "120")
+    let probe = openDb(dsn(), 1)
+    defer:
+      probe.close()
+      delEnv("MAJADU_DB_ACQUIRE_TIMEOUT_MS")
+    var started: Atomic[int]
+    var thread: Thread[HolderArgs]
+    createThread(thread, holdConnection, HolderArgs(db: probe,
+      started: addr started))
+    while started.load(moRelaxed) == 0:
+      sleep(1)
+    let begin = epochTime()
+    var caught = false
+    try:
+      discard probe.queryOne("select 1 as one")
+    except DbPoolTimeout:
+      caught = true
+    check caught
+    check epochTime() - begin < 2.0
+    joinThread(thread)
 
   test "a whole-second timestamptz has no fraction":
     let row = Row(names: @["earned_at"],

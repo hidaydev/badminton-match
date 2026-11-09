@@ -343,6 +343,8 @@ suite "tournament HTTP":
       """{"scoreA":15,"scoreB":21}""", ifMatch = "\"2\""), 200)
     expectStatus(call(baseUrl, HttpPatch, sourcePath, adminCookie,
       """{"finalized":true}"""), 200)
+    # Re-signing off queues the replay; read the counters after the worker ran.
+    waitForRatingJobs()
     let events = database.query(
       """select id::text as id from rating.events
          where community_id = $1::uuid and source_id = $2::uuid""",
