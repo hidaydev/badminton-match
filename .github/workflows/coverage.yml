@@ -8,7 +8,7 @@ name: Coverage
 
 on:
   push:
-    branches: [main]
+    branches: [main, "release/**"]
   pull_request:
 
 permissions:

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "pnpm --filter badminton-pair-tmp dev",
     "build:web": "pnpm --filter badminton-pair-tmp build",
+    "build:scoreboard": "pnpm --filter majadu-score build",
     "check:web": "pnpm --filter badminton-pair-tmp check && pnpm --filter majadu-score check"
   },
   "devDependencies": {
