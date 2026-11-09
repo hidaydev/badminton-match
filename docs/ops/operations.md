@@ -291,9 +291,22 @@ not exist:
     - name: majadu
       rules:
         - alert: MajaduAuthRefusals
-          # 403 is a principal that is signed in and refused, which is what
-          # enumeration looks like; a public scan mostly answers 401 instead.
-          expr: sum(rate(http_requests_total{status="403"}[5m])) > 0.05
+          # Every refusal, anonymous or signed in: a script that probes share
+          # codes or mints logins shows up here first.
+          expr: sum(rate(http_requests_total{status=~"401|403"}[5m])) > 0.5
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "sustained 401/403 responses on the Majadu API"
+            description: >-
+              Refusals are above half a request per second. Check for a scanner
+              or a broken client before assuming an attack.
+        - alert: MajaduAuthzDenied
+          # The sharper one: a signed-in principal refused on a community route
+          # is what enumeration by a member looks like, and every 403 has an
+          # authz.denied row to read.
+          expr: sum(rate(http_requests_total{status="403"}[10m])) > 0.05
           for: 15m
           labels:
             severity: warning
@@ -305,8 +318,8 @@ not exist:
               route template, and correlate by request_id with the access log.
   ```
 
-  A broader `status=~"401|403"` selector counts anonymous refusals too; the
-  rule above narrows it to 403 so a mistyped URL does not page anyone.
+  The wider rule can be noisy on a public API (a mistyped URL answers 401), so
+  the second rule narrows the same series to 403 and is the one to act on.
 
 ### 4.1 Metrics scrape checklist
 
