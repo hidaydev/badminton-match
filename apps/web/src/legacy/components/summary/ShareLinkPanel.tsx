@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { t } from '../../../i18n'
+import { t } from '@/i18n'
 import {
   deleteSessionShareLink,
   ensureSessionShareLink,
@@ -8,7 +8,7 @@ import {
   rotateSessionShareLink,
 } from '../../queries/endpoints'
 import { communityQueryKey } from '../../queries/keys'
-import { Overlay } from '../../../components/Overlay'
+import { Overlay } from '@/components/Overlay'
 
 /**
  * Host/admin control for the public link of one session. The panel is the shared

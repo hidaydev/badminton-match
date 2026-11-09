@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { drawPostCanvas } from '../canvas-templates/template2/drawPostCanvas'
-import { fakeImage, imageLabelOf, installRecordingContext } from '../../../test/recordingContext'
+import { fakeImage, imageLabelOf, installRecordingContext } from '@/test/recordingContext'
 
 function newCanvas() {
   const canvas = document.createElement('canvas')

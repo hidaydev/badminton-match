@@ -2,7 +2,7 @@ import type { Player, ScheduleSlot } from '../../types'
 import type { SwapTarget, TeamSwapTarget } from '../../utils/swap'
 import type { SlotSwapTarget } from '../../utils/slotSwap'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
-import { t } from '../../../i18n'
+import { t } from '@/i18n'
 
 type BarColor = 'indigo' | 'red' | 'orange' | 'violet' | 'sky' | 'amber'
 

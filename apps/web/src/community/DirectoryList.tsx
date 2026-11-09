@@ -9,7 +9,7 @@ import type { DirectoryEntry } from './api'
  * join form: the request still needs the explicit send, so a stray tap cannot
  * queue a request an admin then has to refuse.
  */
-export default function DirectoryList({ onPick }: { onPick: (slug: string) => void }) {
+export function DirectoryList({ onPick }: { onPick: (slug: string) => void }) {
   const [items, setItems] = useState<DirectoryEntry[]>([])
 
   useEffect(() => {

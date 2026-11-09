@@ -6,6 +6,7 @@
 // not run behind either proxy; `src/auth/api.ts` reads it.
 // E2E_API_PROXY points the proxy at the API the e2e harness started, so the
 // browser flow (including the OIDC stub redirect) stays on one origin.
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -29,6 +30,11 @@ const proxy = {
 }
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),

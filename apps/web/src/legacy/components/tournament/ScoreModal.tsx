@@ -2,8 +2,8 @@ import { useId, useState } from 'react'
 import type { TournamentMatch } from '../../utils/tournament'
 import { validateScore } from '../../utils/scoreValidation'
 import ScoreboardOverlay from './ScoreboardOverlay'
-import { Overlay } from '../../../components/Overlay'
-import { t } from '../../../i18n'
+import { Overlay } from '@/components/Overlay'
+import { t } from '@/i18n'
 
 interface ScoreModalProps {
   match: TournamentMatch

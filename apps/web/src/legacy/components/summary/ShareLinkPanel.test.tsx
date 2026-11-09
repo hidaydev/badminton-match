@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { t } from '../../../i18n'
-import { mockFetch } from '../../../test/fetchMock'
+import { t } from '@/i18n'
+import { mockFetch } from '@/test/fetchMock'
 import ShareLinkPanel from './ShareLinkPanel'
 
 const SESSION = 's1'

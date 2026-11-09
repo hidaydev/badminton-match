@@ -2,7 +2,7 @@
 import { teamMatchOutcome, teamTarget, PARTAI_CLASSES, teamName, DEFAULT_TEAM_COURTS, type TeamMatch, type TeamInfo } from '../../utils/teamTournament'
 import Icon from '../Icon'
 import { hit44 } from '../hitTarget'
-import { t } from '../../../i18n'
+import { t } from '@/i18n'
 
 interface PostProps {
   isPostMode: boolean

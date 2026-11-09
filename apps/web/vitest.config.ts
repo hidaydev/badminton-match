@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
@@ -6,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       'virtual:pwa-register/react': new URL('./src/test/pwa-register.ts', import.meta.url).pathname,
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
   test: {

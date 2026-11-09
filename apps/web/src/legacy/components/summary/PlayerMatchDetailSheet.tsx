@@ -1,4 +1,4 @@
-import { Overlay } from '../../../components/Overlay'
+import { Overlay } from '@/components/Overlay'
 import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { Player, ScheduleSlot, GameScore, PlayerId, SetScore } from '../../types'
 import { toPlayerId, toGameKey } from '../../types'

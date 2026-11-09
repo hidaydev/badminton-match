@@ -5,7 +5,7 @@ import type { GeneratorResult } from '../../generator'
 import { useStore } from '../../store'
 import { ApiError, getSession, publishSession, setCommunitySlug } from '../../queries/endpoints'
 import { toPlayerId, toTimeString, type Player } from '../../types'
-import { t } from '../../../i18n'
+import { t } from '@/i18n'
 import { reloadPage } from '../../utils/reload'
 import GeneratePage from '../GeneratePage'
 

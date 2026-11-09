@@ -6,7 +6,7 @@ import { useCommunity } from './CommunityContext'
  * Small switch in the shell. It renders nothing without a membership, so the
  * signed-out and freshly-invited views stay uncluttered.
  */
-export default function CommunityPicker() {
+export function CommunityPicker() {
   const { memberships, current, select } = useCommunity()
 
   if (memberships.length === 0) return null

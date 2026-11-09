@@ -15,7 +15,7 @@ import type { PlayerChipMode } from './PlayerChipRenderer'
 import PlayerChipRenderer from './PlayerChipRenderer'
 import { hit44 } from '../hitTarget'
 import SlotGameCard from './SlotGameCard'
-import { t } from '../../../i18n'
+import { t } from '@/i18n'
 
 interface ScheduleGridProps {
   result: GeneratorResult
