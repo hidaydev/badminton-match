@@ -15,10 +15,13 @@ export default defineConfig({
       workbox: {
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         navigateFallback: '/index.html',
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,jpeg,webmanifest}'],
         // The manifest body is injected by the plugin; ignoring it here keeps
         // one entry instead of two.
-        globIgnores: ['manifest.webmanifest'],
+        // `majadu-logo.png` is never rendered; the install sheet uses logo-192.
+        // `logo-512.png` is a manifest icon the installer fetches, not something
+        // the offline shell draws, so it does not buy a slot in the precache.
+        globIgnores: ['manifest.webmanifest', 'majadu-logo.png', 'logo-512.png'],
       },
       manifest: {
         name: 'MAJADU Score',

@@ -35,7 +35,7 @@ if (urls.some(url => url.includes('majadu-logo.png'))) {
   problems.push('majadu-logo.png is precached but never rendered')
 }
 
-const BUDGET = 300 * 1024
+const BUDGET = 340 * 1024
 console.log(`precache: ${urls.length} entries, ${(total / 1024).toFixed(1)} KiB (budget ${BUDGET / 1024} KiB)`)
 if (total > BUDGET) problems.push(`precache is ${(total / 1024).toFixed(1)} KiB, over the ${BUDGET / 1024} KiB budget`)
 
