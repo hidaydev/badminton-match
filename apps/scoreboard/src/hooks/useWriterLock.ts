@@ -16,31 +16,31 @@ export function useWriterLock(): boolean {
     const locks = navigator.locks
     if (!locks?.request) return
 
-    const controller = new AbortController()
+    // `LockOptions.signal` is not implemented everywhere: Chromium and WebKit
+    // both reject the request with `NotSupportedError` when it is present,
+    // which silently left every window writable. The lock is held by never
+    // resolving the promise the callback returns, and released by resolving it.
     let release: (() => void) | null = null
+    let cancelled = false
 
     void locks
-      .request(
-        WRITER_LOCK,
-        { ifAvailable: true, signal: controller.signal },
-        lock => {
-          if (!lock) {
-            setIsWriter(false)
-            return
-          }
-          setIsWriter(true)
-          // Hold the lock until this document goes away.
-          return new Promise<void>(resolve => {
-            release = resolve
-          })
-        },
-      )
+      .request(WRITER_LOCK, { ifAvailable: true }, lock => {
+        if (cancelled) return
+        if (!lock) {
+          setIsWriter(false)
+          return
+        }
+        setIsWriter(true)
+        return new Promise<void>(resolve => {
+          release = resolve
+        })
+      })
       .catch(() => {
-        // Aborted before it was granted: the effect is being torn down.
+        // A browser that refuses the request leaves the app writable.
       })
 
     return () => {
-      controller.abort()
+      cancelled = true
       release?.()
     }
   }, [])

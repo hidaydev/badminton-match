@@ -109,6 +109,17 @@ async function openScreen(page: Page, path: string, ready: string): Promise<void
  */
 type RouteDecl = { path: string; redirect: boolean; layout: boolean }
 
+/**
+ * A `<Route ...>` element is only self-closing when the line ends with `/>`.
+ * Testing for `/>` anywhere matched the self-closing child inside
+ * `element={<HomeLayout />}` and stopped every such route from becoming a
+ * parent, which silently flattened the nesting and made the guard report every
+ * screen as unvisited.
+ */
+function isSelfClosing(rest: string): boolean {
+  return /\/>\s*$/.test(rest)
+}
+
 function declaredRoutes(): RouteDecl[] {
   const source = readFileSync(join(__dirname, '../apps/web/src/App.tsx'), 'utf8')
   const stack: { indent: number; path: string }[] = []
@@ -118,12 +129,13 @@ function declaredRoutes(): RouteDecl[] {
     if (open === null) continue
     const indent = open[1].length
     const rest = open[2]
+    const indented = rest.replace(/\s+$/, '')
     while (stack.length > 0 && stack[stack.length - 1].indent >= indent) stack.pop()
     const parent = stack.length > 0 ? stack[stack.length - 1].path : ''
-    const declared = rest.match(/path="([^"]*)"/)
+    const declared = indented.match(/path="([^"]*)"/)
     if (declared === null) {
       // A layout route: it adds a nesting level but no path of its own.
-      if (!rest.includes('/>')) stack.push({ indent, path: parent })
+      if (!isSelfClosing(indented)) stack.push({ indent, path: parent })
       continue
     }
     const path = declared[1]
@@ -132,17 +144,20 @@ function declaredRoutes(): RouteDecl[] {
     const redirect =
       /<LegacyNavigate|<LegacySessionRedirect|<RootRedirect|<Navigate/.test(line)
     routes.push({ path: full, redirect, layout: !/element=/.test(line) })
-    if (!rest.includes('/>')) stack.push({ indent, path: full })
+    if (!isSelfClosing(indented)) stack.push({ indent, path: full })
   }
   return routes
 }
 
 function normalize(path: string): string {
+  // `players` is baselined on a filtered URL, so a route's query string is not
+  // part of the screen's identity; neither is a fragment.
+  const [pathname] = path.split(/[?#]/)
   const known = new Set<string>()
   for (const [key, value] of Object.entries(state())) {
     if (typeof value === 'string' && value.length > 0) known.add(value)
   }
-  return path
+  return pathname
     .split('/')
     .map((segment) => (segment.startsWith(':') || known.has(segment) ? '*' : segment))
     .join('/')

@@ -50,6 +50,9 @@ test('the account menu is operable by keyboard alone', async ({ page }) => {
   await page.keyboard.press('Tab')
   await expect(navigation).toBeHidden()
 
+  // Tab moved focus on into the page, so the trigger is not the active element
+  // any more; focus it again before opening the menu from the keyboard.
+  await menu.focus()
   await page.keyboard.press('Enter')
   await expect(navigation).toBeVisible()
   const settings = navigation.getByRole('menuitem', { name: t('nav.settings') })

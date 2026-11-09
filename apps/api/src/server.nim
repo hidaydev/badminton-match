@@ -148,7 +148,7 @@ proc recordResponse*(verb, path: string, status: int, label = "",
   result = renderLog("info", "request",
     [("method", verb), ("route", routeLabel), ("status", $status),
      ("request_id", requestId)])
-  stdout.writeLine result
+  writeLogLine result
 
 proc recordIdentitySource*(source: string) =
   ## Every request records how the limiter named its caller. `cookie` is a
@@ -197,7 +197,7 @@ proc structuredLogHandler*(level: mummy.LogLevel,
                            args: varargs[string]) {.gcsafe.} =
   ## Installed on `newServer`, so mummy cannot write an unstructured line.
   {.cast(gcsafe).}:
-    stdout.writeLine renderServerLog(level, args)
+    writeLogLine renderServerLog(level, args)
 
 proc metricsText*(): string {.gcsafe.} =
   ## Prometheus text exposition for the internal listener. The registry holds a

@@ -1,5 +1,8 @@
-import std/[json, re, times]
+import std/[json, locks, re, times]
 import clock
+
+var streamLock: Lock
+initLock(streamLock)
 
 let
   reCodePath = re"""/s/[A-Za-z0-9_-]+"""
@@ -50,9 +53,20 @@ proc renderLog*(level, msg: string, fields: openArray[(string, string)],
   $node
 
 
+proc writeLogLine*(line: string) =
+  ## Writes one rendered line to stdout, whole.
+  ##
+  ## The API answers from a worker pool, and every thread shares the buffered
+  ## `stdout`. `writeLine` sends the payload and the newline as two buffered
+  ## writes, so at a flush boundary two threads can interleave and leave two
+  ## objects on one line. The lock makes the pair atomic; the journal stays one
+  ## JSON object per line, which is what every reader assumes.
+  withLock streamLock:
+    stdout.writeLine line
+
 proc emit(level, msg: string, fields: openArray[(string, string)],
     values: openArray[(string, JsonNode)] = []) =
-  stdout.writeLine renderLog(level, msg, fields, values)
+  writeLogLine renderLog(level, msg, fields, values)
 
 proc logInfo*(msg: string, fields: openArray[(string, string)] = [],
     values: openArray[(string, JsonNode)] = []) =
