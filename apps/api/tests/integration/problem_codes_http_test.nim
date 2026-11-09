@@ -396,15 +396,20 @@ suite "problem-code reachability: guards":
     requireRow("ratelimited", "POST", "/c/" & slug & "/join-requests",
       memberDCookie, "", 429, "RATE_LIMITED", "too many requests")
 
-  test "a snapshot mismatch on readyz answers NOT_READY":
+  test "a snapshot mismatch on readyz answers one field and nothing else":
+    # SEC-12: a probe learns "not ready" and that is all. The reason stays in
+    # the log, so a scanner cannot tell a wrong dump from a migration gap.
     discard database.execUpdate("delete from platform.cutover_state")
     discard database.execUpdate(
       """insert into platform.cutover_state (id, snapshot_sha256)
          values (true, 'be19-recorded')""")
     putEnv("CUTOVER_SNAPSHOT_SHA256", "be19-expected")
     try:
-      requireRow("readyz", "GET", "/readyz", "", "", 503, "NOT_READY",
-        "database holds a different snapshot")
+      let response = call(baseUrl, HttpGet, "/readyz")
+      expectStatus(response, 503)
+      let body = response.json
+      check body.len == 1
+      check body["status"].getStr() == "not_ready"
     finally:
       delEnv("CUTOVER_SNAPSHOT_SHA256")
       discard database.execUpdate("delete from platform.cutover_state")

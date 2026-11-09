@@ -2068,7 +2068,14 @@ proc readyz(request: Request) =
   if detail.len == 0:
     send(request, 200, """{"status":"ok"}""")
   else:
-    problem(request, 503, "NOT_READY", detail)
+    # The reason is for the operator's log, never the anonymous caller. A probe
+    # only needs "not ready"; naming the missing relation, the unreachable
+    # database or a wrong snapshot tells a scanner which half of the system is
+    # fragile, and distinguishing a wrong dump from a migration gap is exactly
+    # the reconnaissance this route should not offer.
+    logError("readiness refused",
+      [("detail", detail), ("request_id", currentRequestId())])
+    send(request, 503, """{"status":"not_ready"}""")
 
 proc sessionVersionNow(communityId, sessionId: string): int =
   sessionDetail.versionOf(database(), communityId, sessionId)

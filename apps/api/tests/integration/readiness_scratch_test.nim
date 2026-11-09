@@ -39,10 +39,14 @@ proc checkedName(name: string): string =
       raise newException(ValueError, "unsafe database name: " & name)
   name
 
-proc expectNotReady(detail: string) =
+proc expectNotReady() =
+  ## SEC-12: a refusal carries one field and nothing about schema, snapshot or
+  ## database state. Which of those failed is in the log, not in the body.
   let response = call(baseUrl, HttpGet, "/readyz")
-  expectProblem(response, 503, "NOT_READY")
-  check response.json["detail"].getStr() == detail
+  checkpoint(response.body)
+  check response.status == 503
+  check response.json.len == 1
+  check response.json["status"].getStr() == "not_ready"
 
 var
   admin: Db
@@ -81,7 +85,7 @@ try:
   suite "readiness on a scratch database":
     test "a dropped required relation is a schema refusal, and its return is 200":
       discard scratch.execUpdate("drop table platform.cutover_state")
-      expectNotReady("schema is not migrated")
+      expectNotReady()
 
       # The shortest restore that satisfies the existence check is the table
       # itself; `/readyz` reads it only for the snapshot comparison below.
@@ -113,7 +117,7 @@ try:
         """insert into platform.cutover_state (id, snapshot_sha256)
            values (true, 'be12-recorded')""")
       putEnv("CUTOVER_SNAPSHOT_SHA256", "be12-expected")
-      expectNotReady("database holds a different snapshot")
+      expectNotReady()
       delEnv("CUTOVER_SNAPSHOT_SHA256")
       discard scratch.execUpdate("delete from platform.cutover_state")
 
@@ -130,6 +134,6 @@ try:
       discard scratch.execUpdate(
         "insert into platform.config_version (version) values ($1::bigint)",
         @[textParam(bootVersion)])
-      expectNotReady("schema is not migrated")
+      expectNotReady()
 finally:
   shutdown()
