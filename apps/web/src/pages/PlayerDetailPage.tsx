@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { listMembers } from '../community/adminApi'
-import { useCommunity } from '../community/CommunityContext'
+import { useMembership } from '../community/membership'
 import { t } from '../i18n'
 import { TIERS } from '../players/api'
 import {
@@ -39,11 +39,10 @@ const CLAIM_STATUS_KEY = {
 
 export default function PlayerDetailPage() {
   const { slug = '', playerId = '' } = useParams<{ slug: string; playerId: string }>()
-  const { memberships } = useCommunity()
+  const { can } = useMembership(slug)
   const { user } = useAuth()
-  const role = memberships.find((candidate) => candidate.slug === slug)?.role ?? null
-  const isAdmin = role === 'admin'
-  const canEdit = role === 'host' || role === 'admin'
+  const isAdmin = can('settings.edit')
+  const canEdit = can('player.manage')
 
   const { player, claims, loading, error, reload } = usePlayerDetail(
     slug === '' ? null : slug,

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { useCommunity } from '../community/CommunityContext'
+import { useMembership } from '../community/membership'
 import { t } from '../i18n'
 import { TIERS } from '../players/api'
 import { createPlayer } from '../players/api'
@@ -20,9 +20,8 @@ const SEARCH_DEBOUNCE_MS = 300
 
 export default function PlayersPage() {
   const { slug = '' } = useParams<{ slug: string }>()
-  const { memberships } = useCommunity()
-  const role = memberships.find((candidate) => candidate.slug === slug)?.role ?? null
-  const canManage = role === 'host' || role === 'admin'
+  const { can } = useMembership(slug)
+  const canManage = can('player.manage')
 
   // The search lives in the URL so a filtered list can be linked to or
   // reloaded, and so the browser's back button undoes a search.

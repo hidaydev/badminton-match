@@ -4,6 +4,7 @@ import { ApiError } from '../auth/api'
 import type { CommunityRole } from '../auth/api'
 import { useAuth } from '../auth/AuthContext'
 import { acceptInvite } from '../community/api'
+import { matchMembershipById } from '../community/membership'
 import { Button, ButtonLink } from '../components/Button'
 import { Card } from '../components/Card'
 import { ErrorText } from '../components/ErrorText'
@@ -58,7 +59,7 @@ export default function InvitePage() {
       // membership list is what turns it into a path the shell accepts.
       try {
         const memberships = await refreshMemberships()
-        setSlug(memberships.find((entry) => entry.id === result.communityId)?.slug ?? null)
+        setSlug(matchMembershipById(memberships, result.communityId)?.slug ?? null)
       } catch {
         setSlug(null)
       }

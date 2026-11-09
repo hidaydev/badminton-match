@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
 import type { CommunityRole } from '../auth/api'
-import { useCommunity } from '../community/CommunityContext'
 import { updateCommunityConfig, fetchScoringPresets } from '../community/api'
 import type { CommunityConfig, CommunityConfigEntry, ScoringPreset } from '../community/api'
 import { useCommunityConfig } from '../community/useCommunityConfig'
@@ -16,6 +15,7 @@ import {
   setMemberRole,
 } from '../community/adminApi'
 import type { Invite, JoinRequest, Member, PendingClaim } from '../community/adminApi'
+import { useMembership } from '../community/membership'
 import { decideClaim } from '../players/api'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
@@ -57,8 +57,7 @@ const ROLE_LABEL: Record<CommunityRole, MessageKey> = {
 /** Everything an admin changes by hand: people, invites and the rating ledger. */
 export default function SettingsPage() {
   const { slug = '' } = useParams<{ slug: string }>()
-  const { memberships } = useCommunity()
-  const membership = memberships.find((candidate) => candidate.slug === slug) ?? null
+  const { membership, can } = useMembership(slug)
 
   const [data, setData] = useState<Data | null>(null)
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null)
@@ -104,7 +103,7 @@ export default function SettingsPage() {
   const current = data !== null && data.slug === slug ? data : null
   const error = failure !== null && failure.key === slug ? failure.message : null
   const loading = slug !== '' && current === null && error === null
-  const canEdit = membership?.role === 'admin'
+  const canEdit = can('settings.edit')
 
   return (
     <section className="mx-auto max-w-3xl p-4">

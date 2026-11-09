@@ -1,5 +1,6 @@
 import type { Membership } from '../auth/api'
 import { communityHref } from '../routes.manifest'
+import { matchMembership } from './membership'
 
 /**
  * Resolve the community the shell shows. A slug in the URL is an explicit
@@ -13,11 +14,8 @@ export function resolveCommunity(
   pathSlug: string | null,
   storedSlug: string | null,
 ): Membership | null {
-  const find = (slug: string | null) =>
-    slug === null ? null : memberships.find((membership) => membership.slug === slug) ?? null
-
-  if (pathSlug !== null) return find(pathSlug)
-  return find(storedSlug) ?? memberships[0] ?? null
+  if (pathSlug !== null) return matchMembership(memberships, pathSlug)
+  return matchMembership(memberships, storedSlug) ?? memberships[0] ?? null
 }
 
 /**
