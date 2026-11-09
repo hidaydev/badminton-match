@@ -12,7 +12,7 @@ implemented and not accepted).
 | ID | Requirement | Evidence | Status |
 |---|---|---|---|
 | REQ-001 | A person signs in with Google and the session cookie is `HttpOnly` | `modules/account/tests/oidc_test.nim`, `apps/api/tests/integration/auth_sessions_http_test.nim` | met |
-| REQ-002 | A person without membership sees only the screens their role allows | `modules/account/tests/authz_matrix_test.nim`, `apps/api/tests/security/idor_escalation_test.nim` | met |
+| REQ-002 | A person without membership sees only the screens their role allows | `modules/account/tests/authz_matrix_test.nim`, `apps/api/tests/integration/security/idor_escalation_test.nim` | met |
 | REQ-003 | A host creates a session with courts, participants and a generated schedule | `modules/session/tests/lifecycle_test.nim`, `e2e/session-write.spec.ts` | met |
 | REQ-004 | Scores are 0 to 99, a draw is refused, and absent players earn no points | `modules/session/tests/scoring_test.nim`, `modules/session/tests/integration/write_test.nim` | met |
 | REQ-005 | Two hosts editing the same game cannot silently overwrite each other | `modules/session/tests/integration/write_test.nim`, `e2e/session-occ.spec.ts` | met |

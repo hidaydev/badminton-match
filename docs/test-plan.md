@@ -30,7 +30,7 @@ Out of scope, on purpose:
 | Layer | What it proves | Where | Cost |
 |---|---|---|---|
 | Unit | one module's rules, no I/O | `modules/*/tests/*_test.nim` | seconds |
-| Database-backed | rules against a real schema, one fresh database per suite | `apps/api/tests/integration/`, `apps/api/tests/security/` | ~1 s each plus clone |
+| Database-backed | rules against a real schema, one fresh database per suite | `apps/api/tests/integration/`, `apps/api/tests/integration/security/` | ~1 s each plus clone |
 | HTTP integration | the router, session gate, problem envelope | `apps/api/tests/integration/*_http_test.nim` | one server per suite |
 | Contract | the specs, the generated routes and the TS client agree | `./task contract-check`, `packages/contracts/openapi/CONTRACT.sha256` | seconds |
 | Parity | recorded v1/v2 responses still match | `./task parity verify`, `./task parity v2 verify` | minutes |
@@ -46,7 +46,7 @@ instead of implying the whole tree.
 
 | Module | Risk | Why | Primary suites |
 |---|---|---|---|
-| `modules/account` | High | authorization classes, sessions, invites, claims, OIDC | `tests/authz_matrix_test.nim`, `apps/api/tests/security/{idor_escalation,csrf_redirect,oidc_replay,ratelimit}_test.nim`, `integration/auth_sessions_http_test.nim`, `e2e/authz.spec.ts` |
+| `modules/account` | High | authorization classes, sessions, invites, claims, OIDC | `tests/authz_matrix_test.nim`, `apps/api/tests/integration/security/{idor_escalation,csrf_redirect,oidc_replay,ratelimit}_test.nim`, `integration/auth_sessions_http_test.nim`, `e2e/authz.spec.ts` |
 | `modules/session` | High | scoring rules, optimistic concurrency, schedule generation, swaps | `tests/scoring_test.nim`, `tests/integration/{schedule,swap,write}_test.nim`, `integration/session_{concurrency,schedule}_http_test.nim`, `e2e/session-{write,occ}.spec.ts` |
 | `modules/tournament` | High | bracket generation, idempotency, match writes | `tests/{classic,team}_test.nim`, `tests/integration/store_test.nim`, `integration/tournament_http_test.nim`, `e2e/draw.ts` fixtures |
 | `modules/share` | High | share-code crypto and key rotation | `tests/crypto_test.nim`, `e2e/shared.spec.ts`, `tools/sharekeys/tests` |
