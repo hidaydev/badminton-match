@@ -365,5 +365,24 @@ try:
         @[textParam(communityId)]).get.get("id")
       check audit[14] == '7'
       check event[14] == '7'
+
+    test "the duplicate session indexes are gone and the strict ones remain":
+      migrate(scratch, migrationsDir)
+      let gone = @["games_round_court_unique", "courts_community_session_idx",
+        "participants_community_session_idx",
+        "game_skips_community_session_idx", "links_community_session_idx"]
+      let kept = @["games_identity_unique", "courts_session_index_unique",
+        "participants_session_player_unique", "game_skips_game_unique",
+        "links_one_live"]
+      for name in gone:
+        check scratch.queryOne(
+          """select 1 as ok from pg_indexes
+             where schemaname = 'session' and indexname = $1""",
+          @[textParam(name)]).isNone
+      for name in kept:
+        check scratch.queryOne(
+          """select 1 as ok from pg_indexes
+             where schemaname = 'session' and indexname = $1""",
+          @[textParam(name)]).isSome
 finally:
   shutdown()
