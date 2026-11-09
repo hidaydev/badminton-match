@@ -141,3 +141,29 @@ test('QAE-03: MAJADU_TEST_ROUTES cannot degrade a release build', async () => {
   expect(data.status()).toBe(401)
   await flag.dispose()
 })
+
+test('QAE-04: the join request answers 202 to every anonymous caller', async () => {
+  // The 202 is an acknowledgement, not a receipt: an anonymous caller cannot
+  // tell a stored request from a malformed one, from a community that does not
+  // exist, or from a community that is not accepting. The check pins that
+  // indistinguishability, so making the answer truthful later forces this test
+  // and `docs/qa/sessions/QAE-04-join-202.md` to change together.
+  const api = await request.newContext({ baseURL: apiURL })
+
+  const wellFormed = await api.post('/c/qae-probe/join-requests', {
+    data: { name: 'Audit Probe', phone: '0812' },
+  })
+  const malformed = await api.post('/c/qae-probe/join-requests', {
+    data: '{bad',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  const unknown = await api.post('/c/qae-probe-no-such-community/join-requests', {
+    data: { name: 'Audit Probe', phone: '0812' },
+  })
+
+  for (const response of [wellFormed, malformed, unknown]) {
+    expect(response.status()).toBe(202)
+    expect(await response.json()).toEqual({ status: 'accepted' })
+  }
+  await api.dispose()
+})
