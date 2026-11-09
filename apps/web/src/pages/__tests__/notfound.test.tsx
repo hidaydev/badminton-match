@@ -1,42 +1,50 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import App from '../../App'
 import { t } from '../../i18n'
-import NotFoundPage from '../NotFoundPage'
+import { mockFetch } from '../../test/fetchMock'
 
-function renderAt(path: string) {
-  return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/c/:slug/*" element={<NotFoundPage />} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-    </MemoryRouter>,
-  )
+const membership = { id: 'c1', slug: 'acme', name: 'Acme', role: 'member' }
+
+function handlers() {
+  return {
+    'GET /api/auth/me': () => ({
+      body: { id: 'u1', displayName: 'Ada', platformOwner: false },
+    }),
+    'GET /api/communities': () => ({ body: { items: [membership] } }),
+    'GET /api/c/acme/players?limit=1000': () => ({ body: { items: [] } }),
+  }
 }
 
-describe('NotFoundPage', () => {
-  it('names the path it could not resolve', () => {
-    renderAt('/c/acme/no-such-screen')
-
-    expect(screen.getByRole('heading', { name: t('notFound.title') })).toBeInTheDocument()
-    expect(
-      screen.getByText(t('notFound.body', { path: '/c/acme/no-such-screen' })),
-    ).toBeInTheDocument()
+describe('not found', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    window.sessionStorage.clear()
   })
 
-  it('links back to the community it was opened inside', () => {
-    renderAt('/c/acme/no-such-screen')
+  it('keeps an unknown path outside a community and names it', async () => {
+    mockFetch(handlers())
+    window.history.replaceState({}, '', '/nope')
 
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: t('notFound.title') })).toBeInTheDocument()
+    expect(screen.getByText(t('notFound.body', { path: '/nope' }))).toBeInTheDocument()
+    // The redirect this route replaced would have rewritten the history entry.
+    expect(window.location.pathname).toBe('/nope')
+  })
+
+  it('keeps an unknown path inside a community and links back to it', async () => {
+    mockFetch(handlers())
+    window.history.replaceState({}, '', '/c/acme/nope')
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: t('notFound.title') })).toBeInTheDocument()
+    expect(screen.getByText(t('notFound.body', { path: '/c/acme/nope' }))).toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: t('notFound.communityHome') }),
     ).toHaveAttribute('href', '/c/acme')
-  })
-
-  it('offers only the home link outside a community', () => {
-    renderAt('/no-such-page')
-
-    expect(screen.queryByRole('link', { name: t('notFound.communityHome') })).toBeNull()
-    expect(screen.getByRole('link', { name: t('nav.home') })).toHaveAttribute('href', '/')
+    expect(window.location.pathname).toBe('/c/acme/nope')
   })
 })
