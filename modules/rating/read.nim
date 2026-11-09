@@ -313,13 +313,18 @@ proc writeSnapshot*(db: Db, communityId, asOf: string,
   written
 
 proc snapshotRows*(db: Db, communityId, asOf: string): seq[BoardRow] =
+  # The name is ordered with the C collation, not the database locale: the board
+  # sorts names bytewise in Nim, and a locale-aware collation orders the same two
+  # names differently on glibc and on macOS. The stored placement has to match
+  # the board on every cluster, so the tiebreak is bytewise here too.
   for row in db.query(
     """select s.player_id, p.canonical_name, coalesce(p.tier, '') as tier,
               s.rating as points
        from rating.snapshots s
        join player.players p on p.id = s.player_id
        where s.community_id = $1::uuid and s.taken_on = $2::date
-       order by s.rating desc, p.canonical_name asc""",
+       order by s.rating desc, p.canonical_name collate "C" asc,
+                s.player_id asc""",
     @[textParam(communityId), textParam(asOf)]):
     result.add(BoardRow(playerId: row.getUuid("player_id"), name: row.get("canonical_name"),
       tier: row.get("tier"), points: row.getInt("points")))

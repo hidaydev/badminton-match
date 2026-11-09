@@ -36,9 +36,19 @@ for file in $(list_test_files); do
     isolation_apply "${file#"$REPO_ROOT"/}"
     _start=$(now_ms)
     _code=0
-    nim_run_check "$file" >/dev/null || _code=$?
+    # The suite output is captured instead of discarded: a failing suite has to
+    # say why in the job log. A pass stays quiet.
+    _log=$(mktemp "${TMPDIR:-/tmp}/majadu-check.XXXXXX")
+    nim_run_check "$file" >"$_log" 2>&1 || _code=$?
     timing_add "${file#"$REPO_ROOT"/}" "$(( $(now_ms) - _start ))" "$_code"
-    [ "$_code" -eq 0 ] || exit "$_code"
+    if [ "$_code" -ne 0 ]; then
+      printf 'check: %s failed with exit %s\n' "${file#"$REPO_ROOT"/}" \
+        "$_code" >&2
+      cat "$_log" >&2
+      rm -f "$_log"
+      exit "$_code"
+    fi
+    rm -f "$_log"
   else
     nim_compile_check "$file" >/dev/null
   fi

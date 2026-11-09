@@ -431,7 +431,8 @@ proc lintErrorEnvelope*(name: string, status: int, body: JsonNode,
     problems.add(name & ": 4xx body status does not match expect.status")
 
 proc lintCase*(name: string, document: JsonNode,
-               problems: var seq[string], rejected: var int): string =
+               problems: var seq[string], rejected: var int,
+               errorEnvelope = true): string =
   if not document.hasKey("expect"):
     problems.add(name & ": missing expect")
     return ""
@@ -448,7 +449,8 @@ proc lintCase*(name: string, document: JsonNode,
   elif expect.hasKey("emptyBody") and expect["emptyBody"].getBool():
     problems.add(name & ": expect.emptyBody is set but the body is not empty")
   elif expect.hasKey("status") and expect["status"].kind == JInt:
-    lintErrorEnvelope(name, expect["status"].getInt(), expect["body"], problems)
+    if errorEnvelope:
+      lintErrorEnvelope(name, expect["status"].getInt(), expect["body"], problems)
   if document.hasKey("expectNim"):
     if not document.hasKey("expectedDivergence"):
       problems.add(name & ": expectNim without expectedDivergence")
@@ -483,6 +485,12 @@ proc lint(options: Options) =
   var rejected = 0
   var routesOfCases: seq[string] = @[]
   let templates = operationPathsFromSource(options.routes)
+  # The v2 corpus records the Nim API, so its 4xx bodies must carry the
+  # problem+json envelope. The v1 corpus is the legacy recording the replay
+  # compares against, and v1 deliberately answers 4xx with `{"error": ...}`,
+  # so the envelope rule does not apply there.
+  let v2Corpus = fileExists(options.routes) and
+    readFile(options.routes).contains("operationId")
   for name in names:
     let target = casePath(options.dir, name)
     var document: JsonNode
@@ -491,7 +499,7 @@ proc lint(options: Options) =
     except JsonParsingError:
       problems.add(name & ": invalid JSON")
       continue
-    let route = lintCase(name, document, problems, rejected)
+    let route = lintCase(name, document, problems, rejected, v2Corpus)
     if route.len > 0:
       routesOfCases.add(route)
       if document.hasKey("request") and
