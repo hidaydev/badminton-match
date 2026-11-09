@@ -4,6 +4,12 @@
 # The gate compares against coverage-baseline.json: a domain or the total that
 # drops fails the run. Absolute targets (module 90%, total 75%) are reached by
 # raising the baseline, not by failing every PR until the whole codebase moves.
+#
+# Measurement is split across a matrix because the instrumented build of every
+# test file does not fit in one 15 minute job. Each `measure` job writes the
+# parts for its slice, and `ratchet` merges them and produces the only verdict.
+# A shard's own report covers a fraction of the tree, so its gate refuses it on
+# purpose; that refusal is expected and does not fail the shard job.
 name: Coverage
 
 on:
@@ -22,10 +28,14 @@ env:
   NIM_VERSION: "2.4.0"
 
 jobs:
-  coverage:
-    name: "Coverage: ratchet"
+  measure:
+    name: "Coverage: measure shard ${{ matrix.shard }} of 4"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     services:
       postgres:
         image: postgres:18.6
@@ -106,9 +116,49 @@ jobs:
             echo "bm2_import_source_test has no bm schema" >&2
             exit 1
           fi
-      - name: "Coverage: measure against the baseline"
+      # The shard measures one slice, so the per-shard report is incomplete by
+      # construction and the gate inside the script refuses it. That refusal is
+      # recorded but not fatal: `ratchet` is the job that judges the whole tree.
+      - name: "Coverage: measure this shard"
+        continue-on-error: true
         env:
+          SHARD: ${{ matrix.shard }}/4
           MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
           MAJADU_IMPORT_TEST_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_target_test
           MAJADU_IMPORT_TEST_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
-        run: ./task coverage
+        run: ./task coverage --shard "$SHARD"
+      # `if: always()` so a shard that failed the expected gate still hands its
+      # parts to the merge; `if-no-files-found: error` keeps a crash from
+      # looking like a shard that simply measured nothing.
+      - name: "Coverage: upload this shard's parts"
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-parts-${{ matrix.shard }}
+          path: .cache/*/coverage/parts-${{ matrix.shard }}-of-4
+          if-no-files-found: error
+
+  ratchet:
+    name: "Coverage: ratchet"
+    needs: measure
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # The diff-coverage gate needs a merge base, so the ratchet needs the full
+      # history even though it never compiles anything.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: "Coverage: install lcov"
+        run: sudo apt-get update && sudo apt-get install -y lcov
+      # `download-artifact` v7 has no v7.0.1 tag; v7.0.0 is the release in the
+      # same line the upload step pins, and both are first-party actions.
+      - name: "Coverage: download the shard parts"
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: coverage-parts-*
+          path: .cache/coverage-parts
+      - name: "Coverage: judge the merged report"
+        env:
+          PARTS: .cache/coverage-parts
+        run: ./task coverage --parts "$PARTS"
