@@ -75,6 +75,24 @@ check_release_order() {
 
 check_release_order
 
+# ISO-19: a requirement whose evidence was deleted is an unmet requirement.
+# Every code span that looks like a path in the register has to resolve.
+check_requirement_paths() {
+  file="docs/handbook/requirements.md"
+  [ -f "$REPO_ROOT/$file" ] || { report "$file is missing"; return 0; }
+  refs=$(grep -o '`[A-Za-z0-9_./-]*`' "$REPO_ROOT/$file" | tr -d '`' | sort -u)
+  for ref in $refs; do
+    case "$ref" in
+      */*.nim|*/*.ts) ;;
+      *) continue ;;
+    esac
+    [ -f "$REPO_ROOT/$ref" ] ||
+      report "$file references $ref, which does not exist"
+  done
+}
+
+check_requirement_paths
+
 if [ "$problems" -ne 0 ]; then
   printf 'docs-check: %d problem(s)\n' "$problems" >&2
   exit 1

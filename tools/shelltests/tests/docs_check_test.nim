@@ -22,6 +22,9 @@ proc seed(fixture: Fixture) =
     "The GHCR token is fine.\n\n| Every ten minutes | rotated |\n")
   touch(fixture.root / "docs" / "ops" / "release.md",
     "   git push origin refs/tags/v<version>\n   git push origin main\n")
+  touch(fixture.root / "apps" / "api" / "src" / "app.nim", "# app\n")
+  touch(fixture.root / "docs" / "handbook" / "requirements.md",
+    "| REQ-001 | a requirement | `apps/api/src/app.nim` | met |\n")
 
 suite "docs-check":
   test "a consistent tree passes":
@@ -88,3 +91,14 @@ suite "incident policy":
     check text.contains("within 72 hours")
     check text.contains("tabletop exercise")
     check text.contains("MAJADU_BACKUP_DIR/incidents/")
+
+  test "a requirement whose evidence file is gone fails the gate":
+    let fixture = newFixture("docs-requirement-missing")
+    defer: removeDir(fixture.root)
+    seed(fixture)
+    let register = fixture.root / "docs" / "handbook" / "requirements.md"
+    writeFile(register, readFile(register) &
+      "| REQ-999 | a requirement with no test | `modules/gone/gone_test.nim` | met |\n")
+    let result = fixture.runTask(@["docs-check"])
+    check result.exitCode == 1
+    check result.stderr.contains("references modules/gone/gone_test.nim")
