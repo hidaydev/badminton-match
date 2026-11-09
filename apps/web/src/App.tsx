@@ -4,7 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-
 import { AuthProvider } from './auth/AuthProvider'
 import { useAuth } from './auth/AuthContext'
 import { Button } from './components/Button'
-import ClientOutdatedBanner from './components/ClientOutdatedBanner'
+import { ClientOutdatedBanner } from './components/ClientOutdatedBanner'
 import { LoadingState } from './components/LoadingState'
 import { PageHeader } from './components/PageHeader'
 import { CommunityProvider } from './community/CommunityProvider'
@@ -369,7 +369,10 @@ export default function App() {
         <AuthProvider>
           <BrowserRouter>
             <CommunityProvider>
-              <ClientOutdatedBanner />
+              <ClientOutdatedBanner
+                message={t('app.outdated')}
+                actionLabel={t('app.outdated.action')}
+              />
               <Routes>
                 <Route path="/s/:code" element={<SharedSessionPage />} />
                 {/* Accepting is how an account gets its first membership, so

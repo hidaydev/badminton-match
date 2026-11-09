@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { CLIENT_OUTDATED_EVENT } from '../auth/api'
-import { t } from '../i18n'
 import { Button } from './Button'
 
 /**
@@ -8,7 +7,14 @@ import { Button } from './Button'
  * answers `410 CLIENT_OUTDATED`, nothing on the page can work until the tab
  * fetches the new bundle, so the banner replaces guessing at a refresh.
  */
-export default function ClientOutdatedBanner() {
+export function ClientOutdatedBanner({
+  message = 'This tab is out of date.',
+  actionLabel = 'Reload',
+}: {
+  /** Stated by the caller so the primitive owns no translation singleton. */
+  message?: string
+  actionLabel?: string
+} = {}) {
   const [outdated, setOutdated] = useState(false)
 
   useEffect(() => {
@@ -23,9 +29,9 @@ export default function ClientOutdatedBanner() {
       role="alert"
       className="flex flex-wrap items-center justify-between gap-3 bg-elevated border-b border-border px-4 py-3"
     >
-      <p className="text-sm text-fg">{t('app.outdated')}</p>
+      <p className="text-sm text-fg">{message}</p>
       <Button className="py-2" onClick={() => window.location.reload()}>
-        {t('app.outdated.action')}
+        {actionLabel}
       </Button>
     </div>
   )
