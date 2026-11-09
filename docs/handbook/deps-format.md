@@ -114,6 +114,11 @@ holey output must not be copied silently.
   the check for that entry instead of being skipped. If any entry cannot be
   resolved, the `tree` comparison is skipped because a digest over an incomplete
   set of entries is meaningless; the entry failure has already made the exit code ≠ 0.
+- `--skip <kinds>` exists for a job that installs only part of the lock: the
+  coverage job installs the Nim toolchain and the coverage tools, never `npm` or
+  `playwright-browser`, so it passes `--skip npm,playwright-browser`. Skipped
+  entries are not verified and the `tree` line is not compared, because a digest
+  over a partial set proves nothing; the full check still runs in the E2E job.
 
 ## 6. Known limits
 

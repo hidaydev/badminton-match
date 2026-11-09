@@ -176,7 +176,7 @@ export default function HomeLayout() {
                         setAccountOpen(false)
                         void logout()
                       }}
-                      className="rounded-lg px-3 py-2 text-left text-error/80 hover:bg-elevated hover:text-error hit44"
+                      className="rounded-lg px-3 py-2 text-left text-error hover:bg-elevated hover:text-error hit44"
                     >
                       {t('nav.logout')}
                     </button>

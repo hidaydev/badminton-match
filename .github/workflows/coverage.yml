@@ -102,7 +102,10 @@ jobs:
           lcov --version
           gcovr --version
       - name: "Dependencies: installed content must match deps.lock"
-        run: ./task deps-check
+        # The frontend gate tools are not installed in this job: it compiles and
+        # runs Nim suites only. `--skip` verifies everything this job does
+        # install; the E2E job is where the npm and browser pins are checked.
+        run: ./task deps-check --skip npm,playwright-browser
       - name: "Database: provision and create the test database"
         env:
           MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres

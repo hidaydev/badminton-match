@@ -63,7 +63,7 @@ export default function PrivacyPage() {
           {t('privacy.contact.body')}{' '}
           <a
             href="mailto:hello@qouver.com"
-            className="text-accent underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-accent"
+            className="text-accent underline underline-offset-2 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent"
           >
             {t('privacy.contact.email')}
           </a>
