@@ -128,6 +128,18 @@ suite "task target guards":
     check result.exitCode == 1
     check result.stderr.contains("entry differs: nim-base")
 
+  test "the Caddy handlers carry limits, timeouts and the RC allow-list":
+    for name in ["site-v1.caddy", "site-v2.caddy"]:
+      let text = readFile(repoDir / "ops" / "caddy" / name)
+      check text.contains("max_size 1MB")
+      check text.contains("dial_timeout 3s")
+      check text.contains("health_uri /readyz")
+      check text.contains("handle_response @upstream_error")
+    let rc = readFile(repoDir / "ops" / "caddy" / "site-rc.caddy")
+    check rc.contains("@internal remote_ip")
+    check rc.contains("respond \"Forbidden\" 403")
+    check rc.contains("health_uri /readyz")
+
   test "every workflow that runs the Nim toolchain installs libpcre":
     ## Nim's `re` binds the system PCRE 1 library at run time. A workflow that
     ## installs the pinned Nim packages without installing the library dies with

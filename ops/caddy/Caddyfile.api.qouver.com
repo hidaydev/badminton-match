@@ -19,6 +19,19 @@
 #    becomes
 #      import /srv/qouver/apps/majadu/caddy/active.caddy
 #
+# 2b. Keep the two Majadu handlers out of Caddy's default error page. The
+#     per-handler `handle_response` covers a dead upstream; this site-level
+#     block covers a request that never reaches a handler. It is deliberately
+#     scoped to the Majadu paths so the other applications keep their pages:
+#
+#      handle_errors {
+#          @majadu path /majadu/* /majadu-rc/*
+#          handle @majadu {
+#              respond "Service temporarily unavailable" 503
+#          }
+#          respond "Not Found" 404
+#      }
+#
 # 3. Keep share codes and websocket tickets out of the access log. In the same
 #    site block, add the matcher and one directive to the existing log
 #    statement:

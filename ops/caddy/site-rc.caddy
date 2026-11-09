@@ -11,12 +11,46 @@
 #
 # The RC SPA reaches it through the Vercel rewrite
 # /api/:path* -> https://api.qouver.com/majadu-rc/:path*
+#
+# The RC is branch code on the production host, so it is internal-only until the
+# operator deliberately makes it public. `@internal` is the loopback and RFC1918
+# ranges; a request from anywhere else gets 403 before it reaches the upstream.
+# To expose it through Vercel, add the egress ranges to `@internal` in the same
+# change that records why, rather than deleting the matcher.
 handle /majadu-rc/* {
-	uri strip_prefix /majadu-rc
-	encode zstd gzip
-	reverse_proxy 127.0.0.1:8081 {
-		header_up X-Client-IP {http.request.remote.host}
-		header_up -X-Forwarded-For
-		header_up -X-Real-IP
+	@internal remote_ip 127.0.0.1/32 ::1/128 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+	handle @internal {
+		uri strip_prefix /majadu-rc
+		encode zstd gzip
+		request_body {
+			max_size 1MB
+		}
+		header {
+			-Server
+			X-Content-Type-Options "nosniff"
+			X-Frame-Options "DENY"
+			Referrer-Policy "no-referrer"
+			Permissions-Policy "geolocation=(), microphone=(), camera=()"
+			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://api.qouver.com wss://api.qouver.com; manifest-src 'self'; worker-src 'self' blob:; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'"
+		}
+		reverse_proxy 127.0.0.1:8081 {
+			header_up X-Client-IP {http.request.remote.host}
+			header_up -X-Forwarded-For
+			header_up -X-Real-IP
+			transport http {
+				dial_timeout 3s
+				read_timeout 30s
+				write_timeout 30s
+			}
+			health_uri /readyz
+			health_interval 10s
+			health_timeout 3s
+			lb_try_duration 5s
+			@upstream_error status 500 502 503 504
+			handle_response @upstream_error {
+				respond "Service temporarily unavailable" 502
+			}
+		}
 	}
+	respond "Forbidden" 403
 }
