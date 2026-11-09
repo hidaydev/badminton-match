@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, request, test } from 'playwright/test'
+import type { APIRequestContext } from 'playwright/test'
 
 /**
  * The anonymous edge of the API, driven over its own socket.
@@ -12,6 +13,46 @@ import { expect, request, test } from 'playwright/test'
  */
 const apiURL = process.env.E2E_API_URL ?? 'http://127.0.0.1:18093'
 const flagURL = process.env.E2E_FLAG_API_URL ?? 'http://127.0.0.1:18094'
+const apiLog = process.env.E2E_API_LOG ?? '/tmp/e2e-api.log'
+
+/**
+ * Every complete line the API has written to stdout. The last fragment is
+ * dropped: the process writes through a block buffer, so a line can reach the
+ * file half finished and the rest arrives with the next flush.
+ */
+function apiLogLines(): string[] {
+  const lines = readFileSync(apiLog, 'utf8').split('\n')
+  lines.pop()
+  return lines.filter((line) => line.length > 0)
+}
+
+/**
+ * Waits for a line the caller expects, flushing the process's 4 KiB stdout
+ * buffer with health checks while it waits. A run that reads the file once
+ * would pass on a quiet machine and fail on a busy one.
+ */
+async function waitForApiLog(
+  api: APIRequestContext,
+  found: (lines: string[]) => boolean,
+  timeoutMs = 20_000,
+): Promise<string[]> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const lines = apiLogLines()
+    if (found(lines)) return lines
+    await api.get('/healthz')
+  }
+  throw new Error(
+    `the API log at ${apiLog} did not show the expected line within ${timeoutMs} ms`,
+  )
+}
+
+/** A JSON log line that answers 413 for the auth-start route. */
+function isAuthStart413(line: string): boolean {
+  return (
+    line.includes('"status":"413"') && line.includes('"route":"/auth/start"')
+  )
+}
 
 /**
  * The limit this deployment really has, read from the seed the harness applies
@@ -165,5 +206,89 @@ test('QAE-04: the join request answers 202 to every anonymous caller', async () 
     expect(response.status()).toBe(202)
     expect(await response.json()).toEqual({ status: 'accepted' })
   }
+  await api.dispose()
+})
+
+test('QAE-06: the 413 is logged with route, status and a request id', async () => {
+  // The rejection must look like every other answer in the journal, not only in
+  // the response. The route is `/auth/start` because no other check sends an
+  // oversized body there, so the line counted after the request can only be
+  // this one.
+  const api = await request.newContext({ baseURL: apiURL })
+  const before = apiLogLines().filter(isAuthStart413).length
+
+  const response = await api.post('/auth/start', {
+    data: paddedBody(seededBodyLimit() + 1),
+    headers: { 'Content-Type': 'application/json' },
+  })
+  expect(response.status()).toBe(413)
+
+  const lines = await waitForApiLog(
+    api,
+    (all) => all.filter(isAuthStart413).length > before,
+  )
+  const line = lines.filter(isAuthStart413).pop()
+  if (!line) throw new Error('no 413 line for the auth-start route')
+  const entry = JSON.parse(line)
+  expect(entry.level).toBe('info')
+  expect(entry.msg).toBe('request')
+  expect(entry.method).toBe('POST')
+  expect(entry.status).toBe('413')
+  expect(entry.request_id).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+  )
+  await api.dispose()
+})
+
+test('QAE-06: no line the API writes is plain text', async () => {
+  // The audit saw `Dropped connection, body too long` as an unstructured line.
+  // Every line must parse as one JSON object with a timestamp, a level and a
+  // message, whatever path produced it.
+  const api = await request.newContext({ baseURL: apiURL })
+  const lines = await waitForApiLog(api, (all) => all.length > 0)
+
+  for (const line of lines) {
+    let entry: Record<string, unknown>
+    try {
+      entry = JSON.parse(line) as Record<string, unknown>
+    } catch {
+      throw new Error(`the API wrote a plain text line: ${line}`)
+    }
+    expect(typeof entry.ts).toBe('string')
+    expect(typeof entry.level).toBe('string')
+    expect(typeof entry.msg).toBe('string')
+  }
+  await api.dispose()
+})
+
+test('QAE-06: the transport drop is a JSON line, not a bare sentence', async () => {
+  // Past the 16 MiB transport ceiling mummy closes the socket itself. No route
+  // or status exists for that request, which is the half of the finding still
+  // open, but the line it writes must still be the same JSON object.
+  const api = await request.newContext({ baseURL: apiURL })
+  const before = apiLogLines().filter((line) => line.includes('body too long'))
+    .length
+  try {
+    await api.post('/c/qae-probe/join-requests', {
+      data: paddedBody(20 * 1024 * 1024),
+      headers: { 'Content-Type': 'application/json' },
+    })
+  } catch {
+    // The socket is closed before an answer is possible.
+  }
+
+  const lines = await waitForApiLog(
+    api,
+    (all) => all.filter((line) => line.includes('body too long')).length > before,
+  )
+  const line = lines.filter((entry) => entry.includes('body too long')).pop()
+  if (!line) throw new Error('no body-too-long line in the API log')
+  const entry = JSON.parse(line)
+  expect(typeof entry.ts).toBe('string')
+  expect(entry.msg).toBe('server')
+  expect(entry.detail).toContain('body too long')
+  // The key is present even when no request id was started; an empty value is
+  // the gap the session note records.
+  expect(entry).toHaveProperty('request_id')
   await api.dispose()
 })

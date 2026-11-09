@@ -47,14 +47,15 @@ check over 404s (QAE-03).
   from the admin settings screen, does not see the new-session control, and gets
   403 from a settings write and a session create. An anonymous caller gets 401
   from the same write.
-- **API boundary** (`api.spec.ts`, QAE-02 to QAE-06): the audit findings on the
-  anonymous edge, driven with Playwright's request context against the API's own
-  socket. The body limit is read from `db/seeds/platform_config.sql` rather than
-  repeated, so the test probes the value the deployment has. It runs in the `api`
-  project and never opens a page.
+- **API boundary** (`api.spec.ts`, QAE-02, QAE-03, QAE-04 and QAE-06): the
+  audit findings on the anonymous edge, driven with Playwright's request context
+  against the API's own socket. The body limit is read from
+  `db/seeds/platform_config.sql` rather than repeated, so the test probes the
+  value the deployment has. It runs in the `api` project and never opens a page.
 
-The suite is 40 percent functional: 40 of 100 runs drive a flow, 24 are the
-visual baseline, 2 are the account-menu screenshot, 32 are the axe walk and 2 run
+The suite is 40 percent functional: 56 of 162 runs drive a flow on a phone and
+9 more drive the API over its own socket, 24 are the visual baseline, 2 are the
+account-menu screenshot, 60 are the axe walk, 8 are the public axe walk and 3 run
 the static route-coverage guard. A snapshot cannot fail for a permission
 regression, which is why the functional share is stated rather than implied.
 

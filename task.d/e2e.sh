@@ -132,4 +132,5 @@ E2E_BASE_URL="http://127.0.0.1:$WEB_PORT" \
   E2E_SCOREBOARD_BASE_URL="http://127.0.0.1:$SCOREBOARD_PORT" \
   E2E_API_URL="http://127.0.0.1:$API_PORT" \
   E2E_FLAG_API_URL="http://127.0.0.1:$FLAG_PORT" \
+  E2E_API_LOG=/tmp/e2e-api.log \
   pnpm exec playwright test --config "$REPO_ROOT/apps/web/playwright.config.ts" "$@"
