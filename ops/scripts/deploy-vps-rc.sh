@@ -222,7 +222,7 @@ APP_DB=$(printf '%s' "$APP_DSN" | sed 's/.*\///' | cut -d'?' -f1)
 # credential to the RC API, so stop before the build and name the line.
 # systemd skips leading whitespace, allows whitespace around `=`, and accepts an
 # `export` prefix, so the match has to see those forms; comments do not match.
-for key in MAJADU_OWNER_DSN MAJADU_ETL_DSN MAJADU_ETL_SOURCE_DSN \
+for key in MAJADU_OWNER_DSN MAJADU_ETL_DSN MAJADU_ETL_SOURCE_DSN MAJADU_BACKUP_DSN_BM2 \
   MAJADU_CUTOVER_RESTORE_DSN MAJADU_AUDIT_DSN; do
   if hit=$(grep -Ein "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=" "$ENV_FILE"); then
     fail "$ENV_FILE:${hit%%:*} must not contain $key; move it to $TOOLS_ENV"

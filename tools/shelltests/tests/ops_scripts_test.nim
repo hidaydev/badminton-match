@@ -169,6 +169,25 @@ suite "backup.sh":
     check fresh.len == 1
     check hasStampName(fresh[0], "bm2-")
 
+  test "bm2 is dumped as the owner DSN from the tool env":
+    let fixture = newFixture("backup-owner-env")
+    defer: removeDir(fixture.root)
+    let dumpLog = fixture.root / "dump.log"
+    fixture.installFake("pg_dump",
+      "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$FAKE_DUMP_LOG\"\nprintf 'dump'\n")
+    fixture.installFake("pg_restore", okFake)
+    let tools = fixture.root / "env" / "majadu-tools.env"
+    touch(tools,
+      "MAJADU_OWNER_DSN=postgresql://bm2_owner@127.0.0.1:5432/bm2\n")
+    let result = fixture.runShell(fixture.installOpsScript("backup.sh"),
+      @[], appDir(fixture) & @[
+        ("MAJADU_TOOLS_ENV", tools),
+        ("MAJADU_BACKUP_DIR", fixture.root / "backups"),
+        ("FAKE_DUMP_LOG", dumpLog),
+      ])
+    check result.exitCode == 0
+    check readFile(dumpLog).contains("bm2_owner")
+
 suite "restore.sh":
   test "a target outside the allowlist exits 2":
     let fixture = newFixture("restore-target")
@@ -509,6 +528,25 @@ suite "restore.sh":
     check result.stderr.contains(
       "restore: pass --dsn postgres://<user>@<host>:<port>/<database>")
     check not fileExists(log)
+
+  test "restore keeps privileges and only replaces ownership":
+    let fixture = newFixture("restore-privileges")
+    defer: removeDir(fixture.root)
+    let restoreLog = fixture.root / "restore.log"
+    fixture.installFake("pg_restore",
+      "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$FAKE_RESTORE_LOG\"\nprintf ''\n")
+    fixture.installFake("flock", flockFake)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm2_test",
+        "--dsn", "postgres://bm2_owner@db.example:5432/bm2_test"],
+      appDir(fixture) & @[("FAKE_RESTORE_LOG", restoreLog)])
+    check result.exitCode == 0
+    let calls = readFile(restoreLog)
+    check calls.contains("--no-owner")
+    check not calls.contains("--no-privileges")
+    check calls.contains("--dbname postgres://bm2_owner@db.example:5432/bm2_test")
 
 suite "rotate-log.sh":
   test "every log is renamed with a timestamp and forced mode 600":

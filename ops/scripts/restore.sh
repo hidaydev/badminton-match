@@ -29,6 +29,8 @@ set -euo pipefail
 
 APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"
 LOCK_FILE="$APP_DIR/.deploy.lock"
+PG_CONTAINER="${MAJADU_PG_CONTAINER:-qouver-postgres}"
+USE_CONTAINER=0
 
 FILE=""
 TARGET=""
@@ -211,8 +213,18 @@ if [ -n "$QUERY" ]; then
   done
 fi
 
-command -v pg_restore >/dev/null 2>&1 || { echo "restore: pg_restore is required" >&2; exit 2; }
-command -v psql >/dev/null 2>&1 || { echo "restore: psql is required" >&2; exit 2; }
+# The documented host has no psql/pg_restore. When either is absent the client
+# moves into the PostgreSQL container, the same way bootstrap-rc.sh runs; the
+# dump stays on the host and is piped, because the container cannot see it.
+for tool in pg_restore psql; do
+  command -v "$tool" >/dev/null 2>&1 || USE_CONTAINER=1
+done
+if [ "$USE_CONTAINER" -eq 1 ]; then
+  command -v podman >/dev/null 2>&1 ||
+    { echo "restore: host has no psql/pg_restore and podman is not installed" >&2; exit 2; }
+  podman container exists "$PG_CONTAINER" 2>/dev/null ||
+    { echo "restore: host has no psql/pg_restore and container '$PG_CONTAINER' does not exist" >&2; exit 2; }
+fi
 command -v flock >/dev/null 2>&1 || { echo "restore: flock is required" >&2; exit 2; }
 [ -d "$APP_DIR" ] || { echo "restore: $APP_DIR does not exist; cannot take the deploy lock" >&2; exit 2; }
 
@@ -232,6 +244,34 @@ inherits_lock() {
   [ "$lock_id" != "?" ] && [ "$lock_id" = "$fd_id" ]
 }
 
+psql_cmd() {
+  if [ "$USE_CONTAINER" -eq 1 ]; then
+    podman exec -i "$PG_CONTAINER" psql "$@"
+  else
+    psql "$@"
+  fi
+}
+
+pg_restore_list() {
+  if [ "$USE_CONTAINER" -eq 1 ]; then
+    podman exec -i "$PG_CONTAINER" pg_restore --list <"$1"
+  else
+    pg_restore --list "$1"
+  fi
+}
+
+pg_restore_file() {
+  # `--no-privileges` is deliberately absent: a restore that drops the ACLs
+  # produces a database the application cannot log into (the owner dump carries
+  # them, and the restore role must not replace the grants with itself).
+  if [ "$USE_CONTAINER" -eq 1 ]; then
+    podman exec -i "$PG_CONTAINER" pg_restore --clean --if-exists \
+      --no-owner --dbname "$DSN" <"$FILE"
+  else
+    pg_restore --clean --if-exists --no-owner --dbname "$DSN" "$FILE"
+  fi
+}
+
 if ! inherits_lock; then
   exec 9>"$LOCK_FILE"
   if ! flock -w 900 9; then
@@ -240,7 +280,7 @@ if ! inherits_lock; then
   fi
 fi
 
-if ! pg_restore --list "$FILE" >/dev/null 2>&1; then
+if ! pg_restore_list "$FILE" >/dev/null 2>&1; then
   echo "restore: $FILE is not a readable custom-format dump" >&2
   exit 1
 fi
@@ -284,11 +324,11 @@ if [ "$RECREATE" -eq 1 ]; then
     exit 2
   }
   echo "restore: recreating $TARGET"
-  psql "$MAINT_DSN" -v ON_ERROR_STOP=1 \
+  psql_cmd "$MAINT_DSN" -v ON_ERROR_STOP=1 \
     -c "drop database if exists \"$TARGET\" with (force)" \
     -c "create database \"$TARGET\""
 fi
 
 echo "restore: writing $FILE into $TARGET"
-pg_restore --clean --if-exists --no-owner --no-privileges --dbname "$DSN" "$FILE"
+pg_restore_file
 echo "restore: done"
