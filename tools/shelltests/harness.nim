@@ -78,6 +78,28 @@ proc newFixture*(name: string): Fixture =
 
   Fixture(root: root, binDir: binDir, env: env)
 
+proc hermeticBin*(fixture: Fixture, excluded: openArray[string]) =
+  ## Fills the fixture's bin directory with symlinks to the host utilities
+  ## except `excluded`. The default PATH still carries `/usr/bin`, so a runner
+  ## that happens to install a database client satisfies a `command -v` the
+  ## test wanted to fail; run with `PATH` set to `fixture.binDir` alone.
+  for dir in ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]:
+    if not dirExists(dir):
+      continue
+    for kind, path in walkDir(dir):
+      if kind notin {pcFile, pcLinkToFile, pcLinkToDir}:
+        continue
+      let name = path.extractFilename
+      if name in excluded:
+        continue
+      let target = fixture.binDir / name
+      if fileExists(target) or symlinkExists(target):
+        continue
+      try:
+        createSymlink(path, target)
+      except OSError:
+        discard
+
 proc runShell*(fixture: Fixture, script: string, args: seq[string] = @[],
     extraEnv: seq[(string, string)] = @[],
     unsetEnv: seq[string] = @[],
