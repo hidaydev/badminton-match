@@ -130,6 +130,23 @@ suite "lintCase":
     check result.problems.len == 0
     check result.rejected == 1
 
+  test "the legacy error body passes when the envelope rule is off":
+    ## v1 answers 4xx with `{"error": ...}`, so the v1 corpus is linted without
+    ## the problem+json rule; the v2 corpus keeps it.
+    let document = %*{
+      "route": "GET /healthz",
+      "request": {"method": "GET", "path": "/healthz"},
+      "expect": {"status": 401,
+        "body": {"error": {"code": "unauthorized", "message": "missing"}}}
+    }
+    var problems: seq[string] = @[]
+    var rejected = 0
+    discard lintCase("case", document, problems, rejected, false)
+    check problems.len == 0
+    check rejected == 1
+    discard lintCase("case", document, problems, rejected)
+    check problems.len == 3
+
   test "a case without expect is rejected":
     let result = lintOnce(%*{"route": "GET /healthz"})
     check result.problems.len == 1

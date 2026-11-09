@@ -165,7 +165,15 @@ proc uuidFor*(seed: uint64; namespace, index: int): string =
 
 # --- literal helpers ---------------------------------------------------------
 
-let base = parse(epoch, "yyyy-MM-dd HH:mm:sszzz")
+# The committed fixture was generated on a machine in the club's timezone, so
+# its wall clock is WIB. Parsing in local time reproduced that on a WIB host and
+# produced 00:00 on a UTC runner, which broke the promise that the same seed
+# writes a byte-identical file everywhere. The offset is fixed here instead. The
+# literal keeps the `+00:00` suffix `stampAt` writes, so those timestamps are WIB
+# wall clock labelled as UTC; that is the shape the committed file has always
+# had, and regenerating it would change the data.
+let base = parse(epoch, "yyyy-MM-dd HH:mm:sszzz", utc()) +
+  initDuration(hours = 7)
 
 proc dateAt(day: int): string =
   (base + initDuration(days = day)).format("yyyy-MM-dd")

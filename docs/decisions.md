@@ -350,3 +350,25 @@ makes eviction less likely without committing to either shape.
 **Reopener:** the owner chooses an export format or decides that courtside scores
 must land on the platform; at that point the app needs an API client or a
 copy/share control, plus a test that round-trips the four stored keys.
+
+---
+
+## ADR-014 · CI runs on a pinned Ubuntu image, and installs what the toolchain loads
+
+**Date:** 2026-11-09
+**Audit finding:** QA-01
+**Status:** Accepted
+
+**Decision:** every job under `.github/workflows/` pins `runs-on: ubuntu-24.04`,
+and every job that runs a Nim binary installs `libpcre3` before it does.
+
+**Reason:** the `ubuntu-latest` label moved to Ubuntu 26 on 2026-10-19. The first
+Linux run of the release gate showed that the new image does not ship PCRE 1,
+which Nim's `re` module binds at run time, and that the pinned lcov build could
+not load its Perl modules. Pinning keeps the gate on an image the toolchain is
+validated against; installing the library explicitly keeps the jobs working when
+the pin moves, and a shelltest now fails a workflow that runs `deps-install`
+without it.
+
+**Reopener:** the toolchain binds PCRE 2 instead of PCRE 1, or the gate is proven
+green on a newer image. Change the package and the pin together.

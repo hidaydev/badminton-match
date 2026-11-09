@@ -32,7 +32,7 @@ env:
 jobs:
   verify:
     name: "Release: verify tag"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     # The gate is `./task ci`, not `./task check`: a release must also pass the
     # integration suites and the contract fingerprint, and those need a
@@ -104,6 +104,12 @@ jobs:
             echo "::error::VERSION is '$version' but the tag says '$expected'"
             exit 1
           fi
+      # Nim's `re` binds to the system PCRE 1 library at run time, and the
+      # runner image does not ship it.
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
       - name: "Release: install pinned deps"
         run: ./task deps-install
       - name: "Release: database"
@@ -135,7 +141,7 @@ jobs:
 
   web:
     name: "Release: web"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -161,7 +167,7 @@ jobs:
 
   e2e:
     name: "Release: e2e"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       postgres:
@@ -183,6 +189,12 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # Nim's `re` binds to the system PCRE 1 library at run time, and the
+      # runner image does not ship it.
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       - uses: pnpm/action-setup@9bbca1e9dc2902adb87e8780fe5c98796985a62d # v6.1.1
@@ -227,7 +239,7 @@ jobs:
 
   coverage:
     name: "Release: coverage"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       postgres:
@@ -249,6 +261,12 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # Nim's `re` binds to the system PCRE 1 library at run time, and the
+      # runner image does not ship it.
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       - name: "Coverage: install gcov tooling"
@@ -297,7 +315,7 @@ jobs:
 
   mutation:
     name: "Release: mutation"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -308,6 +326,12 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # Nim's `re` binds to the system PCRE 1 library at run time, and the
+      # runner image does not ship it.
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       - name: "Mutation: every mutant is killed or allowlisted"
@@ -315,7 +339,7 @@ jobs:
 
   parity:
     name: "Release: parity"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       postgres:
@@ -337,6 +361,12 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # Nim's `re` binds to the system PCRE 1 library at run time, and the
+      # runner image does not ship it.
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       - name: "Database: provision the parity database"
@@ -355,7 +385,7 @@ jobs:
 
   image:
     name: "Release: image"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [verify, web, e2e, coverage, mutation, parity]
     permissions:
@@ -389,7 +419,7 @@ jobs:
 
   publish:
     name: "Release: GitHub Release"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [verify, image]
     permissions:
