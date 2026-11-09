@@ -11,8 +11,13 @@ proc trustedProxies*(): seq[string] =
       result.add(trimmed)
 
 proc peerProxied*(request: Request, trusted: seq[string]): bool =
-  let peer = request.remoteAddress
-  peer in trusted or peer.startsWith("127.") and "127.0.0.1" in trusted
+  ## The peer must be one of the configured addresses exactly. A prefix rule
+  ## ("any 127/8 peer") would let a second local process, a sidecar, or a
+  ## container on the same host assert an address of its choosing, and the
+  ## address is the key for every anonymous bucket. `::1` is honoured only when
+  ## it is in the list, because mummy reports the IPv6 form of loopback
+  ## separately from the IPv4 one.
+  request.remoteAddress in trusted
 
 proc forwardedIp*(request: Request, trusted: seq[string]): string =
   ## The address a trusted proxy asserted, or empty when this peer may not

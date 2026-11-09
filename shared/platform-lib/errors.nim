@@ -89,6 +89,7 @@ const
     ("REASON_REQUIRED", "error.reasonRequired"),
     ("SAME_PLAYER", "error.samePlayer"),
     ("SELF_DECISION", "error.selfDecision"),
+    ("SESSION_NOT_SHAREABLE", "error.sessionNotShareable"),
     ("SETS_REQUIRED", "error.setsRequired"),
     ("SLUG_TAKEN", "error.slugTaken"),
     ("STALE_VERSION", "error.staleVersion"),

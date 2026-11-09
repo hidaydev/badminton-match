@@ -232,13 +232,20 @@ suite "security: IDOR":
     check foreignRow.get.get("canonical_name") == "Bravo Player"
 
   test "positive control: a share link issued for A's session resolves":
+    # A share link is minted only for an approved session (SEC-09), so the
+    # control gets one of its own instead of reusing the draft fixture.
+    let sharedSession = newSession(database, clubId, "Alpha Shared",
+      status = "locked", approved = true)
     let issued = call(baseUrl, HttpPost,
-      "/c/" & slugA & "/sessions/" & sessionA & "/share", adminCookie)
+      "/c/" & slugA & "/sessions/" & sharedSession & "/share", adminCookie)
     expectStatus(issued, 201)
     let code = issued.json["code"].getStr()
     let shared = call(baseUrl, HttpGet, "/s/" & code)
     expectStatus(shared, 200)
-    check shared.json["session"]["id"].getStr() == sessionA
+    # SEC-20: the payload names no id the legacy resolver would accept.
+    check not shared.json["session"].hasKey("id")
+    check shared.json["session"]["title"].getStr() == "Alpha Shared"
+    check shared.json["games"].len == 0
     # A live code for B is not reachable as A's share link.
     check shareB.len > 0
 

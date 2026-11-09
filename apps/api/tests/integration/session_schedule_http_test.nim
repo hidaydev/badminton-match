@@ -55,7 +55,8 @@ proc bootstrap() =
     "be05-share-member@example.com", "BE05 Member")
   newMember(database, be05CommunityId, be05HostId, "host")
   newMember(database, be05CommunityId, be05MemberId, "member")
-  be05SessionId = newSession(database, be05CommunityId, "BE05 shared")
+  be05SessionId = newSession(database, be05CommunityId, "BE05 shared",
+    status = "locked", approved = true)
   be05EmptySessionId = newSession(database, be05CommunityId, "BE05 unshared")
   be05HostCookie = cookieFor(database, be05HostId)
   be05MemberCookie = cookieFor(database, be05MemberId)
@@ -185,6 +186,29 @@ suite "session schedule HTTP":
       """{"games":[{"round":1,"court":0,"sideA":["00000000-0000-0000-0000-000000000000"]}]}""",
       ifMatch = "\"5\"")
     expectProblem(unknown, 400)
+    # SEC-07: the writes that decide ranking points are attributable now. One
+    # row per successful call, naming the host and the session; a refused call
+    # leaves none, so a retry cannot look like a second edit.
+    let hostId = database.queryOne(
+      "select id from platform.user where google_sub = 'sched-host'").get.get("id")
+    for action in ["session.schedule.put", "session.game.score",
+                   "session.absent.set", "session.game.skip"]:
+      let rows = database.query(
+        """select actor_id::text as actor, after->>'count' as count,
+                  after->>'gameKey' as game
+           from account.audit
+           where action = $1 and target_id = $2""",
+        @[textParam(action), textParam(sessionId)])
+      checkpoint(action)
+      check rows.len == 1
+      check rows[0].get("actor") == hostId
+    let scoreRows = database.query(
+      """select after->>'count' as count, after->>'gameKey' as game
+         from account.audit
+         where action = 'session.game.score' and target_id = $1""",
+      @[textParam(sessionId)])
+    check scoreRows[0].get("game") == "0-0"
+    check scoreRows[0].get("count") == "1"
 
   test "a classic session records sets and only counts a finished match":
     let body = call(baseUrl, HttpPost, "/c/sched-club/sessions", hostCookie,
@@ -321,6 +345,12 @@ suite "session schedule HTTP":
     let memberItems = parseJson(boardBody)["items"]
     check memberItems.len == 3
 
+    # A code may only name an approved session (SEC-09). This case is about the
+    # public board matching the member board, so it stamps the approval the host
+    # performs after scoring instead of driving the rating gate again.
+    discard database.execUpdate(
+      """update session.sessions set status = 'locked', approved_at = now()
+         where id = $1::uuid""", @[textParam(sessionId)])
     let issued = call(baseUrl, HttpPost,
       "/c/sched-club/sessions/" & sessionId & "/share", hostCookie)
     let issuedBody = issued.body
@@ -937,6 +967,17 @@ suite "session schedule HTTP":
            and target_id = $2""",
       @[textParam(be05CommunityId), textParam(be05SessionId)]).get.getInt("n")
     check redisplayAudits == 1
+    # SEC-09: a session moved out of the shareable set stops answering at once.
+    # Otherwise an archived season keeps publishing for the rest of the TTL.
+    discard database.execUpdate(
+      "update session.sessions set status = 'archived' where id = $1::uuid",
+      @[textParam(be05SessionId)])
+    let archived = call(baseUrl, HttpGet, "/s/" & code)
+    expectProblem(archived, 404, "NOT_FOUND")
+    discard database.execUpdate(
+      "update session.sessions set status = 'locked' where id = $1::uuid",
+      @[textParam(be05SessionId)])
+    expectStatus(call(baseUrl, HttpGet, "/s/" & code), 200)
     let revoked = call(baseUrl, HttpDelete, path, be05HostCookie)
     expectStatus(revoked, 204)
     let gone = call(baseUrl, HttpGet, path, be05HostCookie)

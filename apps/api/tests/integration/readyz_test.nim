@@ -36,10 +36,12 @@ suite "readiness":
     putEnv("CUTOVER_SNAPSHOT_SHA256", "bbbb")
     let status = call(baseUrl, HttpGet, "/readyz")
     let body = status.body
-    expectProblem(status, 503)
-    check parseJson(body)["code"].getStr() == "NOT_READY"
-    check parseJson(body)["detail"].getStr() ==
-      "database holds a different snapshot"
+    expectStatus(status, 503)
+    # SEC-12: the refusal says only that this process will not serve. The
+    # reason (schema, snapshot or an unreachable database) is in the log.
+    let parsed = parseJson(body)
+    check parsed.len == 1
+    check parsed["status"].getStr() == "not_ready"
 
     delEnv("CUTOVER_SNAPSHOT_SHA256")
     discard database.execUpdate("delete from platform.cutover_state")

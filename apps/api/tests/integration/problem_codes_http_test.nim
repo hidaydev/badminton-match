@@ -368,6 +368,55 @@ suite "problem-code reachability: guards":
     requireRow("large", "POST", "/auth/start", "", repeat('x', 1_100_000),
       413, "BODY_TOO_LARGE", "request body exceeds the limit")
 
+  test "a forbidden community write writes exactly one authz.denied row":
+    # SEC-02: the refusal is the only trace of a member probing a route they may
+    # not use unless it becomes a row. Exactly one, with the actor and the
+    # matched route template, never the raw path.
+    let before = database.queryOne(
+      """select count(*)::int as n from account.audit
+         where action = 'authz.denied' and actor_id = $1::uuid""",
+      @[textParam(memberAId)]).get.getInt("n")
+    let denied = call(baseUrl, HttpPost, "/c/" & slug & "/players",
+      memberCookie, """{"name":"Be19 Denied"}""")
+    expectStatus(denied, 403)
+    let after = database.queryOne(
+      """select count(*)::int as n from account.audit
+         where action = 'authz.denied' and actor_id = $1::uuid""",
+      @[textParam(memberAId)]).get.getInt("n")
+    check after == before + 1
+    let row = database.queryOne(
+      """select community_id::text as community_id, target_id,
+                after->>'route' as route, result
+         from account.audit
+         where action = 'authz.denied' and actor_id = $1::uuid
+         order by occurred_at desc limit 1""",
+      @[textParam(memberAId)])
+    check row.get.get("community_id") == communityId
+    check row.get.get("target_id") == "/c/{slug}/players"
+    check row.get.get("route") == "/c/{slug}/players"
+    check row.get.get("result") == "deny"
+
+  test "every rejection carries no-store, not only the 204s and the 429s":
+    # SEC-11: 404 and 410 are heuristically cacheable and a 429 carries
+    # Retry-After, which a shared cache may honour. The API sits behind a CDN
+    # and a rewrite, so a refusal must never be served from one.
+    let notFound = call(baseUrl, HttpGet, "/be19-no-route")
+    expectStatus(notFound, 404)
+    check header(notFound, "Cache-Control") == "no-store"
+    let forbidden = call(baseUrl, HttpPost, "/c/" & slug & "/players",
+      memberCookie, """{"name":"Be19 Cached"}""")
+    expectStatus(forbidden, 403)
+    check header(forbidden, "Cache-Control") == "no-store"
+    # `memberC` has its own join budget, so the throttle below is deterministic
+    # whichever order the cases before this one ran in.
+    for _ in 0 .. 4:
+      discard call(baseUrl, HttpPost, "/c/" & slug & "/join-requests",
+        memberCCookie)
+    let limited = call(baseUrl, HttpPost, "/c/" & slug & "/join-requests",
+      memberCCookie)
+    expectStatus(limited, 429)
+    check header(limited, "Cache-Control") == "no-store"
+
   test "the join limiter answers RATE_LIMITED on the sixth request":
     for _ in 0 .. 4:
       discard call(baseUrl, HttpPost, "/c/" & slug & "/join-requests",
@@ -375,15 +424,20 @@ suite "problem-code reachability: guards":
     requireRow("ratelimited", "POST", "/c/" & slug & "/join-requests",
       memberDCookie, "", 429, "RATE_LIMITED", "too many requests")
 
-  test "a snapshot mismatch on readyz answers NOT_READY":
+  test "a snapshot mismatch on readyz answers one field and nothing else":
+    # SEC-12: a probe learns "not ready" and that is all. The reason stays in
+    # the log, so a scanner cannot tell a wrong dump from a migration gap.
     discard database.execUpdate("delete from platform.cutover_state")
     discard database.execUpdate(
       """insert into platform.cutover_state (id, snapshot_sha256)
          values (true, 'be19-recorded')""")
     putEnv("CUTOVER_SNAPSHOT_SHA256", "be19-expected")
     try:
-      requireRow("readyz", "GET", "/readyz", "", "", 503, "NOT_READY",
-        "database holds a different snapshot")
+      let response = call(baseUrl, HttpGet, "/readyz")
+      expectStatus(response, 503)
+      let body = response.json
+      check body.len == 1
+      check body["status"].getStr() == "not_ready"
     finally:
       delEnv("CUTOVER_SNAPSHOT_SHA256")
       discard database.execUpdate("delete from platform.cutover_state")
@@ -687,6 +741,13 @@ suite "problem-code reachability: config, rating and tournaments":
     requireRow("eventsource", "DELETE", "/c/" & slug & "/rating-sources/" &
       "00000000-0000-0000-0000-000000000006", adminCookie, "", 404,
       "NOT_FOUND", "rating event not found")
+
+  test "share refusals":
+    # SEC-09: a code may only name an approved session, and the refusal names
+    # the status instead of minting a link for an unfinished session.
+    requireRow("draftshare", "POST", "/c/" & slug & "/sessions/" & sessDraft &
+      "/share", adminCookie, "", 409, "SESSION_NOT_SHAREABLE",
+      "session status is draft; only an approved session is shareable")
 
   test "tournament refusals":
     requireRow("invalid", "POST", "/c/" & slug & "/tournaments", hostCookie,

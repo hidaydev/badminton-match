@@ -193,10 +193,15 @@ proc auditedWrite(body: proc(tx: Db, conn: DbConn)) =
 proc send(request: Request, status: int,
           headers: openArray[(string, string)], body: string) =
   ## Single response path: every response carries the security headers, so a new
-  ## route cannot silently ship without CSP or nosniff. An empty body is never
-  ## cacheable, so `no-store` is added here instead of at each call site.
+  ## route cannot silently ship without CSP or nosniff. A response with a body
+  ## is never cacheable either, and 204 is the one bodiless status that still
+  ## needs the directive; a caller that set `Cache-Control` itself keeps it.
   var merged = @headers
-  if status == 204:
+  var declaresCache = false
+  for pair in merged:
+    if cmpIgnoreCase(pair[0], "Cache-Control") == 0:
+      declaresCache = true
+  if not declaresCache and (status == 204 or body.len > 0):
     merged.add(("Cache-Control", "no-store"))
   for pair in securityHeaders(application.cookieSecure):
     merged.add(pair)
@@ -574,6 +579,32 @@ proc decide(user: AuthUser, slug: string,
 proc respondGate(request: Request, decision: Gate) =
   problem(request, statusFor(decision), codeFor(decision), codeFor(decision))
 
+proc denyAudit(user: AuthUser, community: Option[CommunityContext],
+               slug: string) =
+  ## A refused request from an authenticated principal leaves one row. Without
+  ## it a member walking another community's surface, or a script probing a
+  ## route it may not use, leaves only a counter nobody scrapes.
+  ##
+  ## Anonymous refusals are not recorded here: they have no actor and their
+  ## volume is one row per scanner request. The route is the matched contract
+  ## shape, never the raw path, so the evidence cannot carry a slug-shaped
+  ## invention. A failed insert must not turn the refusal into a 500.
+  let communityId = if community.isSome: community.get.communityId else: ""
+  let role =
+    if user.isOwner: "platform_owner"
+    elif community.isSome: $community.get.role
+    else: "member"
+  try:
+    recordAudit(application.db, auditEvent("authz.denied", communityId,
+      actorId = user.id, actorRole = role, outcome = arDeny,
+      targetKind = "route", targetId = currentRouteLabel,
+      reason = "denied " & currentRouteLabel,
+      requestId = currentRequestId()).withEvidence(newJObject(),
+        %*{"route": currentRouteLabel, "slug": slug}))
+  except DbError as error:
+    logError("denied request not audited",
+      [("error", error.msg), ("route", currentRouteLabel)])
+
 proc authorizeUrl(config: OidcConfig, state, nonce, challenge: string): string =
   let separator = if '?' in config.authorizeUrl: "&" else: "?"
   config.authorizeUrl & separator &
@@ -607,7 +638,6 @@ proc startAuth(request: Request, snapshot: Snapshot) =
       textParam(safeReturn), intParam(ttl.int64)])
   jsonResponse(request, 200, %*{
     "authorizeUrl": authorizeUrl(application.oidc, state, nonce, challenge),
-    "keyId": keyId,
   }, [("Set-Cookie", authFlowCookie(state))])
 
 proc finishAuth(request: Request, snapshot: Snapshot) =
@@ -780,6 +810,8 @@ proc scoped(request: Request, snapshot: Snapshot, slug: string,
     return none((AuthUser, CommunityContext))
   let (decision, ctx) = decide(user.get, slug, access)
   if decision != gAllowed:
+    if decision == gForbidden:
+      denyAudit(user.get, ctx, slug)
     respondGate(request, decision)
     return none((AuthUser, CommunityContext))
   some((user.get, ctx.get))
@@ -1110,10 +1142,19 @@ proc listSessions(request: Request, ctx: CommunityContext,
 proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
                  sessionId: string, snapshot: Snapshot) =
   let session = application.db.queryOne(
-    "select id from session.sessions where id = $1 and community_id = $2",
+    """select id, status from session.sessions
+       where id = $1 and community_id = $2""",
     @[textParam(sessionId), textParam(ctx.communityId)])
   if session.isNone:
     problem(request, 404, "NOT_FOUND", "session not found")
+    return
+  # A code hands the session to anyone holding it, so it may only name a
+  # session the community has approved. A draft would publish an unfinished
+  # schedule and standings for the whole TTL.
+  let status = session.get.get("status")
+  if not shareStore.shareable(status):
+    problem(request, 409, "SESSION_NOT_SHAREABLE",
+      "session status is " & status & "; only an approved session is shareable")
     return
   # Issuing a link revokes the previous one in the same transaction, so its
   # watchers and their tickets go too.
@@ -2092,7 +2133,14 @@ proc readyz(request: Request) =
   if detail.len == 0:
     send(request, 200, """{"status":"ok"}""")
   else:
-    problem(request, 503, "NOT_READY", detail)
+    # The reason is for the operator's log, never the anonymous caller. A probe
+    # only needs "not ready"; naming the missing relation, the unreachable
+    # database or a wrong snapshot tells a scanner which half of the system is
+    # fragile, and distinguishing a wrong dump from a migration gap is exactly
+    # the reconnaissance this route should not offer.
+    logError("readiness refused",
+      [("detail", detail), ("request_id", currentRequestId())])
+    send(request, 503, """{"status":"not_ready"}""")
 
 proc sessionVersionNow(communityId, sessionId: string): int =
   sessionDetail.versionOf(database(), communityId, sessionId)
@@ -2385,18 +2433,35 @@ proc scheduleProblem(request: Request, status: sessionSchedule.ScheduleStatus) =
   of sessionSchedule.ssNotParticipant:
     problem(request, 400, "NOT_PARTICIPANT", "player is not in this session")
 
-proc scheduleDone(request: Request, ctx: CommunityContext, sessionId: string,
+proc scheduleAudit(ctx: CommunityContext, user: AuthUser, action,
+                  sessionId: string, evidence: JsonNode) =
+  ## One row per mutating scoring call. The schedule store owns its own
+  ## transaction, so this row commits after the write instead of with it; a
+  ## failed insert is logged rather than turning a saved score into a 500.
+  try:
+    recordAudit(application.db, evidenceEvent(action, ctx.communityId, user,
+      "session", sessionId, evidence, $ctx.role))
+  except DbError as error:
+    logError("scoring write not audited",
+      [("error", error.msg), ("action", action)])
+
+proc scheduleDone(request: Request, ctx: CommunityContext, user: AuthUser,
+                  action: string, evidence: JsonNode, sessionId: string,
                   status: sessionSchedule.ScheduleStatus) =
   if status != sessionSchedule.ssOk:
     scheduleProblem(request, status)
     return
+  # The writes that decide ranking points are the ones with no attributable
+  # record otherwise: a host could change a score before approval and the only
+  # trace would be the final value plus a version counter.
+  scheduleAudit(ctx, user, action, sessionId, evidence)
   let version = sessionVersionNow(ctx.communityId, sessionId)
   application.hub.sessionChanged(sessionId, version)
   jsonResponse(request, 200, %*{"version": version},
     [("ETag", "\"" & $version & "\"")])
 
-proc putScheduleRoute(request: Request, ctx: CommunityContext, sessionId: string,
-                    snapshot: Snapshot) =
+proc putScheduleRoute(request: Request, ctx: CommunityContext, user: AuthUser,
+                    sessionId: string, snapshot: Snapshot) =
   let version = requireIfMatch(request)
   if version.isNone: return
   var games: seq[sessionSchedule.GameSpec]
@@ -2407,12 +2472,13 @@ proc putScheduleRoute(request: Request, ctx: CommunityContext, sessionId: string
       [("error", error.msg), ("path", request.path)])
     problem(request, 400, "INVALID_SCHEDULE", error.msg)
     return
-  scheduleDone(request, ctx, sessionId,
+  scheduleDone(request, ctx, user, "session.schedule.put",
+    %*{"count": games.len}, sessionId,
     sessionSchedule.putSchedule(application.db, ctx.communityId, sessionId,
       version.get, games))
 
-proc setAbsentRoute(request: Request, ctx: CommunityContext, sessionId: string,
-                    snapshot: Snapshot) =
+proc setAbsentRoute(request: Request, ctx: CommunityContext, user: AuthUser,
+                    sessionId: string, snapshot: Snapshot) =
   let version = requireIfMatch(request)
   if version.isNone: return
   var playerIds: seq[string]
@@ -2423,7 +2489,8 @@ proc setAbsentRoute(request: Request, ctx: CommunityContext, sessionId: string,
       [("error", error.msg), ("path", request.path)])
     problem(request, 400, "INVALID_SCHEDULE", error.msg)
     return
-  scheduleDone(request, ctx, sessionId,
+  scheduleDone(request, ctx, user, "session.absent.set", %*{"count": playerIds.len},
+    sessionId,
     sessionSchedule.setAbsent(application.db, ctx.communityId, sessionId,
       version.get, playerIds))
 
@@ -2460,8 +2527,8 @@ proc setVerdictProblem(request: Request, verdict: sessionScoring.SetVerdict) =
     problem(request, 400, "SETS_REQUIRED",
       "this format needs set scores, not a single score")
 
-proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
-                       gameKey: string,
+proc setGameScoreRoute(request: Request, ctx: CommunityContext, user: AuthUser,
+                       sessionId, gameKey: string,
                     snapshot: Snapshot) =
   let version = requireIfMatch(request)
   if version.isNone: return
@@ -2475,7 +2542,10 @@ proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
     if body["played"].kind != JBool:
       problem(request, 400, "INVALID_BODY", "played must be a boolean")
       return
-    scheduleDone(request, ctx, sessionId,
+    scheduleDone(request, ctx, user, "session.game.played",
+      %*{"gameKey": gameKey,
+         "status": (if body["played"].getBool(): "played" else: "scheduled")},
+      sessionId,
       sessionSchedule.setPlayed(application.db, ctx.communityId, sessionId,
         gameKey, version.get, body["played"].getBool()))
     return
@@ -2503,10 +2573,11 @@ proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
   if outcome.verdict.error != sessionScoring.seOk:
     setVerdictProblem(request, outcome.verdict)
     return
-  scheduleDone(request, ctx, sessionId, outcome.status)
+  scheduleDone(request, ctx, user, "session.game.score",
+    %*{"gameKey": gameKey, "count": sets.len}, sessionId, outcome.status)
 
-proc skipGameRoute(request: Request, ctx: CommunityContext, sessionId,
-                   gameKey: string,
+proc skipGameRoute(request: Request, ctx: CommunityContext, user: AuthUser,
+                   sessionId, gameKey: string,
                     snapshot: Snapshot) =
   let version = requireIfMatch(request)
   if version.isNone: return
@@ -2524,11 +2595,13 @@ proc skipGameRoute(request: Request, ctx: CommunityContext, sessionId,
           "playerIds must hold strings")
         return
       playerIds.add(item.getStr())
-    scheduleDone(request, ctx, sessionId,
+    scheduleDone(request, ctx, user, "session.game.skip",
+      %*{"gameKey": gameKey, "count": playerIds.len}, sessionId,
       sessionSchedule.setSkips(application.db, ctx.communityId, sessionId,
         gameKey, version.get, playerIds))
     return
-  scheduleDone(request, ctx, sessionId,
+  scheduleDone(request, ctx, user, "session.game.skip", %*{"gameKey": gameKey},
+    sessionId,
     sessionSchedule.skipGame(application.db, ctx.communityId, sessionId, gameKey,
       version.get))
 
@@ -2691,7 +2764,7 @@ proc resolveShare(code: string): Option[JsonNode] =
     value.sessionId)
   var games = newJArray()
   for row in application.db.query(
-    """select r.id, r.round_no, r.court_no, r.status, r.winner,
+    """select r.round_no, r.court_no, r.status, r.winner,
               r.points_a, r.points_b, r.sets_played, r.sets_a, r.sets_b,
               coalesce(a1.canonical_name, '') as a1,
               coalesce(a2.canonical_name, '') as a2,
@@ -2706,7 +2779,8 @@ proc resolveShare(code: string): Option[JsonNode] =
        order by r.round_no, r.court_no""",
     @[textParam(value.communityId), textParam(value.sessionId)]):
     # Names, not ids: a spectator cannot resolve a uuid, and the share payload
-    # is the only read that has no session behind it.
+    # is the only read that has no session behind it. The round and the court
+    # are the keys the public screen renders by, so nothing needs the id.
     var sideA = newJArray()
     var sideB = newJArray()
     for slot in ["a1", "a2"]:
@@ -2716,7 +2790,6 @@ proc resolveShare(code: string): Option[JsonNode] =
     let winner = row.get("winner")
     let scored = parseInt(row.get("sets_played")) > 0
     games.add(%*{
-      "id": row.get("id"),
       "round": parseInt(row.get("round_no")),
       "court": parseInt(row.get("court_no")),
       "sideA": sideA, "sideB": sideB,
@@ -2730,7 +2803,9 @@ proc resolveShare(code: string): Option[JsonNode] =
       "status": row.get("status"),
     })
   var shared = %*{
-    "session": {"id": value.sessionId, "title": value.title,
+    # No session id: the code is the only public key of this read, and the
+    # legacy `/s/<id>` alias would make the published uuid a second one.
+    "session": {"title": value.title,
                 "date": value.sessionDate, "status": value.status},
     "community": {"slug": value.slug, "name": value.communityName},
     "games": games,
@@ -3523,21 +3598,21 @@ proc dispatch(request: Request) =
             clearSessionRating(request, ctx, user, parts[4])
           return
       if parts.len == 6 and parts[5] == "schedule" and verb == "PUT":
-        putScheduleRoute(request, ctx, parts[4], snapshot)
+        putScheduleRoute(request, ctx, user, parts[4], snapshot)
         return
       if parts.len == 6 and parts[5] == "absent" and verb == "PATCH":
-        setAbsentRoute(request, ctx, parts[4], snapshot)
+        setAbsentRoute(request, ctx, user, parts[4], snapshot)
         return
       if parts.len == 7 and parts[5] == "games":
         if verb == "GET":
           getGameRoute(request, ctx, parts[4], parts[6])
           return
         if verb == "PATCH":
-          setGameScoreRoute(request, ctx, parts[4], parts[6], snapshot)
+          setGameScoreRoute(request, ctx, user, parts[4], parts[6], snapshot)
           return
       if parts.len == 8 and parts[5] == "games" and parts[7] == "skip" and
          verb == "PATCH":
-        skipGameRoute(request, ctx, parts[4], parts[6], snapshot)
+        skipGameRoute(request, ctx, user, parts[4], parts[6], snapshot)
         return
       if parts.len in [4, 5] or
          (parts.len == 6 and parts[5] in

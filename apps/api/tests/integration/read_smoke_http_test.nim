@@ -130,7 +130,7 @@ proc bootstrap() =
   # so the retirement run has something to clear.
   legacyCommunityId = newCommunity(database, legacySlug, "Legacy Smoke")
   legacySessionId = newSession(database, legacyCommunityId, "Legacy Night",
-    "2026-11-09")
+    "2026-11-09", status = "locked", approved = true)
   discard shareStore.issue(database, loadKeyring(keysJson, "1"),
     legacyCommunityId, legacySessionId, ownerId, 30)
   discard database.execUpdate(
@@ -431,7 +431,12 @@ suite "authenticated read smoke":
     let body = response.body
     expectRead(response, "getSharedSession", 200)
     let payload = parseJson(body)
-    check payload["session"]["id"].getStr() == sessionId
+    # SEC-20: the code is the only public key of this read. No session id and no
+    # game id, so the payload cannot alias the legacy `/s/<id>` route.
+    check not payload["session"].hasKey("id")
+    check not payload["games"][0].hasKey("id")
+    check payload["games"][0]["round"].getInt() == 0
+    check payload["games"][0]["court"].getInt() == 0
     check payload["session"]["title"].getStr() == "Read Smoke Night"
     check payload["community"]["slug"].getStr() == slug
     check payload["games"].len == 2

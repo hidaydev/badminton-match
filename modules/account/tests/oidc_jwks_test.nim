@@ -65,6 +65,26 @@ suite "JWKS cache":
       discard
     check fetchCount.load(moRelaxed) == 0
 
+  test "the retry after a refetch checks the signature, not the key id":
+    ## SEC-17: a rotation is routine, not adversarial. The first attempt misses
+    ## the id, the forced refetch brings it, and the retry reaches the signature
+    ## check, which is the only thing left for a real provider token.
+    var calls = 0
+    setJwksFetcher(proc(config: OidcConfig): seq[Jwk] =
+      inc calls
+      if calls == 1: @[]
+      else: @[Jwk(kid: "k9", modulus: "AQAB", exponent: "AQAB")])
+    let config = OidcConfig(jwksUrl: "http://provider.test/jwks")
+    var message = ""
+    try:
+      discard verifyIdTokenWithRefresh(config, tokenWithKid("k9"), "issuer",
+        "client", "n", 0)
+    except JwtError as error:
+      message = error.msg
+    check calls == 2
+    check message != "unknown JWKS kid"
+    check message.len > 0
+
   test "eight concurrent first logins initialise the cache without a race":
     # The lock is initialised at module load, so there is no `initLock` on the
     # request path for two threads to enter. The stress is what proves it.
