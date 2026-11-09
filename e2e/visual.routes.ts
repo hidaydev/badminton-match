@@ -37,6 +37,12 @@ export type VisualRoute = {
    * skeleton.
    */
   ready: (state: E2eState) => string
+  /**
+   * Mask the empty date filter in the screenshot. WebKit paints today's date
+   * into an empty `<input type="date">` and `setFixedTime` does not reach that
+   * native control, so a shot of this screen is otherwise different every day.
+   */
+  maskDateFilter?: boolean
 }
 
 export const visualRoutes: readonly VisualRoute[] = [
@@ -72,6 +78,7 @@ export const visualRoutes: readonly VisualRoute[] = [
     name: 'sessions',
     path: (state) => `/c/${state.communitySlug}/sessions`,
     ready: (state) => `text=${state.sessionTitle}`,
+    maskDateFilter: true,
   },
   // Filtered on purpose: the roster order is the server's to change, and a
   // baseline cannot pin a list whose order the API never promised.

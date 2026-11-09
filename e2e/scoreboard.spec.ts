@@ -13,9 +13,13 @@ import type { Page } from 'playwright/test'
 const scoreboardURL =
   process.env.E2E_SCOREBOARD_BASE_URL ?? 'http://127.0.0.1:4173'
 
-/** The red half is the first side: it is the left panel until a swap. */
+/**
+ * The score face is a real `<button>` whose accessible name starts with the
+ * team name. The fixture never renames a side, so the red half is still "RED";
+ * matching on the name keeps the locator off the blue half even after a swap.
+ */
 function redSide(page: Page) {
-  return page.locator('[role="button"]').filter({ hasText: 'tap to score' }).first()
+  return page.getByRole('button', { name: /^RED, score \d+\. Add a point$/ })
 }
 
 async function precacheShell(page: Page) {
