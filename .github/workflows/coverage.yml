@@ -32,7 +32,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: "coverage-${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.head.sha) || format('{0}-{1}', github.event_name, github.ref) }}"
+  # One group per push: a shared group with cancel-in-progress false does not
+  # serialise politely, it queues the new run and cancels any run already
+  # waiting in that group, so a third push can drop the second commit's ratchet
+  # entirely. The sha makes every push its own group and its own full run.
+  group: "coverage-${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.head.sha) || format('{0}-{1}-{2}', github.event_name, github.ref, github.sha) }}"
   # Only a pull request may cancel an earlier run. A second push to main used to
   # cancel the first, so the ratchet on the commit that is actually deployed
   # never finished.
