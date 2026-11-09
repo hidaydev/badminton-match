@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { manifest } from './src/manifest'
 
 export default defineConfig({
   plugins: [
@@ -23,21 +24,7 @@ export default defineConfig({
         // the offline shell draws, so it does not buy a slot in the precache.
         globIgnores: ['manifest.webmanifest', 'majadu-logo.png', 'logo-512.png'],
       },
-      manifest: {
-        name: 'MAJADU Score',
-        short_name: 'Score',
-        description: 'Badminton scoreboard by MAJADU',
-        theme_color: '#020617',
-        background_color: '#020617',
-        display: 'standalone',
-        orientation: 'any',
-        start_url: '/',
-        icons: [
-          { src: '/logo-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/logo-512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
-      },
+      manifest,
     }),
   ],
 })
