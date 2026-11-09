@@ -116,7 +116,8 @@ proc main() =
   let apiHandler =
     if config.testRoutes: makeHandler(config.testRoutes)
     else: bootHandler(config, threads)
-  let apiServer = newServer(apiHandler, websocketHandler(), workerThreads = threads)
+  let apiServer = newServer(apiHandler, websocketHandler(), workerThreads = threads,
+    logHandler = structuredLogHandler)
 
   var metricsWorker: Thread[MetricsArgs]
   if config.metricsPort > 0:

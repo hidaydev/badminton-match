@@ -3236,16 +3236,9 @@ proc detailForSqlState(state: string): string =
   else:
     "the row is still referenced by other data"
 
-proc route(request: Request) =
-  try:
+proc dispatch(request: Request) =
+  block:
     let path = request.path
-    # The quota label is derived from the contract shape before any database
-    # read, so even a 500 from the config snapshot carries this request's label
-    # instead of the previous one's.
-    currentRouteLabel = quotaRoute(path)
-    # One id per request: every audit row written while serving it and the
-    # access-log line share it, so a 500 can be paired with the write before it.
-    beginRequest()
     # The probes answer before any database or config read and outside the
     # quota. A liveness check that needs a database is a database probe, and a
     # burst must never answer 429 to the probe that decides a deploy is healthy.
@@ -3586,6 +3579,26 @@ proc route(request: Request) =
         issueShareTicket(request, code, snapshot)
         return
     routeNotFound(request)
+
+proc internalFailure(request: Request, error: ref Exception) =
+  ## One envelope for a crash. Driver messages echo input values; the logger
+  ## redacts and emits one JSON line, so a crafted path cannot forge log rows or
+  ## leak a share code. The body names the request id, because the access line
+  ## of a 500 and the audit rows of the write before it are found by that id.
+  let requestId = currentRequestId()
+  logError("request failed",
+    [("error", error.msg), ("path", request.path),
+     ("request_id", requestId)])
+  problem(request, 500, "INTERNAL", "internal error",
+    %*{"request_id": requestId})
+
+proc guarded*(request: Request, body: proc()) =
+  ## The last line of the request chain. Every branch answers with the one
+  ## envelope, including a `Defect`: without this, an `IndexDefect` or a
+  ## `KeyError` from a bad slice reaches mummy, which answers a plain 500 with
+  ## no body, no code, no request id and no metric.
+  try:
+    body()
   except DbPoolTimeout:
     # The request never reached a query: answer with a retryable status instead
     # of holding the worker thread until the pool cycle unwedges.
@@ -3600,15 +3613,21 @@ proc route(request: Request) =
       problem(request, status, codeForSqlState(error.sqlState),
         detailForSqlState(error.sqlState))
       return
-    # Driver messages echo input values; the logger redacts and emits one JSON
-    # line, so a crafted path cannot forge log rows or leak a share code.
-    logError("request failed", [("error", error.msg), ("path", request.path)])
-    problem(request, 500, "INTERNAL", "internal error")
+    internalFailure(request, error)
+  except Defect as error:
+    internalFailure(request, error)
   except CatchableError as error:
-    # Driver messages echo input values; the logger redacts and emits one JSON
-    # line, so a crafted path cannot forge log rows or leak a share code.
-    logError("request failed", [("error", error.msg), ("path", request.path)])
-    problem(request, 500, "INTERNAL", "internal error")
+    internalFailure(request, error)
+
+proc route(request: Request) =
+  # The quota label is derived from the contract shape before any database
+  # read, so even a 500 from the config snapshot carries this request's label
+  # instead of the previous one's.
+  currentRouteLabel = quotaRoute(request.path)
+  # One id per request: every audit row written while serving it and the
+  # access-log line share it, so a 500 can be paired with the write before it.
+  beginRequest()
+  guarded(request, proc() = dispatch(request))
 
 proc secureCookies(oidc: OidcConfig): bool =
   ## An explicit flag wins, but it cannot contradict the deployment: a public

@@ -129,6 +129,29 @@ proc recordIdentitySource*(source: string) =
   withLock registryLock:
     registry.inc("identity_resolution", [("source", source)])
 
+proc renderServerLog*(level: mummy.LogLevel,
+                      args: openArray[string]): string =
+  ## mummy's own lines ("Handler exception", "Dropped connection, body too
+  ## large") rendered as the same JSON object as the application's. One parser
+  ## reads the journal, and the line carries the request id of the request the
+  ## worker thread was serving.
+  var text = ""
+  for arg in args:
+    text.add(arg)
+  let name =
+    case level
+    of mummy.DebugLevel: "debug"
+    of mummy.InfoLevel: "info"
+    of mummy.ErrorLevel: "error"
+  renderLog(name, "server", [("detail", text),
+    ("request_id", currentRequestId())])
+
+proc structuredLogHandler*(level: mummy.LogLevel,
+                           args: varargs[string]) {.gcsafe.} =
+  ## Installed on `newServer`, so mummy cannot write an unstructured line.
+  {.cast(gcsafe).}:
+    stdout.writeLine renderServerLog(level, args)
+
 proc metricsText*(): string {.gcsafe.} =
   ## Prometheus text exposition for the internal listener. The registry holds a
   ## table, which Nim refuses to call gcsafe for a global; the cast is sound
