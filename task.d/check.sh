@@ -80,8 +80,10 @@ if [ "$run_suites" = "1" ]; then
 fi
 
 # QA-13: a quarantine without an owner or an expiry is a retry count in
-# disguise, so the register is validated on every check.
+# disguise, so the register is validated on every check. The same pass reads the
+# low-coverage manifest: a file under 80 percent needs a dated exception.
 sh "$REPO_ROOT/task.d/flakeregister.sh"
+sh "$REPO_ROOT/task.d/coverage-debt.sh"
 
 # QA-11: the TypeScript coverage threshold is part of this gate, not only of CI.
 # `--no-run` is the compile-only mode `ci` uses before `test`, and the TypeScript

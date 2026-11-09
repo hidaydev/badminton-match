@@ -64,3 +64,27 @@ suite "coverage gate models":
     # A model is never rewritten, so the checked-in verdict is stable.
     let baseline = fixture.root / model("file-decrease") / "baseline.json"
     check readFile(baseline).contains("\"floor\"")
+
+  test "update rewrites the floor from the measured total":
+    ## QA-13: the floor is a high-water mark. A run that measures 90 percent
+    ## records 90, not the 52.52 an old baseline happened to carry.
+    let fixture = newFixture("coverage-floor")
+    defer: removeDir(fixture.root)
+    let result = fixture.runTask(@["coverage", "--model", model("passing"),
+      "--update"])
+    check result.exitCode == 0
+    var written = ""
+    for path in walkDirRec(fixture.root / ".cache"):
+      if path.endsWith("baseline.next.json"):
+        written = path
+    check written.len > 0
+    var lines = 0
+    var covered = 0
+    for row in readFile(fixture.root / model("passing") / "files.tsv").splitLines:
+      let fields = row.split('\t')
+      if fields.len >= 3:
+        lines += parseInt(fields[1])
+        covered += parseInt(fields[2])
+    let expected = formatFloat(covered * 100 / lines, ffDecimal, 2)
+    check readFile(written).contains("  \"floor\": " & expected & ",")
+

@@ -550,20 +550,18 @@ run_update() {
       fail "coverage fell below the baseline; pass --allow-decrease to accept the regression"
   fi
 
+  # QA-13: the floor is a high-water mark, not the lowest number ever seen.
+  # Holding an old floor let the total fall 39.6 points while the gate still
+  # said the floor was held. Every --update now records the total it measured;
+  # a real decrease is refused unless --allow-decrease names it above.
   _pct=$(awk -F'\t' '{ printf "%.2f", ($1 == 0) ? 0 : ($2 * 100 / $1) }' "$COV/total.tsv")
   _old_floor=$(baseline_floor "$BASELINE")
-  if [ -n "$_old_floor" ]; then
-    if awk -v n="$_pct" -v f="$_old_floor" 'BEGIN { exit !(n + 0.0001 >= f + 0) }'; then
-      _floor=$_old_floor
-    elif [ "$allow_decrease" -eq 1 ]; then
+  if [ -n "$_old_floor" ] && [ "$allow_decrease" -eq 1 ]; then
+    if awk -v n="$_pct" -v f="$_old_floor" 'BEGIN { exit !(n + 0.0001 < f + 0) }'; then
       printf 'coverage: accepting floor decrease: %s%% -> %s%%\n' "$_old_floor" "$_pct" >&2
-      _floor=$_pct
-    else
-      fail "coverage ${_pct}% is below the baseline floor ${_old_floor}%; pass --allow-decrease to accept it"
     fi
-  else
-    _floor=$_pct
   fi
+  _floor=$_pct
 
   write_baseline "$_out" "$_floor"
   printf 'coverage: baseline written to %s\n' "${_out#$REPO_ROOT/}"
