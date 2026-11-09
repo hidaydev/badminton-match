@@ -141,7 +141,7 @@ function TeamWizard() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent scheme-dark"
+              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           </label>
           <button
@@ -341,7 +341,7 @@ function ClassicWizard() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent scheme-dark"
+              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           </label>
           <button

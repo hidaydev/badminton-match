@@ -154,6 +154,10 @@
   --color-info: #5b8fbd;
 }
 
+:root {
+  color-scheme: dark;
+}
+
 * {
   box-sizing: border-box;
 }

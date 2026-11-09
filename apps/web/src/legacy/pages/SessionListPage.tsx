@@ -205,7 +205,7 @@ export default function SessionListPage() {
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
             aria-label={t('sessions.filterDate')}
-            className="bg-elevated border border-border rounded-lg px-2.5 py-2 text-xs font-mono text-fg scheme-dark focus:border-accent focus:outline-none"
+            className="bg-elevated border border-border rounded-lg px-2.5 py-2 text-xs font-mono text-fg focus:border-accent focus:outline-none"
           />
           {dateFilter && (
             <button
