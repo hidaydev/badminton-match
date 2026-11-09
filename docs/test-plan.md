@@ -106,3 +106,24 @@ or work that needs an environment this repository cannot provide.
    the dispatch sweep and the classifier test both read it.
 5. Do not add a skip without `task.d/skip-allowlist.txt` (owner and expiry), and
    do not add a quarantine without `docs/handbook/flaky-tests.json`.
+
+## 7. Required status checks
+
+GitHub cannot express a dependency between two workflows, so the aggregate
+`Gate` job in `ci.yml` cannot require the `Coverage` workflow. The branch
+protection rule on `main` therefore has to require both checks:
+
+| Check | Workflow | Covers |
+|---|---|---|
+| `Gate` | `ci.yml` | check, test, contract, supply chain, web, e2e, mutation, image |
+| `Coverage: ratchet` | `coverage.yml` | the per-file, domain and total ratchet plus diff coverage |
+
+A pull request may merge only when both are green. Verify the setting with:
+
+```sh
+./task branch-protection
+```
+
+It reads `repos/<owner>/<repo>/branches/main/protection/required_status_checks`
+through `gh` and names a missing check instead of trusting this table.
+
