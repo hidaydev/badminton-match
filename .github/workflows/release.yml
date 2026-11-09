@@ -236,7 +236,7 @@ jobs:
           fi
           if [ "$present" = 0 ]; then
             echo "::error::e2e/__screenshots__/linux is missing or empty and a tag must compare against it."
-            echo "::error::Record it deliberately on Linux with ./task e2e --update-snapshots, then review and commit e2e/__screenshots__/linux/."
+            echo "::error::Record it deliberately on a Linux machine (see e2e/README.md), review it and commit e2e/__screenshots__/linux/."
             exit 1
           fi
       - name: "E2E: run"

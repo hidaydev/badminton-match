@@ -70,9 +70,11 @@ suite "workflow contract":
 
   # ISO-14: the Linux baseline is committed, so CI may only compare it.
   test "no CI path records a visual baseline":
+    for workflow in ["ci.yml", "release.yml"]:
+      let text = readFile(repoDir / ".github" / "workflows" / workflow)
+      check not text.contains("--update-snapshots")
+      check not text.contains("update_snapshots")
     let text = readFile(repoDir / ".github" / "workflows" / "ci.yml")
-    check not text.contains("--update-snapshots")
-    check not text.contains("update_snapshots")
     check text.contains("E2E: require the Linux baseline")
     check dirExists(repoDir / "e2e" / "__screenshots__" / "linux")
     check fileExists(repoDir / "e2e" / "__screenshots__" / "linux" /
