@@ -243,8 +243,33 @@ not exist:
 - `readyz` used to be just a probe; now `majadu-readyz.timer` hits it every 5
   minutes and a failure becomes an alert. Internal metrics exist on
   `MAJADU_METRICS_PORT` (default 9090, bound to 127.0.0.1 inside the container
-  and never published). There is no scrape target or dashboard, so the supported
-  query is manual:
+  and never published). The endpoint stays unpublished, and a host agent
+  scrapes it through the `node_exporter` textfile collector:
+
+  ```ini
+  # ~/.config/systemd/user/majadu-metrics-scrape.service
+  [Unit]
+  Description=Majadu metrics for the node_exporter textfile collector
+  [Service]
+  Type=oneshot
+  ExecStart=/usr/bin/podman exec majadu-api /usr/bin/curl -fsS \
+    http://127.0.0.1:9090/metrics
+  StandardOutput=file:/srv/qouver/apps/majadu/metrics/majadu.prom
+
+  # ~/.config/systemd/user/majadu-metrics-scrape.timer
+  [Unit]
+  Description=Scrape the Majadu metrics port once a minute
+  [Timer]
+  OnCalendar=*:0/1
+  [Install]
+  WantedBy=timers.target
+  ```
+
+  `node_exporter` runs with
+  `--collector.textfile.directory=/srv/qouver/apps/majadu/metrics` and
+  Prometheus scrapes that exporter, so the target is `127.0.0.1:9100` while the
+  API port remains loopback-only. Without the agent the supported query is
+  still manual:
 
   ```sh
   podman exec majadu-api curl -fsS http://127.0.0.1:9090/metrics \
@@ -254,15 +279,45 @@ not exist:
   That line, plus the structured `"msg":"request"` access log, is the current
   answer to "request rate and 5xx for the last hour".
 
+  Authentication and authorization refusals are the signal SEC-02 exists for,
+  and they are both counted and audited: every `403` from a community route
+  writes one `account.audit` row with `action = 'authz.denied'` (actor, role,
+  route template, request id), and the counter below is the cheap series to
+  alert on before reading those rows:
+
+  ```yaml
+  # /srv/qouver/apps/majadu/env/alert-rules.yml, loaded by Prometheus
+  groups:
+    - name: majadu
+      rules:
+        - alert: MajaduAuthRefusals
+          # 403 is a principal that is signed in and refused, which is what
+          # enumeration looks like; a public scan mostly answers 401 instead.
+          expr: sum(rate(http_requests_total{status="403"}[5m])) > 0.05
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "sustained 403 responses on the Majadu API"
+            description: >-
+              A signed-in principal is being refused repeatedly. Read
+              account.audit where action = 'authz.denied' for the actor and the
+              route template, and correlate by request_id with the access log.
+  ```
+
+  A broader `status=~"401|403"` selector counts anonymous refusals too; the
+  rule above narrows it to 403 so a mistyped URL does not page anyone.
+
 ### 4.1 Metrics scrape checklist
 
-The registry is a Prometheus text exposition on the loopback listener. It is
-not scraped by a server yet, so these are the series an operator reads by hand
-during an incident, and the query each one answers:
+The registry is a Prometheus text exposition on the loopback listener. Until
+the textfile agent above is installed it is read by hand, so these are the
+series an operator reads during an incident, and the query each one answers:
 
 | Series | Answers |
 |---|---|
 | `http_requests_total{method,route,status}` | which route is 5xx-ing right now |
+| `http_requests_total{status="403"}` | whether a signed-in principal is being refused; pair it with `account.audit` where `action = 'authz.denied'` |
 | `http_request_duration_seconds_bucket{route,le}` | p95 latency of one route (`histogram_quantile` over the buckets) |
 | `http_request_duration_seconds_sum` / `_count` | mean latency of one route |
 | `db_pool_available` / `db_pool_in_use` / `db_pool_size` | whether the pool is the reason requests queue |

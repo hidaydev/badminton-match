@@ -33,7 +33,7 @@ const
   evidenceAllowlist = [
     "slug", "name", "title", "date", "status", "role", "version",
     "sessionid", "playerid", "claimid", "matchid", "tournamentid",
-    "fromrole", "torole", "count", "rating", "reason",
+    "fromrole", "torole", "count", "rating", "reason", "route",
   ]
 
   forbiddenKeys = ["code", "email", "ip", "token", "cookie", "ticket",

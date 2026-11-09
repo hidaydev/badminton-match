@@ -579,6 +579,31 @@ proc decide(user: AuthUser, slug: string,
 proc respondGate(request: Request, decision: Gate) =
   problem(request, statusFor(decision), codeFor(decision), codeFor(decision))
 
+proc denyAudit(user: AuthUser, community: Option[CommunityContext], slug: string) =
+  ## A refused request from an authenticated principal leaves one row. Without
+  ## it a member walking another community's surface, or a script probing a
+  ## route it may not use, leaves only a counter nobody scrapes.
+  ##
+  ## Anonymous refusals are not recorded here: they have no actor and their
+  ## volume is one row per scanner request. The route is the matched contract
+  ## shape, never the raw path, so the evidence cannot carry a slug-shaped
+  ## invention. A failed insert must not turn the refusal into a 500.
+  let communityId = if community.isSome: community.get.communityId else: ""
+  let role =
+    if user.isOwner: "platform_owner"
+    elif community.isSome: $community.get.role
+    else: "member"
+  try:
+    recordAudit(application.db, auditEvent("authz.denied", communityId,
+      actorId = user.id, actorRole = role, outcome = arDeny,
+      targetKind = "route", targetId = currentRouteLabel,
+      reason = "denied " & currentRouteLabel,
+      requestId = currentRequestId()).withEvidence(newJObject(),
+        %*{"route": currentRouteLabel, "slug": slug}))
+  except DbError as error:
+    logError("denied request not audited",
+      [("error", error.msg), ("route", currentRouteLabel)])
+
 proc authorizeUrl(config: OidcConfig, state, nonce, challenge: string): string =
   let separator = if '?' in config.authorizeUrl: "&" else: "?"
   config.authorizeUrl & separator &
@@ -784,6 +809,8 @@ proc scoped(request: Request, snapshot: Snapshot, slug: string,
     return none((AuthUser, CommunityContext))
   let (decision, ctx) = decide(user.get, slug, access)
   if decision != gAllowed:
+    if decision == gForbidden:
+      denyAudit(user.get, ctx, slug)
     respondGate(request, decision)
     return none((AuthUser, CommunityContext))
   some((user.get, ctx.get))

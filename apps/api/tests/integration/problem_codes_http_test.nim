@@ -368,6 +368,34 @@ suite "problem-code reachability: guards":
     requireRow("large", "POST", "/auth/start", "", repeat('x', 1_100_000),
       413, "BODY_TOO_LARGE", "request body exceeds the limit")
 
+  test "a forbidden community write writes exactly one authz.denied row":
+    # SEC-02: the refusal is the only trace of a member probing a route they may
+    # not use unless it becomes a row. Exactly one, with the actor and the
+    # matched route template, never the raw path.
+    let before = database.queryOne(
+      """select count(*)::int as n from account.audit
+         where action = 'authz.denied' and actor_id = $1::uuid""",
+      @[textParam(memberAId)]).get.getInt("n")
+    let denied = call(baseUrl, HttpPost, "/c/" & slug & "/players",
+      memberCookie, """{"name":"Be19 Denied"}""")
+    expectStatus(denied, 403)
+    let after = database.queryOne(
+      """select count(*)::int as n from account.audit
+         where action = 'authz.denied' and actor_id = $1::uuid""",
+      @[textParam(memberAId)]).get.getInt("n")
+    check after == before + 1
+    let row = database.queryOne(
+      """select community_id::text as community_id, target_id,
+                after->>'route' as route, result
+         from account.audit
+         where action = 'authz.denied' and actor_id = $1::uuid
+         order by occurred_at desc limit 1""",
+      @[textParam(memberAId)])
+    check row.get.get("community_id") == communityId
+    check row.get.get("target_id") == "/c/{slug}/players"
+    check row.get.get("route") == "/c/{slug}/players"
+    check row.get.get("result") == "deny"
+
   test "every rejection carries no-store, not only the 204s and the 429s":
     # SEC-11: 404 and 410 are heuristically cacheable and a 429 carries
     # Retry-After, which a shared cache may honour. The API sits behind a CDN
