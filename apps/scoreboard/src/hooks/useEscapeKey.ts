@@ -1,7 +1,7 @@
-// useEscapeKey — tutup modal/overlay saat tombol Escape ditekan (a11y).
-// Callback disimpan di ref supaya listener tidak re-subscribe tiap render.
-// Stack global: kalau beberapa overlay aktif bersamaan, hanya overlay paling
-// atas yang menangani Escape (mencegah satu tombol menutup dua modal sekaligus).
+// useEscapeKey — close a modal or overlay when Escape is pressed (a11y).
+// The callback lives in a ref so the listener does not re-subscribe on every
+// render. One global stack: when several overlays are open, only the topmost
+// handles Escape, so one key press cannot close two modals at once.
 import { useEffect, useRef } from 'react'
 
 const escapeStack: Array<() => void> = []
