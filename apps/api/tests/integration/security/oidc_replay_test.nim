@@ -90,6 +90,9 @@ proc startFlow(returnTo: string): tuple[state, nonce: string] =
     body = $ %*{"returnTo": returnTo})
   doAssert response.status == 200, response.body
   check response.header("Set-Cookie").contains("majadu_auth_flow=")
+  # SEC-16: the key that sealed the verifier is the row's business, not the
+  # browser's, so the response names no key id.
+  check not response.json.hasKey("keyId")
   let url = response.json["authorizeUrl"].getStr()
   (queryParam(url, "state"), queryParam(url, "nonce"))
 

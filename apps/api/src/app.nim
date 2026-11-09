@@ -612,7 +612,6 @@ proc startAuth(request: Request, snapshot: Snapshot) =
       textParam(safeReturn), intParam(ttl.int64)])
   jsonResponse(request, 200, %*{
     "authorizeUrl": authorizeUrl(application.oidc, state, nonce, challenge),
-    "keyId": keyId,
   }, [("Set-Cookie", authFlowCookie(state))])
 
 proc finishAuth(request: Request, snapshot: Snapshot) =
