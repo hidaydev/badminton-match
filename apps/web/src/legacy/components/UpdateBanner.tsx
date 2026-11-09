@@ -1,5 +1,6 @@
 import { useId } from 'react'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { t } from '../../i18n'
 
 interface UpdateBannerProps {
   onReload(): void
@@ -60,14 +61,14 @@ export default function UpdateBanner({ onReload, onDismiss }: UpdateBannerProps)
             className="w-full py-3.5 rounded-lg bg-yellow-400 text-slate-950 font-bold text-sm
               active:scale-98 transition-transform hit44"
           >
-            Reload Now
+            {t('legacy.reloadNow')}
           </button>
           <button
             onClick={onDismiss}
             className="w-full py-3 rounded-lg text-slate-400 font-medium text-sm
               active:scale-98 transition-transform hit44"
           >
-            Later
+            {t('legacy.later')}
           </button>
         </div>
       </div>

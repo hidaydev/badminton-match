@@ -60,7 +60,7 @@ export function FixMatchCard({
             onClick={() => duplicateFixMatch(match.id)}
             className="text-xs text-slate-400 hover:text-slate-200 px-2.5 py-1.5 rounded hover:bg-slate-800 transition-colors hit44"
           >
-            Copy
+            {t('legacy.copy')}
           </button>
           <button
             onClick={() => removeFixMatch(match.id)}
@@ -82,7 +82,7 @@ export function FixMatchCard({
               : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-white'
           }`}
         >
-          Flexible
+          {t('legacy.flexible')}
         </button>
         <button
           onClick={() => updateFixMatch(match.id, { mode: 'pinned' })}

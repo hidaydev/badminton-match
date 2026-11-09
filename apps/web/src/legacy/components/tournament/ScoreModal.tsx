@@ -79,7 +79,7 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
   return (
     <Overlay
       onClose={onClose}
-      title="Enter Score"
+      title={t('legacy.title.enterScore')}
       description={`${pairAName} vs ${pairBName}`}
       footer={
         <div className="flex gap-3">
@@ -87,14 +87,14 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
             onClick={onClose}
             className="flex-1 py-3 rounded-xl bg-elevated border border-border hover:bg-border text-fg text-sm font-semibold transition-colors hit44"
           >
-            Cancel
+            {t('legacy.cancel')}
           </button>
           <button
             onClick={() => valid && onConfirm(a, b)}
             disabled={!valid}
             className="flex-1 py-3 rounded-xl bg-accent text-slate-950 text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-accent/90 active:scale-98 transition-all hit44"
           >
-            Confirm
+            {t('legacy.confirm')}
           </button>
         </div>
       }
@@ -135,7 +135,7 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
         onClick={() => setShowScoreboard(true)}
         className="w-full py-2.5 rounded-xl text-fg-dim border border-border text-sm font-medium flex items-center justify-center gap-2 hover:bg-elevated hover:text-fg active:bg-elevated/60 transition-colors hit44"
       >
-        Open Scoreboard
+        {t('legacy.openScoreboard')}
       </button>
     </Overlay>
   )

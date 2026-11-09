@@ -223,7 +223,7 @@ function AddPlayerRow({ onAdd, onCancel, canonicalPlayers }: {
         value={name}
         onChange={(e) => handleNameChange(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }}
-        placeholder="Player name"
+        placeholder={t('legacy.placeholder.playerName')}
         className="flex-1 bg-transparent text-white text-sm placeholder-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       />
       {/* Gender picker */}
@@ -235,7 +235,7 @@ function AddPlayerRow({ onAdd, onCancel, canonicalPlayers }: {
         disabled={!name.trim()}
         className="text-indigo-400 hover:text-indigo-300 disabled:opacity-30 text-sm font-medium transition-colors hit44"
       >
-        Add
+        {t('legacy.add')}
       </button>
       <button type="button" onClick={onCancel} className="text-slate-400 hover:text-slate-200 text-sm transition-colors hit44" aria-label={t('wizard.players.addCancel')}>
         ✕
@@ -309,7 +309,7 @@ function BulkImport({ onClose, existingCount, max, canonicalPlayers }: {
           Import {preview.length > 0 ? preview.length : ''} Players
         </button>
         <button onClick={onClose} className="px-4 py-2 text-slate-400 hover:text-slate-200 text-sm rounded-lg hover:bg-slate-700 transition-colors hit44">
-          Cancel
+          {t('legacy.cancel')}
         </button>
       </div>
     </div>

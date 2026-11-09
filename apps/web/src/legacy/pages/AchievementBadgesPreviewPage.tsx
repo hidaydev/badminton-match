@@ -9,6 +9,7 @@ import MedalHoneycomb from '../components/ratings/MedalHoneycomb'
 import { MEDAL_TIER_NAMES } from '../config/achievements'
 import type { MedalIcon } from '../utils/achievementBadge'
 import type { AchievementRow } from '../queries/endpoints'
+import { t } from '../../i18n'
 
 const ALL_MEDAL_ICONS: MedalIcon[] = [
   'check',
@@ -151,7 +152,7 @@ export default function AchievementBadgesPreviewPage() {
             <AchievementBadge
               icon="trophy"
               tierLevel={2}
-              title="Locked milestone"
+              title={t('legacy.title.lockedMilestone')}
               state="locked"
               width={58}
               onSelect={() => openMilestone('trophy', 1, 'Locked Milestone')}
@@ -162,7 +163,7 @@ export default function AchievementBadgesPreviewPage() {
             <AchievementBadge
               icon="flag"
               seed="locked-event"
-              title="Locked tournament"
+              title={t('legacy.title.lockedTournament')}
               state="locked"
               width={58}
               onSelect={() => openEvent('locked-tournament')}

@@ -15,6 +15,7 @@ import {
   type GroupId,
 } from '../utils/tournament'
 import { TEAM_CLASSES, TEAM_NAMES, type TeamClass } from '../utils/teamTournament'
+import { t } from '../../i18n'
 
 const PAIR_COUNT = 16
 const emptyPair = () => ({ a: '', b: '' })
@@ -131,7 +132,7 @@ function TeamWizard() {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. MAJADU Team Cup"
+              placeholder={t('legacy.placeholder.teamTournamentName')}
               className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           </label>
@@ -149,7 +150,7 @@ function TeamWizard() {
             disabled={!name.trim()}
             className="mt-2 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hit44"
           >
-            Next
+            {t('legacy.next')}
           </button>
         </div>
       )}
@@ -198,7 +199,7 @@ function TeamWizard() {
             disabled={!namesComplete || !classesBalanced || !matrixBalanced}
             className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hit44"
           >
-            Next
+            {t('legacy.next')}
           </button>
         </div>
       )}
@@ -211,12 +212,12 @@ function TeamWizard() {
               onClick={formTeams}
               className="text-xs px-3 py-1.5 rounded-lg border border-border-subtle text-fg-dim hover:text-fg hit44"
             >
-              Refresh
+              {t('legacy.refresh')}
             </button>
           </div>
           {teams.length === 0 && (
             <p className="text-xs text-fg-dim">
-              Team data will appear once players are entered in Step 2.
+              {t('legacy.teamDataHint')}
             </p>
           )}
           <div className="flex flex-col gap-2.5">
@@ -331,7 +332,7 @@ function ClassicWizard() {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Internal Cup 2026"
+              placeholder={t('legacy.placeholder.tournamentName')}
               className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           </label>
@@ -349,7 +350,7 @@ function ClassicWizard() {
             disabled={!name.trim()}
             className="mt-2 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hit44"
           >
-            Next
+            {t('legacy.next')}
           </button>
         </div>
       )}
@@ -364,7 +365,7 @@ function ClassicWizard() {
               onClick={() => setPairs(Array.from({ length: PAIR_COUNT }, emptyPair))}
               className="text-xs text-fg-dim hover:text-fg hit44"
             >
-              Reset
+              {t('legacy.reset')}
             </button>
           </div>
           <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
@@ -374,14 +375,14 @@ function ClassicWizard() {
                 <input
                   value={p.a}
                   onChange={(e) => updatePair(i, 'a', e.target.value)}
-                  placeholder="Player 1"
+                  placeholder={t('legacy.placeholder.player1')}
                   className="flex-1 bg-elevated border border-border rounded-lg px-2.5 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent min-w-0"
                 />
                 <span className="text-fg-dim text-xs shrink-0">&</span>
                 <input
                   value={p.b}
                   onChange={(e) => updatePair(i, 'b', e.target.value)}
-                  placeholder="Player 2"
+                  placeholder={t('legacy.placeholder.player2')}
                   className="flex-1 bg-elevated border border-border rounded-lg px-2.5 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent min-w-0"
                 />
               </div>
@@ -392,7 +393,7 @@ function ClassicWizard() {
             disabled={!pairsComplete}
             className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hit44"
           >
-            Next
+            {t('legacy.next')}
           </button>
         </div>
       )}
@@ -405,7 +406,7 @@ function ClassicWizard() {
               onClick={drawGroups}
               className="text-xs px-3 py-1.5 rounded-lg border border-border-subtle text-fg-dim hover:text-fg hit44"
             >
-              Re-draw
+              {t('legacy.reDraw')}
             </button>
           </div>
           {!groupsFull && (

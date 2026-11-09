@@ -69,7 +69,7 @@ export default function AdminPageShell({ adminOnly = false, children }: AdminPag
           onClick={() => navigate('/')}
           className="inline-flex min-h-11 min-w-11 -my-2 items-center justify-center px-2 text-xs text-fg-dim hover:text-fg transition-colors cursor-pointer"
         >
-          Home
+          {t('legacy.home')}
         </button>
       </div>
 

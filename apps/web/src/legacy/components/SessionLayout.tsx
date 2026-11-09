@@ -54,13 +54,13 @@ export default function SessionLayout() {
             <div className="ml-auto flex items-center gap-2 shrink-0">
               <span className="flex items-center gap-1.5 text-xs text-fg-dim">
                 <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
-                Active
+                {t('legacy.active')}
               </span>
               <button
                 onClick={() => { resetSession(); navigate('/') }}
                 className="inline-flex min-h-11 min-w-11 -my-[10px] items-center justify-center rounded-lg border border-border-subtle px-2 py-1 text-xs text-fg-dim hover:text-error transition-colors"
               >
-                Reset
+                {t('legacy.reset')}
               </button>
             </div>
           )}

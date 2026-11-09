@@ -37,7 +37,7 @@ implemented and not accepted).
 | RSK-002 | No automatic session lock after idle time | accepted for 2.0.0: a session is locked by the host who ran it; an automatic rule needs a confirmed window first | repo owner | 2.1.0 |
 | RSK-003 | `fix_matches` is device-local and does not sync | accepted for 2.0.0: the fixture rules live in the browser generator, so a second device cannot reproduce the seed | repo owner | 2.1.0 |
 | RSK-004 | Keyboard coverage is one disclosure, not a full flow | accepted for 2.0.0; see `docs/ops/accessibility.md` | repo owner | 2.1.0 |
-| RSK-005 | The product is single-locale and part of the legacy tree bypasses the dictionary | accepted for 2.0.0; see `docs/handbook/product-overview.md` | repo owner | 2.1.0 |
+| RSK-005 | The product is single-locale: one dictionary, no locale negotiation | accepted for 2.0.0; the legacy tree now reads the same dictionary; see `docs/handbook/product-overview.md` | repo owner | 2.1.0 |
 
 The register is checked by `./task docs-check`: a referenced evidence file that
 does not exist fails the gate. A requirement whose test was deleted is a

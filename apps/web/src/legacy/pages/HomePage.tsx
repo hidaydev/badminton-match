@@ -209,7 +209,7 @@ export default function HomePage() {
       {isAdmin && (
         <div className="flex flex-col gap-2">
           <p className="text-xs font-sans font-semibold text-amber-500/80 uppercase tracking-wider px-1">
-            Admin
+            {t('legacy.admin')}
           </p>
           <AdminMenuGrid />
         </div>

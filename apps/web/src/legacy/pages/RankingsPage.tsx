@@ -141,7 +141,7 @@ export default function RankingsPage() {
               onClick={() => void refetch()}
               className="text-xs font-medium text-accent hover:underline hit44"
             >
-              Retry
+              {t('legacy.retry')}
             </button>
           </div>
         )}

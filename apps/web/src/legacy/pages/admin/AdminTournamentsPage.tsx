@@ -65,7 +65,7 @@ export default function AdminTournamentsPage() {
                         }
                       }}
                     >
-                      Delete
+                      {t('legacy.delete')}
                     </ActionButton>
                   </div>
                 </div>
