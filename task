@@ -38,6 +38,7 @@ Targets:
   sharekeys    generate or rotate session share-link keys
   rehearsal    cutover rehearsal on a VPS (run | check | clean)
   e2e          browser a11y, visual and compatibility regression (Playwright)
+  scoreboard-pwa  assert the built scoreboard service worker precache
   release      prepare a release (dry-run by default)
   hooks        install the repository hooks (core.hooksPath)
 

@@ -7,11 +7,14 @@ import { visualRoutes } from './visual.routes'
  * Pixel baselines are recorded per platform, in `__screenshots__/{platform}/`,
  * because text rasterisation differs between macOS and Linux and production is
  * Linux. Both sets are committed: the macOS one is what a developer records and
- * reviews locally, and the Linux one is recorded by the same job that runs the
- * comparison on the runner (D-8, D-13).
+ * reviews locally, and the Linux one is recorded on a Linux machine, reviewed
+ * and committed. CI only compares (D-8, D-13).
  *
  * A platform with no baseline fails here rather than skipping: recording is an
  * explicit `./task e2e --update-snapshots` whose diff lands in the pull request.
+ * Snapshot tests carry the `@visual` tag so CI can exclude only them on main and
+ * pull requests while the Linux set is absent; tags and `release/*` branches
+ * never take that path, so a missing baseline fails there.
  */
 
 test.beforeEach(async ({ page }) => {
@@ -19,7 +22,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 for (const route of visualRoutes) {
-  test(`${route.name} matches the baseline`, async ({ page }) => {
+  test(`${route.name} matches the baseline @visual`, async ({ page }) => {
     // The session list prints a date-filter chip and the export poster prints
     // the day it was opened; both read the browser clock. Pin it so a baseline
     // recorded on one day is still valid the next.

@@ -11,8 +11,12 @@
 # therefore leaves production untouched. This workflow never creates or moves a
 # tag; the tag always comes from the operator's signed `git tag -s`.
 #
-# pnpm caching is not used on purpose: the release path builds the API image from
-# apps/api and never builds the web bundle, so there is no pnpm store to restore.
+# The front end is part of the release gate (QA-02): the web job type checks,
+# tests and builds both apps, and the e2e job drives the built web bundle. No
+# job repeats another job's command: `./task ci` covers the Nim suites, coverage
+# re-runs them instrumented against the committed baseline, and e2e and parity
+# boot the API they drive. Each job keeps the repository's 15-minute cap and its
+# own cache.
 name: Release
 
 on:
@@ -32,7 +36,9 @@ jobs:
     timeout-minutes: 15
     # The gate is `./task ci`, not `./task check`: a release must also pass the
     # integration suites and the contract fingerprint, and those need a
-    # database. The same service and provisioning steps as `ci.yml`. The
+    # database. The same service and provisioning steps as `ci.yml`. The web,
+    # e2e, coverage, mutation and parity jobs below complete the release gate;
+    # `image` depends on all of them, so any red job stops the artifact. The
     # 15-minute cap is the repository's contract; a tag that cannot finish
     # inside it fails closed (the image is never built, `main` is not pushed).
     services:
@@ -127,11 +133,231 @@ jobs:
           MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
         run: ./task ci
 
+  web:
+    name: "Release: web"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@9bbca1e9dc2902adb87e8780fe5c98796985a62d # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - name: "Web: install"
+        run: pnpm install --frozen-lockfile
+      # QA-02: `./task ci` skips the TypeScript half, so the release gate runs
+      # it here. `pnpm check:web` is tsc plus vitest for both front-end apps.
+      - name: "Web: check"
+        run: pnpm check:web
+      - name: "Web: build"
+        run: pnpm build:web
+      # PWA-03: the scoreboard is the build used in the hall, so a release must
+      # produce it and prove its service worker precaches the shell.
+      - name: "Scoreboard: build"
+        run: pnpm build:scoreboard
+      - name: "Scoreboard: assert the service worker precache"
+        run: ./task scoreboard-pwa
+
+  e2e:
+    name: "Release: e2e"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+        with:
+          nim-version: ${{ env.NIM_VERSION }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nimble
+          key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      - name: "Dependencies: install pinned Nim packages"
+        run: ./task deps-install
+      - uses: pnpm/action-setup@9bbca1e9dc2902adb87e8780fe5c98796985a62d # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      - name: "E2E: install"
+        run: pnpm install --frozen-lockfile
+      - name: "E2E: install browsers"
+        run: pnpm exec playwright install --with-deps
+      - name: "Database: provision"
+        env:
+          MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env
+        run: |
+          ./task dev-db
+          psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE \"$(whoami)\" LOGIN SUPERUSER PASSWORD 'postgres'"
+      # QA-03: production is Linux and the Linux visual baseline has to be
+      # committed and non-empty. A missing set fails here with the command that
+      # records it; it is never recorded from a tag build.
+      - name: "E2E: require the Linux baseline"
+        run: |
+          present=0
+          if [ -d e2e/__screenshots__/linux ] &&
+            [ -n "$(ls -A e2e/__screenshots__/linux 2>/dev/null)" ]; then
+            present=1
+          fi
+          if [ "$present" = 0 ]; then
+            echo "::error::e2e/__screenshots__/linux is missing or empty and a tag must compare against it."
+            echo "::error::Record it deliberately on Linux with ./task e2e --update-snapshots, then review and commit e2e/__screenshots__/linux/."
+            exit 1
+          fi
+      - name: "E2E: run"
+        env:
+          PGPASSWORD: postgres
+        run: ./task e2e
+
+  coverage:
+    name: "Release: coverage"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+        with:
+          nim-version: ${{ env.NIM_VERSION }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nimble
+          key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      - name: "Dependencies: install pinned Nim packages"
+        run: ./task deps-install
+      - name: "Coverage: install gcov tooling"
+        run: sudo apt-get update && sudo apt-get install -y lcov gcovr
+      - name: "Database: provision and create the test database"
+        env:
+          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env
+        run: |
+          ./task dev-db
+          psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT 'CREATE DATABASE bm2_test OWNER bm2_owner'
+          WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'bm2_test') \gexec
+          SQL
+      - name: "Database: migrate and seed"
+        env:
+          MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
+        run: |
+          mkdir -p .cache/ci
+          nim c --hints:off -d:release -o:.cache/ci/dbtools tools/dbtools/main.nim
+          .cache/ci/dbtools migrate --dir db/migrations
+          .cache/ci/dbtools seed --dir db/seeds
+      - name: "Import: provision the v1 source and the v2 target"
+        env:
+          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          IMPORT_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
+        run: |
+          psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE bm2_import_source_test" \
+            -c "CREATE DATABASE bm2_import_target_test OWNER bm2_owner TEMPLATE bm2_test"
+          psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
+            -f ops/dev/v1/schema.sql
+          psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
+            -f ops/dev/v1/fixtures/v1-fixtures.sql
+          loaded=$(psql -d "$IMPORT_SOURCE_DSN" -tAc "select to_regnamespace('bm')")
+          if [ "$loaded" != "bm" ]; then
+            echo "bm2_import_source_test has no bm schema" >&2
+            exit 1
+          fi
+      - name: "Coverage: measure against the baseline"
+        env:
+          MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
+          MAJADU_IMPORT_TEST_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_target_test
+          MAJADU_IMPORT_TEST_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
+        run: ./task coverage
+
+  mutation:
+    name: "Release: mutation"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+        with:
+          nim-version: ${{ env.NIM_VERSION }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nimble
+          key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      - name: "Dependencies: install pinned Nim packages"
+        run: ./task deps-install
+      - name: "Mutation: every mutant is killed or allowlisted"
+        run: ./task mutation
+
+  parity:
+    name: "Release: parity"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+        with:
+          nim-version: ${{ env.NIM_VERSION }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nimble
+          key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      - name: "Dependencies: install pinned Nim packages"
+        run: ./task deps-install
+      - name: "Database: provision the parity database"
+        env:
+          MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env
+        run: |
+          ./task dev-db
+          psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE bm2_parity_verify_test OWNER bm2_owner"
+      # QA-02: the v2 corpus is replayed end to end on the tagged tree. The PR
+      # job only lints it, so this is the release's own parity evidence.
+      - name: "Parity: v2 verify"
+        env:
+          PARITY_V2_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_parity_verify_test
+        run: ./task parity v2 verify
+
   image:
     name: "Release: image"
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: verify
+    needs: [verify, web, e2e, coverage, mutation, parity]
     permissions:
       contents: read
       packages: write

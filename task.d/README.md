@@ -39,6 +39,7 @@ explicit `--nimcache` does not add a suffix.
 | `dev-v1` | rebuild `bm_v1_dev` from the captured v1 schema and seed | yes |
 | `hooks` | set `core.hooksPath=.githooks` so the pre-push guard runs | no |
 | `e2e` | Playwright against a disposable database and the OIDC stub; `--update-snapshots` rewrites the visual baseline | yes |
+| `scoreboard-pwa` | assert the built scoreboard service worker precaches `/index.html` and the entry chunk from `dist/index.html` | no |
 | `rehearsal` | `check` reads the committed timings, `run` needs the VPS | `run` only |
 | `mock-api` | build the mock API binary the web tests use | no |
 | `parity` | v1 golden HTTP corpus (`verify`) and the v2 per-operation corpus (`v2 verify`) | for `replay`/`v2` |

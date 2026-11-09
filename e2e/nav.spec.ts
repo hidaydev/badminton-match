@@ -3,7 +3,7 @@ import { t } from '../apps/web/src/i18n'
 import { state } from './global-setup'
 import { signIn } from './session'
 
-test('the account menu opens, navigates and closes', async ({ page }) => {
+test('the account menu opens, navigates and closes @visual', async ({ page }) => {
   await signIn(page)
   // Inside a community the menu has more than one link to navigate between.
   await page.goto(`/c/${state().communitySlug}`)

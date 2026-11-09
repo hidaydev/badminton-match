@@ -2,11 +2,28 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "release/**"]
   pull_request:
+  # QA-03: recording a visual baseline is an explicit operator action, never a
+  # branch that CI takes on its own when the Linux set is absent.
+  workflow_dispatch:
+    inputs:
+      update_snapshots:
+        description: "Record the Linux visual baseline instead of comparing it"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
+
+# One run per commit within an event class. Pull requests group by head SHA, so
+# two PR runs for the same commit dedupe; pushes and dispatch runs group by
+# event and ref. A push and a PR for the same SHA therefore never share a group,
+# so a PR run cannot cancel a strict release-push run. Only pull requests cancel
+# a run in progress.
+concurrency:
+  group: "ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.head.sha) || format('{0}-{1}', github.event_name, github.ref) }}"
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   NIM_VERSION: "2.4.0"
@@ -214,6 +231,13 @@ jobs:
         run: pnpm check:web
       - name: "Web: build"
         run: pnpm build:web
+      - name: "Scoreboard: build"
+        run: pnpm build:scoreboard
+      # PWA-03: the scoreboard is the build used in the hall, and no gate
+      # produced its installable artifact. The target asserts the service worker
+      # precache covers the shell and the entry chunk built index.html asks for.
+      - name: "Scoreboard: assert the service worker precache"
+        run: ./task scoreboard-pwa
 
   e2e:
     name: "E2E: browser"
@@ -285,32 +309,55 @@ jobs:
           # harness's passwordless DSN does not carry.
           psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
             -c "CREATE ROLE \"$(whoami)\" LOGIN SUPERUSER PASSWORD 'postgres'"
-      # Pixel baselines live in `e2e/__screenshots__/{platform}/`. Production is
-      # Linux, so the Linux set has to be recorded on this runner once and
-      # committed; until it lands, the job records it and uploads the PNGs
-      # instead of comparing against a set that does not exist. No spec skips:
-      # the comparison runs on every platform that has a baseline.
-      - name: "E2E: is there a baseline for this platform"
+      # Pixel baselines live in `e2e/__screenshots__/{platform}/` and CI only
+      # compares them. While the Linux set is absent, a tag or a release branch
+      # fails hard; main and pull requests warn and skip the visual comparison so
+      # the rest of the suite still runs. Once the directory exists every ref
+      # runs the full comparison, and a missing or different PNG fails the job.
+      # Recording happens only through the `update_snapshots` dispatch input.
+      - name: "E2E: check the Linux baseline"
         id: baseline
+        env:
+          UPDATE_SNAPSHOTS: ${{ inputs.update_snapshots }}
+          REF: ${{ github.ref }}
         run: |
-          if [ -d e2e/__screenshots__/linux ]; then
-            echo "record=0" >> "$GITHUB_OUTPUT"
-          else
-            echo "record=1" >> "$GITHUB_OUTPUT"
-            echo "::warning::no Linux baseline committed: recording one, upload it as an artifact and commit it"
+          present=0
+          if [ -d e2e/__screenshots__/linux ] &&
+            [ -n "$(ls -A e2e/__screenshots__/linux 2>/dev/null)" ]; then
+            present=1
           fi
+          echo "present=$present" >> "$GITHUB_OUTPUT"
+          if [ "$UPDATE_SNAPSHOTS" = "true" ]; then
+            echo "recording requested: ./task e2e will rewrite e2e/__screenshots__/linux"
+            exit 0
+          fi
+          if [ "$present" = 1 ]; then
+            exit 0
+          fi
+          case "$REF" in
+            refs/tags/*|refs/heads/release/*)
+              echo "::error::e2e/__screenshots__/linux is missing and $REF must compare against it."
+              echo "::error::Record it deliberately on Linux with ./task e2e --update-snapshots, or dispatch this workflow with update_snapshots=true, then review and commit e2e/__screenshots__/linux/."
+              exit 1
+              ;;
+          esac
+          echo "::warning::no Linux visual baseline yet: the visual comparison is skipped on $REF so this run can pass."
+          echo "::warning::Record it deliberately on Linux with ./task e2e --update-snapshots, then review and commit e2e/__screenshots__/linux/."
       - name: "E2E: run"
         env:
           PGPASSWORD: postgres
-          E2E_RECORD: ${{ steps.baseline.outputs.record }}
+          UPDATE_SNAPSHOTS: ${{ inputs.update_snapshots }}
+          BASELINE_PRESENT: ${{ steps.baseline.outputs.present }}
         run: |
-          if [ "$E2E_RECORD" = "1" ]; then
+          if [ "$UPDATE_SNAPSHOTS" = "true" ]; then
             ./task e2e --update-snapshots
-          else
+          elif [ "$BASELINE_PRESENT" = "1" ]; then
             ./task e2e
+          else
+            ./task e2e --grep-invert "@visual"
           fi
-      - name: "E2E: upload a freshly recorded baseline"
-        if: steps.baseline.outputs.record == '1'
+      - name: "E2E: upload a recorded baseline"
+        if: always() && inputs.update_snapshots
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-linux-baseline
