@@ -41,11 +41,11 @@ suite "share links":
          values ('share-other', 'Other', 'Asia/Jakarta') returning id""").get.get("id")
     sessionId = db.queryOne(
       """insert into session.sessions (community_id, title, session_date, status, source)
-         values ($1::uuid, 'Session', '2026-11-03', 'draft', 'manual') returning id""",
+         values ($1::uuid, 'Session', '2026-11-03', 'locked', 'manual') returning id""",
       @[textParam(communityId)]).get.get("id")
     otherSessionId = db.queryOne(
       """insert into session.sessions (community_id, title, session_date, status, source)
-         values ($1::uuid, 'Other session', '2026-11-03', 'draft', 'manual') returning id""",
+         values ($1::uuid, 'Other session', '2026-11-03', 'locked', 'manual') returning id""",
       @[textParam(otherCommunityId)]).get.get("id")
 
   teardown:
@@ -58,6 +58,25 @@ suite "share links":
     check found.isSome
     check found.get.sessionId == sessionId
     check found.get.slug == "share-test"
+
+  test "only an approved session resolves through its code":
+    ## SEC-09: a code minted while the session was approved must stop answering
+    ## as soon as the session leaves the shareable set, without waiting for the
+    ## TTL. `resolve` is the single gate every public read shares.
+    check shareable("locked")
+    check shareable("published")
+    check shareable("completed")
+    check not shareable("draft")
+    check not shareable("archived")
+    let code = issue(db, keyring, communityId, sessionId, userId, 30)
+    check resolve(db, keyring, code).isSome
+    for status in ["draft", "archived"]:
+      checkpoint(status)
+      discard db.execUpdate(
+        "update session.sessions set status = $2 where id = $1::uuid",
+        @[textParam(sessionId), textParam(status)])
+      check resolve(db, keyring, code).isNone
+
 
   test "the same code cannot be resolved across communities":
     let code = issue(db, keyring, communityId, sessionId, userId, 30)

@@ -130,7 +130,7 @@ proc bootstrap() =
   # so the retirement run has something to clear.
   legacyCommunityId = newCommunity(database, legacySlug, "Legacy Smoke")
   legacySessionId = newSession(database, legacyCommunityId, "Legacy Night",
-    "2026-11-09")
+    "2026-11-09", status = "locked", approved = true)
   discard shareStore.issue(database, loadKeyring(keysJson, "1"),
     legacyCommunityId, legacySessionId, ownerId, 30)
   discard database.execUpdate(

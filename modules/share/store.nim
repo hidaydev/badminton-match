@@ -35,6 +35,18 @@ proc keyProblem(linkId: string): ref ShareKeyProblem =
 ## free the index.
 const liveLinkSql = "revoked_at is null and (expires_at is null or expires_at > now())"
 
+const shareableStatusSql* = "('locked', 'published', 'completed')"
+  ## What a link may serve: an approved session that is still in play. `locked`
+  ## is the status approval writes, so it is the normal case; `draft` is
+  ## unfinished and `archived` means the season is over, and neither keeps
+  ## answering through a code minted earlier.
+
+proc shareable*(status: string): bool =
+  ## The Nim form of `shareableStatusSql`, so minting and resolving read one
+  ## list instead of two.
+  status in ["locked", "published", "completed"]
+
+
 proc aadFor(communityId, linkId: string): string =
   ## Binds a ciphertext to the exact row and community it was minted for.
   communityId & "|" & linkId
@@ -96,6 +108,7 @@ const shareLookupFrom = """
        from session.links l
        join session.sessions s
          on s.community_id = l.community_id and s.id = l.session_id
+        and s.status in """ & shareableStatusSql & """
        join platform.community c on c.id = l.community_id
        where """
 

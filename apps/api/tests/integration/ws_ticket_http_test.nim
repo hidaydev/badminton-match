@@ -83,7 +83,10 @@ proc bootstrap() =
   newMember(database, communityId, hostUserId, "host")
   for index, name in ["Watcher One", "Watcher Two", "Watcher Three", "Watcher Four"]:
     players[index] = newPlayer(database, communityId, name)
-  sessionId = newSession(database, communityId, "Session", "2026-11-03")
+  # A share link names an approved session (SEC-09), so the session the share
+  # code below belongs to is locked from the start.
+  sessionId = newSession(database, communityId, "Session", "2026-11-03",
+    status = "locked", approved = true)
   foreignSessionId = newSession(database, otherCommunityId, "Foreign",
     "2026-11-03")
   # Live fan-out gets sessions of its own so a write here cannot change the

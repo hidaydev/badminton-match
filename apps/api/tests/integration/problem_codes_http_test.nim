@@ -709,6 +709,13 @@ suite "problem-code reachability: config, rating and tournaments":
       "00000000-0000-0000-0000-000000000006", adminCookie, "", 404,
       "NOT_FOUND", "rating event not found")
 
+  test "share refusals":
+    # SEC-09: a code may only name an approved session, and the refusal names
+    # the status instead of minting a link for an unfinished session.
+    requireRow("draftshare", "POST", "/c/" & slug & "/sessions/" & sessDraft &
+      "/share", adminCookie, "", 409, "SESSION_NOT_SHAREABLE",
+      "session status is draft; only an approved session is shareable")
+
   test "tournament refusals":
     requireRow("invalid", "POST", "/c/" & slug & "/tournaments", hostCookie,
       "{}", 400, "INVALID_TOURNAMENT", "tournament body is invalid")

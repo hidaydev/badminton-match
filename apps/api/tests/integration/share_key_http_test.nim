@@ -44,7 +44,9 @@ proc bootstrap() =
   let hostId = newUser(database, "sharekey-host", hostEmail, "Host")
   newMember(database, communityId, hostId, "host")
   hostCookie = cookieFor(database, hostId)
-  sessionId = newSession(database, communityId, "Share Key Session")
+  # Only an approved session carries a share link (SEC-09).
+  sessionId = newSession(database, communityId, "Share Key Session",
+    status = "locked", approved = true)
   liveCode = shareStore.issue(database, loadKeyring(twoKeys, "2"), communityId,
     sessionId, hostId, 7)
   startServer(newTestApp(database), port, baseUrl)

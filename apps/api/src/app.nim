@@ -1093,10 +1093,19 @@ proc listSessions(request: Request, ctx: CommunityContext,
 proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
                  sessionId: string, snapshot: Snapshot) =
   let session = application.db.queryOne(
-    "select id from session.sessions where id = $1 and community_id = $2",
+    """select id, status from session.sessions
+       where id = $1 and community_id = $2""",
     @[textParam(sessionId), textParam(ctx.communityId)])
   if session.isNone:
     problem(request, 404, "NOT_FOUND", "session not found")
+    return
+  # A code hands the session to anyone holding it, so it may only name a
+  # session the community has approved. A draft would publish an unfinished
+  # schedule and standings for the whole TTL.
+  let status = session.get.get("status")
+  if not shareStore.shareable(status):
+    problem(request, 409, "SESSION_NOT_SHAREABLE",
+      "session status is " & status & "; only an approved session is shareable")
     return
   # Issuing a link revokes the previous one in the same transaction, so its
   # watchers and their tickets go too.
