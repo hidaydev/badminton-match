@@ -27,6 +27,18 @@ suite "archcheck rules":
     check found.len == 1
     check found[0].contains("database layer")
 
+  test "platform cannot import a feature module":
+    # BE-19: the primitive layer must not depend on a feature, or the graph
+    # becomes cyclic the day a feature needs platform in return.
+    let found = violationsFor("modules/platform/config/x.nim",
+      "import session/scoring\n")
+    check found.len == 1
+    check found[0].contains("feature module")
+
+  test "platform may still import the shared driver and its own files":
+    check violationsFor("modules/platform/config/x.nim",
+      "import db/db\nimport scoring_presets\n").len == 0
+
   test "now() is rejected outside the clock":
     let found = violationsFor("modules/session/x.nim", "let t = now()\n")
     check found.len == 1

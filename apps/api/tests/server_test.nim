@@ -1,5 +1,6 @@
 import std/[json, os, strutils, unittest]
 import ../src/server
+import clock
 
 suite "process contract":
   test "MAJADU_PORT is required":
@@ -83,6 +84,41 @@ suite "process contract":
       delEnv("OIDC_REDIRECT_URI")
       delEnv("MAJADU_ENV")
 
+  test "a pinned clock refuses MAJADU_ENV=prod":
+    # A pinned Nim clock beside a real PostgreSQL clock breaks JWT expiry,
+    # rate-limit windows and flow TTL comparisons without any error, so the
+    # two switches are refused together instead of being trusted to the file.
+    putEnv("MAJADU_PORT", "8080")
+    putEnv("MAJADU_DRAIN_MS", "0")
+    putEnv("MAJADU_NOW", "2026-11-03T12:00:00Z")
+    putEnv("MAJADU_ENV", "prod")
+    delEnv("MAJADU_TEST_ROUTES")
+    delEnv("OIDC_REDIRECT_URI")
+    delEnv("MAJADU_COOKIE_SECURE")
+    delEnv("MAJADU_METRICS_PORT")
+    try:
+      expect ValueError:
+        discard loadConfig()
+    finally:
+      delEnv("MAJADU_NOW")
+      delEnv("MAJADU_ENV")
+
+  test "a pinned clock alone is accepted and reported by clockPinned":
+    putEnv("MAJADU_PORT", "8080")
+    putEnv("MAJADU_DRAIN_MS", "0")
+    putEnv("MAJADU_NOW", "2026-11-03T12:00:00Z")
+    delEnv("MAJADU_ENV")
+    delEnv("MAJADU_TEST_ROUTES")
+    delEnv("OIDC_REDIRECT_URI")
+    delEnv("MAJADU_COOKIE_SECURE")
+    delEnv("MAJADU_METRICS_PORT")
+    try:
+      check clockPinned()
+      discard loadConfig()
+    finally:
+      delEnv("MAJADU_NOW")
+    check not clockPinned()
+
 suite "metrics listener":
   test "is off unless a port is configured":
     delEnv("MAJADU_METRICS_PORT")
@@ -116,6 +152,26 @@ suite "metrics listener":
       "/c/{slug}/players/{id}")
     check metricsText().contains(
       """route="/c/{slug}/players/{id}",status="404"}""")
+
+  test "records the request duration in a histogram per route template":
+    beginRequest()
+    discard recordResponse("GET", "/c/acme/sessions/abc", 200,
+      "/c/{slug}/sessions")
+    let text = metricsText()
+    check text.contains("http_request_duration_seconds_bucket")
+    check text.contains(
+      """http_request_duration_seconds_bucket{route="/c/{slug}/sessions",le="+Inf"} 1""")
+    check text.contains(
+      """http_request_duration_seconds_sum{route="/c/{slug}/sessions"}""")
+    check text.contains(
+      """http_request_duration_seconds_count{route="/c/{slug}/sessions"} 1""")
+
+  test "exposes the pool as gauges":
+    recordPool(8, 3, 5)
+    let text = metricsText()
+    check text.contains("db_pool_size 8.0")
+    check text.contains("db_pool_available 3.0")
+    check text.contains("db_pool_in_use 5.0")
 
   test "counts how the limiter named the caller":
     recordIdentitySource("cookie")

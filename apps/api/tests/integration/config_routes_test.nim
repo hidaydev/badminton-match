@@ -1,5 +1,6 @@
 import std/[json, options, os, unittest]
 import db/db
+import community/infrastructure/community_store
 import platform/config/store
 import tests/fixtures
 import ../../src/config_routes

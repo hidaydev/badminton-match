@@ -2,10 +2,12 @@ import std/[atomics, cpuinfo, json, net, os, posix, strutils]
 import mummy
 import app
 import build_info
+import clock
 import config as edgeConfig
 import logger
 import db/db
 import live
+import security_headers
 import server
 import account/infrastructure/oidc
 import platform/config/store
@@ -64,7 +66,15 @@ proc timeoutFromEnv(name: string, fallback: int): int =
   if result < 0:
     result = fallback
 
-proc bootHandler*(config: ServerConfig, threads: int): RequestHandler =
+type
+  BootedApi* = object
+    ## What `main` needs from a booted process: the installed handler and the
+    ## two body limits, both decided once from the config snapshot.
+    handler*: RequestHandler
+    guardBytes*: int
+    socketBytes*: int
+
+proc bootHandler*(config: ServerConfig, threads: int): BootedApi =
   ## Wires the real application. Every dependency is required here so a
   ## misconfigured process refuses to start instead of serving 500s.
   ##
@@ -107,16 +117,50 @@ proc bootHandler*(config: ServerConfig, threads: int): RequestHandler =
     getEnv("SHARE_CODE_ACTIVE_KEY_ID"))
   # Loading the snapshot here refuses to start when a registry key is missing.
   let config = newConfigCache(database)
+  # The body limits are read from the same snapshot, so the socket cap and the
+  # guard cannot drift from the config by a restart.
+  let limits = bodyLimits(config.snapshot(database))
+  logInfo("body limits", [
+    ("guardBytes", $limits.guardBytes),
+    ("socketBytes", $limits.socketBytes)])
   install(newApp(database, oidc, keyring, config))
-  result = handler()
+  result = BootedApi(handler: handler(), guardBytes: limits.guardBytes,
+    socketBytes: limits.socketBytes)
+
+proc refuseStartup(message: string) {.noreturn.} =
+  ## A misconfigured process must name the reason and exit, not leave an
+  ## uncaught traceback as the only explanation in the logs.
+  stderr.writeLine "majadu-api: " & message
+  quit(1)
+
+proc newApiServer*(booted: BootedApi, threads: int): Server =
+  ## The one place the body cap reaches the socket, so a boot test can exercise
+  ## the same wiring `main` uses instead of repeating it.
+  newServer(booted.handler, websocketHandler(), workerThreads = threads,
+    maxBodyLen = booted.socketBytes, logHandler = structuredLogHandler)
 
 proc main() =
-  let config = loadConfig()
+  var config: ServerConfig
+  try:
+    config = loadConfig()
+  except ValueError as error:
+    refuseStartup(error.msg)
   let threads = max(countProcessors(), 2)
-  let apiHandler =
-    if config.testRoutes: makeHandler(config.testRoutes)
-    else: bootHandler(config, threads)
-  let apiServer = newServer(apiHandler, websocketHandler(), workerThreads = threads)
+  # One line names every switch that changes behaviour, so a line pasted from a
+  # test env file is visible at boot instead of in the symptoms.
+  logInfo("startup flags", [
+    ("testRoutes", $config.testRoutes),
+    ("clockPinned", $clockPinned())])
+  var booted = BootedApi(handler: nil, socketBytes: socketBodyCeiling())
+  if config.testRoutes:
+    # The stub has no application guard, so its socket cap is the ceiling.
+    booted.handler = makeHandler(config.testRoutes)
+  else:
+    try:
+      booted = bootHandler(config, threads)
+    except ValueError as error:
+      refuseStartup(error.msg)
+  let apiServer = newApiServer(booted, threads)
 
   var metricsWorker: Thread[MetricsArgs]
   if config.metricsPort > 0:

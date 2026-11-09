@@ -246,6 +246,16 @@ suite "community HTTP":
     expectProblem(sessions, 405)
     let players = call(baseUrl, HttpPatch, "/c/http-club/players", adminCookie)
     expectProblem(players, 405)
+    # BE-20: the tournament and rating blocks used to fall through to 404.
+    let tournaments = call(baseUrl, HttpPut, "/c/http-club/tournaments",
+      adminCookie)
+    expectProblem(tournaments, 405)
+    let rebuild = call(baseUrl, HttpGet, "/c/http-club/ratings/rebuild",
+      adminCookie)
+    expectProblem(rebuild, 405)
+    let sources = call(baseUrl, HttpPost, "/c/http-club/rating-sources",
+      adminCookie)
+    expectProblem(sources, 405)
     let bogus = call(baseUrl, HttpGet, "/c/http-club/sessions/1/bogus", adminCookie)
     expectProblem(bogus, 404)
 

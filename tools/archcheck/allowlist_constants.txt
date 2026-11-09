@@ -32,3 +32,7 @@ modules/session/write.nim:120
 
 # Poll interval while waiting for a mutated suite; milliseconds, not a limit.
 tools/mutation/main.nim:50
+
+# BE-07: how often `resolve` may touch `last_seen_at`. A write-amplification
+# guard of the session store, not a configurable product limit.
+modules/account/infrastructure/session_store.nim:60

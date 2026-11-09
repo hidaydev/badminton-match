@@ -23,16 +23,15 @@ apps/api/src/config_routes.nim:checkPatch
 # this one.
 apps/api/src/app.nim:auditedWrite
 
+# BE-06: the pool itself, named once. Handlers that take a `Db` from here hold
+# no SQL of their own, so they are not allowlisted. This is the documented
+# exception the rule asks for.
+apps/api/src/app.nim:database
+
 # Session reads and writes: the first extraction batch, because the schedule
 # paths already own the most SQL.
 apps/api/src/app.nim:createSession
 apps/api/src/app.nim:listSessions
-apps/api/src/app.nim:getSessionDetail
-apps/api/src/app.nim:getGameRoute
-apps/api/src/app.nim:gameSets
-apps/api/src/app.nim:sessionVersionNow
-apps/api/src/app.nim:sessionApproved
-apps/api/src/app.nim:sessionPlayerIds
 apps/api/src/app.nim:deleteSession
 apps/api/src/app.nim:createShare
 apps/api/src/app.nim:issueSessionTicket
@@ -132,3 +131,7 @@ apps/api/src/ws_ticket.nim:revokeShare
 # Resolves the slug plus membership into the community context itself, so there
 # is no context to pass to a service yet.
 apps/api/src/community_context.nim:loadCommunity
+
+# BE-12: the pool gauge is sampled on every answer, so `send` reads the pool
+# once. It holds no statement of its own.
+apps/api/src/app.nim:send

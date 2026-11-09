@@ -60,11 +60,13 @@ suite "idempotency":
     check claim(db, userId, scopedKey("c1", "same"), digest).status == idempotencyNew
     check claim(db, userId, scopedKey("c2", "same"), digest).status == idempotencyNew
 
-  test "an in-flight claim is a conflict, not a crash":
+  test "an in-flight claim is reported in progress, not as a conflict":
+    # BE-09: the body is identical, so a conflict would accuse the caller of a
+    # mismatch that did not happen. It is retryable, and the caller waits.
     let key = scopedKey("c1", "in-flight")
     let digest = bodyHash("""{"a":1}""")
     check claim(db, userId, key, digest).status == idempotencyNew
-    check claim(db, userId, key, digest).status == idempotencyConflict
+    check claim(db, userId, key, digest).status == idempotencyInProgress
 
   test "an expired key is replaced and replays the new response":
     let key = scopedKey("c1", "expired")

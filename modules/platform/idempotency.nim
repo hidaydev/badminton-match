@@ -7,6 +7,9 @@ type
     idempotencyNew = "new"
     idempotencyReplay = "replay"
     idempotencyConflict = "conflict"
+    idempotencyInProgress = "in_progress"
+    ## The key is owned by a request that has not finished. It is not a
+    ## conflict: the body may be identical, and the retry is legitimate.
 
   IdempotencyEntry* = object
     status*: IdempotencyStatus
@@ -59,8 +62,10 @@ proc claim*(db: Db, userId, key, bodyDigest: string,
     return IdempotencyEntry(status: idempotencyConflict)
   let value = live.get
   if value["status_code"].isNone or value["response"].isNone:
-    # Another request claimed the key but has not finished yet.
-    return IdempotencyEntry(status: idempotencyConflict)
+    # Another request claimed the key but has not finished yet. The body may be
+    # identical, so this is not the body-mismatch conflict: a caller that retries
+    # after a short wait gets the stored response instead of a false accusation.
+    return IdempotencyEntry(status: idempotencyInProgress)
   IdempotencyEntry(
     status: idempotencyReplay,
     statusCode: parseInt(value.get("status_code")),

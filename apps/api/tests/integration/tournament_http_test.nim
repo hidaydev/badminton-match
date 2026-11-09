@@ -3,6 +3,7 @@
 
 import std/[json, options, strutils, unittest]
 import db/db
+import sha256
 import community/infrastructure/community_store
 import tournament/domain/classic
 import tournament/domain/classic_draw
@@ -360,6 +361,45 @@ suite "tournament HTTP":
     expectStatus(call(baseUrl, HttpPatch, sourcePath, adminCookie,
       """{"finalized":false}"""), 200)
     expectStatus(call(baseUrl, HttpDelete, path, adminCookie), 204)
+
+  test "an invalid body does not own the idempotency key":
+    ## BE-09. The key used to be claimed before the body was parsed, so a typo
+    ## locked the caller out of its own write for the rest of the TTL.
+    let key = "tour-retry-key"
+    let bad = call(baseUrl, HttpPost, "/c/" & slug & "/tournaments", adminCookie,
+      """{"name":""", extra = [("Idempotency-Key", key)])
+    expectProblem(bad, 400, "INVALID_BODY")
+    let body = $classicJson(classicSnapshot())
+    let good = call(baseUrl, HttpPost, "/c/" & slug & "/tournaments",
+      adminCookie, body, extra = [("Idempotency-Key", key)])
+    expectStatus(good, 201)
+    let id = parseJson(good.body)["id"].getStr()
+    # The same key and body is a replay of the write that succeeded.
+    let replay = call(baseUrl, HttpPost, "/c/" & slug & "/tournaments",
+      adminCookie, body, extra = [("Idempotency-Key", key)])
+    expectStatus(replay, 201)
+    check parseJson(replay.body)["id"].getStr() == id
+    expectStatus(call(baseUrl, HttpDelete, "/c/" & slug & "/tournaments/" & id,
+      adminCookie), 204)
+
+  test "an in-flight key is a distinct code, not a body mismatch":
+    ## BE-09. A live row with no stored response means another request owns the
+    ## key; the body may be identical, so `IDEMPOTENCY_CONFLICT` would be false.
+    let key = "tour-inflight-key"
+    let body = $classicJson(classicSnapshot())
+    discard database.execUpdate(
+      """insert into platform.idempotency_keys (user_id, key, body_hash, expires_at)
+         values ($1::uuid, $2, $3, now() + interval '1 hour')""",
+      @[textParam(adminId), textParam(communityId & ":" & key),
+        textParam(sha256Hex(body))])
+    let response = call(baseUrl, HttpPost, "/c/" & slug & "/tournaments",
+      adminCookie, body, extra = [("Idempotency-Key", key)])
+    expectProblem(response, 409, "IDEMPOTENCY_IN_PROGRESS")
+    check header(response, "Retry-After") == "2"
+    discard database.execUpdate(
+      """delete from platform.idempotency_keys
+         where user_id = $1::uuid and key = $2""",
+      @[textParam(adminId), textParam(communityId & ":" & key)])
 
 cleanup(database)
 database.close()

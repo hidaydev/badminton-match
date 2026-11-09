@@ -1,6 +1,7 @@
-import std/[locks, options, strutils, times]
+import std/[locks, options, strutils, tables, times]
 when defined(posix):
   import std/posix
+import std/atomics
 import db_connector/postgres
 
 type
@@ -97,9 +98,38 @@ proc raiseResultError(res: PPGresult) {.noreturn.} =
   error.constraint = errorField(res, PG_DIAG_CONSTRAINT_NAME)
   raise error
 
+var
+  # The statement counter is a test hook: a suite proves that a batched write
+  # costs a fixed number of round trips instead of one per row. Only a
+  # transaction's own statements are counted, because its body is what a write
+  # holds its row locks for; `BEGIN`/`COMMIT` never reach the executors.
+  countingStatements {.threadvar.}: bool
+  transactionStatements {.threadvar.}: int
+  savepointSeq {.threadvar.}: int
+  # Every statement the process has issued, across threads. A read route cannot
+  # use `statementsInTransaction` (it opens no transaction) and a suite cannot
+  # read a threadvar of the worker thread that served the request, so the read
+  # side is counted process-wide.
+  statementsAll: Atomic[int]
+  # Rows the driver materialised, likewise process-wide. A statement count
+  # cannot tell a board-wide read from a one-row read (both are one statement),
+  # so the suites that prove a detail route stays narrow count rows instead.
+  rowsAll: Atomic[int]
+  # Opt-in statement log. A suite turns it on, sends one request and counts the
+  # statements by text, which is how a request-cost contract (one config version
+  # probe, one settings read) is proven. Every other process leaves it off, so
+  # the cost is one atomic load per statement.
+  recordingStatements: Atomic[bool]
+  statementLog = initTable[string, int]()
+  statementLogLock: Lock
+
+initLock(statementLogLock)
+
 proc resultToRows(res: PPGresult): seq[Row] =
   let columns = pqnfields(res)
   let rows = pqntuples(res)
+  if rows > 0:
+    discard rowsAll.fetchAdd(rows)
   # Every row of a result shares the same column names, so they are read once
   # and handed to each row instead of being re-read and re-allocated per row.
   var names = newSeq[string](columns)
@@ -119,18 +149,51 @@ type BoundParams = object
   ## pointers during PQexecParams, so these strings must outlive the call.
   backing: seq[string]
 
-var
-  # The statement counter is a test hook: a suite proves that a batched write
-  # costs a fixed number of round trips instead of one per row. Only a
-  # transaction's own statements are counted, because its body is what a write
-  # holds its row locks for; `BEGIN`/`COMMIT` never reach the executors.
-  countingStatements {.threadvar.}: bool
-  transactionStatements {.threadvar.}: int
-  savepointSeq {.threadvar.}: int
-
-proc countStatement() =
+proc countStatement(sql: string) =
+  discard statementsAll.fetchAdd(1)
   if countingStatements:
     inc transactionStatements
+  if recordingStatements.load(moRelaxed):
+    acquire(statementLogLock)
+    try:
+      let key = sql.strip()
+      statementLog[key] = statementLog.getOrDefault(key) + 1
+    finally:
+      release(statementLogLock)
+
+proc recordStatements*(on: bool) =
+  ## Test hook: clears the log and starts or stops recording. A suite turns it
+  ## on around one request, so the count it asserts is that request's rather
+  ## than the process's.
+  acquire(statementLogLock)
+  try:
+    statementLog.clear()
+  finally:
+    release(statementLogLock)
+  recordingStatements.store(on, moRelaxed)
+
+proc statementsMatching*(needle: string): int =
+  ## Recorded statements whose text contains `needle`, since the last
+  ## `recordStatements(true)`. Zero in a process that never enabled the log.
+  acquire(statementLogLock)
+  try:
+    for sql, count in statementLog.pairs:
+      if needle in sql:
+        result += count
+  finally:
+    release(statementLogLock)
+
+proc statementsIssued*(): int =
+  ## Statements executed since the process started, over every thread. A suite
+  ## reads the delta around one call to prove a read costs a fixed number of
+  ## round trips regardless of how many rows it returns.
+  statementsAll.load()
+
+proc rowsReturned*(): int =
+  ## Rows returned to the driver since the process started, over every thread.
+  ## A suite reads the delta around one call to prove a detail read fetches one
+  ## row instead of materialising the whole board.
+  rowsAll.load()
 
 proc statementsInTransaction*(): int =
   ## How many statements the most recent transaction sent, `BEGIN`/`COMMIT`
@@ -169,7 +232,7 @@ proc freeValues(bound: BoundParams) =
 proc executeRows(conn: PPGconn, sql: string, params: seq[DbParam]): seq[Row] =
   ## The SQL string is passed verbatim with $1..$n placeholders, so a jsonb `?`
   ## operator is never rewritten or rejected.
-  countStatement()
+  countStatement(sql)
   let bound = bindValues(params)
   try:
     let res = pqexecParams(
@@ -186,7 +249,7 @@ proc executeRows(conn: PPGconn, sql: string, params: seq[DbParam]): seq[Row] =
     freeValues(bound)
 
 proc executeCommand(conn: PPGconn, sql: string, params: seq[DbParam]): int =
-  countStatement()
+  countStatement(sql)
   let bound = bindValues(params)
   try:
     let res = pqexecParams(
@@ -218,7 +281,7 @@ proc execUpdate*(conn: DbConn, sql: string, params: seq[DbParam] = @[]): int =
 proc execScript*(conn: DbConn, sql: string) =
   ## Runs a multi-statement SQL file. Used by dbtools migrations and seeds;
   ## regular application queries must use `query`/`execUpdate`.
-  countStatement()
+  countStatement(sql)
   let res = pqexec(conn.conn, sql.cstring)
   if res == nil:
     raise newException(DbError, $pqerrorMessage(conn.conn))
@@ -439,6 +502,18 @@ proc acquireConn(db: Db): PPGconn =
       wait(db.cond, db.lock)
   result = db.available.pop()
   release(db.lock)
+
+proc poolStats*(db: Db): tuple[size, available, inUse: int] =
+  ## The pool's state for the metrics gauge. `available` is what a checkout can
+  ## take right now; `inUse` is size minus that, which is also what a waiting
+  ## caller is queued behind once it reaches zero.
+  acquire(db.lock)
+  try:
+    result.size = db.size
+    result.available = db.available.len
+  finally:
+    release(db.lock)
+  result.inUse = result.size - result.available
 
 proc connectionTimeouts*(db: Db): seq[(string, string, string)] =
   ## The effective `statement_timeout`, `lock_timeout` and

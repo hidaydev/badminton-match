@@ -130,6 +130,7 @@ Filling rules:
 | Daily | Disk and memory headroom; no undelivered alerts | `df -h /srv && systemctl --user show majadu-api -p NRestarts && ls -l /srv/qouver/apps/majadu/logs/alert-dead-letter.log` |
 | Monthly | Migrations and seeds still match the schema | `./task ci` on a dev machine with `MAJADU_PG_DSN` |
 | Yearly | The access list above is still accurate | review by hand, revoke what is unused |
+| Once, after the cutover | The pre-code `/s/{sessionId}` shortcut still answers for rows that existed before codes | `./task sharekeys retire-legacy --older-than 30 --dry-run`, then without `--dry-run` |
 
 `deploy-vps.sh` runs `dbtools migrate` then `dbtools verify` from the newly
 pulled image, using `MAJADU_OWNER_DSN` from `majadu-tools.env`, before the unit
@@ -251,5 +252,40 @@ not exist:
   ```
 
   That line, plus the structured `"msg":"request"` access log, is the current
-  answer to "request rate and 5xx for the last hour". A real backend and an
-  external checker remain on the roadmap.
+  answer to "request rate and 5xx for the last hour".
+
+### 4.1 Metrics scrape checklist
+
+The registry is a Prometheus text exposition on the loopback listener. It is
+not scraped by a server yet, so these are the series an operator reads by hand
+during an incident, and the query each one answers:
+
+| Series | Answers |
+|---|---|
+| `http_requests_total{method,route,status}` | which route is 5xx-ing right now |
+| `http_request_duration_seconds_bucket{route,le}` | p95 latency of one route (`histogram_quantile` over the buckets) |
+| `http_request_duration_seconds_sum` / `_count` | mean latency of one route |
+| `db_pool_available` / `db_pool_in_use` / `db_pool_size` | whether the pool is the reason requests queue |
+| `identity_resolution{source}` | whether anonymous traffic collapsed into one `peer` bucket behind the CDN |
+| `share_key_problems_total` | a live share link references a `key_id` `SHARE_CODE_KEYS` no longer holds (restore the key, do not issue a new link) |
+
+Read them with one command, from the host:
+
+```sh
+podman exec majadu-api curl -fsS http://127.0.0.1:9090/metrics \
+  | grep -E '^(http_request|db_pool|identity_resolution|share_key_problems)'
+```
+
+For a latency answer, keep the buckets and compute the quantile:
+
+```sh
+podman exec majadu-api curl -fsS http://127.0.0.1:9090/metrics \
+  | grep '^http_request_duration_seconds_bucket{route="/c/{slug}/sessions"'
+```
+
+A 5xx is joined to its request by id: the problem body carries `request_id`,
+the `"msg":"request"` access line carries the same value, and the audit rows
+written while serving it carry it too, so `journalctl | grep <request_id>`
+reconstructs the request. If a scrape target is added later, the four series
+above are the minimum the dashboard needs; nothing else in the registry is
+required to answer "is it slow, is it failing, is it the pool".

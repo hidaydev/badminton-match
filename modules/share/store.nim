@@ -17,6 +17,18 @@ type
     sessionDate*: string
     status*: string
 
+  ShareKeyProblem* = object of CatchableError
+    ## A live row references a key this process does not hold, which is what a
+    ## rotation mistake looks like. The row exists, so the caller must not
+    ## answer "no link": that sends the operator to issue a new one instead of
+    ## restoring the key.
+    linkId*: string
+
+proc keyProblem(linkId: string): ref ShareKeyProblem =
+  result = newException(ShareKeyProblem,
+    "the live share link references a key the process does not hold")
+  result.linkId = linkId
+
 ## One definition of "live": a link resolves, is re-displayable, and is watched
 ## only while this holds. The partial unique index in `0001_core.sql` is looser,
 ## it only excludes revoked rows, so an expired row must still be revoked to
@@ -78,7 +90,7 @@ proc currentCode*(db: Db, keyring: Keyring, communityId,
     some(decryptWith(keyring, value.get("key_id"),
       hexBytes(value.get("code_enc")), aadFor(communityId, value.get("id"))))
   except ShareKeyError:
-    none(string)
+    raise keyProblem(value.get("id"))
 
 const shareLookupFrom = """
        from session.links l
@@ -128,7 +140,7 @@ proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
       hexBytes(value.get("code_enc")),
       aadFor(value.get("community_id"), value.get("link_id")))
   except ShareKeyError:
-    return none(ShareLookup)
+    raise keyProblem(value.get("link_id"))
   some(ShareLookup(
     linkId: value.get("link_id"),
     communityId: value.get("community_id"),
@@ -159,17 +171,76 @@ proc revokeLive*(db: Db, communityId, sessionId: string): seq[string] =
   result = db.txRet(proc(conn: DbConn): seq[string] =
     revokeLiveConn(conn, communityId, sessionId))
 
-proc rotateKeys*(db: Db, keyring: Keyring, fromKeyId, toKeyId: string): int =
-  ## Rotating the *key*: every live link still sealed with `fromKeyId` is
-  ## re-encrypted under the active key with a fresh nonce. Rows already on the
-  ## target key are skipped, so running it twice changes nothing the second time.
+type
+  LegacyRetirement* = object
+    ## What one `retireLegacy` run did. `bounded` rows used to be live forever
+    ## and now carry an expiry; `retired` rows no longer answer for their
+    ## session id.
+    bounded*: int
+    retired*: int
+
+proc retireLegacy*(db: Db, windowDays: int, dryRun = false): LegacyRetirement =
+  ## Gives the pre-code shortcut a sunset. 0033 marked every row that existed
+  ## when codes landed, and `expires_at is null` means "live forever", so the
+  ## session id was a permanent public capability: every member sees it in URLs
+  ## and payloads, and a removed member keeps reading through it.
+  ##
+  ## One run bounds those rows to `windowDays` from now and clears the shortcut
+  ## on rows whose window has passed (or whose link is already expired), so a
+  ## second run leaves nothing to retire. `dryRun` counts without writing, which
+  ## is what an operator needs before a cutover.
+  if windowDays < 1:
+    raise newException(ValueError, "windowDays must be at least 1")
+  let openSql = """from session.links
+    where legacy_id_ok and expires_at is null"""
+  let staleSql = """from session.links
+    where legacy_id_ok
+      and (expires_at is null or expires_at <= now()
+           or created_at < now() - make_interval(days => $1))"""
+  if dryRun:
+    result.bounded = db.queryOne(
+      "select count(*)::int as n " & openSql).get.getInt("n")
+    result.retired = db.queryOne(
+      "select count(*)::int as n " & staleSql,
+      @[intParam(windowDays.int64)]).get.getInt("n")
+    return
+  # Bound first: the update is idempotent because the predicate requires a NULL
+  # expiry, so a second run finds nothing to do.
+  result.bounded = db.execUpdate(
+    """update session.links
+       set expires_at = now() + make_interval(days => $1)
+       where legacy_id_ok and expires_at is null""",
+    @[intParam(windowDays.int64)])
+  result.retired = db.execUpdate(
+    """update session.links set legacy_id_ok = false
+       where legacy_id_ok
+         and (expires_at is null or expires_at <= now()
+              or created_at < now() - make_interval(days => $1))""",
+    @[intParam(windowDays.int64)])
+
+proc rotateKeys*(db: Db, keyring: Keyring, fromKeyId, toKeyId: string,
+                 dryRun = false): int =
+  ## Rotating the *key*: every link still sealed with `fromKeyId` is re-encrypted
+  ## under `toKeyId` with a fresh nonce. Rows already on the target key are
+  ## skipped, so running it twice changes nothing the second time.
+  ##
+  ## The target is the key the operator named, never the active one: sealing
+  ## under the active key while printing another target let an operator retire a
+  ## key that was still in use. A target the keyring does not hold is refused
+  ## before the first write. `dryRun` reports the exact row count and writes
+  ## nothing.
   if fromKeyId == toKeyId:
     return 0
+  if not keyring.holds(toKeyId):
+    raise newException(ShareKeyError,
+      "target share key is missing from SHARE_CODE_KEYS: " & toKeyId)
   let rows = db.query(
     """select id, community_id, key_id, encode(code_enc,'hex') as code_enc
        from session.links
        where key_id = $1""",
     @[textParam(fromKeyId)])
+  if dryRun:
+    return rows.len
   for row in rows:
     let linkId = row.get("id")
     let communityId = row.get("community_id")
@@ -179,7 +250,8 @@ proc rotateKeys*(db: Db, keyring: Keyring, fromKeyId, toKeyId: string): int =
         aadFor(communityId, linkId))
     except ShareKeyError:
       continue
-    let (newKeyId, encrypted) = encryptWith(keyring, code, aadFor(communityId, linkId))
+    let (newKeyId, encrypted) = encryptWithKey(keyring, toKeyId, code,
+      aadFor(communityId, linkId))
     discard db.execUpdate(
       """update session.links set code_enc = decode($2,'hex'), key_id = $3
          where community_id = $4::uuid and id = $1::uuid""",

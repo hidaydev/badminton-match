@@ -1,4 +1,4 @@
-import std/[base64, json, os, sysrand]
+import std/[base64, json, os, strutils, sysrand]
 import cli
 import db/db
 import share/crypto
@@ -14,7 +14,13 @@ const
   rotate --from <key-id> --to <key-id> [--dry-run]
       Re-encrypt every link still sealed with --from under the active key.
       Requires MAJADU_PG_DSN, SHARE_CODE_KEYS and SHARE_CODE_ACTIVE_KEY_ID.
-      Safe to run twice: rows already on the target key are skipped."""
+      Safe to run twice: rows already on the target key are skipped.
+
+  retire-legacy --older-than <days> [--dry-run]
+      Sunset the pre-code shortcut: give every legacy row that never expires a
+      window of <days>, then clear the shortcut on rows whose window has passed
+      or whose link already expired. Requires MAJADU_PG_DSN.
+      Safe to run twice: the second run finds nothing to do."""
 
 proc generate(keyId: string) =
   var bytes: array[32, byte]
@@ -37,8 +43,10 @@ proc main*() =
   var keyId = "1"
   var fromId = ""
   var toId = ""
+  var olderThan = ""
   var dryRun = false
-  for (flag, value) in flags(program, 2, ["--id", "--from", "--to"]):
+  for (flag, value) in flags(program, 2, ["--id", "--from", "--to",
+      "--older-than"]):
     case flag
     of "--id":
       keyId = value
@@ -46,6 +54,8 @@ proc main*() =
       fromId = value
     of "--to":
       toId = value
+    of "--older-than":
+      olderThan = value
     of "--dry-run":
       dryRun = true
     else:
@@ -60,14 +70,39 @@ proc main*() =
     let dsn = dsnOrFail(program)
     let keyring = loadKeyring(getEnv("SHARE_CODE_KEYS"),
       getEnv("SHARE_CODE_ACTIVE_KEY_ID"))
-    if dryRun:
-      echo "sharekeys: dry run, nothing written"
-      quit(0)
     let database = openDb(dsn, 1)
     try:
-      let rotated = rotateKeys(database, keyring, fromId, toId)
+      var rotated = 0
+      try:
+        rotated = rotateKeys(database, keyring, fromId, toId, dryRun)
+      except ShareKeyError as error:
+        fail(program, error.msg)
+      if dryRun:
+        echo "sharekeys: dry run, " & $rotated & " link(s) would move from key " &
+          fromId & " to " & toId
+        quit(0)
       echo "sharekeys: re-encrypted " & $rotated & " link(s) from key " &
         fromId & " to " & toId
+    finally:
+      database.close()
+  of "retire-legacy":
+    if olderThan.len == 0:
+      usageFail(program, "retire-legacy needs --older-than")
+    var windowDays = 0
+    try:
+      windowDays = parseInt(olderThan)
+    except ValueError:
+      usageFail(program, "--older-than must be a whole number of days")
+    if windowDays < 1:
+      usageFail(program, "--older-than must be at least 1")
+    let dsn = dsnOrFail(program)
+    let database = openDb(dsn, 1)
+    try:
+      let outcome = retireLegacy(database, windowDays, dryRun)
+      let prefix = if dryRun: "sharekeys: dry run, " else: "sharekeys: "
+      echo prefix & "bounded " & $outcome.bounded &
+        " legacy link(s) to " & $windowDays & " day(s) and retired " &
+        $outcome.retired & " legacy id link(s)"
     finally:
       database.close()
   else:

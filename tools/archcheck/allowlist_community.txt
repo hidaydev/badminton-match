@@ -23,6 +23,11 @@ tools/
 # community, selected by `key_id`; the community comes from each row.
 modules/share/store.nim:rotateKeys
 
+# Retiring the pre-code shortcut is one operator sweep over every community's
+# rows marked by 0033; the rows span communities by design, and the tool names
+# no single community to scope by.
+modules/share/store.nim:retireLegacy
+
 # A share code (or a pre-code session id) is the credential; the link row that
 # carries it names the community, so there is no context to scope by yet.
 modules/share/store.nim:resolve

@@ -404,3 +404,46 @@ issue import (`sonar.externalIssuesReportPaths`) is adopted. Then the compiler
 pass stays as the fast local gate and Sonar becomes the dashboard, not the
 oracle.
 
+
+## ADR-016 · The API is a single writer, with a stated recovery time
+
+**Date:** 2026-11-10
+**Audit finding:** BE-23
+**Status:** Applied
+
+**Decision:** one API process serves every request. Its rate-limit counters
+(`apps/api/src/ratelimit.nim`), WebSocket fan-out hub (`apps/api/src/live.nim`)
+and config snapshot cache (`modules/platform/config/store.nim`) live in process
+memory, and the deployment runs exactly one container
+(`ops/systemd/majadu-api.container`, `PublishPort=127.0.0.1:8080:8080`). Running
+two instances is out of scope until each of those three stores is shared, so
+the operator treats the process as the single writer it is.
+
+Recovery time is part of the decision, not an afterthought:
+
+| Failure | Behaviour | Target |
+|---|---|---|
+| process crash | `Restart=on-failure`, `RestartSec=3` | API answering `/readyz` within 60 s |
+| failed release | `deploy-vps.sh` restarts `:prev` and re-runs the readiness gate | back on the previous build within 60 s |
+| deliberate restart | in-flight requests drain for `MAJADU_DRAIN_MS` (5000) | sockets drop, clients reconnect |
+| host loss | not covered by this ADR; provider rebuild | outside the 99.0% target's assumptions |
+
+The monthly availability target (99.0%, about 7 h 18 min) is the single-instance
+target documented in `docs/ops/operations.md` §4: a host failure is downtime,
+not a degraded mode, and no automatic failover is claimed.
+
+**Reason:** the three in-memory stores are the product's cheap path. A shared
+limiter would add a round trip to every request, and the hub would need
+`LISTEN/NOTIFY` or a producer on `platform.outbox` (which today has none) to fan
+out across processes. With one operator, one match-night load profile and a
+512 MB container, that cost buys nothing the target needs; what it does need is
+for the constraint to be written down, so nobody scales the container to
+`--scale 2` and halves each budget while half the spectators miss a
+`session.changed` event.
+
+**Reopener:** a second instance is required (a staging parity run with two
+instances, or an availability target above what one host can meet). Before that,
+the limiter counters move to a shared store (PostgreSQL or Redis), the hub gains
+a `LISTEN/NOTIFY` bridge or an outbox producer, and the config cache gains an
+invalidation channel; the parity suite then runs against two instances with no
+duplicate budget and no missed broadcast.

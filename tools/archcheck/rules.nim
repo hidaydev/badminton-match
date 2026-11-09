@@ -687,6 +687,9 @@ proc importLines(source: string): seq[(int, string)] =
 
 const communityRoots = ["apps/", "modules/", "tools/"]
 
+const featureModuleRoots = ["account/", "achievement/", "community/", "player/",
+  "rating/", "session/", "share/", "tournament/"]
+
 proc communityAllowed(file, routine: string,
                       allowed: openArray[string]): bool =
   ## `path/` exempts a whole tree, `path` a whole file, `path:routine` every
@@ -798,6 +801,16 @@ proc violationsFor*(path, source: string,
          (line.contains("db/db") or line.contains("db_connector")):
         result.add(file & ":" & $lineNumber &
           ": domain must not import the database layer")
+      if file.startsWith("modules/platform/") and not file.contains("/tests/"):
+        # `platform` is the primitive layer every feature builds on: an import
+        # in the other direction makes the graph cyclic the day a feature
+        # happens to need platform in turn. `db/` is the shared driver, not a
+        # feature, so it stays allowed.
+        for feature in featureModuleRoots:
+          if line.contains(feature):
+            result.add(file & ":" & $lineNumber &
+              ": platform must not import a feature module (" &
+              feature[0 ..< feature.len - 1] & ")")
   let codeLines = stripStrings(source.splitLines())
   # The clock module itself and test support files may read the wall clock. A
   # `_test.nim` is judged like product code (QA-07): pinning the clock through

@@ -81,6 +81,21 @@ proc bodyTooLarge*(request: Request, snapshot: Snapshot): bool =
   let limit = snapshot.intValue(%*{}, keySecurityMaxBodyBytes)
   request.body.len > limit
 
+proc socketBodyCeiling*(): int =
+  ## The largest body the socket accepts, for a call site that has no snapshot.
+  specFor(keySecurityMaxBodyBytes).maxValue.int
+
+proc bodyLimits*(snapshot: Snapshot): tuple[guardBytes, socketBytes: int] =
+  ## The guard is the configured value; the socket cap is the registry ceiling
+  ## for that key, never the configured value. mummy drops the connection before
+  ## any handler runs once a body passes `maxBodyLen`, so a socket cap equal to
+  ## the limit would answer an oversized request with a closed socket instead of
+  ## the documented 413. Every limit an operator may store is below the ceiling,
+  ## so the guard, not the transport, decides for every legal configuration;
+  ## only a body past the ceiling is dropped, and no answer is possible there.
+  let configured = snapshot.intValue(%*{}, keySecurityMaxBodyBytes)
+  (configured, max(configured, socketBodyCeiling()))
+
 proc jsonTooDeep*(body: string, limit: int): bool =
   ## Counts nesting without parsing, so an over-deep body is refused before
   ## `parseJson` can recurse into it and exhaust the stack. Braces inside a

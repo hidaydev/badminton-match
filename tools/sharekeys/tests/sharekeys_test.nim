@@ -85,12 +85,14 @@ suite "rotate":
     check runTool(@["rotate", "--from", "1"]).status == 2
     check runTool(@["rotate", "--to", "2"]).status == 2
 
-  test "a dry run prints and exits without opening the database":
+  test "a dry run needs the database because it reports the row count":
+    ## BE-14: a dry run that wrote nothing and reported nothing left the
+    ## operator to learn the count by doing the rotation.
     let run = runTool(@["rotate", "--from", "1", "--to", "2", "--dry-run"],
       @[("MAJADU_PG_DSN", unreachableDsn), ("SHARE_CODE_KEYS", keys),
         ("SHARE_CODE_ACTIVE_KEY_ID", "2")])
-    check run.status == 0
-    check run.output.contains("dry run, nothing written")
+    check run.status != 0
+    check not run.output.contains("dry run, nothing written")
 
   test "a dry run still needs a keyring":
     let run = runTool(@["rotate", "--from", "1", "--to", "2", "--dry-run"],
@@ -103,6 +105,25 @@ suite "rotate":
     let run = runTool(@["generate", "--nope"])
     check run.status == 2
     check run.output.contains("unknown argument: --nope")
+
+suite "retire-legacy":
+  test "without --older-than it is a usage failure":
+    let run = runTool(@["retire-legacy"])
+    check run.status == 2
+    check run.output.contains("retire-legacy needs --older-than")
+
+  test "a window that is not a whole number is a usage failure":
+    let notANumber = runTool(@["retire-legacy", "--older-than", "thirty"])
+    check notANumber.status == 2
+    check notANumber.output.contains("--older-than must be a whole number of days")
+    let zero = runTool(@["retire-legacy", "--older-than", "0"])
+    check zero.status == 2
+    check zero.output.contains("--older-than must be at least 1")
+
+  test "a missing DSN is a runtime failure, not a usage one":
+    let run = runTool(@["retire-legacy", "--older-than", "30"])
+    check run.status == 1
+    check run.output.contains("MAJADU_PG_DSN is required")
 
 suite "usage":
   test "no subcommand and an unknown subcommand both print the usage block":
