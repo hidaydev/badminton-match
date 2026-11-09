@@ -321,6 +321,12 @@ export default function ScoreboardPage() {
         onExport={exportMatch}
         onToggleFullscreen={toggleFullscreen}
       />
+      <span
+        data-testid="build-stamp"
+        className="fixed bottom-1 left-2 z-10 text-[0.5rem] text-white/30 pointer-events-none"
+      >
+        {__BUILD_STAMP__}
+      </span>
     </main>
   )
 }

@@ -5,6 +5,11 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { manifest } from './src/manifest'
 
 export default defineConfig({
+  define: {
+    // Support can read this off the footer. It changes on every build, which is
+    // what makes "is this device on the fixed bundle?" answerable (PWA-01).
+    __BUILD_STAMP__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     tailwindcss(),

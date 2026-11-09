@@ -432,6 +432,11 @@ describe('ScoreboardPage', () => {
     expect(screen.getByText('Could not export the match')).toBeInTheDocument()
   })
 
+  it('shows the build stamp so support can identify the bundle', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+    expect(screen.getByTestId('build-stamp')).toHaveTextContent('test-build')
+  })
+
   it('follows a score written by another window', () => {
     renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
 
