@@ -50,7 +50,7 @@ suite "dbtools":
   # The suite owns the whole ledger schema, so it must not run against the
   # database the application uses: dropping `dbtools` would erase the real
   # migration history. The rows are saved here and restored in teardown.
-  var savedMigrations: seq[(string, string)] = @[]
+  var savedMigrations: seq[(string, string, bool)] = @[]
   var savedSeeds: seq[(string, string)] = @[]
 
   setup:
@@ -62,8 +62,10 @@ suite "dbtools":
     if db.queryOne("""select 1 as ok from information_schema.tables
                       where table_schema = 'dbtools'
                         and table_name = 'schema_migrations'""").isSome:
-      for row in db.query("select version, checksum from dbtools.schema_migrations"):
-        savedMigrations.add((row.get("version"), row.get("checksum")))
+      for row in db.query(
+        "select version, checksum, contract from dbtools.schema_migrations"):
+        savedMigrations.add((row.get("version"), row.get("checksum"),
+          row.getBool("contract")))
     if db.queryOne("""select 1 as ok from information_schema.tables
                       where table_schema = 'dbtools'
                         and table_name = 'seed_files'""").isSome:
@@ -77,10 +79,11 @@ suite "dbtools":
     if savedMigrations.len > 0 or savedSeeds.len > 0:
       db.tx(proc(conn: DbConn) =
         conn.execScript(ledgerSchema)
-        for (version, sum) in savedMigrations:
+        for (version, sum, contract) in savedMigrations:
           discard conn.execUpdate(
-            "insert into dbtools.schema_migrations (version, checksum) values ($1, $2)",
-            @[textParam(version), textParam(sum)])
+            """insert into dbtools.schema_migrations
+                 (version, checksum, contract) values ($1, $2, $3)""",
+            @[textParam(version), textParam(sum), boolParam(contract)])
         for (name, sum) in savedSeeds:
           discard conn.execUpdate(
             "insert into dbtools.seed_files (name, checksum) values ($1, $2)",
@@ -124,7 +127,7 @@ suite "dbtools":
     check problems[0].contains("pending migration: 0003_late")
     removeDir(extra)
 
-  test "a contract migration only runs with the flag":
+  test "a contract migration is refused while pending and accepted once applied":
     migrate(db, migrations)
     let contract = getTempDir() / "dbtools-contract-migrate"
     if dirExists(contract):
@@ -133,12 +136,24 @@ suite "dbtools":
     writeFile(contract / "0003_contract.sql",
       "-- 0003: rewrite the probe once the previous release stopped reading it.\n" &
       "-- contract\n\n" &
-      "create table if not exists contract_probe (id int);\n" &
-      "drop table contract_probe;\n")
+      "alter table probe add column if not exists contract_marker int;\n")
+    # Pending: the marker blocks a normal migrate.
     check contractRefusal(contract, false).contains("0003_contract.sql")
     check contractRefusal(contract, true).len == 0
     migrate(db, contract, allowContract = true)
+    # Applied: the file may stay, and a later deploy without the flag runs.
     check verifyProblems(db, contract).len == 0
+    migrate(db, contract)
+    check verifyProblems(db, contract).len == 0
+    # Deleted: the ledger's contract flag keeps verify clean.
+    removeFile(contract / "0003_contract.sql")
+    check verifyProblems(db, contract).len == 0
+    let applied: seq[string] = block:
+      var versions: seq[string] = @[]
+      for row in db.query("select version from dbtools.schema_migrations"):
+        versions.add(row.get("version"))
+      versions
+    check contractRefusal(contract, false, applied).len == 0
     removeDir(contract)
 
   test "seed runs once":
