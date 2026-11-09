@@ -1,4 +1,4 @@
-# Rotates the Majadu logs once an hour.
+# Rotates the Majadu logs every ten minutes.
 #
 # Enabled by the operator, not by deploy-vps.sh (the deploy only installs unit
 # files). See docs/ops/cutover.md for when to enable it; it depends on nothing
@@ -7,7 +7,7 @@
 Description=Rotate the Majadu logs hourly
 
 [Timer]
-OnCalendar=hourly
+OnCalendar=*:0/10
 RandomizedDelaySec=2m
 
 [Install]

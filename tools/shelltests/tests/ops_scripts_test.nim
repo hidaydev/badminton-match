@@ -593,12 +593,74 @@ suite "rotate-log.sh":
     check renamed[0].startsWith("api.log.")
     check renamed[1].startsWith("worker.log.")
     for name in renamed:
-      let stamp = name[name.rfind('.') + 1 .. ^1]
+      check name.endsWith(".gz")
+      let stamp = name[name.find(".log.") + 5 ..< name.len - len(".gz")]
       check stamp.len == 15 and stamp[8] == '-'
     # A second run touches nothing, because no `*.log` is left.
     let again = fixture.runShell(fixture.installOpsScript("rotate-log.sh"),
       @[], appDir(fixture) & @[("LOG_DIR", logs)])
     check again.exitCode == 0
+
+  # OPS-24: a rename bounds the age of a file, not its size.
+  test "a log past MAXSIZE is rotated and gzipped on the next run":
+    let fixture = newFixture("rotate-maxsize")
+    defer: removeDir(fixture.root)
+    let logs = fixture.root / "logs"
+    createDir(logs)
+    let hot = logs / "deploy.log"
+    # 2 MB of 'x' stands in for a burst between two rotations.
+    writeFile(hot, repeat('x', 2 * 1024 * 1024))
+    let result = fixture.runShell(fixture.installOpsScript("rotate-log.sh"),
+      @[], appDir(fixture) & @[("LOG_DIR", logs), ("MAXSIZE", "1M")])
+    check result.exitCode == 0
+    check result.stderr.contains("past MAXSIZE=1M")
+    check not fileExists(hot)
+    var gz: seq[string]
+    for kind, path in walkDir(logs):
+      if kind == pcFile and path.endsWith(".gz"):
+        gz.add(path)
+        check mode600(path)
+    check gz.len == 1
+    # Repetitive input compresses; the file survives as a bounded copy rather
+    # than the 2 MB burst that was on disk.
+    check getFileSize(gz[0]) > 0
+    check getFileSize(gz[0]) < 1024 * 1024
+
+  test "expired compressed files are pruned and fresh ones kept":
+    let fixture = newFixture("rotate-prune")
+    defer: removeDir(fixture.root)
+    let logs = fixture.root / "logs"
+    createDir(logs)
+    let old = logs / "deploy.log.20260101-000000.gz"
+    let fresh = logs / "deploy.log.20261109-000000.gz"
+    touch(old, "old")
+    touch(fresh, "fresh")
+    age(old, 30)
+    let result = fixture.runShell(fixture.installOpsScript("rotate-log.sh"),
+      @[], appDir(fixture) & @[("LOG_DIR", logs), ("KEEP_DAYS", "14")])
+    check result.exitCode == 0
+    check not fileExists(old)
+    check fileExists(fresh)
+
+  test "a volume past the threshold starts the disk alert":
+    let fixture = newFixture("rotate-disk-alert")
+    defer: removeDir(fixture.root)
+    let logs = fixture.root / "logs"
+    createDir(logs)
+    touch(logs / "api.log", "line\n")
+    let systemctlLog = fixture.root / "systemctl.log"
+    fixture.installFake("systemctl", """#!/bin/sh
+printf '%s\n' "$*" >> "$FAKE_SYSTEMCTL_LOG"
+exit 0
+""")
+    # Every filesystem is more than 0% full, so the threshold fires without
+    # filling a disk in the test.
+    let result = fixture.runShell(fixture.installOpsScript("rotate-log.sh"),
+      @[], appDir(fixture) & @[("LOG_DIR", logs), ("DISK_MAX_PCT", "0"),
+        ("FAKE_SYSTEMCTL_LOG", systemctlLog)])
+    check result.exitCode == 0
+    check result.stderr.contains("full (threshold 0%)")
+    check readFile(systemctlLog).contains("start majadu-alert@disk.service")
 
   test "a missing log directory exits 0 and is not created":
     let fixture = newFixture("rotate-missing")
