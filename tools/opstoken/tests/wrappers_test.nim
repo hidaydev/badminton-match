@@ -326,7 +326,8 @@ suite "thin wrapper CLIs":
       if entry["table"].getStr() == "platform.ws_ticket":
         tickets = entry["deleted"].getInt()
     check names == @["auth.oauth_flows", "platform.idempotency_keys",
-      "platform.outbox", "session.links", "platform.ws_ticket"]
+      "platform.outbox", "session.links", "account.sessions",
+      "community.invite", "platform.ops_token", "platform.ws_ticket"]
     check payload["deleted"].getInt() == sum
     check tickets == before
     check countOf(
