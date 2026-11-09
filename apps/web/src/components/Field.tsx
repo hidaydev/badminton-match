@@ -58,6 +58,11 @@ export function Input({ className, ...props }: ComponentProps<'input'>) {
   return <input {...props} className={join(CONTROL, className)} />
 }
 
+/**
+ * WebKit sizes a native select from its own appearance and ignores `min-height`,
+ * so the shared control class alone left it 22px tall and below the 44px touch
+ * minimum. An explicit height is honoured by every engine.
+ */
 export function Select({ className, ...props }: ComponentProps<'select'>) {
-  return <select {...props} className={join(CONTROL, className)} />
+  return <select {...props} className={join(CONTROL, 'h-11', className)} />
 }
