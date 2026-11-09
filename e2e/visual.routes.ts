@@ -49,6 +49,17 @@ export type VisualRoute = {
    * native control, so a shot of this screen is otherwise different every day.
    */
   maskDateFilter?: boolean
+  /**
+   * Selectors hidden before the shot. A value that changes on every build (the
+   * scoreboard's build stamp) would invalidate the baseline on every deploy.
+   */
+  hide?: readonly string[]
+  /**
+   * Set the scoreboard's "install sheet shown today" key before the first
+   * paint, so the baseline pins the scoring surface instead of a first-visit
+   * overlay that only some engines render.
+   */
+  suppressInstallSheet?: boolean
 }
 
 export const visualRoutes: readonly VisualRoute[] = [
@@ -120,6 +131,18 @@ export const visualRoutes: readonly VisualRoute[] = [
     path: () => '/owner/communities',
     ready: (state) => `text=${state.communityName}`,
   },
+  // The scoreboard is a separate deployable on its own preview port, so its
+  // route is an absolute URL. It needs no session, but it is the only surface
+  // with coloured backgrounds, which is why it belongs in the visual and a11y
+  // baseline. The build stamp changes on every build, so it is hidden; the
+  // first-visit install sheet is suppressed so the shot is the scoring surface.
+  {
+    name: 'scoreboard',
+    path: () => process.env.E2E_SCOREBOARD_BASE_URL ?? 'http://127.0.0.1:4173/',
+    ready: () => 'text=tap to score',
+    hide: ['[data-testid="build-stamp"]'],
+    suppressInstallSheet: true,
+  },
 ]
 
 /**
@@ -134,14 +157,6 @@ export const a11yRoutes: readonly VisualRoute[] = [
     name: 'shared',
     path: (state) => `/s/${state.shareCode}`,
     ready: (state) => `text=${state.sessionTitle}`,
-  },
-  // The scoreboard is a separate deployable on its own preview port, so its
-  // route is an absolute URL. It needs no session, but it is the only surface
-  // with coloured backgrounds, which is why it belongs in the a11y walk.
-  {
-    name: 'scoreboard',
-    path: () => process.env.E2E_SCOREBOARD_URL ?? 'http://127.0.0.1:4173/',
-    ready: () => 'text=tap to score',
   },
   // Static prose the shell links from the account menu. They carry no data, so
   // the heading is the readiness signal.
