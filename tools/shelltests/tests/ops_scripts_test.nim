@@ -909,3 +909,77 @@ suite "webhook routing and deploy drift":
     check result.exitCode == 0
     check result.stdout.contains("matches the latest release")
     check not fileExists(log)
+suite "release-preflight.sh":
+  test "no tag argument exits 2":
+    let fixture = newFixture("preflight-usage")
+    defer: removeDir(fixture.root)
+    let result = fixture.runShell(
+      fixture.installOpsScript("release-preflight.sh"), @[],
+      @[("MAJADU_REPO_DIR", fixture.root)])
+    check result.exitCode == 2
+    check result.stderr.contains("release-preflight.sh v2.0.0-rc.1")
+
+  test "a missing tag is reported with the other missing inputs":
+    let fixture = newFixture("preflight-no-tag")
+    defer: removeDir(fixture.root)
+    let curlLog = fixture.root / "curl.log"
+    fixture.installFake("git", "#!/bin/sh\nexit 1\n")
+    fixture.installFake("curl", """#!/bin/sh
+printf '%s\n' "$*" >>"$FAKE_CURL_LOG"
+exit 0
+""")
+    touch(fixture.root / "VERSION", "2.0.0-rc.1\n")
+    let result = fixture.runShell(
+      fixture.installOpsScript("release-preflight.sh"), @["v2.0.0-rc.1"],
+      @[("MAJADU_REPO_DIR", fixture.root), ("FAKE_CURL_LOG", curlLog)])
+    check result.exitCode == 1
+    check result.stderr.contains("tag v2.0.0-rc.1 does not exist")
+    check result.stderr.contains("cosign is not installed")
+    # The lookup still ran so the operator sees every gap in one pass.
+    check readFile(curlLog).contains("releases/tags/v2.0.0-rc.1")
+
+  test "a signed tag with one digest and a verifying image passes":
+    let fixture = newFixture("preflight-ok")
+    defer: removeDir(fixture.root)
+    fixture.installFake("git", "#!/bin/sh\nexit 0\n")
+    fixture.installFake("curl", """#!/bin/sh
+printf '%s' '{"body":"notes\ndigest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n"}'
+exit 0
+""")
+    fixture.installFake("cosign", "#!/bin/sh\nexit 0\n")
+    touch(fixture.root / "VERSION", "2.0.0-rc.1\n")
+    for name in ["majadu-prod.env", "majadu-tools.env", "ghcr-token",
+                 "cosign.pub"]:
+      let path = fixture.root / "env" / name
+      touch(path, "x\n")
+      setFilePermissions(path, {fpUserRead, fpUserWrite})
+    let result = fixture.runShell(
+      fixture.installOpsScript("release-preflight.sh"), @["v2.0.0-rc.1"],
+      @[("MAJADU_REPO_DIR", fixture.root), ("MAJADU_APP_DIR", fixture.root)])
+    check result.exitCode == 0
+    check result.stdout.contains("release v2.0.0-rc.1 publishes exactly one digest")
+    check result.stdout.contains("verifies with")
+
+  test "a world-readable env file fails the preflight":
+    let fixture = newFixture("preflight-env-mode")
+    defer: removeDir(fixture.root)
+    fixture.installFake("git", "#!/bin/sh\nexit 0\n")
+    fixture.installFake("curl", """#!/bin/sh
+printf '%s' '{"body":"digest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n"}'
+exit 0
+""")
+    fixture.installFake("cosign", "#!/bin/sh\nexit 0\n")
+    touch(fixture.root / "VERSION", "2.0.0-rc.1\n")
+    for name in ["majadu-tools.env", "ghcr-token", "cosign.pub"]:
+      let path = fixture.root / "env" / name
+      touch(path, "x\n")
+      setFilePermissions(path, {fpUserRead, fpUserWrite})
+    let prod = fixture.root / "env" / "majadu-prod.env"
+    touch(prod, "x\n")
+    setFilePermissions(prod, {fpUserRead, fpUserWrite, fpGroupRead,
+      fpOthersRead})
+    let result = fixture.runShell(
+      fixture.installOpsScript("release-preflight.sh"), @["v2.0.0-rc.1"],
+      @[("MAJADU_REPO_DIR", fixture.root), ("MAJADU_APP_DIR", fixture.root)])
+    check result.exitCode == 1
+    check result.stderr.contains(prod & " must be mode 600 (found 644)")

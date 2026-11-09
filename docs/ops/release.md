@@ -187,3 +187,33 @@ readiness, not silently write wrong data.
   `bm2_owner` role; that combination has never been run on the VPS.
 - Two concurrent release queues have not been tested; `flock` holds the second
   for up to 900 seconds and then gives up.
+## 8. First-release rehearsal
+
+No tag, release, digest or deploy has ever run, so the first execution is the
+release. `ops/scripts/release-preflight.sh <tag>` walks the same inputs the
+workflow and the deploy read and names the missing one; run it before the tag
+and again after the image is published. It creates nothing.
+
+The rehearsal is the release itself, cut from the integration branch against the
+RC database, in this order:
+
+1. `./task release` and `./task release --apply`, then commit
+   `chore(release): v<version>`.
+2. `git tag -s -F .cache/release/v<version>.md v<version>`, then
+   `ops/scripts/release-preflight.sh v<version>`. Fix every `MISSING:` line
+   before pushing.
+3. `git push origin refs/tags/v<version>` and wait for `release.yml`. Record the
+   digest from the release body, then run the preflight again and confirm the
+   cosign line.
+4. On the VPS, run the deploy by hand against the RC instance first
+   (`deploy-vps-rc.sh` builds from the checkout and proves the migrate, seed,
+   restart and smoke steps on the same host). Then trigger the production
+   deploy and confirm `deploy/last-release.json` carries the digest.
+5. Record the run here, with the date, the tag, the digest, the failing step (if
+   any) and the commit that fixed it.
+
+| Date | Tag | Digest | Result | Note |
+|---|---|---|---|---|
+| | | | | |
+
+Until that table has a row, the pipeline is untested and §7 stays true.
