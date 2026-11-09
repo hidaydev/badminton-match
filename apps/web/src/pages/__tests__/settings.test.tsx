@@ -114,6 +114,50 @@ describe('community settings', () => {
     expect(panel.open).toBe(true)
   })
 
+  it('reads the config and the format list from one request', async () => {
+    const fetchMock = base({
+      'GET /api/c/acme/config': () => ({
+        body: {
+          effective,
+          scoringPresets: [
+            {
+              id: 'standard',
+              label: 'Standard',
+              gamesToWin: 2,
+              pointsToWin: 21,
+              winBy: 2,
+              maxPoints: 30,
+              deuceAt: 20,
+              changeEndsAt: 11,
+            },
+          ],
+        },
+      }),
+    })
+
+    renderAt('/c/acme/settings')
+
+    // The settings block is a closed disclosure, so the read that feeds it is
+    // fired by the screen, not by the panel.
+    await screen.findByLabelText(t('community.setting.timezone'))
+    const reads = fetchMock.mock.calls.filter(([url]) => String(url) === '/api/c/acme/config')
+    expect(reads).toHaveLength(1)
+  })
+
+  it('renders one error when the config read fails', async () => {
+    base({
+      'GET /api/c/acme/config': () => ({
+        status: 500,
+        body: { code: 'INTERNAL', detail: 'boom' },
+      }),
+    })
+
+    renderAt('/c/acme/settings')
+
+    expect(await screen.findByText(t('community.error.load'))).toBeInTheDocument()
+    expect(screen.getAllByText(t('community.error.load'))).toHaveLength(1)
+  })
+
   it('narrows an invite lifetime and sends only the changed key', async () => {
     let configReads = 0
     const fetchMock = base({

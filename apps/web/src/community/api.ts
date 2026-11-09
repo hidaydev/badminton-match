@@ -28,22 +28,34 @@ export type ScoringPreset = {
 }
 
 /**
+ * Both halves of `GET /c/{slug}/config`: the effective settings and the
+ * platform's format list. One response carries both, so one request reads
+ * both; asking twice for the same document only doubles the wait and gives
+ * the screen two failure states for one resource.
+ */
+export type CommunityConfigBundle = {
+  config: CommunityConfig
+  presets: ScoringPreset[]
+}
+
+export async function fetchCommunityConfigBundle(slug: string): Promise<CommunityConfigBundle> {
+  const body = await request<{ effective?: CommunityConfig; scoringPresets?: ScoringPreset[] }>(
+    `/c/${encodeURIComponent(slug)}/config`,
+  )
+  return { config: body.effective ?? {}, presets: body.scoringPresets ?? [] }
+}
+
+/**
  * Effective settings for a member of the community named by the slug. The
  * backend derives the community from the path, so no community header exists.
  */
 export async function fetchCommunityConfig(slug: string): Promise<CommunityConfig> {
-  const body = await request<{ effective: CommunityConfig }>(
-    `/c/${encodeURIComponent(slug)}/config`,
-  )
-  return body.effective
+  return (await fetchCommunityConfigBundle(slug)).config
 }
 
 /** The platform's format list; reference data, not a community setting. */
 export async function fetchScoringPresets(slug: string): Promise<ScoringPreset[]> {
-  const body = await request<{ scoringPresets?: ScoringPreset[] }>(
-    `/c/${encodeURIComponent(slug)}/config`,
-  )
-  return body.scoringPresets ?? []
+  return (await fetchCommunityConfigBundle(slug)).presets
 }
 
 /**

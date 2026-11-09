@@ -3,8 +3,8 @@ import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
 import type { CommunityRole } from '../auth/api'
 import { useCommunity } from '../community/CommunityContext'
-import { updateCommunityConfig, fetchScoringPresets } from '../community/api'
-import type { CommunityConfig, CommunityConfigEntry, ScoringPreset } from '../community/api'
+import { updateCommunityConfig } from '../community/api'
+import type { CommunityConfig, CommunityConfigEntry } from '../community/api'
 import { useCommunityConfig } from '../community/useCommunityConfig'
 import {
   createInvite,
@@ -200,23 +200,13 @@ function describeSave(error: unknown): string {
  * community owns it.
  */
 function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }) {
-  const { config, loading, error } = useCommunityConfig(slug)
+  // The format list arrives with the settings: the endpoint answers with both,
+  // so there is no second read and no second failure state.
+  const { config, presets, loading, error } = useCommunityConfig(slug)
   const [saved, setSaved] = useState<CommunityConfig | null>(null)
   const [edits, setEdits] = useState<Record<string, string | boolean>>({})
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-  const [presets, setPresets] = useState<ScoringPreset[]>([])
-
-  // The list is reference data; a failure here leaves the select empty rather
-  // than breaking the rest of the settings screen.
-  useEffect(() => {
-    if (slug === '') return
-    let active = true
-    fetchScoringPresets(slug)
-      .then((list) => { if (active) setPresets(list) })
-      .catch(() => { if (active) setPresets([]) })
-    return () => { active = false }
-  }, [slug])
 
   if (loading && config === null) {
     return <LoadingState label={t('community.settings')} rows={2} />
