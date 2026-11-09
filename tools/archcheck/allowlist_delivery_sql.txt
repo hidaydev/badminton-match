@@ -73,6 +73,13 @@ apps/api/src/app.nim:opsPing
 # community, sign-in session state and community creation.
 apps/api/src/app.nim:authAudit
 apps/api/src/app.nim:authRejected
+
+# SEC-02/SEC-07: the two audit writers the security pass added. Both go through
+# `recordAudit`, which is the account module's statement, and both hold the pool
+# only to log an outcome of a request the handler already decided; they move
+# with the account extraction rather than before it.
+apps/api/src/app.nim:denyAudit
+apps/api/src/app.nim:scheduleAudit
 apps/api/src/app.nim:listAuthSessions
 apps/api/src/app.nim:revokeOtherSessions
 apps/api/src/app.nim:logout
