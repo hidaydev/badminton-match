@@ -383,6 +383,10 @@ const
   ## Hard bound on the table. Reaching it evicts the entry closest to expiry,
   ## so random cookies cannot grow it without limit.
   identityCacheMaxEntries = 2048
+  ## The session cookie carries its lifetime in seconds; the registry stores
+  ## days. Named so the conversion is not a magic number at the call site
+  ## (SQ-20).
+  secondsPerDay = 86400
 
 proc newIdentityCache(): IdentityCache =
   result = IdentityCache(entries: initTable[string, IdentityEntry]())
@@ -524,7 +528,7 @@ proc quota(request: Request, snapshot: Snapshot, scope: string,
 proc sessionCookie(token: string, snapshot: Snapshot): string =
   let days = snapshot.intValue(%*{}, keySessionAbsoluteDays)
   result = "majadu_session=" & token &
-    "; Path=/; HttpOnly; SameSite=Lax; Max-Age=" & $(days * 86400)
+    "; Path=/; HttpOnly; SameSite=Lax; Max-Age=" & $(days * secondsPerDay)
   if application.cookieSecure:
     result.add("; Secure")
 

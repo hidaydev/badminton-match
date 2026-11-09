@@ -9,6 +9,9 @@ type
 
 const
   stateChanging = ["POST", "PUT", "PATCH", "DELETE"]
+  ## HSTS max-age for one year. Named because the header is a security promise
+  ## whose duration must be readable at the call site (SQ-20).
+  hstsMaxAgeSeconds = 31536000
 
 proc allowedOrigins*(snapshot: Snapshot): seq[string] =
   ## The seeded config is the per-deployment list the operator can edit without
@@ -75,7 +78,8 @@ proc securityHeaders*(secure: bool): seq[(string, string)] =
     ("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"),
   ]
   if secure:
-    result.add(("Strict-Transport-Security", "max-age=31536000; includeSubDomains"))
+    result.add(("Strict-Transport-Security",
+      "max-age=" & $hstsMaxAgeSeconds & "; includeSubDomains"))
 
 proc bodyTooLarge*(request: Request, snapshot: Snapshot): bool =
   let limit = snapshot.intValue(%*{}, keySecurityMaxBodyBytes)
