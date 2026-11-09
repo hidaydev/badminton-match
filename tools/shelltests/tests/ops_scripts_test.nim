@@ -548,6 +548,22 @@ suite "restore.sh":
     check not calls.contains("--no-privileges")
     check calls.contains("--dbname postgres://bm2_owner@db.example:5432/bm2_test")
 
+  test "--no-privileges is still available for a staging restore":
+    let fixture = newFixture("restore-staging-privs")
+    defer: removeDir(fixture.root)
+    let restoreLog = fixture.root / "restore.log"
+    fixture.installFake("pg_restore",
+      "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$FAKE_RESTORE_LOG\"\nprintf ''\n")
+    fixture.installFake("flock", flockFake)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging", "--no-privileges",
+        "--dsn", "postgres://bm2_owner@db.example:5432/bm_staging"],
+      appDir(fixture) & @[("FAKE_RESTORE_LOG", restoreLog)])
+    check result.exitCode == 0
+    check readFile(restoreLog).contains("--no-privileges")
+
 suite "rotate-log.sh":
   test "every log is renamed with a timestamp and forced mode 600":
     let fixture = newFixture("rotate-rename")

@@ -414,7 +414,7 @@ step_restore_staging() {
   # The ETL role cannot drop or create bm_staging, so the restore uses its own
   # DSN: a role that owns the staging database or has CREATEDB.
   "$APP_DIR/scripts/restore.sh" --file "$dump" --target "$STAGING_DB" \
-    --dsn "$RESTORE_DSN" --recreate
+    --dsn "$RESTORE_DSN" --recreate --no-privileges
 }
 
 step_prepare_bm2() {

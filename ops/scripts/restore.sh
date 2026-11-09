@@ -3,7 +3,11 @@
 #
 #   ./ops/scripts/restore.sh --file backups/bm2-20261104-0300.dump --target bm2
 #   ./ops/scripts/restore.sh --file dump --target bm_staging --recreate \
-#     --dsn postgres://bm2_owner@qouver-postgres:5432/bm_staging
+#     --dsn postgres://bm2_owner@qouver-postgres:5432/bm_staging --no-privileges
+#
+# Privileges are restored by default: a bm2 dump carries the bm2_app grants and
+# default ACLs, and dropping them leaves the API unable to read its own schema.
+# --no-privileges is for a staging copy of a v1 dump, whose grants name v1 roles.
 #
 # The target guard is an allow-list, not a deny-list: `bm`, `bm2`, `bm_staging`,
 # anything starting with `bm2_`, and rehearsal targets starting with
@@ -36,6 +40,7 @@ FILE=""
 TARGET=""
 RECREATE=0
 FORCE=0
+NO_PRIVILEGES=0
 DSN=""
 
 usage() {
@@ -49,6 +54,7 @@ while [ "$#" -gt 0 ]; do
     --dsn) shift; DSN="${1:-}" ;;
     --recreate) RECREATE=1 ;;
     --force) FORCE=1 ;;
+    --no-privileges) NO_PRIVILEGES=1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "restore: unknown argument $1" >&2; exit 2 ;;
   esac
@@ -261,14 +267,25 @@ pg_restore_list() {
 }
 
 pg_restore_file() {
-  # `--no-privileges` is deliberately absent: a restore that drops the ACLs
-  # produces a database the application cannot log into (the owner dump carries
-  # them, and the restore role must not replace the grants with itself).
-  if [ "$USE_CONTAINER" -eq 1 ]; then
-    podman exec -i "$PG_CONTAINER" pg_restore --clean --if-exists \
-      --no-owner --dbname "$DSN" <"$FILE"
+  # Privileges are kept by default: a bm2 dump without its ACLs restores into a
+  # database the application cannot log into. A staging restore of a v1 dump
+  # passes --no-privileges because those grants name v1 roles and the staging
+  # copy is read-only.
+  if [ "$NO_PRIVILEGES" -eq 1 ]; then
+    if [ "$USE_CONTAINER" -eq 1 ]; then
+      podman exec -i "$PG_CONTAINER" pg_restore --clean --if-exists \
+        --no-owner --no-privileges --dbname "$DSN" <"$FILE"
+    else
+      pg_restore --clean --if-exists --no-owner --no-privileges \
+        --dbname "$DSN" "$FILE"
+    fi
   else
-    pg_restore --clean --if-exists --no-owner --dbname "$DSN" "$FILE"
+    if [ "$USE_CONTAINER" -eq 1 ]; then
+      podman exec -i "$PG_CONTAINER" pg_restore --clean --if-exists \
+        --no-owner --dbname "$DSN" <"$FILE"
+    else
+      pg_restore --clean --if-exists --no-owner --dbname "$DSN" "$FILE"
+    fi
   fi
 }
 
