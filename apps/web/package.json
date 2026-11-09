@@ -11,9 +11,10 @@
     "check:types": "tsc -b --pretty false",
     "check:lint": "eslint .",
     "check:tailwind": "node scripts/check-tailwind-arbitrary.mjs",
-    "check": "pnpm run check:types && pnpm run check:lint && pnpm run check:tailwind && pnpm run check:touch && pnpm test",
+    "check": "pnpm run check:types && pnpm run check:lint && pnpm run check:tailwind && pnpm run check:touch && pnpm run check:docpaths && pnpm test",
     "test": "vitest run --coverage",
-    "check:touch": "node scripts/check-touch-targets.mjs"
+    "check:touch": "node scripts/check-touch-targets.mjs",
+    "check:docpaths": "node scripts/check-doc-paths.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
