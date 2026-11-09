@@ -1153,7 +1153,7 @@ proc shareKeyUnavailable(request: Request,
   ## 404: the row exists and the operator has to restore the key, so "no link"
   ## would send them to issue a new one. The link id is logged, never the code.
   recordShareKeyProblem()
-  stdout.writeLine shareKeyProblemLine(error.linkId, currentRequestId())
+  writeLogLine shareKeyProblemLine(error.linkId, currentRequestId())
   problem(request, 503, "UNAVAILABLE", "share link key is not available")
 
 proc issueShareTicket(request: Request, code: string, snapshot: Snapshot) =
