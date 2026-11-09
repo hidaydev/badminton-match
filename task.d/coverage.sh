@@ -824,9 +824,15 @@ awk -v mapfile="$COV/map.tsv" -v root="$REPO_ROOT/" '
 # counted as covered.
 : >"$COV/sizes.tsv"
 awk -F: -v root="$REPO_ROOT/" '
+  function included(rel) {
+    return substr(rel, 1, 5) == "apps/" || substr(rel, 1, 8) == "modules/" ||
+           substr(rel, 1, 7) == "shared/" || substr(rel, 1, 6) == "tools/"
+  }
   /^SF:/ {
     file = $2
-    if (index(file, root) == 1) print substr(file, length(root) + 1)
+    if (index(file, root) != 1) next
+    rel = substr(file, length(root) + 1)
+    if (included(rel)) print rel
   }
 ' "$COV/remapped.info" | sort -u | while IFS= read -r rel; do
   [ -f "$REPO_ROOT/$rel" ] || continue
@@ -845,10 +851,18 @@ awk -F: -v root="$REPO_ROOT/" -v sizesfile="$COV/sizes.tsv" \
       size[sized[1]] = sized[2] + 0
     }
   }
+  function included(rel) {
+    return substr(rel, 1, 5) == "apps/" || substr(rel, 1, 8) == "modules/" ||
+           substr(rel, 1, 7) == "shared/" || substr(rel, 1, 6) == "tools/"
+  }
   /^SF:/ {
     file = $2
     rel = ""
+    # Only the included roots count. On CI the Nim toolchain lives inside the
+    # checkout under .nim_runtime, and its 17k lines would otherwise enter the
+    # denominator as if they were project code.
     if (index(file, root) == 1) rel = substr(file, length(root) + 1)
+    if (!included(rel)) rel = ""
     next
   }
   /^DA:/ {
