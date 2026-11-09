@@ -25,7 +25,12 @@ COPY tools ./tools
 # digest, so those kinds are skipped; the Nim packages are verified against
 # deps.lock's content hashes and the two FROM digests are read back from this
 # file, so a moved tag or an unpinned base image fails the build here.
-COPY task task.d ./
+# One COPY per source. With several sources Docker copies the *contents* of a
+# directory source into the destination, so `COPY task task.d ./` left
+# `/src/task.d` holding only the file copied above and the gate below answered
+# "Unknown target: deps-check".
+COPY task ./task
+COPY task.d ./task.d
 RUN sh task deps-check --skip npm,playwright-browser,repo,toolchain
 # `appVersion` is read from the VERSION file at compile time; the commit only
 # exists in the build arguments, which is what `/version` reports back and what
