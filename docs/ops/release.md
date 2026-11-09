@@ -54,6 +54,11 @@ pushed.
    Release body. `release.yml` never creates or moves a tag; the tag always comes
    from the operator.
 
+Before the first signed release, install `cosign` on the VPS, put the public key
+in `/srv/qouver/apps/majadu/env/cosign.pub` (mode 600), and set
+`COSIGN_PRIVATE_KEY` and `COSIGN_PASSWORD` as GitHub Actions secrets. The deploy
+refuses to pull a digest it cannot verify.
+
 ## 3. What the deploy does
 
 After the cutover gate (`MAJADU_PG_DSN` points at `bm2`) and the version check,
