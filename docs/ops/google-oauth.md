@@ -5,9 +5,11 @@ broken: which Google client is used, what callback URL is registered, where the
 secret is, and what to do on rotation or revocation.
 
 Status: the login code exists (`modules/account/infrastructure/oidc.nim` and
-`apps/api/src/app.nim` → `/auth/start`, `/auth/callback`), but it has **never
-been tried with a real Google client**. Treat it as untested until there is a
-login test on the production origin (§6).
+`apps/api/src/app.nim` → `/auth/start`, `/auth/callback`) and the flow has been
+exercised with the real Google client on the RC origin
+(`https://majadu-rc.vercel.app`) on 2026-11-09, where two sign-ins completed end
+to end through the Vercel rewrite. The production origin is still untested; see
+§6 and `.local/incidents/iso-02-real-login.md`.
 
 ## 1. What the process reads
 
@@ -141,10 +143,15 @@ expires_at < now()`.
 
 ## 6. What is not yet proven
 
-- There is no real Google client yet; the whole symptom table above comes from
-  the code, not from an experiment.
-- The `Set-Cookie` behaviour through the Vercel rewrite must be tested on a
-  staging alias registered as a redirect URI, not a random preview.
+- The production origin (`https://majadu.vercel.app`) has not been exercised.
+  `https://majadu.vercel.app/api/auth/callback` is registered as an authorized
+  redirect URI on the same client the RC uses (owner confirmed 2026-11-09), so
+  the registration half is done; complete one sign-in on the production origin
+  after the merge.
+- The `Set-Cookie` behaviour is proven on the RC origin, where two sign-ins
+  completed on 2026-11-09 through the Vercel rewrite
+  (`.local/incidents/iso-02-real-login.md`). A preview alias sharing a cookie jar
+  with another origin was not tested and is not a supported login origin.
 - `client_secret` and `-d:ssl` are done: the secret is sent
   (`oidc.nim:76-77`) and the image is built with `-d:ssl`
-  (`apps/api/Dockerfile:27`). The only unproven items are the two above.
+  (`apps/api/Dockerfile:27`).
