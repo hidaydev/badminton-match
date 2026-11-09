@@ -38,6 +38,7 @@ tree <sha256>
 | `toolchain:<command>` | compiler/tool on `PATH` (`nim`, `gcovr`, `lcov`) | `version` `absent` → the command must **not** exist; otherwise the version is compared |
 | `npm:<package>` | npm package from the FE workspace | `apps/web/node_modules/<package>/package.json` (`version` → `version`) |
 | `playwright-browser:<name>` | Playwright browser build `<name>-<version>` | directory `<browser-cache>/<name>-<version>/INSTALLATION_COMPLETE` |
+| `docker:<image:tag>` | container base image in `apps/api/Dockerfile` | the matching `FROM` must carry `@<sha256>` equal to the fourth field |
 
 Browser cache: `PLAYWRIGHT_BROWSERS_PATH` when set, otherwise
 `~/Library/Caches/ms-playwright` (macOS) or `~/.cache/ms-playwright` (others).
@@ -60,6 +61,10 @@ at install time, so the hash could differ between machines. Timestamps,
 mode, owner, and `.git` contents never enter the digest.
 
 **Single file** (`repo:` pointing at a file): sha256 of the file bytes.
+
+**Docker image** (`docker:`): the digest is not hashed; it is read from the
+matching `FROM <image>@sha256:...` line and must equal the fourth field
+verbatim. A tag-only `FROM` is a failure, not an entry without a digest.
 
 **`tree`**: the concatenation of canonical entry lines (`name version source sha256`)
 sorted with `LC_ALL=C`, each terminated by `\n`, then hashed with sha256. Because

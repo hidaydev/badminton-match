@@ -93,6 +93,21 @@ suite "task target guards":
     let result = fixture.runTask(@["audit-retention"])
     check result.exitCode != 0
     check result.stderr.contains("MAJADU_AUDIT_DSN is required")
+  test "deps-check refuses a Dockerfile digest that differs from deps.lock":
+    let fixture = newFixture("deps-docker-mismatch")
+    defer: removeDir(fixture.root)
+    createDir(fixture.root / "apps" / "api")
+    writeFile(fixture.root / "apps" / "api" / "Dockerfile",
+      "FROM docker.io/nimlang/nim:2.4.0@sha256:" &
+      "0000000000000000000000000000000000000000000000000000000000000000\n")
+    writeFile(fixture.root / "deps.lock",
+      "tree deadbeef\n" &
+      "nim-base 2.4.0 docker:docker.io/nimlang/nim:2.4.0 sha256:" &
+      "e35e49da9bb8a5d4562f9c4f8afc1945c9cdeb525b2a9b3e76431d0556ac0c8f\n")
+    let result = fixture.runTask(@["deps-check"])
+    check result.exitCode == 1
+    check result.stderr.contains("entry differs: nim-base")
+
   test "every workflow that runs the Nim toolchain installs libpcre":
     ## Nim's `re` binds the system PCRE 1 library at run time. A workflow that
     ## installs the pinned Nim packages without installing the library dies with

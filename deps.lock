@@ -1,10 +1,15 @@
 # deps.lock — pinned toolchain, Nim packages, and gate tools.
 # Format: docs/handbook/deps-format.md. Verify with ./task deps-check.
 # tree = sha256 over the sorted entry lines below (comments excluded).
-tree 49e8cf814641080a70e8233d4b71207bd50db5fbc99a52ae02fcde0677296cec
+tree 2dd0563a099dca852f4bc3bb9c27ab0c4ea0dda32e477d42eb9de99d795cb482
 
 # Nim toolchain
 nim 2.4.0 toolchain:nim -
+
+# Container base images (manifest-list digests pinned in apps/api/Dockerfile).
+# The fourth field must equal the digest on the matching FROM line.
+nim-base 2.4.0 docker:docker.io/nimlang/nim:2.4.0 sha256:e35e49da9bb8a5d4562f9c4f8afc1945c9cdeb525b2a9b3e76431d0556ac0c8f
+debian-base bookworm-slim docker:docker.io/library/debian:bookworm-slim sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc
 
 # Coverage gate prerequisites (T-109).
 gcovr 8.8 toolchain:gcovr -

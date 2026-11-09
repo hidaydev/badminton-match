@@ -1,5 +1,7 @@
-# Build stage: the exact Nim version is pinned by tag and by deps.lock.
-FROM docker.io/nimlang/nim:2.4.0 AS build
+# Build stage: the exact Nim version is pinned by tag and by deps.lock. The
+# digest is the multi-arch manifest list published on 2026-11-01; Dependabot
+# bumps it and ./task deps-check refuses a Dockerfile that drifts from deps.lock.
+FROM docker.io/nimlang/nim:2.4.0@sha256:e35e49da9bb8a5d4562f9c4f8afc1945c9cdeb525b2a9b3e76431d0556ac0c8f AS build
 # The API talks to Google over https, which needs `-d:ssl` and therefore the
 # OpenSSL headers at compile time. The tools above do not, so the flag stays on
 # the API line only.
@@ -53,7 +55,7 @@ RUN nim c -d:release --opt:speed --threads:on --mm:atomicArc \
 RUN nim c -d:release --opt:speed --threads:on --mm:atomicArc \
       --nimcache:/tmp/nimcache-account -o:/out/account tools/accountlifecycle/main.nim
 
-FROM docker.io/library/debian:bookworm-slim
+FROM docker.io/library/debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc
 # libpcre3 is the dynamic dependency of Nim's re module: the API and the ETL both
 # import it, and without the shared object they abort at the first match.
 RUN apt-get update \
