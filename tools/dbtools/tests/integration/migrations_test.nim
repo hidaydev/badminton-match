@@ -347,5 +347,23 @@ try:
       check scratch.queryOne(
         "select count(*)::int as n from rating.events where source_id = $1::uuid",
         @[textParam(tournamentId)]).get.get("n") == "0"
+
+    test "an id the row does not supply is a UUIDv7":
+      migrate(scratch, migrationsDir)
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('uuidv7-defaults', 'UUIDv7', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      let audit = scratch.queryOne(
+        """insert into account.audit
+             (actor_role, action, target_kind, target_id, result, request_id)
+           values ('owner', 'uuidv7.test', 'test', 'x', 'allow', '-')
+           returning id::text as id""").get.get("id")
+      let event = scratch.queryOne(
+        """insert into rating.events (community_id, local_date, event_type)
+           values ($1::uuid, '2026-11-02', 'manual') returning id::text as id""",
+        @[textParam(communityId)]).get.get("id")
+      check audit[14] == '7'
+      check event[14] == '7'
 finally:
   shutdown()
