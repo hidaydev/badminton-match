@@ -4,14 +4,10 @@ on:
   push:
     branches: [main, "release/**"]
   pull_request:
-  # QA-03: recording a visual baseline is an explicit operator action, never a
-  # branch that CI takes on its own when the Linux set is absent.
+  # QA-03: recording a visual baseline is an explicit operator action on a
+  # Linux machine, never a branch CI takes when the set is absent, so the
+  # dispatch trigger has no recording input.
   workflow_dispatch:
-    inputs:
-      update_snapshots:
-        description: "Record the Linux visual baseline instead of comparing it"
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -505,59 +501,22 @@ jobs:
           psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
             -c "CREATE ROLE \"$(whoami)\" LOGIN SUPERUSER PASSWORD 'postgres'"
       # Pixel baselines live in `e2e/__screenshots__/{platform}/` and CI only
-      # compares them. While the Linux set is absent, a tag or a release branch
-      # fails hard; main and pull requests warn and skip the visual comparison so
-      # the rest of the suite still runs. Once the directory exists every ref
-      # runs the full comparison, and a missing or different PNG fails the job.
-      # Recording happens only through the `update_snapshots` dispatch input.
-      - name: "E2E: check the Linux baseline"
-        id: baseline
-        env:
-          UPDATE_SNAPSHOTS: ${{ inputs.update_snapshots }}
-          REF: ${{ github.ref }}
+      # compares them. The Linux set is committed, so a missing or empty
+      # directory is a deleted baseline and fails, not a reason to record a new
+      # one: a run that records its own baseline proves only that it is
+      # consistent with itself.
+      - name: "E2E: require the Linux baseline"
         run: |
-          present=0
-          if [ -d e2e/__screenshots__/linux ] &&
-            [ -n "$(ls -A e2e/__screenshots__/linux 2>/dev/null)" ]; then
-            present=1
+          if [ ! -d e2e/__screenshots__/linux ] ||
+            [ -z "$(ls -A e2e/__screenshots__/linux 2>/dev/null)" ]; then
+            echo "::error::e2e/__screenshots__/linux is missing or empty; it is committed and must be reviewed with the change."
+            echo "::error::Record it deliberately on a Linux machine (see e2e/README.md) and commit the set."
+            exit 1
           fi
-          echo "present=$present" >> "$GITHUB_OUTPUT"
-          if [ "$UPDATE_SNAPSHOTS" = "true" ]; then
-            echo "recording requested: ./task e2e will rewrite e2e/__screenshots__/linux"
-            exit 0
-          fi
-          if [ "$present" = 1 ]; then
-            exit 0
-          fi
-          case "$REF" in
-            refs/tags/*|refs/heads/release/*)
-              echo "::error::e2e/__screenshots__/linux is missing and $REF must compare against it."
-              echo "::error::Record it deliberately on Linux with ./task e2e --update-snapshots, or dispatch this workflow with update_snapshots=true, then review and commit e2e/__screenshots__/linux/."
-              exit 1
-              ;;
-          esac
-          echo "::warning::no Linux visual baseline yet: the visual comparison is skipped on $REF so this run can pass."
-          echo "::warning::Record it deliberately on Linux with ./task e2e --update-snapshots, then review and commit e2e/__screenshots__/linux/."
       - name: "E2E: run"
         env:
           PGPASSWORD: postgres
-          UPDATE_SNAPSHOTS: ${{ inputs.update_snapshots }}
-          BASELINE_PRESENT: ${{ steps.baseline.outputs.present }}
-        run: |
-          if [ "$UPDATE_SNAPSHOTS" = "true" ]; then
-            ./task e2e --update-snapshots
-          elif [ "$BASELINE_PRESENT" = "1" ]; then
-            ./task e2e
-          else
-            ./task e2e --grep-invert "@visual"
-          fi
-      - name: "E2E: upload a recorded baseline"
-        if: always() && inputs.update_snapshots
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: playwright-linux-baseline
-          path: e2e/__screenshots__/linux/
-          if-no-files-found: error
+        run: ./task e2e
       # QA-11: traces, failure screenshots, videos, the JSON report and the
       # HTML report all live under the config directory, which the runner would
       # otherwise delete with the job.

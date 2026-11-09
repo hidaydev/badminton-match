@@ -67,3 +67,13 @@ suite "workflow contract":
     # A rewritten PR history has no merge base, and the workflow refuses it
     # instead of inheriting the skip in task.d/coverage.sh.
     check text.contains("git merge-base HEAD \"origin/$BASE_REF\"")
+
+  # ISO-14: the Linux baseline is committed, so CI may only compare it.
+  test "no CI path records a visual baseline":
+    let text = readFile(repoDir / ".github" / "workflows" / "ci.yml")
+    check not text.contains("--update-snapshots")
+    check not text.contains("update_snapshots")
+    check text.contains("E2E: require the Linux baseline")
+    check dirExists(repoDir / "e2e" / "__screenshots__" / "linux")
+    check fileExists(repoDir / "e2e" / "__screenshots__" / "linux" /
+      "home-iphone-17.png")
