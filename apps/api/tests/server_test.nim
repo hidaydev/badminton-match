@@ -1,5 +1,6 @@
 import std/[json, os, strutils, unittest]
 import ../src/server
+import clock
 
 suite "process contract":
   test "MAJADU_PORT is required":
@@ -82,6 +83,41 @@ suite "process contract":
       delEnv("MAJADU_TEST_ROUTES")
       delEnv("OIDC_REDIRECT_URI")
       delEnv("MAJADU_ENV")
+
+  test "a pinned clock refuses MAJADU_ENV=prod":
+    # A pinned Nim clock beside a real PostgreSQL clock breaks JWT expiry,
+    # rate-limit windows and flow TTL comparisons without any error, so the
+    # two switches are refused together instead of being trusted to the file.
+    putEnv("MAJADU_PORT", "8080")
+    putEnv("MAJADU_DRAIN_MS", "0")
+    putEnv("MAJADU_NOW", "2026-11-03T12:00:00Z")
+    putEnv("MAJADU_ENV", "prod")
+    delEnv("MAJADU_TEST_ROUTES")
+    delEnv("OIDC_REDIRECT_URI")
+    delEnv("MAJADU_COOKIE_SECURE")
+    delEnv("MAJADU_METRICS_PORT")
+    try:
+      expect ValueError:
+        discard loadConfig()
+    finally:
+      delEnv("MAJADU_NOW")
+      delEnv("MAJADU_ENV")
+
+  test "a pinned clock alone is accepted and reported by clockPinned":
+    putEnv("MAJADU_PORT", "8080")
+    putEnv("MAJADU_DRAIN_MS", "0")
+    putEnv("MAJADU_NOW", "2026-11-03T12:00:00Z")
+    delEnv("MAJADU_ENV")
+    delEnv("MAJADU_TEST_ROUTES")
+    delEnv("OIDC_REDIRECT_URI")
+    delEnv("MAJADU_COOKIE_SECURE")
+    delEnv("MAJADU_METRICS_PORT")
+    try:
+      check clockPinned()
+      discard loadConfig()
+    finally:
+      delEnv("MAJADU_NOW")
+    check not clockPinned()
 
 suite "metrics listener":
   test "is off unless a port is configured":

@@ -57,7 +57,12 @@ proc loadConfig*(): ServerConfig =
     result.shutdownTimeoutMs = 30000
   else:
     result.shutdownTimeoutMs = requirePositiveInt("MAJADU_SHUTDOWN_TIMEOUT_MS")
-  result.testRoutes = getEnv("MAJADU_TEST_ROUTES") == "1"
+  # Compiled out of a release build: the stub handler, and the env read that
+  # enables it, must not exist in the binary that serves the product.
+  when defined(release):
+    result.testRoutes = false
+  else:
+    result.testRoutes = getEnv("MAJADU_TEST_ROUTES") == "1"
   if result.testRoutes:
     # The flag replaces the whole router with a stub that answers 200 on
     # /healthz for every real endpoint returning 404. It must never reach a
@@ -68,6 +73,15 @@ proc loadConfig*(): ServerConfig =
         getEnv("MAJADU_ENV") == "prod":
       raise newException(ValueError,
         "MAJADU_TEST_ROUTES=1 refuses a release configuration")
+  # The clock switch is compiled out of a release build; in a debug build a
+  # pinned clock beside a production signal is refused here, because the
+  # application and PostgreSQL would disagree about "now" with no error.
+  when not defined(release):
+    if getEnv("MAJADU_NOW").len > 0 and
+        (getEnv("MAJADU_ENV") == "prod" or
+         getEnv("MAJADU_TEST_ROUTES") == "1"):
+      raise newException(ValueError,
+        "MAJADU_NOW pins the clock and cannot run with MAJADU_ENV=prod")
   result.metricsPort = loadMetricsPort()
 
 var

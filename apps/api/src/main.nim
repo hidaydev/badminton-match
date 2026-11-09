@@ -2,6 +2,7 @@ import std/[atomics, cpuinfo, json, net, os, posix, strutils]
 import mummy
 import app
 import build_info
+import clock
 import config as edgeConfig
 import logger
 import db/db
@@ -110,12 +111,32 @@ proc bootHandler*(config: ServerConfig, threads: int): RequestHandler =
   install(newApp(database, oidc, keyring, config))
   result = handler()
 
+proc refuseStartup(message: string) {.noreturn.} =
+  ## A misconfigured process must name the reason and exit, not leave an
+  ## uncaught traceback as the only explanation in the logs.
+  stderr.writeLine "majadu-api: " & message
+  quit(1)
+
 proc main() =
-  let config = loadConfig()
+  var config: ServerConfig
+  try:
+    config = loadConfig()
+  except ValueError as error:
+    refuseStartup(error.msg)
   let threads = max(countProcessors(), 2)
-  let apiHandler =
-    if config.testRoutes: makeHandler(config.testRoutes)
-    else: bootHandler(config, threads)
+  # One line names every switch that changes behaviour, so a line pasted from a
+  # test env file is visible at boot instead of in the symptoms.
+  logInfo("startup flags", [
+    ("testRoutes", $config.testRoutes),
+    ("clockPinned", $clockPinned())])
+  var apiHandler: RequestHandler
+  if config.testRoutes:
+    apiHandler = makeHandler(config.testRoutes)
+  else:
+    try:
+      apiHandler = bootHandler(config, threads)
+    except ValueError as error:
+      refuseStartup(error.msg)
   let apiServer = newServer(apiHandler, websocketHandler(), workerThreads = threads,
     logHandler = structuredLogHandler)
 
