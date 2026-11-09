@@ -103,7 +103,7 @@ export default function TeamMatchCard({
                 value={match.partai[pi].scoreA ?? ''}
                 onChange={(e) => onChange(matchIdx, pi, { scoreA: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
                 disabled={!canEdit}
-                className="w-14 h-10 bg-elevated border border-border rounded-md px-2.5 py-2 text-base font-bold font-sans text-fg text-center focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-100 disabled:cursor-default"
+                className="w-14 h-10 bg-elevated border border-border rounded-lg px-2.5 py-2 text-base font-bold font-sans text-fg text-center focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-100 disabled:cursor-default"
                 aria-label={`Score ${teamName(teams, match.teamA)} partai ${pi + 1}`}
               />
               <span className="text-fg-dim text-xs shrink-0">:</span>
@@ -114,7 +114,7 @@ export default function TeamMatchCard({
                 value={match.partai[pi].scoreB ?? ''}
                 onChange={(e) => onChange(matchIdx, pi, { scoreB: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
                 disabled={!canEdit}
-                className="w-14 h-10 bg-elevated border border-border rounded-md px-2.5 py-2 text-base font-bold font-sans text-fg text-center focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-100 disabled:cursor-default"
+                className="w-14 h-10 bg-elevated border border-border rounded-lg px-2.5 py-2 text-base font-bold font-sans text-fg text-center focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-100 disabled:cursor-default"
                 aria-label={`Score ${teamName(teams, match.teamB)} partai ${pi + 1}`}
               />
               <span className="flex-1 text-[11px] text-fg-dim truncate text-right">

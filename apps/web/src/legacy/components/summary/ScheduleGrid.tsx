@@ -182,7 +182,7 @@ export default function ScheduleGrid({
                       <button
                         onClick={() => !pendingTeamSwap && handleTeamClick(tgt)}
                         disabled={!!pendingTeamSwap}
-                        className={`flex items-center justify-center gap-1 min-w-0 min-h-6 px-1.5 py-0.5 rounded-md border transition-colors ${
+                        className={`flex items-center justify-center gap-1 min-w-0 min-h-6 px-1.5 py-0.5 rounded-lg border transition-colors ${
                           teamIsSelected ? 'border-amber-400 bg-amber-500/20' : 'bg-slate-800/40 border-slate-700 hover:border-violet-400'
                         } ${teamIsDimmed ? 'opacity-30' : ''}`}
                       >
@@ -322,14 +322,14 @@ export default function ScheduleGrid({
                             type="button"
                             onClick={() => retryScore?.(key)}
                             disabled={saving}
-                            className="min-h-11 rounded-md border border-red-500/70 px-2 text-xs font-bold text-red-200 transition-colors hover:bg-red-800/40 disabled:opacity-50"
+                            className="min-h-11 rounded-lg border border-red-500/70 px-2 text-xs font-bold text-red-200 transition-colors hover:bg-red-800/40 disabled:opacity-50"
                           >
                             {t('session.action.retry')}
                           </button>
                           <button
                             type="button"
                             onClick={() => dismissScoreFailure?.(key)}
-                            className="min-h-11 rounded-md px-2 text-xs text-red-300 underline underline-offset-2 transition-colors hover:text-red-100"
+                            className="min-h-11 rounded-lg px-2 text-xs text-red-300 underline underline-offset-2 transition-colors hover:text-red-100"
                             aria-label={t('session.score.dismiss', { teams: `${teamANames} vs ${teamBNames}` })}
                           >
                             {t('session.action.dismiss')}

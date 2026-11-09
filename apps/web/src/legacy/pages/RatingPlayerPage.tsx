@@ -166,7 +166,7 @@ export default function RatingPlayerPage() {
                   {t(rankRow.entries_available > rankRow.counted_entries ? 'player.countedSessionsOf' : 'player.countedSessions', { counted: rankRow.counted_entries, total: rankRow.entries_available })}
                 </p>
                 {rankRow.thin_evidence && (
-                  <span className="inline-block mt-1 text-[10px] font-sans text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20 font-medium">
+                  <span className="inline-block mt-1 text-[10px] font-sans text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-lg border border-amber-400/20 font-medium">
                     {t('player.thinEvidence')}
                   </span>
                 )}
@@ -295,7 +295,7 @@ export default function RatingPlayerPage() {
 
                     {/* Score & Date */}
                     <div className="shrink-0 flex flex-col items-end justify-center gap-1">
-                      <div className="bg-elevated border border-border px-2.5 py-1 rounded-md text-xs font-mono font-bold tracking-tight text-fg shadow-sm">
+                      <div className="bg-elevated border border-border px-2.5 py-1 rounded-lg text-xs font-mono font-bold tracking-tight text-fg shadow-sm">
                         {h.score_a} - {h.score_b}
                       </div>
                       <span className="text-[10px] font-mono text-fg-dim">

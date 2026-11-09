@@ -24,7 +24,7 @@ export default function ErrorBanner({
         <button
           type="button"
           onClick={onRetry}
-          className="min-h-11 shrink-0 rounded-md border border-red-500 px-2 font-bold text-red-100 transition-colors hover:bg-red-800"
+          className="min-h-11 shrink-0 rounded-lg border border-red-500 px-2 font-bold text-red-100 transition-colors hover:bg-red-800"
         >
           {t('session.action.retry')}
         </button>
@@ -33,7 +33,7 @@ export default function ErrorBanner({
         <button
           type="button"
           onClick={onDismiss}
-          className="min-h-11 shrink-0 rounded-md px-2 text-red-300 underline underline-offset-2 transition-colors hover:text-red-100"
+          className="min-h-11 shrink-0 rounded-lg px-2 text-red-300 underline underline-offset-2 transition-colors hover:text-red-100"
         >
           {t('session.action.dismiss')}
         </button>

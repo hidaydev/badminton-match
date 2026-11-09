@@ -82,12 +82,27 @@ palette classes (`slate-*`, `indigo-*`). The intended equivalents:
 
 ## Spacing & Radius
 
-| Value | Tailwind | Usage |
-|-------|----------|-------|
-| `1rem` | `rounded-2xl` / `p-4` | Cards |
-| `0.75rem` | `rounded-xl` | Buttons |
-| `0.5rem` | `rounded-lg` | Chips, inputs |
-| `1.5rem` | `gap-6` | Section gaps |
+The scales live in `@theme` (`--spacing`, `--radius-*`, `--shadow-*`, `--ease-*`).
+Four spacing steps, three radii, three elevations, two durations.
+
+| Step | Token | Tailwind | Usage |
+|------|-------|----------|-------|
+| `0.5rem` | Spacing | `p-2` / `gap-2` | Chip and icon padding |
+| `0.75rem` | Spacing | `p-3` / `gap-3` | Row padding |
+| `1rem` | Spacing | `p-4` | Card padding |
+| `1.5rem` | Spacing | `gap-6` | Section gaps |
+
+| Radius | Token | Tailwind | Usage |
+|--------|-------|----------|-------|
+| `0.5rem` | `--radius-lg` | `rounded-lg` | Chips, inputs |
+| `0.75rem` | `--radius-xl` | `rounded-xl` | Buttons |
+| `1rem` | `--radius-2xl` | `rounded-2xl` | Cards |
+
+| Elevation | Token | Tailwind | Usage |
+|-----------|-------|----------|-------|
+| Raised | `--shadow-sm` | `shadow-sm` | Chips, badges |
+| Panel | `--shadow-md` | `shadow-md` | Cards, menus |
+| Sheet | `--shadow-lg` | `shadow-lg` | Overlays |
 
 ## Component Patterns
 

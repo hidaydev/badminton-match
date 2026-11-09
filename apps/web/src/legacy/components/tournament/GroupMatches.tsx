@@ -124,7 +124,7 @@ export default function GroupMatches({ pairs, groups, matches, canEdit, onSetMat
                   >
                     <div className="flex items-center gap-2 w-full">
                       <span className="text-xs text-fg flex-1 truncate text-left">{getPairName(m.pairAId)}</span>
-                      <span className="text-xs font-bold font-mono text-accent shrink-0 min-w-14 text-center bg-elevated border border-border-subtle rounded-md px-2 py-1">
+                      <span className="text-xs font-bold font-mono text-accent shrink-0 min-w-14 text-center bg-elevated border border-border-subtle rounded-lg px-2 py-1">
                         {m.scoreA !== null ? `${m.scoreA}–${m.scoreB}` : '—'}
                       </span>
                       <span className="text-xs text-fg flex-1 text-right truncate">{getPairName(m.pairBId)}</span>

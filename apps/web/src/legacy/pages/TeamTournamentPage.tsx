@@ -330,7 +330,7 @@ export default function TeamTournamentPage() {
                         <select
                           value={String(slot)}
                           onChange={(e) => assignDrawSlot(k, Number(e.target.value))}
-                          className="w-28 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
+                          className="w-28 bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
                           aria-label={`Slot for ${name}`}
                         >
                           {TEAM_NAMES.map((_, si) => (

@@ -149,7 +149,7 @@ export default function StandingsTab({ pairs, groups, matches }: StandingsTabPro
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-elevated border border-border-subtle font-mono text-[11px]">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-elevated border border-border-subtle font-mono text-[11px]">
                     <span className="text-success font-semibold">{rec.wins}W</span>
                     <span className="text-border">·</span>
                     <span className="text-error font-semibold">{rec.losses}L</span>

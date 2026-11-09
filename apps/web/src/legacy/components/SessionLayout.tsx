@@ -56,7 +56,7 @@ export default function SessionLayout() {
               </span>
               <button
                 onClick={() => { resetSession(); navigate('/') }}
-                className="text-xs text-fg-dim hover:text-error transition-colors px-2 py-1 rounded-md border border-border-subtle"
+                className="text-xs text-fg-dim hover:text-error transition-colors px-2 py-1 rounded-lg border border-border-subtle"
               >
                 Reset
               </button>

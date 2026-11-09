@@ -170,12 +170,12 @@ function TeamWizard() {
                   value={p.name}
                   onChange={(e) => updatePlayer(i, { name: e.target.value })}
                   placeholder={`${TEAM_NAMES[TEAM_IDS.indexOf(p.team)]} (${p.cls})`}
-                  className="flex-1 bg-elevated border border-border rounded-md px-2 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent min-w-0"
+                  className="flex-1 bg-elevated border border-border rounded-lg px-2 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent min-w-0"
                 />
                 <select
                   value={p.cls}
                   onChange={(e) => updatePlayer(i, { cls: e.target.value as TeamClass })}
-                  className="bg-elevated border border-border rounded-md px-1.5 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent shrink-0 w-14 sm:w-16 cursor-pointer"
+                  className="bg-elevated border border-border rounded-lg px-1.5 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent shrink-0 w-14 sm:w-16 cursor-pointer"
                 >
                   {TEAM_CLASSES.map((c) => (
                     <option key={c} value={c}>{c}</option>
@@ -184,7 +184,7 @@ function TeamWizard() {
                 <select
                   value={p.team}
                   onChange={(e) => updatePlayer(i, { team: e.target.value as TeamId })}
-                  className="bg-elevated border border-border rounded-md px-2 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent shrink-0 w-24 sm:w-28 md:w-32 truncate cursor-pointer"
+                  className="bg-elevated border border-border rounded-lg px-2 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent shrink-0 w-24 sm:w-28 md:w-32 truncate cursor-pointer"
                 >
                   {TEAM_IDS.map((t, idx) => (
                     <option key={t} value={t}>{TEAM_NAMES[idx]}</option>
@@ -209,7 +209,7 @@ function TeamWizard() {
             <p className="text-xs text-fg-dim">Team rosters (1 player per class) · slots (Teams 1–6) drawn on matchday</p>
             <button
               onClick={formTeams}
-              className="text-xs px-3 py-1.5 rounded-md border border-border-subtle text-fg-dim hover:text-fg"
+              className="text-xs px-3 py-1.5 rounded-lg border border-border-subtle text-fg-dim hover:text-fg"
             >
               Refresh
             </button>
@@ -375,14 +375,14 @@ function ClassicWizard() {
                   value={p.a}
                   onChange={(e) => updatePair(i, 'a', e.target.value)}
                   placeholder="Player 1"
-                  className="flex-1 bg-elevated border border-border rounded-md px-2.5 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent min-w-0"
+                  className="flex-1 bg-elevated border border-border rounded-lg px-2.5 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent min-w-0"
                 />
                 <span className="text-fg-dim text-xs shrink-0">&</span>
                 <input
                   value={p.b}
                   onChange={(e) => updatePair(i, 'b', e.target.value)}
                   placeholder="Player 2"
-                  className="flex-1 bg-elevated border border-border rounded-md px-2.5 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent min-w-0"
+                  className="flex-1 bg-elevated border border-border rounded-lg px-2.5 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent min-w-0"
                 />
               </div>
             ))}
@@ -403,7 +403,7 @@ function ClassicWizard() {
             <p className="text-xs text-fg-dim">Draw: 4 groups × 4 pairs</p>
             <button
               onClick={drawGroups}
-              className="text-xs px-3 py-1.5 rounded-md border border-border-subtle text-fg-dim hover:text-fg"
+              className="text-xs px-3 py-1.5 rounded-lg border border-border-subtle text-fg-dim hover:text-fg"
             >
               Re-draw
             </button>

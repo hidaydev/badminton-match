@@ -487,7 +487,7 @@ export default function SummaryModal({
                         return next
                       })
                     }}
-                    className={`text-xs font-medium px-2 py-0.5 rounded-md border transition-colors ${
+                    className={`text-xs font-medium px-2 py-0.5 rounded-lg border transition-colors ${
                       isSelected
                         ? 'bg-red-900/60 border-red-700 text-red-200'
                         : 'bg-slate-800/60 border-slate-600 text-slate-300 hover:border-red-700 hover:text-red-300'

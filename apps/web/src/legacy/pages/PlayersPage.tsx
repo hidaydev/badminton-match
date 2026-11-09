@@ -32,7 +32,7 @@ function tierStringToNumber(tier: string): Tier {
 
 function TierBadge({ tier }: { tier: Tier }) {
   return (
-    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md border text-xs font-bold ${TIER_BADGE_COLORS[tier] ?? TIER_BADGE_COLORS[3]}`}>
+    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-lg border text-xs font-bold ${TIER_BADGE_COLORS[tier] ?? TIER_BADGE_COLORS[3]}`}>
       {TIER_LABELS[tier] ?? tier}
     </span>
   )
