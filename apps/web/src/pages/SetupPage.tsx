@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { Button } from '../components/Button'
+import { EmptyState } from '../components/EmptyState'
 import { CollapsiblePanel } from '../components/CollapsiblePanel'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input } from '../components/Field'
@@ -87,7 +88,7 @@ export default function SetupPage() {
 
       <h2 className="mt-6 text-sm font-semibold text-fg">{t('setup.mine')}</h2>
       {memberships.length === 0 ? (
-        <p className="mt-2 text-sm text-fg-dim">{t('setup.mine.empty')}</p>
+        <EmptyState title={t('setup.mine.empty')} />
       ) : (
         <ul className="mt-2 space-y-2">
           {memberships.map((membership) => (

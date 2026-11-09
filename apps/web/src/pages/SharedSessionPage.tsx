@@ -11,6 +11,7 @@ import { computeDiff, initTallyRow, standardStandingSort, tallyMatch } from '../
 import { getSharedSession } from '../share/api'
 import type { SharedGame, SharedSession, SharedStanding } from '../share/api'
 import { LoadingState } from '../components/LoadingState'
+import { EmptyState } from '../components/EmptyState'
 
 type Settled = {
   code: string
@@ -274,7 +275,7 @@ export default function SharedSessionPage() {
           >
             {tab === 'games' &&
               (session.games.length === 0 ? (
-                <p className="mt-2 text-sm text-slate-400">{t('session.games.empty')}</p>
+                <EmptyState title={t('session.games.empty')} />
               ) : (
                 <div className="flex flex-col divide-y divide-slate-800">
                   {rounds.map((entry) => (
@@ -348,7 +349,7 @@ export default function SharedSessionPage() {
 
             {tab === 'standings' &&
               (standings.length === 0 ? (
-                <p className="mt-2 text-sm text-slate-400">{t('session.standings.empty')}</p>
+                <EmptyState title={t('session.standings.empty')} />
               ) : (
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-2 pl-2 pr-2 mb-1">

@@ -32,6 +32,7 @@ import GlobalAmbiguousNames from './legacy/context/GlobalAmbiguousNames'
 import UpdateBanner from './legacy/components/UpdateBanner'
 import ErrorBoundary from './legacy/components/ErrorBoundary'
 import { ButtonLink } from './components/Button'
+import { EmptyState } from './components/EmptyState'
 import HomePage from './legacy/pages/HomePage'
 import SetupPage from './legacy/pages/SetupPage'
 import PlayersWizardPage from './legacy/pages/PlayersPage'
@@ -230,15 +231,21 @@ function RootRedirect() {
   return (
     <section className="mx-auto max-w-2xl px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))]">
       <AccountRow />
-      <h1 className="mt-6 text-xl sm:text-2xl font-bold text-fg">{t('home.empty')}</h1>
-      <p className="mt-2 text-sm text-fg-dim">
-        {isOwner ? t('home.emptyOwnerHint') : t('home.emptyHint')}
-      </p>
-      {isOwner ? (
-        <ButtonLink to="/owner/communities" className="mt-4 inline-flex items-center">
-          {t('home.createCommunity')}
-        </ButtonLink>
-      ) : (
+      <EmptyState
+        as="h1"
+        className="mt-6"
+        titleClassName="text-xl sm:text-2xl font-bold"
+        title={t('home.empty')}
+        description={isOwner ? t('home.emptyOwnerHint') : t('home.emptyHint')}
+        action={
+          isOwner ? (
+            <ButtonLink to="/owner/communities" className="inline-flex items-center">
+              {t('home.createCommunity')}
+            </ButtonLink>
+          ) : undefined
+        }
+      />
+      {!isOwner && (
         <>
           <DirectoryList onPick={setJoinSlug} />
           <JoinRequestCard slug={joinSlug} onSlugChange={setJoinSlug} />

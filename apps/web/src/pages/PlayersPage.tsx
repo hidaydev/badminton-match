@@ -8,6 +8,7 @@ import { usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
 import { Button } from '../components/Button'
 import { CollapsiblePanel } from '../components/CollapsiblePanel'
+import { EmptyState } from '../components/EmptyState'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input, Select } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
@@ -117,30 +118,29 @@ export default function PlayersPage() {
         <ErrorText className="mt-4">{t('players.error.load')}</ErrorText>
       )}
       {items !== null && items.length === 0 && (
-        <div className="mt-4 rounded-xl border border-border-subtle bg-surface p-4 text-center">
-          <p className="text-sm text-fg-dim">{t('players.empty')}</p>
-          {(query !== '' || canManage) && (
-            <p className="mt-1 text-xs text-fg-dim">
-              {query === ''
+        <EmptyState
+          className="mt-4 border border-border-subtle bg-surface"
+          title={t('players.empty')}
+          description={
+            query !== '' || canManage
+              ? query === ''
                 ? t('players.empty.hint')
-                : t('players.empty.hintQuery', { query })}
-            </p>
-          )}
-          {query !== '' ? (
-            <Button
-              variant="secondary"
-              className="mt-3"
-              onClick={() => {
-                setDraft('')
-                setSearchParams({}, { replace: true })
-              }}
-            >
-              {t('players.empty.clear')}
-            </Button>
-          ) : (
-            canManage && (
+                : t('players.empty.hintQuery', { query })
+              : undefined
+          }
+          action={
+            query !== '' ? (
               <Button
-                className="mt-3"
+                variant="secondary"
+                onClick={() => {
+                  setDraft('')
+                  setSearchParams({}, { replace: true })
+                }}
+              >
+                {t('players.empty.clear')}
+              </Button>
+            ) : canManage ? (
+              <Button
                 onClick={() => {
                   if (addPanel.current !== null) {
                     addPanel.current.open = true
@@ -152,9 +152,9 @@ export default function PlayersPage() {
               >
                 {t('players.add')}
               </Button>
-            )
-          )}
-        </div>
+            ) : undefined
+          }
+        />
       )}
 
       {items !== null && items.length > 0 && (

@@ -18,6 +18,7 @@ import { usePlayerDetail, usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
 import { formatDay } from '../utils/day'
 import { Button } from '../components/Button'
+import { EmptyState } from '../components/EmptyState'
 import { Card } from '../components/Card'
 import { CollapsiblePanel } from '../components/CollapsiblePanel'
 import { ErrorText } from '../components/ErrorText'
@@ -192,7 +193,7 @@ export default function PlayerDetailPage() {
 
           <h2 className="mt-8 text-sm font-semibold text-fg">{t('playerAdmin.claims')}</h2>
           {claims === null || claims.length === 0 ? (
-            <p className="mt-2 text-sm text-fg-dim">{t('playerAdmin.claims.empty')}</p>
+            <EmptyState title={t('playerAdmin.claims.empty')} />
           ) : (
             <ul className="mt-2 space-y-2">
               {claims.map((claim) => (

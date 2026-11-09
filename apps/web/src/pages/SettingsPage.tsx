@@ -21,6 +21,7 @@ import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { formatDay } from '../utils/day'
 import { Button } from '../components/Button'
+import { EmptyState } from '../components/EmptyState'
 import { CollapsiblePanel } from '../components/CollapsiblePanel'
 import { Checkbox } from '../components/Checkbox'
 import { ErrorText } from '../components/ErrorText'
@@ -593,7 +594,7 @@ function JoinRequests({
     <section className="mt-8">
       <h3 className="text-sm font-semibold text-fg">{t('admin.requests')}</h3>
       {requests.length === 0 ? (
-        <p className="mt-2 text-sm text-fg-dim">{t('admin.requests.empty')}</p>
+        <EmptyState title={t('admin.requests.empty')} />
       ) : (
         <ul className="mt-2 space-y-2">
           {requests.map((request) => (
@@ -693,7 +694,7 @@ function PendingClaims({
       <h3 className="text-sm font-semibold text-fg">{t('admin.claims')}</h3>
       <p className="mt-1 text-xs text-fg-dim">{t('admin.claims.hint')}</p>
       {claims.length === 0 ? (
-        <p className="mt-2 text-sm text-fg-dim">{t('admin.claims.empty')}</p>
+        <EmptyState title={t('admin.claims.empty')} />
       ) : (
         <ul className="mt-2 space-y-2">
           {claims.map((claim) => (
