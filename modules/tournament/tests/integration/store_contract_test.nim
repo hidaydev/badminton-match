@@ -194,7 +194,7 @@ suite "tournament store contract":
         check match["scoreA"].kind == JNull
         check match["scoreB"].kind == JNull
 
-  test "remove drops the tournament and leaves the rating event orphaned":
+  test "remove drops the tournament and its rating event":
     clearRows(database, communityId)
     let (created, snapshot) = create(database, communityId, "",
       classicJson(classicSnapshot("Orphan Cup", "2026-11-07")))
@@ -208,15 +208,13 @@ suite "tournament store contract":
     check remove(database, communityId, id)
     check load(database, communityId, id).isNone
     check header(database, communityId, id).isNone
-    # rating.events.source_id has no foreign key to tournament, so the event
-    # survives and still names the deleted row. A cascade or a refusal would
-    # be a product change: this case fails if either appears.
+    # The source trigger removes the event with the tournament, so no row keeps
+    # naming an id that no longer exists.
     let event = database.queryOne(
       """select source_id::text as source_id from rating.events
          where community_id = $1::uuid and source_id = $2::uuid""",
       @[textParam(communityId), textParam(id)])
-    check event.isSome
-    check event.get.get("source_id") == id
+    check event.isNone
 
   test "a team replace writes the new roster and keeps the tournament id":
     clearRows(database, communityId)
