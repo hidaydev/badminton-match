@@ -21,6 +21,7 @@ import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { formatDay } from '../utils/day'
 import { Button } from '../components/Button'
+import { Checkbox } from '../components/Checkbox'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
@@ -295,9 +296,8 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
                 )}
               </span>
               {field.kind === 'bool' ? (
-                <input
+                <Checkbox
                   id={id}
-                  type="checkbox"
                   checked={fieldValue(field) === true}
                   disabled={!canEdit || busy || pinned}
                   aria-describedby={pinned ? reasonId : undefined}
@@ -310,7 +310,6 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
                       [field.key]: event.target.checked,
                     }))
                   }}
-                  className="h-5 w-5 rounded border border-border bg-elevated text-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60"
                 />
               ) : field.kind === 'select' ? (
                 <select

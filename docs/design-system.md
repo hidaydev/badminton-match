@@ -85,6 +85,13 @@ nothing smaller is allowed, and data never uses a size below `text-xs` (12px).
 | Meta | `--text-meta` (10px) | `text-[10px] font-mono uppercase tracking-wider` | Single tracked label |
 | Detail | `--text-2xs` (11px) | `text-[11px]` | Compact data, never below |
 
+## Boolean Controls
+
+`components/Checkbox.tsx` and `components/Radio.tsx` wrap the native inputs and
+tint them with `accent-accent` (`accent-color: var(--color-accent)`), so the tick
+or dot is brand gold instead of the UA blue. They carry the 20px box, the focus
+ring and the disabled recipe; a call site passes only behaviour props.
+
 ## Spacing & Radius
 
 The scales live in `@theme` (`--spacing`, `--radius-*`, `--shadow-*`, `--ease-*`).

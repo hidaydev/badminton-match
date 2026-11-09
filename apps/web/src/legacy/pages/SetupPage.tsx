@@ -8,6 +8,7 @@ import { courtLabel } from '../utils/courtLabel'
 import { useLegacySlug, useNavigate } from '../router'
 import { fetchCommunityConfig, fetchScoringPresets } from '../../community/api'
 import type { ScoringPreset } from '../../community/api'
+import { Radio } from '../../components/Radio'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -328,14 +329,13 @@ export default function SetupPage() {
                   } ${session.locked ? 'cursor-not-allowed opacity-40' : ''}`}
                 >
                   <span className="flex items-center gap-2">
-                    <input
-                      type="radio"
+                    <Radio
                       name="scoringPreset"
                       value={preset.id}
                       checked={selected}
                       onChange={() => setScoringPreset(toScoring(preset))}
                       disabled={session.locked}
-                      className="h-4 w-4 accent-indigo-500"
+                      className="h-4 w-4"
                     />
                     <span className="text-sm font-semibold text-white">{preset.label}</span>
                   </span>
