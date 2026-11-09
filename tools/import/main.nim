@@ -582,7 +582,7 @@ proc importTournamentHeaders(source, target: Db, communityId: string,
   target.tx(proc(conn: DbConn) =
     for row in source.query(
       """select id::text as id, share_code, name, event_date::text as event_date,
-                format, version, created_at::text as created_at,
+                format, created_at::text as created_at,
                 updated_at::text as updated_at
          from bm.tournaments order by event_date, created_at, id"""):
       let oldId = row.get("id")
@@ -594,29 +594,31 @@ proc importTournamentHeaders(source, target: Db, communityId: string,
       var newId = ""
       if mapped.isSome:
         newId = mapped.get
+        # `version` is not written: since 0048 the `tournaments_bump_version`
+        # trigger owns it on every update, so a value passed here would be
+        # discarded and the row would still move to old.version + 1.
         discard conn.execUpdate(
           """update tournament.tournaments
              set name = $3, event_date = $4::date, format = $5, status = $6,
-                 version = $7::int, created_at = $8::timestamptz,
-                 updated_at = $9::timestamptz
+                 created_at = $7::timestamptz, updated_at = $8::timestamptz
              where community_id = $1::uuid and id = $2::uuid""",
           @[textParam(communityId), textParam(newId), textParam(row.get("name")),
             textParam(row.get("event_date")), textParam(row.get("format")),
-            textParam(status), textParam(row.get("version")),
-            textParam(row.get("created_at")), textParam(row.get("updated_at"))])
+            textParam(status), textParam(row.get("created_at")),
+            textParam(row.get("updated_at"))])
         inc stats.updated
       else:
         newId = uuidv7()
         discard conn.execUpdate(
           """insert into tournament.tournaments
-               (id, community_id, name, event_date, format, status, version,
+               (id, community_id, name, event_date, format, status,
                 created_at, updated_at)
-             values ($1::uuid, $2::uuid, $3, $4::date, $5, $6, $7::int,
-                     $8::timestamptz, $9::timestamptz)""",
+             values ($1::uuid, $2::uuid, $3, $4::date, $5, $6,
+                     $7::timestamptz, $8::timestamptz)""",
           @[textParam(newId), textParam(communityId), textParam(row.get("name")),
             textParam(row.get("event_date")), textParam(row.get("format")),
-            textParam(status), textParam(row.get("version")),
-            textParam(row.get("created_at")), textParam(row.get("updated_at"))])
+            textParam(status), textParam(row.get("created_at")),
+            textParam(row.get("updated_at"))])
         inc stats.created
       mapPut(conn, communityId, "tournament", oldId, newId)
       # The share code is how a v1 rating source named a tournament, so mapping
@@ -1561,14 +1563,14 @@ proc verifyTournaments*(source, target: Db, communityId: string): seq[string] =
   var checked = 0
   for row in source.query(
     """select id::text as id, share_code, name, event_date::text as event_date,
-              format, version
+              format
        from bm.tournaments order by event_date, id"""):
     let newId = oldToNew.getOrDefault(row.get("id"))
     if newId.len == 0:
       result.add "v1 tournament " & row.get("id") & " has no mapping"
       continue
     let header = target.queryOne(
-      """select name, event_date::text as event_date, format, version
+      """select name, event_date::text as event_date, format
          from tournament.tournaments
          where community_id = $1::uuid and id = $2::uuid""",
       @[textParam(communityId), textParam(newId)])
@@ -1576,7 +1578,12 @@ proc verifyTournaments*(source, target: Db, communityId: string): seq[string] =
       result.add "mapped tournament " & newId & " is missing from v2"
       continue
     let ours = header.get
-    for field in ["name", "event_date", "format", "version"]:
+    # `version` is deliberately not compared: it is v2's optimistic-concurrency
+    # counter, bumped by the trigger on every write, while the v1 column was a
+    # counter of the old schema. The second import of a mapped tournament
+    # legitimately moves it, and a value that cannot survive an import is not a
+    # thing verification can hold the importer to.
+    for field in ["name", "event_date", "format"]:
       if ours.get(field) != row.get(field):
         result.add "tournament " & row.get("share_code") & " has a different " & field
 
