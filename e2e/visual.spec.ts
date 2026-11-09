@@ -43,6 +43,14 @@ for (const route of visualRoutes) {
     await page.evaluate(async () => {
       await document.fonts.ready
     })
-    await expect(page).toHaveScreenshot(`${route.name}.png`, { fullPage: true })
+    await expect(page).toHaveScreenshot(`${route.name}.png`, {
+      fullPage: true,
+      // Routes that print an empty date filter get it masked: WebKit fills an
+      // empty `<input type="date">` with today's date and `setFixedTime` does
+      // not reach that native control. Screens that hold a pinned date (the
+      // export poster) keep their field visible.
+      mask: route.maskDateFilter ? [page.locator('input[type="date"]')] : [],
+      maskColor: '#1c212b',
+    })
   })
 }
