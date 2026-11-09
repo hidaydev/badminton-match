@@ -110,7 +110,10 @@ export function ScoreboardSide({
           className="text-white/80 tracking-widest mt-3 pointer-events-none"
           style={{ fontSize: 'clamp(0.55rem,1.2vmax,0.75rem)' }}
         >
-          tap to score
+          {/* The leading space is structural: axe joins adjacent text nodes
+              without a separator, so without it the visible text reads
+              "0tap to score" and no longer appears inside the label. */}
+          {' '}tap to score
         </span>
       </button>
 

@@ -33,6 +33,14 @@ describe('ScoreboardSide', () => {
     expect(container.firstElementChild?.getAttribute('style')).toContain('rgb(185, 28, 28)')
   })
 
+  it('keeps the visible words inside the accessible name', () => {
+    render(<ScoreboardSide {...props()} />)
+    // axe joins adjacent text nodes without a separator, so the hint needs a
+    // word boundary of its own; without it the visible text reads "7tap to
+    // score" and the label no longer contains what the reader can see.
+    expect(scoreButton()).toHaveTextContent(/^7 tap to score$/)
+  })
+
   it('spreads no role=button and no tab stop outside the real controls', () => {
     const { container } = render(<ScoreboardSide {...props()} />)
 
