@@ -15,13 +15,22 @@ type
     clientSecret*: string
     redirectUri*: string
 
-  JwksCache = object
-    lock: Lock
-    keys: seq[Jwk]
-    fetchedAt: float
+  JwksSnapshot* = object
+    ## One immutable view of the provider keys. A reader takes a copy under the
+    ## lock and never sees a half-written key set.
+    keys*: seq[Jwk]
+    fetchedAt*: float
 
-var cache: JwksCache
-var cacheReady = false
+  JwksFetcher* = proc(config: OidcConfig): seq[Jwk]
+
+var
+  ## Initialised at module load, before any worker thread exists. There is no
+  ## lazy `initLock` race between two concurrent first logins.
+  cacheLock: Lock
+  cache: JwksSnapshot
+  fetcher: JwksFetcher
+
+initLock(cacheLock)
 
 proc loadOidcConfig*(): OidcConfig =
   result.authorizeUrl = getEnv("OIDC_AUTHORIZE_URL", "https://accounts.google.com/o/oauth2/v2/auth")
@@ -55,6 +64,11 @@ proc fetchRaw(url, verb, body: string, contentType = ""): string =
   if status < 200 or status >= 300:
     raise newException(ValueError, "OIDC endpoint returned " & $status)
 
+proc fetchJwksFromProvider(config: OidcConfig): seq[Jwk] =
+  parseJwks(parseJson(fetchRaw(config.jwksUrl, "GET", "")))
+
+fetcher = fetchJwksFromProvider
+
 proc authorizeUrl*(config: OidcConfig, state, nonce, challenge: string): string =
   let separator = if '?' in config.authorizeUrl: "&" else: "?"
   config.authorizeUrl & separator &
@@ -85,16 +99,70 @@ proc exchangeCode*(config: OidcConfig, code, verifier: string): string =
     raise newException(ValueError, "token endpoint returned no id_token")
   document["id_token"].getStr()
 
-proc jwks*(config: OidcConfig): seq[Jwk] =
-  if not cacheReady:
-    initLock(cache.lock)
-    cacheReady = true
-  acquire(cache.lock)
+proc cacheSnapshot(): JwksSnapshot =
+  acquire(cacheLock)
   try:
-    if cache.keys.len == 0 or utcNow().toTime.toUnixFloat - cache.fetchedAt > 3600:
-      let document = parseJson(fetchRaw(config.jwksUrl, "GET", ""))
-      cache.keys = parseJwks(document)
-      cache.fetchedAt = utcNow().toTime.toUnixFloat
+    result = cache
+  finally:
+    release(cacheLock)
+
+proc storeSnapshot(snapshot: JwksSnapshot) =
+  acquire(cacheLock)
+  try:
+    cache = snapshot
+  finally:
+    release(cacheLock)
+
+proc stale(keys: seq[Jwk], fetchedAt, now: float): bool =
+  keys.len == 0 or now - fetchedAt > 3600
+
+proc jwks*(config: OidcConfig): seq[Jwk] =
+  ## The cached keys, refreshed once the hour has passed. The provider fetch is
+  ## never performed while the cache lock is held, so one slow IdP round trip
+  ## cannot serialise every login; the snapshot is swapped under the lock only
+  ## after the fetch returns.
+  let now = utcNow().toTime.toUnixFloat
+  let current = cacheSnapshot()
+  if not stale(current.keys, current.fetchedAt, now):
+    return current.keys
+  var fetched = fetcher(config)
+  let fresh = JwksSnapshot(keys: fetched, fetchedAt: utcNow().toTime.toUnixFloat)
+  # A concurrent reader may have refreshed while this one fetched. Keeping the
+  # newer snapshot avoids replacing fresh keys with an older response.
+  acquire(cacheLock)
+  try:
+    if stale(cache.keys, cache.fetchedAt, now):
+      cache = fresh
     result = cache.keys
   finally:
-    release(cache.lock)
+    release(cacheLock)
+
+proc refreshJwks(config: OidcConfig): seq[Jwk] =
+  ## One forced fetch. Called when a token names a key id the snapshot does not
+  ## hold, which is what a provider rotation looks like before the hour ends.
+  let keys = fetcher(config)
+  let fresh = JwksSnapshot(keys: keys, fetchedAt: utcNow().toTime.toUnixFloat)
+  storeSnapshot(fresh)
+  keys
+
+proc verifyIdTokenWithRefresh*(config: OidcConfig, token, issuer, audience,
+                               nonce: string, nowUnix: int64): JsonNode =
+  ## Verifies against the current keys, and refreshes exactly once when the
+  ## token names an unknown key id. A provider rotation must not fail every
+  ## login until the hourly cache entry ages out.
+  let keys = jwks(config)
+  try:
+    return verifyIdToken(token, keys, issuer, audience, nonce, nowUnix)
+  except JwtError as error:
+    if error.msg != "unknown JWKS kid":
+      raise
+  verifyIdToken(token, refreshJwks(config), issuer, audience, nonce, nowUnix)
+
+proc setJwksFetcher*(value: JwksFetcher) =
+  ## Test seam: the fetch is a pure function of the config, so a suite can
+  ## replace it with a fake and count the fetches without a network.
+  fetcher = value
+
+proc resetJwksCache*() =
+  ## Test seam: starts the next case from an empty snapshot.
+  storeSnapshot(JwksSnapshot())

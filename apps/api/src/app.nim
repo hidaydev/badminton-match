@@ -49,7 +49,6 @@ import account/domain/lifecycle as accountLifecycle
 import account/domain/audit
 import account/domain/roles
 import account/infrastructure/audit_store
-import account/infrastructure/jwt_rs256
 import account/infrastructure/oidc
 import account/infrastructure/ops_token as opsToken
 
@@ -645,7 +644,7 @@ proc finishAuth(request: Request) =
     return
   var claims: JsonNode
   try:
-    claims = verifyIdToken(idToken, jwks(application.oidc),
+    claims = verifyIdTokenWithRefresh(application.oidc, idToken,
       application.oidc.issuer, application.oidc.clientId, "",
       utcNow().toTime.toUnix)
   except CatchableError as error:
