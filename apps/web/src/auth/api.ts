@@ -2,12 +2,8 @@
 // `credentials: 'include'`; no token ever reaches JavaScript, so there is
 // nothing to put in localStorage or sessionStorage.
 
-import {
-  ApiError,
-  isClientOutdated,
-  reportClientOutdated,
-  reportSessionExpired,
-} from '../api/errors'
+import { ApiError } from '../api/errors'
+import { request } from '../api/request'
 
 /** API contract generation this bundle was built against (TECH-SPEC §9). */
 export const API_VERSION = 2
@@ -18,43 +14,12 @@ export { CLIENT_OUTDATED_EVENT } from '../api/errors'
 /** The shared API failure type; re-exported so screen imports stay unchanged. */
 export { ApiError } from '../api/errors'
 
-const API_BASE = import.meta.env.VITE_API_BASE || '/api'
+/** The shared transport; re-exported because every v2 screen imports it here. */
+export { request }
 
 /** True for the one expected failure: no session cookie yet. */
 export function isUnauthenticated(error: unknown): boolean {
   return error instanceof ApiError && error.status === 401
-}
-
-export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers)
-  headers.set('X-API-Version', String(API_VERSION))
-  if (init.body !== undefined) headers.set('Content-Type', 'application/json')
-
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    credentials: 'include',
-    headers,
-  })
-
-  if (!response.ok) {
-    const problem = await response.json().catch(() => ({}))
-    const code = typeof problem.code === 'string' ? problem.code : 'UNKNOWN'
-    const detail =
-      typeof problem.detail === 'string' && problem.detail !== '' ? problem.detail : null
-    const error = new ApiError(
-      `${response.status} ${code}`,
-      code,
-      response.status,
-      detail,
-    )
-    // A 410 is the contract rolling forward and a 401 is the cookie going away;
-    // both need the shell to react, not just the screen that made the call.
-    if (isClientOutdated(error)) reportClientOutdated()
-    if (response.status === 401) reportSessionExpired()
-    throw error
-  }
-  if (response.status === 204) return undefined as T
-  return (await response.json()) as T
 }
 
 export type CommunityRole = 'admin' | 'host' | 'member'

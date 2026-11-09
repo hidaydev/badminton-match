@@ -1,12 +1,11 @@
 /**
  * The one API failure type and the one set of server-signalled events.
  *
- * Two transports exist on purpose: `auth/api.ts` is the thin client the v2
- * screens use, `legacy/queries/endpoints.ts` adds timeout, method-aware retry
- * and conditional requests for the restored v1 tree. They must still agree on
- * what a failure *is*, otherwise `instanceof` checks and the message mapping in
- * `legacy/queries/errors.ts` silently degrade to a generic fallback when an
- * error crosses the boundary.
+ * One transport lives in `api/request.ts`; `auth/api.ts` re-exports it for the
+ * v2 screens and `legacy/queries/endpoints.ts` wraps it for the restored v1
+ * tree. One class means `instanceof` checks and the message mapping in
+ * `legacy/queries/errors.ts` never fall back just because an error crossed a
+ * boundary that is no longer there.
  */
 
 export class ApiError extends Error {
