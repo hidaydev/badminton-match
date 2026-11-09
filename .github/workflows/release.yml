@@ -112,6 +112,8 @@ jobs:
           sudo apt-get install -y libpcre3
       - name: "Release: install pinned deps"
         run: ./task deps-install
+      - name: "Release: every action is pinned to a 40-hex SHA"
+        run: ./task ci-guards
       - name: "Release: database"
         env:
           MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
@@ -441,10 +443,26 @@ jobs:
     needs: [verify, image]
     permissions:
       contents: write
+      packages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - name: "Release: log in to GHCR for the SBOM pull"
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+      # The SBOM is generated from the published digest, so the bill of
+      # materials describes the bytes production pulls, not the working tree.
+      - name: "Release: generate the SBOM"
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ghcr.io/${{ github.repository }}@${{ needs.image.outputs.digest }}
+          format: spdx-json
+          output-file: majadu.sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
       - name: "Release: create or update"
         env:
           TAG: ${{ github.ref_name }}
@@ -480,3 +498,4 @@ jobs:
           else
             gh release create "$TAG" --title "$TAG" --notes-file "$notes" --verify-tag
           fi
+          gh release upload "$TAG" majadu.sbom.spdx.json --clobber

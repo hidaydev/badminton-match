@@ -237,9 +237,44 @@ jobs:
       - name: "Parity: corpus manifest and lint"
         run: ./task parity verify && ./task parity v2 lint
 
-  web:
-    name: "Web: build"
+  supply-chain:
+    name: "Supply chain: scan"
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # gitleaks scans the commits in this run, not only the working tree.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@9bbca1e9dc2902adb87e8780fe5c98796985a62d # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+      # A tag ref is mutable and a 41-character SHA is a different commit that
+      # GitHub still resolves; the guard fails on both before the scanners run.
+      - name: "Supply chain: every action is pinned to a 40-hex SHA"
+        run: ./task ci-guards
+      - name: "Supply chain: audit the frontend lockfile"
+        run: pnpm audit --audit-level=high --prod
+      - name: "Supply chain: scan for committed secrets"
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Filesystem first: it sees dependency manifests and source even when the
+      # image job cannot run. The image itself is scanned on every release.
+      - name: "Supply chain: scan for vulnerable dependencies"
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          trivyignores: .trivyignore
+
+  web:
+    name: "Web: build"    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -415,7 +450,7 @@ jobs:
     name: "Gate"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    needs: [api-check, api-test, contract, web, e2e, image]
+    needs: [api-check, api-test, contract, supply-chain, web, e2e, image]
     if: always()
     steps:
       - name: "Gate: require every job"

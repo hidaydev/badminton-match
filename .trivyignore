@@ -1,0 +1,7 @@
+# Trivy allowlist. One entry per line, with the reason and the expiry date.
+#
+# Example:
+# CVE-2026-0000  # <package>, <reason>, review by 2027-01-01
+#
+# Empty today: the filesystem scan currently has no accepted HIGH/CRITICAL
+# finding. An entry here is a dated exception, not a silent default.

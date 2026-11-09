@@ -32,6 +32,7 @@ explicit `--nimcache` does not add a suffix.
 | `ci` | check + build + test + contract check | same as `test` |
 | `coverage` | line coverage per module, ratcheted against `coverage-baseline-<platform>.json`; `--update` rewrites the baseline | no |
 | `deps-check` | compare the installed toolchain and Nim packages with `deps.lock` | no |
+| `ci-guards` | reject mutable or malformed action pins in `.github/workflows` | no |
 | `deps-install` | install the Nim packages pinned in `deps.lock` into `~/.nimble` | no |
 | `bootstrap` | migrate, seed L1 config, create the first owner and a default community | yes |
 | `dev-db` | create the roles, databases and dev schema through `ops/dev/pg-up.sh` | no |

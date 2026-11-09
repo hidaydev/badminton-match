@@ -93,6 +93,26 @@ suite "task target guards":
     let result = fixture.runTask(@["audit-retention"])
     check result.exitCode != 0
     check result.stderr.contains("MAJADU_AUDIT_DSN is required")
+  test "ci-guards rejects a mutable action tag":
+    let fixture = newFixture("ci-guards-tag")
+    defer: removeDir(fixture.root)
+    createDir(fixture.root / ".github" / "workflows")
+    writeFile(fixture.root / ".github" / "workflows" / "bad.yml",
+      "steps:\n  - uses: owner/repo@v1\n")
+    let result = fixture.runTask(@["ci-guards"])
+    check result.exitCode == 1
+    check result.stderr.contains("is not pinned to a 40-hex commit SHA")
+
+  test "ci-guards rejects a 41-character action SHA":
+    let fixture = newFixture("ci-guards-41")
+    defer: removeDir(fixture.root)
+    createDir(fixture.root / ".github" / "workflows")
+    writeFile(fixture.root / ".github" / "workflows" / "bad.yml",
+      "steps:\n  - uses: owner/repo@55cc8345863c7cc4c66c329aec7e433d2d1c52a9a\n")
+    let result = fixture.runTask(@["ci-guards"])
+    check result.exitCode == 1
+    check result.stderr.contains("is not pinned to a 40-hex commit SHA")
+
   test "deps-check refuses a Dockerfile digest that differs from deps.lock":
     let fixture = newFixture("deps-docker-mismatch")
     defer: removeDir(fixture.root)
