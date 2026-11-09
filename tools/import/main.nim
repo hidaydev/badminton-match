@@ -892,7 +892,7 @@ proc importRatingSources*(source, target: Db, communityId: string,
     for row in source.query(
       """select source_id, source_kind, finalized, ingested_at::text as ingested_at
          from bm.rating_sources order by source_id"""):
-      let (token, prefixKind) = sourceToken(row.get("source_id"))
+      let (token, _) = sourceToken(row.get("source_id"))
       let kind = if row.get("source_kind") == "session": "session" else: "tournament"
       var newSource: Option[string]
       if kind == "session":

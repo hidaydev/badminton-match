@@ -1,0 +1,15 @@
+# Dead declarations and unused imports the quiet Nim pass lets through, one per
+# line:
+#
+#   path:name   # the declaration the compiler named
+#
+# `./task check` runs `nim check --hints:on --warnings:on` a second time and
+# fails on every `XDeclaredButNotUsed`, `UnusedImport`, `ShadowIdent`,
+# `CaseTransition` and `UserWarning` that is not listed here. The first pass
+# keeps `--hints:off` so its output stays readable; this file is the reviewed
+# remainder, not a place to mute a new finding.
+#
+# SQ-07 deletes `classify` and this entry; the pass prints every allowlisted
+# finding on each run, so a stale line stays visible.
+
+modules/session/schedule.nim:classify

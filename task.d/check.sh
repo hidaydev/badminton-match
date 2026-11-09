@@ -24,6 +24,7 @@ if [ "$run_suites" = "1" ]; then
 fi
 
 nim_check "$(api_entrypoint)"
+sh "$REPO_ROOT/task.d/deadcode.sh"
 
 # QA-11: the JUnit report is written even when the first failing suite stops
 # the loop, so a red run leaves a machine-readable result behind.
