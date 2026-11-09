@@ -1051,6 +1051,16 @@ proc pagedJson(request: Request, items: JsonNode, total, limit,
   jsonResponse(request, 200, %*{"items": items, "total": total,
     "nextCursor": nextCursor})
 
+proc sessionStatusFilter(request: Request): string =
+  ## An unknown status is not a filter. The route validates against the column
+  ## check constraint so a typo narrows nothing instead of answering 400 for a
+  ## read the caller already knows how to retry.
+  let status = request.queryParams["status"].strip()
+  if status in ["draft", "locked", "published", "completed", "archived"]:
+    status
+  else:
+    ""
+
 proc listSessions(request: Request, ctx: CommunityContext,
                   snapshot: Snapshot) =
   ## One page, never a silently truncated history: the caller pages with
@@ -1061,6 +1071,7 @@ proc listSessions(request: Request, ctx: CommunityContext,
   if date.len > 0 and not validSessionDate(date):
     date = ""
   let q = request.queryParams["q"].strip()
+  let status = sessionStatusFilter(request)
   var items = newJArray()
   for row in application.db.query(
     """select s.id, s.title, s.session_date::text as session_date, s.status,
@@ -1075,10 +1086,11 @@ proc listSessions(request: Request, ctx: CommunityContext,
        where s.community_id = $1::uuid
          and ($2 = '' or s.session_date = nullif($2, '')::date)
          and ($3 = '' or strpos(lower(s.title), lower($3)) > 0)
+         and ($4 = '' or s.status = $4)
        order by s.session_date desc, s.updated_at desc
-       limit $4 offset $5""",
+       limit $5 offset $6""",
     @[textParam(ctx.communityId), textParam(date), textParam(q),
-      intParam(limit.int64), intParam(offset.int64)]):
+      textParam(status), intParam(limit.int64), intParam(offset.int64)]):
     items.add(%*{"id": row.get("id"), "title": row.get("title"),
       "date": row.get("session_date"), "status": row.get("status"),
       "version": parseInt(row.get("version")),
@@ -1088,8 +1100,10 @@ proc listSessions(request: Request, ctx: CommunityContext,
     """select count(*)::int as total from session.sessions s
        where s.community_id = $1::uuid
          and ($2 = '' or s.session_date = nullif($2, '')::date)
-         and ($3 = '' or strpos(lower(s.title), lower($3)) > 0)""",
-    @[textParam(ctx.communityId), textParam(date), textParam(q)])
+         and ($3 = '' or strpos(lower(s.title), lower($3)) > 0)
+         and ($4 = '' or s.status = $4)""",
+    @[textParam(ctx.communityId), textParam(date), textParam(q),
+      textParam(status)])
   let total = if totalRow.isSome: parseInt(totalRow.get.get("total")) else: 0
   pagedJson(request, items, total, limit, offset)
 

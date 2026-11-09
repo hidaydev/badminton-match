@@ -273,6 +273,9 @@ export const en = {
   'sessions.unsaved.tooOld': 'This unsaved copy is more than 30 minutes old. Reload the session to see the current state.',
   'sessions.unsaved.dismiss': 'Dismiss',
   'home.continueSession': 'Continue Session',
+  'home.continue.loading': 'Looking for an unfinished session…',
+  'home.continue.error': 'Could not check for an unfinished session.',
+  'home.continue.retry': 'Retry',
 
   'session.meta': '{date} · {startTime} · {slotMinutes} min',
   'session.version': '{status} · v{version}',

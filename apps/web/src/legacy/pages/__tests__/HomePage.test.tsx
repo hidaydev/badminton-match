@@ -39,10 +39,15 @@ const bootstrap = {
   'GET /api/c/acme/players?mine=1': () => ({ body: { items: [] } }),
 }
 
+/** The card's own read: one draft, so the server picks it, not the first page. */
+const draftPath = '/api/c/acme/sessions?limit=1&status=draft'
+
 function sessionsFetch(items: Row[], total = items.length) {
   return mockFetch({
     ...bootstrap,
-    'GET /api/c/acme/sessions?limit=100': () => ({ body: { items, total } }),
+    [`GET ${draftPath}`]: () => ({
+      body: { items, total, nextCursor: '' },
+    }),
   })
 }
 
@@ -76,10 +81,9 @@ describe('HomePage continue-session card', () => {
     window.history.replaceState({}, '', '/c/acme')
   })
 
-  it('points at the newest draft with its date and counts', async () => {
-    sessionsFetch([
+  it('asks the server for one draft and points at it', async () => {
+    const fetchMock = sessionsFetch([
       row({ id: 's1', title: 'Sunday draft', date: '2026-11-08' }),
-      row({ id: 's0', title: 'Older draft', date: '2026-11-01' }),
     ])
 
     renderHome()
@@ -88,43 +92,72 @@ describe('HomePage continue-session card', () => {
     expect(screen.getByText(t('home.continueSession'))).toBeInTheDocument()
     expect(screen.getByText('08-11-2026')).toBeInTheDocument()
     expect(screen.getByText('8p · 5g')).toBeInTheDocument()
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url) === draftPath),
+    ).toBe(true)
 
     fireEvent.click(screen.getByText('Sunday draft'))
     expect(screen.getByTestId('pathname')).toHaveTextContent('/c/acme/s/s1')
   })
 
-  it('renders no card when every session is finished', async () => {
-    const fetchMock = sessionsFetch([
-      row({ id: 's1', title: 'Locked night', date: '2026-11-08', status: 'locked' }),
-      row({ id: 's2', title: 'Published cup', date: '2026-11-02', status: 'published' }),
-    ])
+  it('renders no card when the server reports no draft', async () => {
+    const fetchMock = sessionsFetch([], 3)
 
     renderHome()
 
     await waitFor(() =>
-      expect(
-        fetchMock.mock.calls.some(([url]) => String(url) === '/api/c/acme/sessions?limit=100'),
-      ).toBe(true),
+      expect(fetchMock.mock.calls.some(([url]) => String(url) === draftPath)).toBe(true),
+    )
+    await waitFor(() =>
+      expect(screen.queryByText(t('home.continue.loading'))).not.toBeInTheDocument(),
     )
     expect(screen.queryByText(t('home.continueSession'))).not.toBeInTheDocument()
-    expect(screen.queryByText('Locked night')).not.toBeInTheDocument()
   })
 
-  it('takes the first draft in the server order: newer date, then newer update', async () => {
-    // The endpoint answers ordered by session_date desc, updated_at desc; the
-    // card reads that order instead of re-sorting a row that carries no
-    // updated_at. Same-date rows arrive newest update first for the same reason.
-    sessionsFetch([
-      row({ id: 's-new', title: 'Newest draft', date: '2026-11-08' }),
-      row({ id: 's-same-late', title: 'Same day, edited later', date: '2026-11-05' }),
-      row({ id: 's-same-early', title: 'Same day, edited earlier', date: '2026-11-05' }),
-    ])
+  it('shows a retry row when the draft read fails instead of hiding the card', async () => {
+    let fail = true
+    const fetchMock = mockFetch({
+      ...bootstrap,
+      [`GET ${draftPath}`]: () =>
+        fail
+          ? { status: 500, body: { code: 'INTERNAL', detail: 'boom' } }
+          : {
+              body: {
+                items: [row({ id: 's1', title: 'Sunday draft', date: '2026-11-08' })],
+                total: 1,
+                nextCursor: '',
+              },
+            },
+    })
 
     renderHome()
 
-    expect(await screen.findByText('Newest draft')).toBeInTheDocument()
-    expect(screen.queryByText('Same day, edited later')).not.toBeInTheDocument()
-    expect(screen.queryByText('Same day, edited earlier')).not.toBeInTheDocument()
+    // The transport retries a read three times with backoff before the card
+    // can report the failure.
+    const alert = await screen.findByRole('alert', {}, { timeout: 20000 })
+    expect(alert).toHaveTextContent(t('home.continue.error'))
+    expect(screen.queryByText(t('home.continueSession'))).not.toBeInTheDocument()
+
+    fail = false
+    fireEvent.click(screen.getByRole('button', { name: t('home.continue.retry') }))
+
+    expect(await screen.findByText('Sunday draft')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url) === draftPath),
+    ).toHaveLength(5)
+  }, 30000)
+
+  it('offers the draft the server found beyond its first page', async () => {
+    // The community has 150 sessions and the newest draft is the 120th row;
+    // the server filter returns it as the only item of a one-row page.
+    sessionsFetch([
+      row({ id: 's-120', title: 'The 120th draft', date: '2026-05-04' }),
+    ], 150)
+
+    renderHome()
+
+    expect(await screen.findByText('The 120th draft')).toBeInTheDocument()
   })
 
   it('ignores the session this device visited last', async () => {

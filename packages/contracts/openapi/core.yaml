@@ -473,6 +473,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Exact session status. A value outside the column's check constraint (draft, locked, published, completed, archived) is ignored, not refused.",
+            "schema": {
+              "type": "string"
+            }
           }
         ]
       },

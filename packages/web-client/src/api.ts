@@ -350,7 +350,7 @@ export const routes: readonly RouteSpec[] = [
     path: "/c/{slug}/sessions",
     tag: "sessions",
     pathParams: ["slug"],
-    queryParams: ["limit", "offset", "q", "date"],
+    queryParams: ["limit", "offset", "q", "date", "status"],
     hasBody: false,
     isWebSocket: false,
   },
