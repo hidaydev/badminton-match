@@ -242,7 +242,10 @@ suite "security: IDOR":
     let code = issued.json["code"].getStr()
     let shared = call(baseUrl, HttpGet, "/s/" & code)
     expectStatus(shared, 200)
-    check shared.json["session"]["id"].getStr() == sharedSession
+    # SEC-20: the payload names no id the legacy resolver would accept.
+    check not shared.json["session"].hasKey("id")
+    check shared.json["session"]["title"].getStr() == "Alpha Shared"
+    check shared.json["games"].len == 0
     # A live code for B is not reachable as A's share link.
     check shareB.len > 0
 

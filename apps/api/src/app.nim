@@ -2657,7 +2657,7 @@ proc resolveShare(code: string): Option[JsonNode] =
     value.sessionId)
   var games = newJArray()
   for row in application.db.query(
-    """select r.id, r.round_no, r.court_no, r.status, r.winner,
+    """select r.round_no, r.court_no, r.status, r.winner,
               r.points_a, r.points_b, r.sets_played, r.sets_a, r.sets_b,
               coalesce(a1.canonical_name, '') as a1,
               coalesce(a2.canonical_name, '') as a2,
@@ -2672,7 +2672,8 @@ proc resolveShare(code: string): Option[JsonNode] =
        order by r.round_no, r.court_no""",
     @[textParam(value.communityId), textParam(value.sessionId)]):
     # Names, not ids: a spectator cannot resolve a uuid, and the share payload
-    # is the only read that has no session behind it.
+    # is the only read that has no session behind it. The round and the court
+    # are the keys the public screen renders by, so nothing needs the id.
     var sideA = newJArray()
     var sideB = newJArray()
     for slot in ["a1", "a2"]:
@@ -2682,7 +2683,6 @@ proc resolveShare(code: string): Option[JsonNode] =
     let winner = row.get("winner")
     let scored = parseInt(row.get("sets_played")) > 0
     games.add(%*{
-      "id": row.get("id"),
       "round": parseInt(row.get("round_no")),
       "court": parseInt(row.get("court_no")),
       "sideA": sideA, "sideB": sideB,
@@ -2696,7 +2696,9 @@ proc resolveShare(code: string): Option[JsonNode] =
       "status": row.get("status"),
     })
   var shared = %*{
-    "session": {"id": value.sessionId, "title": value.title,
+    # No session id: the code is the only public key of this read, and the
+    # legacy `/s/<id>` alias would make the published uuid a second one.
+    "session": {"title": value.title,
                 "date": value.sessionDate, "status": value.status},
     "community": {"slug": value.slug, "name": value.communityName},
     "games": games,
