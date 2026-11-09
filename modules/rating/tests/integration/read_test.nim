@@ -148,18 +148,12 @@ proc newPlayer(name: string): string =
     @[textParam(communityId), textParam(name)]).get.get("id")
 
 proc statements(body: proc()): int =
-  ## How many statements a read costs. Every statement outside a transaction is
-  ## one commit, so the database's commit counter is the count; the counter read
-  ## commits after its own snapshot, which is why its commit is subtracted back
-  ## out. The suites run one after another against one database, so nothing else
-  ## moves the counter while a read is measured.
-  let before = database.queryOne(
-    """select xact_commit::int as n from pg_stat_database
-       where datname = current_database()""").get.getInt("n")
-  body()
-  database.queryOne(
-    """select xact_commit::int as n from pg_stat_database
-       where datname = current_database()""").get.getInt("n") - before - 1
+  ## How many statements a read costs, counted by the library's own hook.
+  ## `pg_stat_database.xact_commit` was not a stable measure: autovacuum and the
+  ## stats flush moved the database-wide counter on a loaded runner, and the
+  ## read then appeared to cost one statement more. The pool holds one
+  ## connection, so the body cannot run inside `tx`; the hook counts by thread.
+  measureStatements(body)
 
 proc socialCount(rows: JsonNode, name: string): int =
   for entry in rows:
