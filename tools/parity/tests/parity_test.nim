@@ -40,16 +40,22 @@ proc bootstrap() =
   createDir(scratchDir)
 
 proc cleanup() {.noconv.} =
-  ## Runs at exit, where the module-level strings may already have been
-  ## destroyed: both names are computed again instead of being read back.
+  ## Runs at exit, where the module-level strings and the global connection may
+  ## already be destroyed: every name is rebuilt here, the DSN is read from the
+  ## environment, and the connection is opened for this call instead of reusing
+  ## the global. Reusing it crashed with SIGSEGV on Linux.
   let schema = scratchPrefix & "_" & $getCurrentProcessId()
   let directory = getTempDir() / ("parity-state-" & $getCurrentProcessId())
+  let target = getEnv("MAJADU_PG_DSN")
   try:
-    if database != nil:
-      database.tx(proc(conn: DbConn) =
-        conn.execScript("drop schema if exists " & schema & " cascade;")
-      )
-      database.close()
+    if target.len > 0:
+      let connection = openDb(target, 1)
+      try:
+        connection.tx(proc(conn: DbConn) =
+          conn.execScript("drop schema if exists " & schema & " cascade;")
+        )
+      finally:
+        connection.close()
     if dirExists(directory):
       removeDir(directory)
   except CatchableError:
