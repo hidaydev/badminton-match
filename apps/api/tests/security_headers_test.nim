@@ -50,3 +50,13 @@ suite "security headers":
     var request = RequestObj(body: repeat('x', 17))
     check not bodyTooLarge(request.addr, snapshotWithLimit(32))
     check bodyTooLarge(request.addr, snapshotWithLimit(0))
+
+  test "the socket cap is the registry ceiling, not the configured value":
+    # BE-16: mummy closes the socket once a body passes `maxBodyLen`, so a cap
+    # equal to the limit would answer an oversized request with a dropped
+    # connection. The cap must stay above every limit an operator may store.
+    let limits = bodyLimits(snapshotWithLimit(2_097_152))
+    check limits.guardBytes == 2_097_152
+    check limits.socketBytes == specFor(keySecurityMaxBodyBytes).maxValue.int
+    check limits.socketBytes > limits.guardBytes
+    check bodyLimits(snapshotWithLimit(1)).socketBytes == limits.socketBytes

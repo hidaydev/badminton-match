@@ -70,7 +70,10 @@ with a typed registry in `modules/platform/config/registry.nim`; the snapshot is
 
 `proc route` (`apps/api/src/app.nim`) runs a fixed order:
 
-1. **Body limit**: `security.max_body_bytes` (`apps/api/src/app.nim`).
+1. **Body limit**: `security.max_body_bytes` (`apps/api/src/app.nim`). The socket accepts up
+   to the registry ceiling for that key (16 MiB), so the guard, never the transport, answers
+   an oversized request with the `413 BODY_TOO_LARGE` envelope; a body past the ceiling is
+   dropped before any handler can answer (`apps/api/src/security_headers.nim:bodyLimits`).
 2. **CSRF**: state-changing methods require an allowed origin (or `Sec-Fetch-Site`
    `same-origin`/`none`); a request with a cookie and no Origin is rejected
    (`apps/api/src/security_headers.nim:22-45`).
