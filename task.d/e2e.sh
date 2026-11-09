@@ -39,6 +39,14 @@ sh "$REPO_ROOT/task.d/build.sh" >/dev/null
 export MAJADU_PG_DSN="${MAJADU_E2E_DSN:-postgresql://$(whoami)@127.0.0.1:5432/$DB}"
 "$bin_dir/dbtools" migrate --dir "$REPO_ROOT/db/migrations" >/dev/null
 "$bin_dir/dbtools" seed --dir "$REPO_ROOT/db/seeds" >/dev/null
+# The harness drives four browser projects from one address, and the seeded 300
+# requests per minute per route template is a real-user budget: two workers on
+# the players screen alone exhaust it and a visual route then renders the 429
+# error state. The limiter has its own integration suite, so the end-to-end
+# database gets headroom instead of a weaker check.
+psql "$MAJADU_PG_DSN" -q -v ON_ERROR_STOP=1 \
+  -c "update platform.config set value = to_jsonb(5000) where key = 'security.rate_limit_per_minute'" \
+  -c "update platform.config_version set version = version + 1"
 
 OIDC_STUB_PORT=$STUB_PORT OIDC_STUB_ISSUER=http://127.0.0.1:$STUB_PORT \
   OIDC_STUB_CLIENT_ID=majadu-e2e "$bin_dir/oidc-stub" >/tmp/e2e-stub.log 2>&1 &
