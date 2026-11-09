@@ -144,9 +144,10 @@ expires_at < now()`.
 ## 6. What is not yet proven
 
 - The production origin (`https://majadu.vercel.app`) has not been exercised.
-  Before the merge, register `https://majadu.vercel.app/api/auth/callback` as an
-  authorized redirect URI on the same client the RC uses, or production login
-  fails with `redirect_uri_mismatch`.
+  `https://majadu.vercel.app/api/auth/callback` is registered as an authorized
+  redirect URI on the same client the RC uses (owner confirmed 2026-11-09), so
+  the registration half is done; complete one sign-in on the production origin
+  after the merge.
 - The `Set-Cookie` behaviour is proven on the RC origin, where two sign-ins
   completed on 2026-11-09 through the Vercel rewrite
   (`.local/incidents/iso-02-real-login.md`). A preview alias sharing a cookie jar
