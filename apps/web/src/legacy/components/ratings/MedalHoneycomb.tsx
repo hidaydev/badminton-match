@@ -1,10 +1,10 @@
-// src/components/ratings/MedalHoneycomb.tsx, penataan badge medal menyerupai
-// sarang lebah (honeycomb). Item dirender tanpa teks, jadi baris cukup disusun
-// rapat: baris ganjil digeser setengah lebar heksagon, baris berikutnya ditarik
-// naik 25% tinggi supaya sisi miringnya bersambung.
+// src/components/ratings/MedalHoneycomb.tsx: lays the medal badges out like a
+// honeycomb. The items carry no text, so the rows have to sit tight: odd rows
+// are shifted half a hexagon width and the next row is pulled up by 25 percent
+// of its height so the slanted sides meet.
 //
-// Jumlah kolom dihitung dari lebar kontainer (ResizeObserver) supaya tetap rapi
-// di mobile maupun desktop.
+// The column count comes from the container width (ResizeObserver) so the grid
+// stays tidy on mobile and on desktop.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 interface MedalHoneycombProps {
@@ -30,9 +30,9 @@ export default function MedalHoneycomb({ items, width = 64 }: MedalHoneycombProp
   }, [width])
 
   const rows: ReactNode[][] = []
-  // Baris ganjil digeser setengah lebar, jadi kapasitasnya dikurangi satu supaya
-  // total lebarnya tetap di dalam kontainer (kalau tidak, badge terakhir
-  // terpotong/keluar layar di mobile).
+  // Odd rows are shifted half a width, so their capacity drops by one to keep
+  // the total width inside the container; otherwise the last badge is clipped or
+  // runs off screen on mobile.
   for (let i = 0, ri = 0; i < items.length; ri++) {
     const cap = ri % 2 === 0 || perRow < 2 ? perRow : perRow - 1
     rows.push(items.slice(i, i + cap))
@@ -40,10 +40,10 @@ export default function MedalHoneycomb({ items, width = 64 }: MedalHoneycombProp
   }
 
   const height = Math.round(width * HEX_RATIO)
-  // Semua baris dipaksa selebar perRow*width dan rata kiri, lalu baris ganjil
-  // diberi padding setengah lebar. Ini penting: kalau baris dipusatkan
-  // (items-center) baris terakhir yang tidak penuh akan tergeser sendiri dan
-  // bertabrakan dengan baris di atasnya — itu yang bikin overlap di mobile.
+  // Every row is forced to perRow*width and left aligned, then odd rows get half
+  // a width of padding. This matters: centring the rows (items-center) would
+  // shift the last, partially filled row on its own until it collides with the
+  // row above, which is what produced the overlap on mobile.
   const gridWidth = perRow * width
 
   return (

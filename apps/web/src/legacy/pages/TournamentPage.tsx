@@ -92,7 +92,8 @@ export default function TournamentPage() {
   const [prevCommitted, setPrevCommitted] = useState<Record<GroupId, string[]> | null>(null)
   if (committedGroups !== prevCommitted) {
     setPrevCommitted(committedGroups)
-    // Normalisasi: server kirim string[], UI butuh (string | null)[] dengan 4 slot per grup.
+    // Normalise: the server sends string[], the UI needs (string | null)[] with
+    // 4 slots per group.
     const toSlots = (arr: string[] | undefined): (string | null)[] => {
       const result: (string | null)[] = (arr ?? []).slice(0, 4)
       while (result.length < 4) result.push(null)

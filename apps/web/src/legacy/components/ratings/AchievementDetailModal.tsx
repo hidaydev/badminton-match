@@ -1,13 +1,15 @@
-// src/components/ratings/AchievementDetailModal.tsx — popup detail medal prestisius.
-// Dipicu dari klik/tap badge medal pada rak profil atau pratinjau.
+// src/components/ratings/AchievementDetailModal.tsx: the prestigious medal
+// detail popup. Opened by clicking or tapping a medal badge on the profile shelf
+// or in the preview.
 //
-// Fitur:
-// - Showcase medal besar (width 96px) di atas panggung radial ambient glow.
-// - Tier pill badge bernuansa metalik (Bronze, Silver, Gold, Platinum, Onyx, atau Tournament).
-// - Tangga progres 5-tingkat dengan rel penghubung (progress track), status earned/locked,
-//   dan indikator tier saat ini.
-// - Bar progres ke tier berikutnya jika milestone belum maksimal.
-// - Escape, focus trap dan scrim ditangani `Overlay` (satu stack, bukan listener sendiri).
+// Features:
+// - A large medal showcase (96px wide) over a stage with a radial ambient glow.
+// - A metallic tier pill (Bronze, Silver, Gold, Platinum, Onyx, or Tournament).
+// - A 5-level progress ladder with a connecting rail (progress track), the
+//   earned/locked state and the current tier marker.
+// - A progress bar towards the next tier while the milestone is not maxed.
+// - Escape, the focus trap and the scrim are handled by `Overlay` (one stack,
+//   not a listener of its own).
 
 import { useId } from 'react'
 import AchievementBadge from './AchievementBadge'
@@ -44,7 +46,7 @@ export default function AchievementDetailModal({
   const isEvent = isEventKey(a.key)
   const seed = seedFromKey(a.key)
 
-  // Style untuk showcase header
+  // Styles for the showcase header
   const tierIdx = Math.max(0, Math.min(MEDAL_TIER_STYLES.length - 1, tierLevel - 1))
   const currentTierStyle = isEvent && seed
     ? getEventMedalStyle(eventTone(seed))

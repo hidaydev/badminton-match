@@ -32,6 +32,17 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
+/**
+ * The 2D context of a canvas the caller just created. `getContext` returns null
+ * when the browser cannot provide one; that is a real failure to report, not a
+ * value to assert away.
+ */
+export function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
+  const ctx = canvas.getContext('2d')
+  if (ctx === null) throw new Error('The browser did not provide a 2D canvas context')
+  return ctx
+}
+
 export function drawCoverFill(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
@@ -185,7 +196,7 @@ export function drawMatchPost(options: DrawMatchPostOptions) {
   const H = POST_HEIGHT
   canvas.width = W
   canvas.height = H
-  const ctx = canvas.getContext('2d')!
+  const ctx = context2d(canvas)
   ctx.clearRect(0, 0, W, H)
 
   // Layer 1: full-bleed photo
@@ -242,7 +253,7 @@ export function drawMatchPost(options: DrawMatchPostOptions) {
       const mid = document.createElement('canvas')
       mid.width = Math.round(srcW / 2)
       mid.height = Math.round(srcH / 2)
-      const mctx = mid.getContext('2d')!
+      const mctx = context2d(mid)
       mctx.imageSmoothingEnabled = true
       mctx.imageSmoothingQuality = 'high'
       mctx.drawImage(src, 0, 0, mid.width, mid.height)
@@ -313,7 +324,7 @@ export function drawBracketRoundCover(options: DrawBracketRoundCoverOptions) {
   const H = POST_HEIGHT
   canvas.width = W
   canvas.height = H
-  const ctx = canvas.getContext('2d')!
+  const ctx = context2d(canvas)
   ctx.clearRect(0, 0, W, H)
 
   if (summaryBg) {
@@ -440,7 +451,7 @@ export function drawPositionPost(options: DrawPositionPostOptions) {
   const H = POST_HEIGHT
   canvas.width = W
   canvas.height = H
-  const ctx = canvas.getContext('2d')!
+  const ctx = context2d(canvas)
   ctx.clearRect(0, 0, W, H)
 
   drawCoverFill(ctx, photo, W, H, 0, 0)
@@ -513,7 +524,7 @@ export function drawPositionPost(options: DrawPositionPostOptions) {
       const mid = document.createElement('canvas')
       mid.width = Math.round(srcW / 2)
       mid.height = Math.round(srcH / 2)
-      const mctx = mid.getContext('2d')!
+      const mctx = context2d(mid)
       mctx.imageSmoothingEnabled = true
       mctx.imageSmoothingQuality = 'high'
       mctx.drawImage(src, 0, 0, mid.width, mid.height)
@@ -656,7 +667,7 @@ interface StandingsCanvasOptions {
 
 export function drawStandingsCanvas(options: StandingsCanvasOptions) {
   const { canvas, standings, meta, overlays, isStory, userPhoto, photoOffset, photoZoom, headerLabel, hideHeader } = options
-  const ctx = canvas.getContext('2d')!
+  const ctx = context2d(canvas)
   const W = canvas.width
   const H = canvas.height
 
@@ -852,7 +863,7 @@ export function drawGroupSummary(options: DrawGroupSummaryOptions) {
   const H = POST_HEIGHT
   canvas.width = W
   canvas.height = H
-  const ctx = canvas.getContext('2d')!
+  const ctx = context2d(canvas)
   ctx.clearRect(0, 0, W, H)
 
   if (summaryBg) {
@@ -1024,7 +1035,7 @@ export function drawTeamMatchPost(options: DrawTeamMatchPostOptions) {
   const H = POST_HEIGHT
   canvas.width = W
   canvas.height = H
-  const ctx = canvas.getContext('2d')!
+  const ctx = context2d(canvas)
   ctx.clearRect(0, 0, W, H)
 
   // Layout constants
@@ -1249,7 +1260,7 @@ export function drawTeamMatchPost(options: DrawTeamMatchPostOptions) {
       const mid = document.createElement('canvas')
       mid.width = Math.round(srcW / 2)
       mid.height = Math.round(srcH / 2)
-      const mctx = mid.getContext('2d')!
+      const mctx = context2d(mid)
       mctx.imageSmoothingEnabled = true
       mctx.imageSmoothingQuality = 'high'
       mctx.drawImage(src, 0, 0, mid.width, mid.height)

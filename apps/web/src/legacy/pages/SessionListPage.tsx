@@ -67,7 +67,7 @@ export default function SessionListPage() {
     if (activePendingSessionId() !== null && !busyPending) {
       setPendingPublish(null)
     }
-    navigate(`/s/${cloudSessionId}`)
+    void navigate(`/s/${cloudSessionId}`)
   }
 
   /**

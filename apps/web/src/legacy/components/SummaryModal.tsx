@@ -121,9 +121,9 @@ export default function SummaryModal({
   const played = new Set(playedArr)
 
   const [activeTab, setActiveTab] = useState<'schedule' | 'standings'>('schedule')
-  // Escape menutup modal (tidak saat standalone/full-page). Menu Actions punya
-  // handler sendiri; stack di useEscapeKey memastikan satu Escape hanya
-  // menutup satu hal, jadi tidak perlu guard di sini.
+  // Escape closes the modal (not in standalone/full-page mode). The Actions
+  // menu has its own handler; the stack in useEscapeKey guarantees one Escape
+  // closes one thing, so no guard is needed here.
   useEscapeKey(() => {
     onClose?.()
   }, !!onClose && !standalone)
@@ -201,8 +201,9 @@ export default function SummaryModal({
     flatSkippedCount,
   } = modes
 
-  // Prop stabil untuk StandingsTab — tanpa ini, useMemo di dalamnya recompute
-  // computeStandings tiap render karena array/objek selalu identitas baru.
+  // Stable props for StandingsTab. Without them the useMemo inside it
+  // recomputes computeStandings on every render, because arrays and objects
+  // always have a new identity.
   const standingsPlayers = useMemo(() => [...playerMap.values()], [playerMap])
   const standingsAbsentIds = useMemo(() => [...effectiveAbsent], [effectiveAbsent])
   const standingsSkipped = useMemo(() => {

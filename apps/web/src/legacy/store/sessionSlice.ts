@@ -15,8 +15,8 @@ const DEFAULT_COURT_TIMES: CourtTime[] = [
 function makeDefaultSession(): SessionConfig {
   return {
     title: '',
-    // WIB (bukan UTC) — sinkron dengan auto-lock backend yang pakai
-    // Asia/Jakarta; toISOString bisa mundur 1 hari jam 00:00–06:59 WIB.
+    // WIB rather than UTC, to match the backend auto-lock which uses
+    // Asia/Jakarta; toISOString can go back a day between 00:00 and 06:59 WIB.
     date: todayLocal(),
     courts: 2,
     sessionStart: toTimeString(DEFAULT_START),

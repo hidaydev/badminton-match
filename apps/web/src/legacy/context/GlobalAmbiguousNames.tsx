@@ -1,18 +1,18 @@
-// GlobalAmbiguousNames — sediakan himpunan baseName ambigu dari SELURUH
-// populasi pemain, supaya badge "(i)" bekerja di semua layar.
+// GlobalAmbiguousNames: supplies the ambiguous baseName set for the WHOLE
+// player population, so the "(i)" badge works on every screen.
 //
-// Kenapa perlu: provider per-halaman hanya dipasang di 3 tempat (GeneratePage,
-// SharedSessionPage, RatingPlayerPage). Di halaman lain (papan ranking, daftar
-// pemain, turnamen) context-nya default kosong -> badge (i) tidak pernah
-// muncul. Akibatnya dua pemain ber-baseName sama tampil identik: di prod ada
-// "Arya (Dika)" dan "Arya (Shania)" (rank 55 & 104 di papan) yang keduanya
-// dirender sebagai "Arya" polos.
+// Why it is needed: the per-page provider was only mounted in 3 places
+// (GeneratePage, SharedSessionPage, RatingPlayerPage). On the other pages (the
+// rankings board, the player list, tournaments) the context defaulted to empty,
+// so the (i) badge never appeared. Two players sharing a baseName then rendered
+// identically: production had "Arya (Dika)" and "Arya (Shania)" (rank 55 and
+// 104 on the board) both rendered as a plain "Arya".
 //
-// Populasi penuh dipilih sebagai default karena itulah definisi ambiguitas yang
-// paling tidak menyesatkan: sebuah nama ambigu kalau ada >1 pemain memakainya,
-// bukan hanya >1 di antara yang kebetulan tampil. Halaman yang punya konteks
-// lebih sempit tetap boleh menimpanya lewat AmbiguousNamesProvider (mis.
-// GeneratePage hanya peduli nama yang ikut sesi itu).
+// The full population is the default because it is the least misleading
+// definition of ambiguity: a name is ambiguous when more than one player uses
+// it, not only when two of them happen to share a screen. A page with a
+// narrower context may still override it through AmbiguousNamesProvider (for
+// example GeneratePage only cares about the names in that session).
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AmbiguousNamesProvider } from '../context/AmbiguousNamesContext'

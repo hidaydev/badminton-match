@@ -1,6 +1,6 @@
 // src/types/index.ts
-// Domain types — single source of truth untuk semua layer.
-// Tidak ada dependencies ke store, queries, atau framework.
+// Domain types: the single source of truth for every layer.
+// No dependency on the store, the queries or the framework.
 
 export const PLAYERS_PER_GAME = 4
 

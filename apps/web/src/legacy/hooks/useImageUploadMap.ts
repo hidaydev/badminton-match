@@ -1,7 +1,8 @@
-// useImageUploadMap — pola upload foto lewat <input type="file"> tersembunyi.
-// openUpload(key) menandai key aktif lalu membuka picker; onFileChange membaca
-// file, memuatnya ke HTMLImageElement, revoke object URL, lalu menyimpannya di
-// map. onLoad (opsional) dipakai kalau state foto tinggal di parent.
+// useImageUploadMap: the photo upload pattern behind a hidden <input type="file">.
+// openUpload(key) marks the active key and opens the picker; onFileChange reads
+// the file, loads it into an HTMLImageElement, revokes the object URL and keeps
+// it in the map. The optional onLoad is used when the photo state lives in the
+// parent.
 import { useRef, useState } from 'react'
 import type { ChangeEvent, RefObject } from 'react'
 

@@ -34,7 +34,7 @@ import { communityHref } from '../../routes.manifest'
 import { t } from '../../i18n'
 
 export default function SharedSessionPage() {
-  const { sessionId } = useParams<{ sessionId: string }>()
+  const { sessionId = '' } = useParams<{ sessionId: string }>()
   const slug = useLegacySlug()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -46,16 +46,16 @@ export default function SharedSessionPage() {
   const { isAdmin } = useAdmin()
   const canEdit = isAdmin
 
-  const { mutate: togglePlayed, isPending: togglePlayedPending } = useTogglePlayed(sessionId!)
-  const { mutateAsync: setScore, isPending: setScorePending } = useSetScore(sessionId!)
-  const { mutate: swapPlayers, isPending: swapPlayersPending } = useSwapPlayers(sessionId!)
-  const { mutate: setAbsent, isPending: setAbsentPending } = useSetAbsent(sessionId!)
-  const { mutateAsync: setSkippedAsync, isPending: setSkippedPending } = useSetGameSkipped(sessionId!)
-  const { mutate: replacePlayer, isPending: replacePlayerPending } = useReplacePlayer(sessionId!)
-  const { mutate: swapSlots, isPending: swapSlotsPending } = useSwapSlots(sessionId!)
-  const { mutate: swapTeams, isPending: swapTeamsPending } = useSwapTeams(sessionId!)
-  const { mutate: changePlayer, isPending: changePlayerPending } = useChangePlayer(sessionId!)
-  const { mutateAsync: setSessionLocked, isPending: lockPending } = useSetSessionLock(sessionId!)
+  const { mutate: togglePlayed, isPending: togglePlayedPending } = useTogglePlayed(sessionId)
+  const { mutateAsync: setScore, isPending: setScorePending } = useSetScore(sessionId)
+  const { mutate: swapPlayers, isPending: swapPlayersPending } = useSwapPlayers(sessionId)
+  const { mutate: setAbsent, isPending: setAbsentPending } = useSetAbsent(sessionId)
+  const { mutateAsync: setSkippedAsync, isPending: setSkippedPending } = useSetGameSkipped(sessionId)
+  const { mutate: replacePlayer, isPending: replacePlayerPending } = useReplacePlayer(sessionId)
+  const { mutate: swapSlots, isPending: swapSlotsPending } = useSwapSlots(sessionId)
+  const { mutate: swapTeams, isPending: swapTeamsPending } = useSwapTeams(sessionId)
+  const { mutate: changePlayer, isPending: changePlayerPending } = useChangePlayer(sessionId)
+  const { mutateAsync: setSessionLocked, isPending: lockPending } = useSetSessionLock(sessionId)
 
   const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || setSkippedPending || replacePlayerPending || swapSlotsPending || swapTeamsPending || changePlayerPending
 
@@ -167,21 +167,21 @@ export default function SharedSessionPage() {
   }
 
   const playerMap = snapshot ? new Map(snapshot.players.map((p) => [p.id, p])) : new Map()
-  // Gabung dengan set global: nama ambigu di populasi tetap dapat badge walau
-  // di sesi ini hanya muncul sekali.
+  // Union with the global set: a name that is ambiguous in the population keeps
+  // its badge even when it appears once in this session.
   const ambiguousNames = combineAmbiguous(
     globalAmbiguous,
     collectAmbiguousBaseNames((snapshot?.players ?? []).map((p) => p.name)),
   )
 
-  const result: GeneratorResult | null = snapshot ? {
+  const result: GeneratorResult = {
     schedule: snapshot.schedule,
     playCount: {},
     sitCount: {},
     partnerWith: {},
     facedBy: {},
     unplacedFixMatches: [],
-  } : null
+  }
 
   return (
     <AmbiguousNamesProvider value={ambiguousNames}>
@@ -189,7 +189,7 @@ export default function SharedSessionPage() {
       {header}
       {saveError && <ErrorBanner message={saveError} onDismiss={() => setSaveError(null)} />}
       <SummaryModal
-        result={result!}
+        result={result}
         playerMap={playerMap}
         slotsPerCourt={selectSlotsPerCourt(snapshot.session)}
         courtNames={snapshot.session.courtNames ?? []}

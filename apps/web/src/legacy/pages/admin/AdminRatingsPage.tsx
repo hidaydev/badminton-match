@@ -107,7 +107,7 @@ export default function AdminRatingsPage() {
                           title={isT ? undefined : t('admin.revertUnlockFirst')}
                           onClick={() => {
                             if (window.confirm(t('admin.revertConfirm', { name: src.source_name, kind: t(isT ? 'admin.revertKind.tournament' : 'admin.revertKind.session') }))) {
-                              run(
+                              void run(
                                 () => adminRequest('POST', isT ? '/ratings/revert-tournament' : '/ratings/revert-session',
                                   isT ? { tournamentId: src.source_id } : { sessionId: src.source_id }),
                                 t('admin.revertDone'),
@@ -129,7 +129,7 @@ export default function AdminRatingsPage() {
                         onClick={() => {
                           if (eventId === null) return
                           if (window.confirm(t('admin.deleteSourceConfirm', { name: src.source_name }))) {
-                            run(
+                            void run(
                               () => adminRequest('DELETE', `/rating-sources/${encodeURIComponent(eventId)}`),
                               t('admin.deleteSourceDone'),
                               refreshRatingData,

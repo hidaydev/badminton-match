@@ -1,10 +1,12 @@
-// ── Retry policy untuk request() di endpoints.ts ─────────────────────────
-// Pure module: aman diimpor dari test node tanpa menyentuh fetch atau
-// import.meta.env. Kebijakan singkat:
-//   - read (GET/HEAD/OPTIONS): retry 429/503/500 + network failure (perilaku lama)
-//   - mutation (POST/PUT/PATCH/DELETE): retry hanya 429 (rate limit — request
-//     belum ter-apply) dan network failure sebelum request terkirim. 5xx tidak
-//     di-retry karena server mungkin sudah menulis data (bisa double-apply).
+// ── Retry policy for request() in endpoints.ts ───────────────────────────
+// Pure module: safe to import from a node test without touching fetch or
+// import.meta.env. The policy in short:
+//   - read (GET/HEAD/OPTIONS): retry 429/503/500 plus network failure (legacy
+//     behaviour)
+//   - mutation (POST/PUT/PATCH/DELETE): retry only 429 (rate limit, the request
+//     was not applied) and a network failure before the request was sent. 5xx
+//     is not retried because the server may already have written the data (a
+//     double apply).
 
 import { ApiError } from '../../api/errors'
 
@@ -27,7 +29,8 @@ export function isRetryableError(error: unknown): boolean {
   if (error instanceof ApiError) {
     return error.status !== null && RETRYABLE_HTTP_STATUS.has(error.status)
   }
-  // AbortError/timeout: request mungkin sudah diproses server — jangan retry.
+  // AbortError/timeout: the server may already have processed the request, so
+  // do not retry.
   if (error instanceof DOMException && error.name === 'AbortError') return false
   // TypeError berisi 'fetch': koneksi gagal sebelum request terkirim — aman retry.
   if (error instanceof TypeError && error.message.includes('fetch')) return true
@@ -45,7 +48,8 @@ export function isRetryableError(error: unknown): boolean {
 export function shouldRetry(method: string, error: unknown, attempt: number, maxRetries: number): boolean {
   if (attempt >= maxRetries) return false
   if (!isRetryableError(error)) return false
-  // 5xx (bukan 429) untuk mutation: server mungkin sudah apply — no retry.
+  // 5xx (not 429) for a mutation: the server may already have applied it, so no
+  // retry.
   if (error instanceof ApiError && error.status !== 429 && !SAFE_METHODS.has(method.toUpperCase())) {
     return false
   }

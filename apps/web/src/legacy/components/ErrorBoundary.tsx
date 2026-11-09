@@ -37,7 +37,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    // Log untuk debugging — tidak kirim ke external service (privacy-safe).
+    // Log for debugging; never sent to an external service (privacy-safe).
     console.error('[ErrorBoundary]', this.props.routeName ?? 'unknown', error, info.componentStack)
   }
 

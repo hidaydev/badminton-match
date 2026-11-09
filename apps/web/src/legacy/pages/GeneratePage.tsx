@@ -71,9 +71,9 @@ export default function GeneratePage() {
 
   // Derivasi stabil: map pemain & layout court dihitung ulang hanya saat input berubah.
   const playerMap = useMemo(() => new Map(players.map((p) => [p.id, p])), [players])
-  // Base name yang ambigu (muncul >1x) → hanya mereka yang tampil badge (i).
-  // Digabung dengan set global (populasi): nama yang ambigu di populasi tetap
-  // dapat badge meski di sesi ini hanya muncul sekali.
+  // Ambiguous base names (appearing more than once), so only those show the (i)
+  // badge. Unioned with the global (population) set: a name that is ambiguous in
+  // the population keeps its badge even when it appears once in this session.
   const globalAmbiguous = useAmbiguousNames()
   const ambiguousNames = useMemo(
     () => combineAmbiguous(globalAmbiguous, collectAmbiguousBaseNames(players.map((p) => p.name))),

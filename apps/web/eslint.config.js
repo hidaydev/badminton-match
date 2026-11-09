@@ -40,6 +40,35 @@ export default defineConfig([
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+      // Type aware linting. `no-floating-promises` and `no-misused-promises`
+      // need the checker, so every file is resolved through the app tsconfig;
+      // `projectService` picks the nearest one per file.
+      parserOptions: {
+        projectService: {
+          // Not part of either tsconfig project (tsc does not build it).
+          allowDefaultProject: ['playwright.config.ts'],
+        },
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      // A promise statement must be awaited or end with a rejection handler.
+      // `void` stays allowed: the tree uses it to mark the fire and forget
+      // calls whose errors are handled inside the callee.
+      '@typescript-eslint/no-floating-promises': 'error',
+      // JSX event props may return promises: React ignores the value and the
+      // handlers report their own failures. Every other position may not.
+      '@typescript-eslint/no-misused-promises': ['error', { checksVoidReturn: { attributes: false } }],
+      '@typescript-eslint/no-non-null-assertion': 'error',
+    },
+  },
+  {
+    // Type aware rules running on tests would only ask for the same assertion
+    // in a different spelling: a fixture the case just built is known to be
+    // there, and a missing one fails the assertion that follows anyway.
+    files: ['**/*.test.{ts,tsx}', 'src/test/**'],
+    rules: {
+      '@typescript-eslint/no-non-null-assertion': 'off',
     },
   },
 ])

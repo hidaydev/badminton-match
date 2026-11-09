@@ -1,4 +1,5 @@
-// src/components/AnnotatedPlayerName.tsx — Komponen penampil nama pemain dengan anotasi penjelas (i)
+// src/components/AnnotatedPlayerName.tsx: shows a player name with its
+// clarifying (i) note.
 import { useState } from 'react'
 import { parsePlayerName } from '../utils/nameParser'
 import { useAmbiguousNames } from '../context/AmbiguousNamesContext'

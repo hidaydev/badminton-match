@@ -134,7 +134,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
   const reset = useCallback(() => { setRed(0); setBlue(0) }, [])
 
   const toggleFullscreen = useCallback(async () => {
-    if (isFullscreen) { exitFullscreen(); return }
+    if (isFullscreen) { void exitFullscreen(); return }
     const err = await enterFullscreenLandscape()
     if (err) {
       setFsError(err)
@@ -178,7 +178,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
 
   const handleBack = useCallback(async () => {
     await exitFullscreen()
-    navigate('/')
+    void navigate('/')
   }, [navigate])
 
   // Overlay mode: name shown as read-only pill
@@ -286,7 +286,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
           pendingClose,
           isSaving,
           onClose: handleOverlayClose,
-          onSave: handleSave,
+          onSave: () => { void handleSave() },
           onDiscard: overlay.onClose,
           onKeepScoring: () => setPendingClose(false),
         } : undefined}

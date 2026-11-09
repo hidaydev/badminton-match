@@ -166,8 +166,9 @@ export default function ScheduleGrid({
                 const teamANames = g.teamA.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
                 const teamBNames = g.teamB.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
 
-                // Satu render untuk team A/B (dulu blok kembar) — teamSwap pakai
-                // tombol tim, mode lain pakai chip pemain.
+                // One render for teams A/B (this used to be a twin block);
+                // teamSwap uses the team button, the other modes use the player
+                // chips.
                 function teamCell(team: 'A' | 'B') {
                   const ids = team === 'A' ? g.teamA : g.teamB
                   if (mode === 'teamSwap') {

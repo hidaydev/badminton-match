@@ -57,7 +57,7 @@ export default function SessionLayout() {
                 {t('legacy.active')}
               </span>
               <button
-                onClick={() => { resetSession(); navigate('/') }}
+                onClick={() => { resetSession(); void navigate('/') }}
                 className="inline-flex min-h-11 min-w-11 -my-[10px] items-center justify-center rounded-lg border border-border-subtle px-2 py-1 text-xs text-fg-dim hover:text-error transition-colors"
               >
                 {t('legacy.reset')}

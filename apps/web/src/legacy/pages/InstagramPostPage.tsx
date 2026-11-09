@@ -7,7 +7,7 @@ import { useListSessions, useFetchSession } from '../queries'
 import { computeStandings } from '../utils/standings'
 import { isPlaceholderName } from '../utils/placeholders'
 import type { SessionMeta } from '../queries'
-import { loadImage, drawStandingsCanvas, type OverlayImages } from '../utils/canvasPost'
+import { context2d, loadImage, drawStandingsCanvas, type OverlayImages } from '../utils/canvasPost'
 import { drawPostCanvas } from '../utils/canvas-templates'
 import { loadOverlayImages } from '../utils/overlays'
 import { todayLocal } from '../utils/time'
@@ -45,7 +45,13 @@ export default function InstagramPostPage() {
 
   // Wait for browser to finish loading the @font-face fonts declared in index.html
   useEffect(() => {
-    document.fonts.ready.then(() => setFontReady(true))
+    document.fonts.ready
+      .then(() => setFontReady(true))
+      .catch(() => {
+        // `fonts.ready` does not reject in current browsers; if a future engine
+        // does, mount with the fallback faces rather than never mounting.
+        setFontReady(true)
+      })
   }, [])
 
   // Load template overlay images once
@@ -66,7 +72,7 @@ export default function InstagramPostPage() {
         setOverlayError(t('instagram.error.overlays'))
       }
     }
-    loadOverlays()
+    void loadOverlays()
   }, [])
 
   // Redraw canvas whenever inputs change
@@ -94,7 +100,8 @@ export default function InstagramPostPage() {
   }, [])
 
   const toCanvasCoords = useCallback((clientX: number, clientY: number) => {
-    const canvas = canvasRef.current!
+    const canvas = canvasRef.current
+    if (canvas === null) return { x: 0, y: 0 }
     const rect = canvas.getBoundingClientRect()
     const scaleX = canvas.width / rect.width
     const scaleY = canvas.height / rect.height
@@ -102,7 +109,8 @@ export default function InstagramPostPage() {
   }, [])
 
   const clampOffset = useCallback((x: number, y: number, img: HTMLImageElement, zoom: number) => {
-    const canvas = canvasRef.current!
+    const canvas = canvasRef.current
+    if (canvas === null) return { x, y }
     const scale = Math.max(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight) * zoom
     const w = img.naturalWidth * scale
     const h = img.naturalHeight * scale
@@ -249,7 +257,8 @@ export default function InstagramPostPage() {
         [
           ...(snapshot.absentPlayers ?? []),
           ...snapshot.players.filter(p => isPlaceholderName(p.name)).map(p => p.id),
-        ], // skip_player: game dengan absent tetap dihitung untuk pemain yang main
+        ], // skip_player: a game with an absent player still counts for the
+        // players who played
         snapshot.skippedPlayers ?? {},
         snapshot.playedGames,
       )
@@ -333,7 +342,7 @@ export default function InstagramPostPage() {
     const offscreen = document.createElement('canvas')
     offscreen.width = W
     offscreen.height = H
-    const ctx = offscreen.getContext('2d')!
+    const ctx = context2d(offscreen)
 
     // Background
     if (overlays.storyBg) {

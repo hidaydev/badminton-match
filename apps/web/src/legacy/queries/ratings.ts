@@ -17,30 +17,35 @@ export function useRankings(limit = 200, minSessions?: number) {
 
 // usePlayerRankPoints — poin ranking satu pemain (halaman detail publik).
 export function usePlayerRankPoints(playerId: string | undefined) {
+  // `enabled` keeps the query from running without an id; the empty string is
+  // the inert value here so the reader does not have to trust an assertion.
+  const id = playerId ?? ''
   return useQuery<PlayerRankPoints>({
     queryKey: communityQueryKey('rankings', 'player', playerId),
-    queryFn: ({ signal }) => getPlayerRankPoints(playerId!, signal),
-    enabled: !!playerId,
+    queryFn: ({ signal }) => getPlayerRankPoints(id, signal),
+    enabled: id !== '',
     staleTime: 1000 * 60,
   })
 }
 
 export function useRatingPlayer(playerId: string | undefined) {
   // Same key as the career card: one `/players/{id}/stats` read serves both.
+  const id = playerId ?? ''
   return useQuery<V2PlayerStats, Error, RatingPlayer>({
-    queryKey: communityQueryKey('playerStats', playerId ?? ''),
-    queryFn: ({ signal }) => getPlayerStatsRaw(playerId!, signal),
+    queryKey: communityQueryKey('playerStats', id),
+    queryFn: ({ signal }) => getPlayerStatsRaw(id, signal),
     select: toRatingPlayer,
-    enabled: !!playerId,
+    enabled: id !== '',
     staleTime: 1000 * 60,
   })
 }
 
 export function useRatingPlayerAchievements(playerId: string | undefined) {
+  const id = playerId ?? ''
   return useQuery<AchievementRow[]>({
     queryKey: communityQueryKey('ratings', 'player', playerId, 'achievements'),
-    queryFn: ({ signal }) => getPlayerAchievements(playerId!, signal),
-    enabled: !!playerId,
+    queryFn: ({ signal }) => getPlayerAchievements(id, signal),
+    enabled: id !== '',
     staleTime: 1000 * 60,
   })
 }

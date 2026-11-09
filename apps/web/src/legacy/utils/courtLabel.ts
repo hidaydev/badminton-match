@@ -1,8 +1,8 @@
-// courtLabel — label tampilan untuk court index.
+// courtLabel: the display label for a court index.
 //
-// Satu sumber untuk semua tampilan court. Nama dari config menang; kalau kosong
-// fallback ke huruf (A, B, ...) — skema kanonik yang dipakai grid jadwal.
-// Index > 25 jatuh ke angka.
+// One source for every court label. A name from the config wins; when it is
+// empty the fallback is a letter (A, B, ...), the canonical scheme the schedule
+// grid uses. An index above 25 falls back to the number.
 export function courtLabel(courtNames: string[] | undefined, courtIndex: number): string {
   const name = courtNames?.[courtIndex]
   if (name) return name

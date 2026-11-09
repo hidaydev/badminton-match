@@ -20,8 +20,8 @@ export interface PlayerStats {
   losses: number
   pointsFor: number
   pointsAgainst: number
-  // share_code = kunci penghubung ke entri ranking poin (dipakai untuk
-  // menandai sesi mana yang masuk perhitungan).
+  // share_code is the join key to the points ranking entry (used to mark which
+  // sessions feed the calculation).
   sessions: { id: string; share_code?: string; date: string; title: string; absent?: boolean }[]
   topPartners: { name: string; count: number; wins: number; losses: number }[]
   topOpponents: { name: string; count: number; wins: number; losses: number }[]

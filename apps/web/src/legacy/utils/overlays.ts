@@ -14,11 +14,13 @@ export async function loadOverlayImages<T extends Record<string, string | undefi
   paths: T,
 ): Promise<{ [K in keyof T]?: HTMLImageElement }> {
   const result: Record<string, HTMLImageElement> = {}
-  const entries = Object.entries(paths).filter(([, path]) => path !== undefined)
+  const entries = Object.entries(paths).filter(
+    (entry): entry is [string, string] => entry[1] !== undefined,
+  )
 
   const results = await Promise.allSettled(
     entries.map(async ([key, path]) => {
-      const img = await loadImage(path!)
+      const img = await loadImage(path)
       return { key, img }
     }),
   )

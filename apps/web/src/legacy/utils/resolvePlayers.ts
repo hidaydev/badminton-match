@@ -10,8 +10,8 @@ function isKnownPlayer(name: string, knownPlayers: PlayerSummary[]): boolean {
 }
 
 export function findUnresolvedPlayers(localPlayers: Player[], knownPlayers: PlayerSummary[]): Player[] {
-  // Placeholder (free/tbd/dst) tidak memicu modal resolve — mereka bukan
-  // pemain nyata (ABSENT_TBD_PLAYERS_DESIGN.md §5.4).
+  // Placeholders (free/tbd/dst) do not open the resolve modal: they are not
+  // real players (ABSENT_TBD_PLAYERS_DESIGN.md §5.4).
   return localPlayers.filter((p) => !isKnownPlayer(p.name, knownPlayers) && !isPlaceholderName(p.name))
 }
 

@@ -1,6 +1,6 @@
-// useSummaryEditModes — state machine untuk mode edit SummaryModal (swap/absent/
-// skip/replace/slotSwap/teamSwap/change) + handler konfirmasi & validasi.
-// Dipisah dari komponen agar render tetap tipis.
+// useSummaryEditModes: the state machine for the SummaryModal edit modes
+// (swap/absent/skip/replace/slotSwap/teamSwap/change) plus the confirm and
+// validation handlers. Kept out of the component so rendering stays thin.
 import { useCallback, useMemo, useState } from 'react'
 import type { DragEndEvent } from '@dnd-kit/core'
 import type { Player, ScheduleSlot } from '../../types'
@@ -267,7 +267,8 @@ export function useSummaryEditModes({
   }, [])
 
   // In absent mode, preview pending selections; otherwise use saved state.
-  // useMemo → identitas stabil supaya memo di StandingsTab tidak invalid tiap render.
+  // useMemo keeps the identity stable so the memo in StandingsTab does not
+  // invalidate on every render.
   const effectiveAbsent = useMemo(
     () => (mode === 'absent' ? absentPending : new Set(absentPlayers)),
     [mode, absentPending, absentPlayers],

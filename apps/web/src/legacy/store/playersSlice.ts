@@ -40,9 +40,10 @@ export const createPlayersSlice = (
     set((s) => {
       const players = s.players.map((p) => (p.id === id ? { ...p, ...patch } : p))
       const current = s.players.find((p) => p.id === id)
-      // Rename tidak mengubah hasil generate → jangan reset (hindari data loss di
-      // tengah sesi). Tapi gender/tier ADALAH input generator: jadwal lama bisa
-      // tidak lagi valid, jadi turunan generator di-reset hanya saat keduanya berubah.
+      // A rename does not change the generated result, so do not reset (it would
+      // lose data mid-session). Gender and tier ARE generator inputs though: the
+      // old schedule may no longer be valid, so the generator output is reset
+      // only when one of those two changes.
       const changesGeneratorInput =
         current != null &&
         ((patch.gender !== undefined && patch.gender !== current.gender) ||
@@ -54,10 +55,10 @@ export const createPlayersSlice = (
   removePlayer: (id) =>
     set((s) => {
       const nextPlayers = s.players.filter((p) => p.id !== id)
-      // playerCount TIDAK ikut diturunkan. Itu target yang diatur di Setup dan
-      // dipakai tombol "Add Player" (disabled saat players.length >= playerCount).
-      // Dulu nilainya di-clamp ke jumlah pemain, sehingga sekali menghapus tombol
-      // tambah langsung terkunci — pemain tidak bisa dikembalikan.
+      // playerCount is NOT derived. It is the target set in Setup and drives the
+      // "Add Player" button (disabled while players.length >= playerCount). The
+      // value used to be clamped to the player count, so a single removal locked
+      // the add button and players could not be restored.
       return {
         players: nextPlayers,
         fixMatches: s.fixMatches

@@ -1,4 +1,4 @@
-// src/components/admin/Pager.tsx — Pagination kontrol untuk admin pages.
+// src/components/admin/Pager.tsx: the pagination control for the admin pages.
 import { useEffect } from 'react'
 import { t } from '@/i18n'
 

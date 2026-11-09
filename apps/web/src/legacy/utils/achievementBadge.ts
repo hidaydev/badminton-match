@@ -1,8 +1,8 @@
 // src/utils/achievementBadge.ts, pemetaan data medal ke visual badge.
 import { EVENT_TONES, MEDAL_TONES } from '../config/achievements'
 
-// MedalIcon — nama glyph. Tiap medal punya ikon sendiri supaya tidak ada yang
-// kembar; badge memang tanpa teks, jadi ikon + warna adalah satu-satunya penanda.
+// MedalIcon: the glyph name. Every medal has its own icon so none repeat; the
+// badge carries no text, so the icon plus the colour are the only markers.
 export type MedalIcon =
   | 'check'
   | 'shuttlecock'
@@ -39,12 +39,13 @@ export function medalIcon(key: string): MedalIcon {
 }
 
 // isEventKey — badge event (satu per event) vs milestone bertingkat.
-// Badge season sudah dihapus bersama pensiunnya konsep season (2026-09-29).
+// Season badges were removed together with the retirement of the season
+// concept (2026-09-29).
 export function isEventKey(key: string): boolean {
   return key.startsWith('tournament:')
 }
 
-// medalTone — warna pangkat untuk level 1..5 (Bronze..Onyx).
+// medalTone: the rank colour for levels 1..5 (Bronze..Onyx).
 export function medalTone(level: number | undefined): string | undefined {
   if (!level || level < 1 || level > MEDAL_TONES.length) return undefined
   return MEDAL_TONES[level - 1]
@@ -60,12 +61,13 @@ export function hashSeed(s: string): number {
   return Math.abs(h)
 }
 
-// eventTone — warna unik deterministik untuk medal event (turnamen).
+// eventTone: the deterministic unique colour for an event medal (tournament).
 export function eventTone(seed: string): string {
   return EVENT_TONES[hashSeed(seed) % EVENT_TONES.length]
 }
 
-// seedFromKey — ambil id event dari achievement_key, kalau badge event.
+// seedFromKey: take the event id out of an achievement_key when the badge is an
+// event medal.
 export function seedFromKey(key: string): string | undefined {
   const prefix = 'tournament:'
   if (key.startsWith(prefix)) return key.slice(prefix.length)

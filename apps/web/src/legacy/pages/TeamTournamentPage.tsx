@@ -51,6 +51,7 @@ export default function TeamTournamentPage() {
   const [localMatches, setLocalMatches] = useState<TeamMatch[] | null>(null)
   const [prevSnap, setPrevSnap] = useState<TeamTournamentSnapshot | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
+  const [overlayError, setOverlayError] = useState<string | null>(null)
   // Undian hari-H: index = slot, value = index named team (0..5). null = belum diedit.
   const [slotToNamed, setSlotToNamed] = useState<number[] | null>(null)
   const { images: finalPhotos, fileInputRef: finalFileInputRef, openUpload: openFinalUpload, onFileChange: onFinalFileChange } = useImageUploadMap()
@@ -62,6 +63,7 @@ export default function TeamTournamentPage() {
   const [schedulePostModeMatches, setSchedulePostModeMatches] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
+    let active = true
     loadOverlayImages({
       logo: '/majadu-logo.png',
       badge: '/tournament-badge.png',
@@ -69,17 +71,28 @@ export default function TeamTournamentPage() {
       sponsor: '/team-sponsor-logo.png',
       summaryBg: '/summary-bg.jpg',
       cardLogo: '/anniversary-card-logo.png',
-    }).then(setOverlays)
+    })
+      .then((loaded) => {
+        if (active) setOverlays(loaded)
+      })
+      .catch(() => {
+        // Missing artwork must not stop the page; it only costs the post its
+        // logo, so surface that instead of leaving an unhandled rejection.
+        if (active) setOverlayError(t('tournament.error.overlays'))
+      })
+    return () => {
+      active = false
+    }
   }, [])
 
   const publish = usePublishTeamTournament(id)
 
-  // Sinkronkan editor dengan snapshot server saat refetch (pola "adjust state
-  // during render" — rekomendasi React, bukan setState di effect).
+  // Sync the editor with the server snapshot on refetch (the "adjust state
+  // during render" pattern React recommends, not setState in an effect).
   if (snap && snap !== prevSnap) {
     setPrevSnap(snap)
-    // Jika save gagal (misal validasi skor), pertahankan draf lokal user agar
-    // skor yang sudah diketik tidak hilang/reset dan bisa langsung diperbaiki.
+    // When the save failed (a score validation, say) keep the user's local draft
+    // so the typed scores are not lost or reset and can be corrected right away.
     if (!publish.isError || !localMatches) {
       setLocalMatches(normalizeTeamMatches(snap.matches))
     }
@@ -117,14 +130,16 @@ export default function TeamTournamentPage() {
 
   // Final match result
   const finalOutcome = finalMatch ? teamMatchOutcome(finalMatch) : null
-  const championId = finalOutcome?.complete
-    ? finalOutcome.aWins > finalOutcome.bWins
-      ? finalMatch!.teamA
-      : finalMatch!.teamB
-    : null
-  const runnerUpId = finalOutcome?.complete && finalMatch
-    ? finalOutcome.aWins > finalOutcome.bWins ? finalMatch.teamB : finalMatch.teamA
-    : null
+  const championId =
+    finalMatch !== undefined && finalOutcome?.complete
+      ? finalOutcome.aWins > finalOutcome.bWins
+        ? finalMatch.teamA
+        : finalMatch.teamB
+      : null
+  const runnerUpId =
+    finalMatch !== undefined && finalOutcome?.complete
+      ? finalOutcome.aWins > finalOutcome.bWins ? finalMatch.teamB : finalMatch.teamA
+      : null
   const championName = championId ? teamName(teams, championId) : null
   const runnerUpName = runnerUpId ? teamName(teams, runnerUpId) : null
 
@@ -133,8 +148,9 @@ export default function TeamTournamentPage() {
     publishPatch({ matches })
   }
 
-  // Undian manual hari-H: named team → dapat slot berapa. Memilih slot yang
-  // sudah terpakai akan menukar (bijection 6 named team ↔ 6 slot).
+  // Manual match-day draw: which slot every named team gets. Picking a slot that
+  // is already taken swaps the two (a bijection between 6 named teams and 6
+  // slots).
   const assignDrawSlot = (namedK: number, slotIdx: number) => {
     setSlotToNamed((prev) => {
       if (!prev) return prev
@@ -158,8 +174,9 @@ export default function TeamTournamentPage() {
       partai: [{ scoreA: null, scoreB: null }, { scoreA: null, scoreB: null }, { scoreA: null, scoreB: null }],
       courts: [court, court, court],
     }))
-    // Pindahkan ENTRI tim (id slot + nama + roster) sesuai undian, bukan cuma
-    // label — supaya roster ikut nama ke mana pun tim ditempatkan.
+    // Move the team ENTRIES (slot id, name, roster) according to the draw, not
+    // just the labels, so the roster follows the name wherever the team is
+    // placed.
     const perm = slotToNamed ?? teams.map((_, i) => i)
     const namedTeams = buildTeamsByDraw(teams, perm)
     setLocalMatches(matches)
@@ -199,8 +216,9 @@ export default function TeamTournamentPage() {
 
     const champPhoto = finalPhotos['champion']
     if (champPhoto && championName) {
-      const champLogoImg = teamLogoPath(championName)
-        ? await loadImage(teamLogoPath(championName)!).catch(() => undefined)
+      const champLogoPath = teamLogoPath(championName)
+      const champLogoImg = champLogoPath
+        ? await loadImage(champLogoPath).catch(() => undefined)
         : undefined
       const c = document.createElement('canvas')
       drawPositionPost({ canvas: c, photo: champPhoto, positionLabel: '🏆 CHAMPION', name: championName, logo: overlays.logo, chevrons: overlays.chevrons, sponsor: overlays.sponsor, badge: overlays.badge, cardLogo: overlays.cardLogo, teamLogo: champLogoImg })
@@ -210,8 +228,9 @@ export default function TeamTournamentPage() {
 
     const runnerUpPhoto = finalPhotos['runnerup']
     if (runnerUpPhoto && runnerUpName) {
-      const runnerUpLogoImg = teamLogoPath(runnerUpName)
-        ? await loadImage(teamLogoPath(runnerUpName)!).catch(() => undefined)
+      const runnerUpLogoPath = teamLogoPath(runnerUpName)
+      const runnerUpLogoImg = runnerUpLogoPath
+        ? await loadImage(runnerUpLogoPath).catch(() => undefined)
         : undefined
       const c = document.createElement('canvas')
       drawPositionPost({ canvas: c, photo: runnerUpPhoto, positionLabel: '🥈 RUNNER-UP', name: runnerUpName, logo: overlays.logo, chevrons: overlays.chevrons, sponsor: overlays.sponsor, badge: overlays.badge, cardLogo: overlays.cardLogo, teamLogo: runnerUpLogoImg })
@@ -248,6 +267,7 @@ export default function TeamTournamentPage() {
   return (
     <div className="flex flex-col gap-0 -mx-3 -mt-4">
       {publishError && <ErrorBanner message={publishError} />}
+      {overlayError && <ErrorBanner message={overlayError} onDismiss={() => setOverlayError(null)} />}
       <div className="bg-surface px-4 pt-3 pb-0 border-b border-border-subtle">
         <div className="flex items-center gap-2">
           <h1 className="text-[1rem] font-bold text-fg leading-tight">{snap.name}</h1>
@@ -420,7 +440,7 @@ export default function TeamTournamentPage() {
                     onTogglePostMode: () => setFinalPostMode((v) => !v),
                     partaiPhotos: PARTAI_CLASSES.map((_, pi) => finalPhotos[`partai-${pi}`]),
                     onUploadPartai: (pi) => openFinalUpload(`partai-${pi}`),
-                    onDownload: handleFinalDownload,
+                    onDownload: () => { void handleFinalDownload() },
                     uploadedCount: Object.keys(finalPhotos).length,
                   }}
                 />
