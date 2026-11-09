@@ -8,9 +8,10 @@ import { t } from '../apps/web/src/i18n'
  * are public and were never measured. They are checked here without
  * `signIn`, so a regression on the entry path cannot hide behind the shell.
  *
- * The 404 and the tournament wizard dialogs are not in this list: the router
- * redirects every unknown path to `/` (there is no not-found screen yet), and
- * the wizard dialog states need a fixture that walks the wizard.
+ * The 404 needs a session to leave the login screen, and the tournament wizard
+ * needs a staff membership, so both live in the signed-in walk (`a11yRoutes`).
+ * The wizard steps past the first one need a filled draw, which is why only
+ * step one is walked.
  */
 const publicRoutes = [
   {
