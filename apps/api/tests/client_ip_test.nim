@@ -11,6 +11,12 @@ suite "client address":
     let request = fakeRequest("203.0.113.5", @[("X-Client-IP", "9.9.9.9")])
     check clientIp(request, @["127.0.0.1"]) == "203.0.113.5"
 
+  test "the identity source is the header only from a trusted proxy":
+    let trustedPeer = fakeRequest("127.0.0.1", @[("X-Client-IP", "9.9.9.9")])
+    check forwardedIp(trustedPeer, @["127.0.0.1"]) == "9.9.9.9"
+    let untrustedPeer = fakeRequest("203.0.113.5", @[("X-Client-IP", "9.9.9.9")])
+    check forwardedIp(untrustedPeer, @["127.0.0.1"]) == ""
+
   test "X-Forwarded-For never changes the address":
     let request = fakeRequest("203.0.113.5",
       @[("X-Forwarded-For", "9.9.9.9"), ("X-Client-IP", "8.8.8.8")])

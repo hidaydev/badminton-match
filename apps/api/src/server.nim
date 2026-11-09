@@ -110,6 +110,15 @@ proc recordResponse*(verb, path: string, status: int, label = "",
      ("request_id", requestId)])
   stdout.writeLine result
 
+proc recordIdentitySource*(source: string) =
+  ## Every request records how the limiter named its caller. `cookie` is a
+  ## session that resolved, `header` an address a trusted proxy asserted, and
+  ## `peer` the raw TCP address. A production that answers almost everything
+  ## with `peer` is one shared bucket behind the CDN, which is exactly the
+  ## degradation no other metric shows.
+  withLock registryLock:
+    registry.inc("identity_resolution", [("source", source)])
+
 proc metricsText*(): string {.gcsafe.} =
   ## Prometheus text exposition for the internal listener. The registry holds a
   ## table, which Nim refuses to call gcsafe for a global; the cast is sound

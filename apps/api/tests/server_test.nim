@@ -71,6 +71,15 @@ suite "metrics listener":
     check metricsText().contains(
       """route="/c/{slug}/players/{id}",status="404"}""")
 
+  test "counts how the limiter named the caller":
+    recordIdentitySource("cookie")
+    recordIdentitySource("header")
+    recordIdentitySource("peer")
+    let text = metricsText()
+    check text.contains("""identity_resolution{source="cookie"}""")
+    check text.contains("""identity_resolution{source="header"}""")
+    check text.contains("""identity_resolution{source="peer"}""")
+
 suite "healthz":
   test "returns ok without touching the database":
     let outcome = route("/healthz", testRoutes = false)

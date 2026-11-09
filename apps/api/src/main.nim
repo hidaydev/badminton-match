@@ -2,6 +2,7 @@ import std/[atomics, cpuinfo, json, net, os, posix, strutils]
 import mummy
 import app
 import build_info
+import config as edgeConfig
 import logger
 import db/db
 import live
@@ -73,6 +74,18 @@ proc bootHandler*(config: ServerConfig, threads: int): RequestHandler =
   let dsn = getEnv("MAJADU_PG_DSN")
   if dsn.len == 0:
     raise newException(ValueError, "MAJADU_PG_DSN is required")
+  # The limiter's anonymous identity is whatever address the edge asserts. A
+  # production process that trusts no peer would key every anonymous caller by
+  # the CDN address, so it refuses instead of silently collapsing the audience
+  # into one bucket. The line below is the other half: it names the source a
+  # deployment actually resolved at startup.
+  let trusted = edgeConfig.trustedProxies()
+  if getEnv("MAJADU_ENV") == "prod" and trusted.len == 0:
+    raise newException(ValueError,
+      "MAJADU_TRUSTED_PROXIES must name the edge peer in production")
+  logInfo("identity source", [
+    ("source", if trusted.len > 0: "header" else: "peer"),
+    ("trustedProxies", $trusted.len)])
   # A worker can need a second connection while it already holds one: a `tx`
   # body that calls a `Db` helper. With exactly one connection per worker every
   # worker can hold its only connection, and the nested call waits forever.

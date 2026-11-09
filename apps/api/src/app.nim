@@ -469,11 +469,23 @@ proc requestIdentity(request: Request, snapshot: Snapshot,
       let userId = application.identityCache.cachedUserId(application.db,
         token, idleDays, utcNow().toTime.toUnixFloat)
       if userId.isSome:
+        recordIdentitySource("cookie")
         return RateIdentity(key: "user:" & userId.get, address: address)
     except DbError:
       # A session lookup that cannot reach the database must not turn a read
       # into a 500: the address path is a safe, coarser fallback.
       discard
+  # An anonymous caller, or a cookie the database did not confirm, is named by
+  # the edge when a trusted proxy asserted an address and by the TCP peer
+  # otherwise. The metric makes a misconfigured trusted-proxy list visible:
+  # everything collapses to `peer` and the per-viewer budget becomes one global
+  # budget.
+  let source =
+    if edgeConfig.forwardedIp(request, edgeConfig.trustedProxies()).len > 0:
+      "header"
+    else:
+      "peer"
+  recordIdentitySource(source)
   RateIdentity(key: address, address: address)
 
 proc quota(request: Request, snapshot: Snapshot, scope, key, address: string,
