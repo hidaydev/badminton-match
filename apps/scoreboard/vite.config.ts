@@ -10,6 +10,9 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'prompt',
+      // A classic script in <head> blocks parsing until it is fetched, and the
+      // default registration waits for `load`. Deferring costs nothing.
+      injectRegister: 'script-defer',
       // The logo icons come from `globPatterns`; letting the plugin add them a
       // second time only duplicates the precache entries (PWA-16).
       includeManifestIcons: false,
