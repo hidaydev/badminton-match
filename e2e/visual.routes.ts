@@ -129,4 +129,12 @@ export const a11yRoutes: readonly VisualRoute[] = [
     path: (state) => `/s/${state.shareCode}`,
     ready: (state) => `text=${state.sessionTitle}`,
   },
+  // The scoreboard is a separate deployable on its own preview port, so its
+  // route is an absolute URL. It needs no session, but it is the only surface
+  // with coloured backgrounds, which is why it belongs in the a11y walk.
+  {
+    name: 'scoreboard',
+    path: () => process.env.E2E_SCOREBOARD_URL ?? 'http://127.0.0.1:4173/',
+    ready: () => 'text=tap to score',
+  },
 ]
