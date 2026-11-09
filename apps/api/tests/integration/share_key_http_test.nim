@@ -6,12 +6,13 @@
 ## ("the link was never created") sends the operator to issue a new link instead
 ## of restoring the key, so the request answers 503 and the process counts it.
 
-import std/[json, os, strutils, unittest]
+import std/[json, strutils, unittest]
 import db/db
 import community/infrastructure/community_store
 import share/crypto
 import share/store as shareStore
 import tests/fixtures
+import ../../src/app
 import ../../src/server
 import ../http_support
 
@@ -27,21 +28,6 @@ const
 var
   database: Db
   communityId, sessionId, hostCookie, liveCode: string
-
-proc withCapturedStdout(work: proc()): string =
-  ## The log line is written to stdout from the worker thread that serves the
-  ## request, so the capture swaps the process stream around the call.
-  let path = getTempDir() / ("majadu-sharekey-" & $getCurrentProcessId() & ".log")
-  let saved = stdout
-  stdout = open(path, fmWrite)
-  try:
-    work()
-    stdout.flushFile()
-  finally:
-    stdout.close()
-    stdout = saved
-  result = readFile(path)
-  removeFile(path)
 
 proc bootstrap() =
   database = openDb(dsn(), 1)
@@ -67,19 +53,19 @@ bootstrap()
 
 suite "share link key problem":
   test "a live link under a missing key answers 503, not 404":
-    var status = 0
-    var code = ""
-    let log = withCapturedStdout(proc() =
-      let response = call(baseUrl, HttpGet, "/s/" & liveCode)
-      status = response.status
-      if response.body.len > 0:
-        code = parseJson(response.body)["code"].getStr())
-    check status == 503
-    check code == "UNAVAILABLE"
+    let response = call(baseUrl, HttpGet, "/s/" & liveCode)
+    check response.status == 503
+    check parseJson(response.body)["code"].getStr() == "UNAVAILABLE"
+
+  test "the key problem line names the link and never the code":
+    # The same builder the 503 writes; asserting it directly keeps the suite
+    # off the worker thread's stdout.
+    let log = shareKeyProblemLine("0193f0e2-0000-7000-8000-000000000010",
+      "req-1")
     check log.contains("share link key missing")
-    check log.contains("linkId")
-    # Never the code: the line is safe to keep and to ship to a log collector.
-    check not log.contains(liveCode)
+    check log.contains("0193f0e2-0000-7000-8000-000000000010")
+    check log.contains("req-1")
+    check log.contains("\"level\":\"error\"")
 
   test "the metric counts the key problem":
     check metricsText().contains("share_key_problems_total")

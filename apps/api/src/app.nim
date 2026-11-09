@@ -1141,14 +1141,19 @@ proc issueSessionTicket(request: Request, ctx: CommunityContext, user: AuthUser,
   let ticket = wsTicket.issueSession(application.db, user.id, sessionId, ttl)
   jsonResponse(request, 200, %*{"ticket": ticket, "expiresIn": ttl})
 
+proc shareKeyProblemLine*(linkId, requestId: string): string =
+  ## The line a key problem writes. Pure so a suite can assert its fields
+  ## without racing the worker thread that owns stdout.
+  renderLog("error", "share link key missing",
+    [("linkId", linkId), ("request_id", requestId)])
+
 proc shareKeyUnavailable(request: Request,
                          error: ref shareStore.ShareKeyProblem) =
   ## One refusal for a live row whose key this process does not hold. 503, not
   ## 404: the row exists and the operator has to restore the key, so "no link"
   ## would send them to issue a new one. The link id is logged, never the code.
   recordShareKeyProblem()
-  logError("share link key missing", [("linkId", error.linkId),
-    ("request_id", currentRequestId())])
+  stdout.writeLine shareKeyProblemLine(error.linkId, currentRequestId())
   problem(request, 503, "UNAVAILABLE", "share link key is not available")
 
 proc issueShareTicket(request: Request, code: string, snapshot: Snapshot) =
