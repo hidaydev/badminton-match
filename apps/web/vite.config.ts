@@ -6,6 +6,7 @@
 // not run behind either proxy; `src/auth/api.ts` reads it.
 // E2E_API_PROXY points the proxy at the API the e2e harness started, so the
 // browser flow (including the OIDC stub redirect) stays on one origin.
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -29,6 +30,11 @@ const proxy = {
 }
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -51,17 +57,30 @@ export default defineConfig({
         // The API shares this origin under /api: a navigation there (the OIDC
         // callback) must reach the server, never the cached app shell.
         navigateFallbackDenylist: [/^\/api\//],
-        globPatterns: ['**/*.{js,css,html,ico,svg,webmanifest}', 'logo-*.png', 'fonts/*.woff2'],
+        globPatterns: ['**/*.{js,css,html,ico,svg,webmanifest}', 'logo-*.png', 'fonts/*.woff2', '*.ttf'],
         // The manifest body is injected by vite-plugin-pwa itself; ignoring it
         // here keeps one precache entry instead of two.
         globIgnores: ['team-winner.png', 'anniv-*.png', 'manifest.webmanifest'],
         runtimeCaching: [
           {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
+            // Public asset paths only. The cache is origin-wide, so a rule that
+            // matched every image would outlive logout and hand one account's
+            // image to the next user of a shared tablet (PWA-25).
+            urlPattern: /\/(?:assets\/[^/]+|logo-[^/]+)\.(?:png|jpe?g|svg|gif|webp)$/i,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'images-cache',
               expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
+          {
+            // PWA-23: the decorative TTFs are precached too; this is the
+            // backstop for a font change that lands between deploys.
+            urlPattern: /\.(?:woff2|ttf)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'fonts-cache',
+              expiration: { maxEntries: 12, maxAgeSeconds: 60 * 60 * 24 * 365 },
             },
           },
         ],

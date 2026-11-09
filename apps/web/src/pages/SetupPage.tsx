@@ -6,6 +6,9 @@ import { useAuth } from '../auth/AuthContext'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { Button } from '../components/Button'
+import { EmptyState } from '../components/EmptyState'
+import { CollapsiblePanel } from '../components/CollapsiblePanel'
+import { useAsyncAction } from '../hooks/useAsyncAction'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input } from '../components/Field'
 import { PageHeader } from '../components/PageHeader'
@@ -35,15 +38,11 @@ export default function SetupPage() {
   const [name, setName] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
   const [timezone, setTimezone] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<CreatedCommunity | null>(null)
 
-  const submit = async () => {
-    setBusy(true)
-    setError(null)
-    setCreated(null)
-    try {
+  const submitAction = useAsyncAction(
+    async () => {
+      setCreated(null)
       const community = await createCommunity({
         slug: slug.trim(),
         name: name.trim(),
@@ -55,11 +54,14 @@ export default function SetupPage() {
       setName('')
       setAdminEmail('')
       setTimezone('')
-    } catch (problem) {
-      setError(describe(problem))
-    } finally {
-      setBusy(false)
-    }
+    },
+    { describeError: describe },
+  )
+  const { busy } = submitAction
+  const error = submitAction.error
+
+  const submit = async () => {
+    await submitAction.run()
   }
 
   return (
@@ -86,7 +88,7 @@ export default function SetupPage() {
 
       <h2 className="mt-6 text-sm font-semibold text-fg">{t('setup.mine')}</h2>
       {memberships.length === 0 ? (
-        <p className="mt-2 text-sm text-fg-dim">{t('setup.mine.empty')}</p>
+        <EmptyState title={t('setup.mine.empty')} />
       ) : (
         <ul className="mt-2 space-y-2">
           {memberships.map((membership) => (
@@ -106,10 +108,7 @@ export default function SetupPage() {
       )}
 
       {user?.platformOwner === true && (
-        <details className="mt-8 rounded-2xl border border-border-subtle bg-surface p-4">
-          <summary className="min-h-11 cursor-pointer text-sm font-semibold text-fg">
-            {t('setup.create')}
-          </summary>
+        <CollapsiblePanel className="mt-8" title={t('setup.create')}>
           <form
             onSubmit={(event) => {
               event.preventDefault()
@@ -167,7 +166,7 @@ export default function SetupPage() {
               {t('setup.submit')}
             </Button>
           </form>
-        </details>
+        </CollapsiblePanel>
       )}
     </main>
     </>

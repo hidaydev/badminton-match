@@ -1,57 +1,36 @@
-import type { MouseEvent } from 'react'
-import { t } from '../../../i18n'
+import { memo } from 'react'
+import type { ScoreboardSideProps } from './types'
 
-const SIDE_CONFIG = {
-  red: {
-    bg: '#b91c1c',
-    minusPosition: 'right-4' as const,
-    placeholder: 'RED',
-    sideKey: 'scoreboard.side.red' as const,
-  },
-  blue: {
-    bg: '#1d4ed8',
-    minusPosition: 'left-4' as const,
-    placeholder: 'BLUE',
-    sideKey: 'scoreboard.side.blue' as const,
-  },
+const SIDE_BACKGROUND = {
+  red: '#b91c1c',
+  blue: '#1d4ed8',
 } as const
 
-export interface ScoreboardSideProps {
-  side: 'red' | 'blue'
-  score: number
-  displayName: string
-  editValue: string
-  isEditing: boolean
-  isPop: boolean
-  isOverlay: boolean
-  onScore: () => void
-  onMinus: (e: MouseEvent) => void
-  onNameChange: (value: string) => void
-  onStartEditing: () => void
-  onStopEditing: () => void
-}
+const MINUS_POSITION = {
+  red: 'right-4',
+  blue: 'left-4',
+} as const
 
-export function ScoreboardSide({
+export const ScoreboardSide = memo(function ScoreboardSide({
   side,
+  labels,
   score,
   displayName,
   editValue,
   isEditing,
   isPop,
   isOverlay,
+  readOnly = false,
   onScore,
   onMinus,
   onNameChange,
   onStartEditing,
   onStopEditing,
 }: ScoreboardSideProps) {
-  const config = SIDE_CONFIG[side]
-  const sideName = t(config.sideKey)
-
   return (
     <div
       className="flex-1 flex flex-col items-center justify-center relative"
-      style={{ background: config.bg }}
+      style={{ background: SIDE_BACKGROUND[side] }}
     >
       {/* Player name */}
       <div className="absolute top-0 left-0 right-0 flex justify-center pt-5">
@@ -65,33 +44,35 @@ export function ScoreboardSide({
         ) : isEditing ? (
           <input
             autoFocus
-            placeholder={config.placeholder}
+            placeholder={labels.placeholder}
             value={editValue}
             onChange={e => onNameChange(e.target.value)}
             onBlur={onStopEditing}
             onKeyDown={e => { if (e.key === 'Enter') onStopEditing() }}
             className="bg-transparent text-center text-white/90 font-bold uppercase outline-none border-b border-white/30 w-36"
             style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)', letterSpacing: '0.18em' }}
-            aria-label={t('scoreboard.teamName', { side: sideName })}
+            aria-label={labels.teamName}
           />
         ) : (
           <span
-            className={`uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${editValue ? 'text-white/90' : 'text-white/80'}`}
+            className={`uppercase font-bold border-b border-transparent transition-colors ${readOnly ? 'text-white/80 cursor-default' : `cursor-text hover:border-white/20 ${editValue ? 'text-white/90' : 'text-white/80'}`}`}
             style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)', letterSpacing: '0.18em' }}
-            onClick={onStartEditing}
+            onClick={readOnly ? undefined : onStartEditing}
           >
             {displayName}
           </span>
         )}
       </div>
 
-      {/* Score face — the only control that adds a point, so it is the button
-          itself instead of a role="button" wrapper around other controls. */}
+      {/* Score face. This is a real button rather than a role="button" wrapper:
+          it is the only control that adds a point, so keydown from the name
+          field and the minus button can never reach it. */}
       <button
         type="button"
         onClick={onScore}
-        aria-label={t('scoreboard.score', { side: sideName, score })}
-        className="w-full flex-1 flex flex-col items-center justify-center cursor-pointer active:brightness-150 duration-75 hit44"
+        disabled={readOnly}
+        aria-label={labels.score(displayName, score)}
+        className={`score-face w-full flex-1 flex flex-col items-center justify-center duration-75 ${readOnly ? 'cursor-default' : 'cursor-pointer active:brightness-150'}`}
         style={{ transitionProperty: 'filter' }}
       >
         <span
@@ -113,19 +94,20 @@ export function ScoreboardSide({
           {/* The leading space is structural: axe joins adjacent text nodes
               without a separator, so without it the visible text reads
               "0tap to score" and no longer appears inside the label. */}
-          {' '}{t('scoreboard.tapToScore')}
+          {' '}{labels.tapToScore}
         </span>
       </button>
 
       <button
         type="button"
         onClick={onMinus}
-        className={`absolute ${config.minusPosition} top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/90 cursor-pointer active:bg-black/40 transition-colors`}
+        disabled={readOnly}
+        className={`absolute ${MINUS_POSITION[side]} top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/90 transition-colors ${readOnly ? 'cursor-default' : 'cursor-pointer active:bg-black/40'}`}
         style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.15)' }}
-        aria-label={t('scoreboard.decrease', { side: sideName })}
+        aria-label={labels.decrease}
       >
         −
       </button>
     </div>
   )
-}
+})

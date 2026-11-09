@@ -87,7 +87,7 @@ nothing smaller is allowed, and data never uses a size below `text-xs` (12px).
 
 ## Boolean Controls
 
-`components/Checkbox.tsx` and `components/Radio.tsx` wrap the native inputs and
+`src/components/Checkbox.tsx` and `src/components/Radio.tsx` wrap the native inputs and
 tint them with `accent-accent` (`accent-color: var(--color-accent)`), so the tick
 or dot is brand gold instead of the UA blue. They carry the 20px box, the focus
 ring and the disabled recipe; a call site passes only behaviour props.
@@ -116,54 +116,184 @@ Four spacing steps, three radii, three elevations, two durations.
 | Panel | `--shadow-md` | `shadow-md` | Cards, menus |
 | Sheet | `--shadow-lg` | `shadow-lg` | Overlays |
 
-## Component Patterns
+## Component Catalogue
 
-Components follow the semantic token system. Key patterns:
+Every file in `apps/web/src/components` is listed here. A component is imported
+by name (`import { Button } from '../components/Button'`); there is no barrel.
+Class strings belong in the component, not in this document: the props table and
+the two examples are the contract.
 
-- **Cards** use `bg-surface border border-border-subtle rounded-2xl p-4`
-- **Chips** use `bg-elevated border border-border rounded-lg` with variant colors
-- **Badges** use inline styling with status colors (`success`, `error`, `warning`, `info`)
-- **Empty states** use centered layout with icon + title + description
+### Button
 
-## Button Variants (inline)
-
-| Variant | Classes |
-|---------|---------|
-| Primary | `bg-accent text-ground font-semibold rounded-xl min-h-11 px-4 hover:brightness-105` |
-| Secondary | `border border-border text-fg hover:bg-elevated rounded-xl min-h-11 px-4` |
-| Danger | `border border-border text-error hover:bg-elevated rounded-xl min-h-11 px-4` |
-| Icon-only | `min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-fg-dim` |
-
-Every variant shares `active:scale-[0.99]`, `disabled:cursor-not-allowed
-disabled:opacity-50`, and a focused ring. `loading` renders a spinner, sets
-`aria-busy` and disables the button.
-
-Legacy screens still spell the primary CTA as `bg-indigo-400 text-slate-950`. The
-palette remap in `index.css` renders that as `accent`, so the difference is
-naming, not colour; migration is cosmetic and can wait.
-
-Dense rows (the played toggle, tournament camera buttons) keep a 24-32px visual
-box and expand the hit area with `hit44` from
-`apps/web/src/legacy/components/hitTarget.ts`.
-
-## Form Patterns
+`src/components/Button.tsx` — the only button. `variant` (`primary` |
+`secondary` | `danger`), `size` (`md` | `sm`), `loading`, and every native
+button prop through `{...rest}` (`aria-label`, `id`, `form`, `onBlur`).
 
 ```tsx
-// Input and Select share one recipe; components/Field.tsx owns it.
-className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3
-  text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent
-  disabled:cursor-not-allowed disabled:opacity-60 read-only:opacity-60
-  aria-invalid:border-error aria-invalid:ring-1 aria-invalid:ring-error"
-
-// The control is the child of a <label>. That is what gives it an accessible
-// name, so there is no id/htmlFor plumbing.
+<Button loading={saving} aria-label="Save settings" onClick={save}>Save</Button>
 ```
+
+Anti-example: a raw `<button className="min-h-11 rounded-xl bg-accent ...">`.
+
+### ButtonLink
+
+Exported from `src/components/Button.tsx` — the same recipe rendered as a
+router link. Use it for navigation that is styled as the primary action.
+
+```tsx
+<ButtonLink to="/owner/communities">Create a community</ButtonLink>
+```
+
+Anti-example: `<Link className="bg-accent ...">`.
+
+### Card
+
+`src/components/Card.tsx` — the panel container. `padding` is `none` (default),
+`sm` (p-3) or `md` (p-4); the remaining div props pass through. `CARD_RECIPE`
+is exported for the one component that has to spell the recipe on a `details`.
+
+```tsx
+<Card padding="md" role="group" aria-label="Danger zone">...</Card>
+```
+
+Anti-example: `rounded-2xl border border-border-subtle bg-surface` in a page.
+
+### CollapsiblePanel
+
+`src/components/CollapsiblePanel.tsx` — `details` + `summary` + the Card
+recipe. `title`, optional `hint`, and any details prop (`open`, `id`, `ref`).
+
+```tsx
+<CollapsiblePanel title="Add player" hint="Admins only">...</CollapsiblePanel>
+```
+
+Anti-example: hand written `<details>` with a copied summary class.
+
+### Field, Input and Select
+
+`src/components/Field.tsx` — one named control with an optional hint. `Field`
+generates (or accepts `id`) and points `htmlFor` at it, and appends the hint id
+to the control's `aria-describedby`. `Input` and `Select` are the only control
+recipes.
+
+```tsx
+<Field label="Aliases" hint="Comma separated"><Input value={aliases} /></Field>
+```
+
+Anti-example: a `<label>` wrapper plus a hand styled `<select>` and a hint with
+no id.
+
+### Checkbox and Radio
+
+`src/components/Checkbox.tsx` and `src/components/Radio.tsx` — native inputs
+tinted with `accent-accent`, with the 20px box, the `focus-ring` utility and the
+disabled recipe. A call site passes only behaviour props.
+
+```tsx
+<Checkbox checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+```
+
+Anti-example: `<input type="checkbox" className="h-4 w-4" />`.
+
+### EmptyState
+
+`src/components/EmptyState.tsx` — the centred empty block. `title`,
+`description`, `action`, `icon`; `as` selects the title element and
+`titleClassName` overrides its scale when the block is the page heading.
+
+```tsx
+<EmptyState title="No players yet" action={<Button>Add player</Button>} />
+```
+
+Anti-example: a bare `<p className="mt-2 text-sm text-fg-dim">` as the whole empty state.
+
+### ErrorText
+
+`src/components/ErrorText.tsx` — `role="alert"` and the error colour. No
+`aria-live` on top: the role already implies it.
+
+```tsx
+{error !== null && <ErrorText className="mt-2">{error}</ErrorText>}
+```
+
+Anti-example: a `<p style={{ color: 'red' }}>`.
+
+### LoadingState
+
+`src/components/LoadingState.tsx` — placeholder rows with a screen-reader
+`label`. `rows` defaults to 3.
+
+```tsx
+<LoadingState label={t('app.loading')} rows={2} />
+```
+
+Anti-example: a single "Loading..." line that shifts the layout when data lands.
+
+### PageHeader
+
+`src/components/PageHeader.tsx` — the `h1` and optional subtitle every V2 page
+opens with.
+
+```tsx
+<PageHeader title={t('players.title')} subtitle={t('players.subtitle')} />
+```
+
+Anti-example: a page-local `<h1 className="text-xl ...">`.
+
+### Overlay
+
+`@majadu/scoreboard-ui` (re-exported at `src/components/Overlay.tsx`) — see the
+Overlay section below.
+
+### Tabs
+
+`src/components/Tabs.tsx` — one WAI-ARIA tab strip. `items` (`id`, `label`),
+`value`, `onChange`, `panelId`, `label`, optional `idPrefix`, `className` and
+`tabClassName(active)`. It owns the roving tabindex and the arrow/Home/End
+handling; the panel stays with the page.
+
+```tsx
+<Tabs items={tabs} value={tab} onChange={setTab} panelId="panel" label="Sections" />
+```
+
+Anti-example: a page-local `role="tablist"` with its own `querySelectorAll`.
+
+### ClientOutdatedBanner
+
+`src/components/ClientOutdatedBanner.tsx` — the 410 banner. `message` and
+`actionLabel` arrive as props; it listens for the transport's outdated event.
+
+```tsx
+<ClientOutdatedBanner message={t('app.outdated')} actionLabel={t('app.outdated.action')} />
+```
+
+Anti-example: a banner that imports the i18n singleton from the components
+directory.
+
+### ConfirmButton
+
+`src/components/ConfirmButton.tsx` — destructive action with an inline armed
+state. `confirmLabel`, `onConfirm`, `variant`, `disabled`. Never use
+`window.confirm`.
+
+```tsx
+<ConfirmButton confirmLabel="Really merge?" onConfirm={merge}>Merge</ConfirmButton>
+```
+
+Anti-example: `if (window.confirm(...)) merge()`.
+
+### Notification and status
+
+`ErrorText` and `ClientOutdatedBanner` above are the two status surfaces. A
+success message is a `role="status"` paragraph owned by the page.
 
 ## Overlay (bottom sheet)
 
-One primitive, one variant. `apps/web/src/components/Overlay.tsx` is the only
-shell for modal dialogs; new usages import this component instead of copying
-`fixed inset-0` again. Its test is in `Overlay.test.tsx`.
+One primitive, one variant. The implementation lives in
+`packages/scoreboard-ui/src/Overlay.tsx` and is re-exported from
+`apps/web/src/components/Overlay.tsx`, so the web app and the scoreboard PWA
+open the same sheet. Its tests are `Overlay.test.tsx` and the scoreboard's
+`InstallModal.test.tsx` (which pins the focus trap).
 
 ### Props
 
@@ -176,28 +306,15 @@ shell for modal dialogs; new usages import this component instead of copying
 | `footer` | `ReactNode` | - | Actions at the bottom, inside the safe area |
 | `dismissible` | `boolean` | `true` | `false` while saving: Escape and scrim are ignored, ✕ is not rendered |
 | `labelledBy` | `string` | - | Escape hatch when a custom heading is rendered inside `children`; the default `<h2>` is not rendered |
+| `focusKey` | `unknown` | - | Re-focus the sheet when a screen inside it changes and the focused button unmounts |
+| `closeLabel` | `string` | `Close` | Accessible name of the ✕ button; the caller owns its translation |
 
-### Class recipe
+### Layout
 
-```tsx
-scrim  : fixed inset-0 z-50 flex items-end justify-center bg-black/60
-sheet  : relative flex w-full max-w-lg max-h-dvh flex-col overflow-hidden
-         rounded-t-3xl border-t border-border-subtle bg-surface pb-[max(0.75rem,env(safe-area-inset-bottom))]
-         shadow-2xl
-handle : mx-auto mt-3 mb-1 h-1 w-10 shrink-0 rounded-full bg-border
-header : shrink-0 px-5 pt-3 pb-2            (h2 text-base font-bold text-fg)
-body   : min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4
-footer : shrink-0 border-t border-border-subtle px-5 pt-3   (no bottom padding)
-close  : absolute right-2 top-2 inline-flex min-h-11 min-w-11 items-center justify-center
-         rounded-lg text-fg-dim hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent
-```
-
-Root without padding so that a sheet the height of the screen still starts at y=0.
-`max-h-dvh` + `min-h-0` + `flex-1 overflow-y-auto` is the only pattern that caps
-height on phones while still leaving a scroll area. All values are stock
-utilities; the only arbitrary value is
-`pb-[max(0.75rem,env(safe-area-inset-bottom))]`, which
-`scripts/check-tailwind-arbitrary.mjs` allows.
+The sheet is a column: a fixed handle, header and footer around one scrollable
+body (`min-h-0 flex-1 overflow-y-auto overscroll-contain`), with
+`bottom: max(0.75rem, env(safe-area-inset-bottom))` applied once on the sheet.
+The classes live in the component; this document no longer mirrors them.
 
 ### One variant
 
@@ -239,13 +356,13 @@ That is why the footer no longer carries `pb-[max(...)]`.
 
 | Rule | Implementation |
 |------|---------------|
-| Focus rings | `focus-visible:ring-2` (NOT `focus:ring`) — no tap flash |
+| Focus rings | the `focus-ring` utility (defined once in `index.css`, NOT `focus:ring`) — no tap flash |
 | Touch targets | ≥44px for interactive elements, enforced by `apps/web/scripts/check-touch-targets.mjs` (`check:touch`) |
 | Reduced motion | `@media (prefers-reduced-motion: reduce)` |
 | Screen readers | `aria-label` on icon buttons, `role="dialog"` on modals |
 | Heading order | One `h1` per page (never the wordmark), `h2` per section, `h3` per card; axe `heading-order` runs on every `a11yRoutes` entry |
-| Error text | `role="alert"` only. Adding `aria-live` on top is redundant and is documented as wrong in `legacy/components/ErrorBanner.tsx` |
-| Keyboard nav | `role="button" tabIndex={0}` on score tap zones |
+| Error text | `role="alert"` only. Adding `aria-live` on top is redundant; see `ErrorText` |
+| Keyboard nav | a real `<button>` for every action, including the score tap zones; a `role="button"` wrapper around other controls nests interactive elements |
 | Menu | `role="menu"` / `role="menuitem"` on ActionsMenu |
 
 ## File Locations
@@ -255,7 +372,29 @@ Paths are relative to `apps/web/`:
 | Resource | Path |
 |----------|------|
 | CSS tokens (`@theme`) | `src/index.css` |
-| Tier config | `src/config/tiers.ts` |
-| Canvas config | `src/config/canvas.ts` |
-| Generator config | `src/config/generator.ts` |
-| Achievement config | `src/config/achievements.ts` |
+| Tier config | `src/legacy/config/tiers.ts` |
+| Canvas config | `src/legacy/config/canvas.ts` |
+| Generator config | `src/legacy/config/generator.ts` |
+| Achievement config | `src/legacy/config/achievements.ts` |
+| Shared scoreboard UI | `packages/scoreboard-ui/src/` |
+| Generated API client | `packages/web-client/src/api.ts` |
+
+## Legacy component status
+
+`src/legacy/components` is the v1 tree. It may import `src/components`, never
+the other way (enforced by `no-restricted-imports`). Status by area; an owner
+is the person who decides the next move.
+
+| Area | Status | Owner |
+|------|--------|-------|
+| `scoreboard/` | migrated to `packages/scoreboard-ui`; the index is a re-export | web |
+| `InstallModal.tsx` | keep on the shared Overlay | web |
+| `UpdateBanner.tsx` | keep; web-only update prompt | web |
+| `summary/` | migrate to the shared primitives (tabs, cards, standings) | web |
+| `tournament/` | migrate after the standings table lands | web |
+| `admin/` | migrate with the members and invites screens | web |
+| `constraints/` | keep for the v1 session editor | web |
+| `ratings/` | keep for the canvas and medal surfaces | web |
+| `HomeLayout.tsx`, `SessionLayout.tsx` | keep until the shell moves | web |
+| `ErrorBanner.tsx` | delete once every caller uses `ErrorText` | web |
+| `hitTarget.ts` | keep; the `hit44` utility is still used by dense rows | web |

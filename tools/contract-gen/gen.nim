@@ -80,8 +80,8 @@ proc main() =
   var operations = collectOperations(core, corePath)
   operations.add(collectOperations(community, communityPath))
   sortOperations(operations)
-  if operations.len != 75:
-    fail(program, "expected 75 operations, found " & $operations.len)
+  if operations.len != 76:
+    fail(program, "expected 76 operations, found " & $operations.len)
 
   var seen = initTable[string, bool]()
   for operation in operations:

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { t } from '../../../i18n'
+import { t } from '@/i18n'
 import { validateScore } from '../../utils/scoreValidation'
 import ScoreboardPage, { type OverlayConfig } from '../ScoreboardPage'
 

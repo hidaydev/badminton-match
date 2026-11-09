@@ -1,12 +1,18 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import { usePwaInstall } from './usePwaInstall'
+import { usePwaInstall, resetInstallPromptQueue } from '@majadu/scoreboard-ui'
 
 const desktopAgent = 'Mozilla/5.0 (X11; Linux x86_64) Chrome/131.0'
 const iphoneAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) Safari/605.1'
+const ipadDesktopAgent =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/605.1.15'
 
 function setUserAgent(agent: string) {
   vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue(agent)
+}
+
+function setTouchPoints(points: number) {
+  Object.defineProperty(window.navigator, 'maxTouchPoints', { configurable: true, value: points })
 }
 
 function setStandalone(matches: boolean) {
@@ -33,6 +39,11 @@ function installPromptEvent(outcome: 'accepted' | 'dismissed') {
   return event
 }
 
+beforeEach(() => {
+  resetInstallPromptQueue()
+  setTouchPoints(0)
+})
+
 describe('usePwaInstall', () => {
   it('reports not installable in standalone mode, even on iOS', () => {
     setUserAgent(iphoneAgent)
@@ -54,18 +65,65 @@ describe('usePwaInstall', () => {
     expect(result.current.isInstallable).toBe(true)
   })
 
+  it('recognises an iPad that reports the desktop Safari user agent', () => {
+    setUserAgent(ipadDesktopAgent)
+    setTouchPoints(5)
+    setStandalone(false)
+
+    const { result } = renderHook(() => usePwaInstall())
+
+    expect(result.current.isIos).toBe(true)
+    expect(result.current.isInstallable).toBe(true)
+  })
+
+  it('does not mistake a desktop Mac for an iPad', () => {
+    setUserAgent(ipadDesktopAgent)
+    setTouchPoints(0)
+    setStandalone(false)
+
+    const { result } = renderHook(() => usePwaInstall())
+
+    expect(result.current.isIos).toBe(false)
+    expect(result.current.isInstallable).toBe(false)
+  })
+
+  it('uses a prompt event that fired before the component mounted', () => {
+    setUserAgent(desktopAgent)
+    setStandalone(false)
+    act(() => {
+      window.dispatchEvent(installPromptEvent('accepted'))
+    })
+
+    const { result } = renderHook(() => usePwaInstall())
+
+    expect(result.current.isInstallable).toBe(true)
+  })
+
   it('needs the deferred event on a desktop browser', () => {
     setUserAgent(desktopAgent)
     setStandalone(false)
 
     const { result } = renderHook(() => usePwaInstall())
-    expect(result.current.isIos).toBe(false)
     expect(result.current.isInstallable).toBe(false)
 
     act(() => {
       window.dispatchEvent(installPromptEvent('accepted'))
     })
     expect(result.current.isInstallable).toBe(true)
+  })
+
+  it('hides the sheet after appinstalled without a reload', () => {
+    setUserAgent(iphoneAgent)
+    setStandalone(false)
+
+    const { result } = renderHook(() => usePwaInstall())
+    expect(result.current.isInstallable).toBe(true)
+
+    act(() => {
+      window.dispatchEvent(new Event('appinstalled'))
+    })
+
+    expect(result.current.isInstallable).toBe(false)
   })
 
   it('does nothing when prompt is called with no captured event', async () => {

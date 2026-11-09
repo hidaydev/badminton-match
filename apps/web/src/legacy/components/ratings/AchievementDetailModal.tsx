@@ -11,7 +11,7 @@
 
 import { useId } from 'react'
 import AchievementBadge from './AchievementBadge'
-import { Overlay } from '../../../components/Overlay'
+import { Overlay } from '@/components/Overlay'
 import {
   eventTone,
   isEventKey,

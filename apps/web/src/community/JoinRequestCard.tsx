@@ -10,7 +10,7 @@ import { requestToJoin } from './api'
  * answers the same 202 for every reason, so the form cannot tell the person
  * whether the slug exists — it only confirms the request left.
  */
-export default function JoinRequestCard({
+export function JoinRequestCard({
   slug,
   onSlugChange,
 }: {

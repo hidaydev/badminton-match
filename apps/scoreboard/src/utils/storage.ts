@@ -30,6 +30,15 @@ export function writeStoredValue(key: string, value: string): void {
   }
 }
 
+/**
+ * Records a value another document wrote. Does not write it back, which would
+ * echo the change to the writer and to every other tab.
+ */
+export function adoptStoredValue(key: string, value: string | null): void {
+  if (value === null) memory.delete(key)
+  else memory.set(key, value)
+}
+
 export function isStorageUnavailable(): boolean {
   return unavailable
 }

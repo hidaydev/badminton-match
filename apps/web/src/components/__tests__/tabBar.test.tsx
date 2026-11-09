@@ -63,4 +63,12 @@ describe('TabBar', () => {
 
     expect(onChange).not.toHaveBeenCalled()
   })
+
+  it('selects a tab on click', () => {
+    const onChange = renderBar('games')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Standings' }))
+
+    expect(onChange).toHaveBeenCalledWith('standings')
+  })
 })

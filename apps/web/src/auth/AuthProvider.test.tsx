@@ -8,6 +8,7 @@ import { SESSION_EXPIRED_EVENT } from '../api/errors'
 import { currentCommunitySlug, setCommunitySlug } from '../legacy/queries/endpoints'
 import { clearStoreDraft, prepareCommunityDraft, useStore } from '../legacy/store'
 import { mockFetch } from '../test/fetchMock'
+import { PRIVATE_IMAGE_CACHE } from '../pwa/cache'
 import { AuthProvider } from './AuthProvider'
 import { useAuth } from './AuthContext'
 
@@ -93,5 +94,30 @@ describe('AuthProvider session lifecycle', () => {
     expect(useStore.getState().players).toHaveLength(0)
     expect(useStore.getState().cloudSessionId).toBeNull()
     expect(window.localStorage.getItem('badminton-store') ?? '').not.toContain('Host One draft')
+  })
+
+  it('drops the origin-wide image cache when the session ends', async () => {
+    const remove = vi.fn(async () => true)
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'caches')
+    Object.defineProperty(globalThis, 'caches', { value: { delete: remove }, configurable: true })
+
+    try {
+      mockFetch({
+        'GET /api/auth/me': () => ({ body: FIRST_HOST }),
+        'GET /api/communities': () => ({ body: MEMBERSHIPS }),
+      })
+      renderAuth(new QueryClient({ defaultOptions: { queries: { retry: false } } }))
+      expect(await screen.findByText('Host One')).toBeInTheDocument()
+
+      act(() => {
+        window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
+      })
+
+      expect(await screen.findByText('signed out')).toBeInTheDocument()
+      await vi.waitFor(() => expect(remove).toHaveBeenCalledWith(PRIVATE_IMAGE_CACHE))
+    } finally {
+      if (original) Object.defineProperty(globalThis, 'caches', original)
+      else Reflect.deleteProperty(globalThis, 'caches')
+    }
   })
 })

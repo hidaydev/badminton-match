@@ -5,13 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/check-precache.mjs && node scripts/check-headers.mjs",
     "preview": "vite preview",
     "check:types": "tsc -b --pretty false",
     "check": "pnpm run check:types && pnpm test",
     "test": "vitest run --coverage"
   },
   "dependencies": {
+    "@majadu/scoreboard-ui": "workspace:*",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },

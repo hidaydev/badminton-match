@@ -14,7 +14,7 @@ contract change reviewable:
 
 `core.yaml` and `community.yaml` are JSON documents with a `.yaml` extension so
 `tools/contract-gen` can parse them with `std/json` instead of pulling a YAML
-dependency. Both together define exactly **75 operations**; the generator fails
+dependency. Both together define exactly **76 operations**; the generator fails
 on any other count or on a duplicate `operationId`.
 
 ## Fingerprint
@@ -24,7 +24,7 @@ on any other count or on a duplicate `operationId`.
 
 ```text
 format 1
-operations 75
+operations 76
 spec packages/contracts/openapi/community.yaml <sha256 of the file bytes>
 spec packages/contracts/openapi/core.yaml <sha256>
 generated apps/api/src/routes_gen.nim <sha256>

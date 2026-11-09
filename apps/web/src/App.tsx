@@ -4,13 +4,13 @@ import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-
 import { AuthProvider } from './auth/AuthProvider'
 import { useAuth } from './auth/AuthContext'
 import { Button } from './components/Button'
-import ClientOutdatedBanner from './components/ClientOutdatedBanner'
+import { ClientOutdatedBanner } from './components/ClientOutdatedBanner'
 import { LoadingState } from './components/LoadingState'
 import { PageHeader } from './components/PageHeader'
 import { RouteChange } from './components/RouteChange'
 import { CommunityProvider } from './community/CommunityProvider'
-import DirectoryList from './community/DirectoryList'
-import JoinRequestCard from './community/JoinRequestCard'
+import { DirectoryList } from './community/DirectoryList'
+import { JoinRequestCard } from './community/JoinRequestCard'
 import { useCommunity } from './community/CommunityContext'
 import { t } from './i18n'
 import InvitePage from './pages/InvitePage'
@@ -24,7 +24,7 @@ import SettingsPage from './pages/SettingsPage'
 import OwnerSetupPage from './pages/SetupPage'
 import SharedSessionPage from './pages/SharedSessionPage'
 import { useRegisterSW } from 'virtual:pwa-register/react'
-
+import { installUpdateOnVisible } from './pwa/updateCheck'
 // Restored v1 tree. Everything under `legacy/` is the pre-rewrite frontend,
 // rewired through `legacy/router` and `legacy/queries/endpoints`.
 import { AdminProvider, useAdmin } from './legacy/context/AdminContext'
@@ -34,6 +34,7 @@ import GlobalAmbiguousNames from './legacy/context/GlobalAmbiguousNames'
 import UpdateBanner from './legacy/components/UpdateBanner'
 import ErrorBoundary from './legacy/components/ErrorBoundary'
 import { ButtonLink } from './components/Button'
+import { EmptyState } from './components/EmptyState'
 import HomePage from './legacy/pages/HomePage'
 import SetupPage from './legacy/pages/SetupPage'
 import PlayersWizardPage from './legacy/pages/PlayersPage'
@@ -232,15 +233,21 @@ function RootRedirect() {
   return (
     <section className="mx-auto max-w-2xl px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))]">
       <AccountRow />
-      <h1 className="mt-6 text-xl sm:text-2xl font-bold text-fg">{t('home.empty')}</h1>
-      <p className="mt-2 text-sm text-fg-dim">
-        {isOwner ? t('home.emptyOwnerHint') : t('home.emptyHint')}
-      </p>
-      {isOwner ? (
-        <ButtonLink to="/owner/communities" className="mt-4 inline-flex items-center">
-          {t('home.createCommunity')}
-        </ButtonLink>
-      ) : (
+      <EmptyState
+        as="h1"
+        className="mt-6"
+        titleClassName="text-xl sm:text-2xl font-bold"
+        title={t('home.empty')}
+        description={isOwner ? t('home.emptyOwnerHint') : t('home.emptyHint')}
+        action={
+          isOwner ? (
+            <ButtonLink to="/owner/communities" className="inline-flex items-center">
+              {t('home.createCommunity')}
+            </ButtonLink>
+          ) : undefined
+        }
+      />
+      {!isOwner && (
         <>
           <DirectoryList onPick={setJoinSlug} />
           <JoinRequestCard slug={joinSlug} onSlugChange={setJoinSlug} />
@@ -337,7 +344,11 @@ function AuthedRoutes() {
 }
 
 export default function App() {
-  const { needRefresh: [needRefresh, setNeedRefresh], updateServiceWorker } = useRegisterSW()
+  const { needRefresh: [needRefresh, setNeedRefresh], updateServiceWorker } = useRegisterSW({
+    onRegisteredSW(_swUrl, registration) {
+      if (registration) installUpdateOnVisible(registration)
+    },
+  })
   const [sharedSnapshot] = useState<SharedSnapshot | null>(() =>
     decodeSnapshot(window.location.hash),
   )
@@ -368,7 +379,10 @@ export default function App() {
         <AuthProvider>
           <BrowserRouter>
             <CommunityProvider>
-              <ClientOutdatedBanner />
+              <ClientOutdatedBanner
+                message={t('app.outdated')}
+                actionLabel={t('app.outdated.action')}
+              />
               <RouteChange />
               <Routes>
                 <Route path="/s/:code" element={<SharedSessionPage />} />

@@ -1,19 +1,25 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { ScoreboardControls } from './ScoreboardControls'
+import { ScoreboardControls } from '@majadu/scoreboard-ui'
+import { SCOREBOARD_LABELS } from '../scoreboardLabels'
 
 function renderControls(overrides: Partial<Parameters<typeof ScoreboardControls>[0]> = {}) {
   const handlers = {
     onReset: vi.fn(),
     onSwap: vi.fn(),
-    onExport: vi.fn(),
     onToggleFullscreen: vi.fn(),
     ...overrides,
   }
   render(
     <ScoreboardControls
+      labels={SCOREBOARD_LABELS}
       isFullscreen={overrides.isFullscreen ?? false}
       buttonClassName={overrides.buttonClassName}
+      extra={
+        <button type="button" aria-label="Export match">
+          export
+        </button>
+      }
       {...handlers}
     />,
   )
@@ -21,7 +27,7 @@ function renderControls(overrides: Partial<Parameters<typeof ScoreboardControls>
 }
 
 describe('ScoreboardControls', () => {
-  it('exposes four labelled controls and calls each handler', () => {
+  it('exposes the labelled controls and calls each handler', () => {
     const handlers = renderControls()
 
     fireEvent.click(screen.getByRole('button', { name: 'Reset scores' }))
@@ -31,7 +37,6 @@ describe('ScoreboardControls', () => {
 
     expect(handlers.onReset).toHaveBeenCalledTimes(1)
     expect(handlers.onSwap).toHaveBeenCalledTimes(1)
-    expect(handlers.onExport).toHaveBeenCalledTimes(1)
     expect(handlers.onToggleFullscreen).toHaveBeenCalledTimes(1)
   })
 

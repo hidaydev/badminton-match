@@ -1,5 +1,4 @@
 import { useId, useMemo, useRef, useState } from 'react'
-import type { KeyboardEvent } from 'react'
 import {
   KeyboardSensor,
   PointerSensor,
@@ -26,6 +25,7 @@ import { useScoreDraft } from './summary/useScoreDraft'
 import { useSummaryEditModes } from './summary/useSummaryEditModes'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { Tabs } from '../../components/Tabs'
 
 /** Read-only data props for SummaryModal */
 interface SummaryModalBaseProps {
@@ -218,26 +218,11 @@ export default function SummaryModal({
   const panelId = useId()
   const scheduleTabId = `${panelId}-schedule`
   const standingsTabId = `${panelId}-standings`
-  const TAB_ORDER = ['schedule', 'standings'] as const
+  type TabId = 'schedule' | 'standings'
 
   // Modal focus: move focus into the dialog, keep Tab inside it, and hand
   // focus back to the trigger when it closes. Full-page use is left alone.
   useFocusTrap(dialogRef, !standalone)
-
-  function handleTabKey(event: KeyboardEvent<HTMLDivElement>) {
-    const index = TAB_ORDER.indexOf(activeTab)
-    let next: (typeof TAB_ORDER)[number] | null = null
-    if (event.key === 'ArrowRight') next = TAB_ORDER[(index + 1) % TAB_ORDER.length]
-    else if (event.key === 'ArrowLeft') next = TAB_ORDER[(index - 1 + TAB_ORDER.length) % TAB_ORDER.length]
-    else if (event.key === 'Home') next = TAB_ORDER[0]
-    else if (event.key === 'End') next = TAB_ORDER[TAB_ORDER.length - 1]
-    if (next === null) return
-    event.preventDefault()
-    setActiveTab(next)
-    exitCurrentMode()
-    const tabs = event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')
-    tabs[TAB_ORDER.indexOf(next)]?.focus()
-  }
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -254,30 +239,26 @@ export default function SummaryModal({
       {/* Toolbar — wraps instead of clipping on a 390px screen. */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex gap-1" role="tablist" aria-label={t('summary.tabs')} onKeyDown={handleTabKey}>
-            <button
-              id={scheduleTabId}
-              role="tab"
-              aria-selected={activeTab === 'schedule'}
-              aria-controls={panelId}
-              tabIndex={activeTab === 'schedule' ? 0 : -1}
-              onClick={() => { setActiveTab('schedule'); exitCurrentMode() }}
-              className={`inline-flex min-h-11 items-center text-xs font-semibold px-4 rounded-lg transition-colors ${activeTab === 'schedule' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-              {t('summary.tab.schedule')}
-            </button>
-            <button
-              id={standingsTabId}
-              role="tab"
-              aria-selected={activeTab === 'standings'}
-              aria-controls={panelId}
-              tabIndex={activeTab === 'standings' ? 0 : -1}
-              onClick={() => { setActiveTab('standings'); exitCurrentMode() }}
-              className={`inline-flex min-h-11 items-center text-xs font-semibold px-4 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-              {t('summary.tab.standings')}
-            </button>
-          </div>
+          <Tabs
+            items={[
+              { id: 'schedule', label: t('summary.tab.schedule') },
+              { id: 'standings', label: t('summary.tab.standings') },
+            ]}
+            value={activeTab}
+            onChange={(id) => {
+              setActiveTab(id as TabId)
+              exitCurrentMode()
+            }}
+            panelId={panelId}
+            label={t('summary.tabs')}
+            tabClassName={(active) =>
+              `inline-flex min-h-11 items-center text-xs font-semibold px-4 rounded-lg transition-colors ${
+                active
+                  ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`
+            }
+          />
           {playedCount > 0 && (
             <span className="text-xs text-slate-400">
               {t('summary.played', { played: playedCount, total: totalGames })}

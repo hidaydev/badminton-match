@@ -16,6 +16,7 @@ import type { AuthContextValue } from './AuthContext'
 import { redirectTo } from './redirect'
 import { clearStoreDraft } from '../legacy/store'
 import { setCommunitySlug } from '../legacy/queries/endpoints'
+import { purgePrivateImageCaches } from '../pwa/cache'
 
 /** Boot backoff before a transport failure is allowed to look like "signed out". */
 const BOOT_RETRY_MS = [1_000, 3_000, 8_000]
@@ -35,6 +36,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearStoreDraft()
     // Clears the adapter's module caches (player names) as well as the slug.
     setCommunitySlug('')
+    // Cache Storage is shared by every account on this origin.
+    void purgePrivateImageCaches()
   }, [queryClient])
 
   // The cookie can expire or be revoked while a tab stays open. Any request

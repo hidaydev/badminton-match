@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import { useNavigate } from '../../router'
 import { useAdmin } from '../../context/AdminContext'
 import { getSaveErrorMessage } from '../../queries/errors'
-import { t } from '../../../i18n'
+import { t } from '@/i18n'
 
 interface AdminPageShellProps {
   /** Settings and the rating ledger belong to the community admin alone. */

@@ -1,5 +1,5 @@
 import { drawCoverFill, drawDate, drawHeader, type PostCanvasOptions } from '../../canvasPost'
-import { CANVAS_COLORS as C } from '../../../config/canvas'
+import { CANVAS_COLORS as C } from '@/legacy/config/canvas'
 
 export function drawPostCanvas(options: PostCanvasOptions) {
   const { canvas, userPhoto, photoOffset, photoZoom, overlays, date } = options

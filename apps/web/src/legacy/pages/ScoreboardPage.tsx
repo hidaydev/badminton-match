@@ -1,8 +1,10 @@
-import { useState, useCallback, useEffect, useRef, Fragment } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from '../router'
 import { ScoreboardSide, ScoreboardDivider, ScoreboardFooter } from '../components/scoreboard'
 import type { ScoreboardSideProps } from '../components/scoreboard'
 import { validateScore } from '../utils/scoreValidation'
+import { scoreboardLabels } from '../scoreboardLabels'
+import { PALETTE } from '../../theme/palette'
 import { t } from '../../i18n'
 
 const LS_RED = 'score-red'
@@ -50,6 +52,7 @@ export interface OverlayConfig {
 
 export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } = {}) {
   const navigate = useNavigate()
+  const labels = useMemo(() => scoreboardLabels(), [])
 
   const [red, setRed] = useState(() => overlay ? overlay.initialScoreA : readLS(LS_RED))
   const [blue, setBlue] = useState(() => overlay ? overlay.initialScoreB : readLS(LS_BLUE))
@@ -74,13 +77,6 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
   const [pendingClose, setPendingClose] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-
-  const initialRed = useRef<number | null>(null)
-  const initialBlue = useRef<number | null>(null)
-  if (overlay) {
-    if (initialRed.current === null) initialRed.current = overlay.initialScoreA
-    if (initialBlue.current === null) initialBlue.current = overlay.initialScoreB
-  }
 
   const redTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const blueTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -153,7 +149,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
 
   const handleOverlayClose = useCallback(() => {
     if (!overlay) return
-    if (red !== (initialRed.current ?? 0) || blue !== (initialBlue.current ?? 0)) {
+    if (red !== overlay.initialScoreA || blue !== overlay.initialScoreB) {
       setPendingClose(true)
       return
     }
@@ -186,8 +182,8 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
   }, [navigate])
 
   // Overlay mode: name shown as read-only pill
-  const nameA = overlay ? redName : (redName || 'RED')
-  const nameB = overlay ? blueName : (blueName || 'BLUE')
+  const nameA = overlay ? redName : (redName || labels.red.placeholder)
+  const nameB = overlay ? blueName : (blueName || labels.blue.placeholder)
 
   const portraitStyle: React.CSSProperties = isPortrait ? {
     position: 'fixed',
@@ -207,38 +203,48 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
     height: '100dvh',
   }
 
-  const redSide: ScoreboardSideProps = {
-    side: 'red',
-    score: red,
-    displayName: nameA,
-    editValue: redName,
-    isEditing: editingRed,
-    isPop: popRed,
-    isOverlay: !!overlay,
-    onScore: addRed,
-    onMinus: minusRed,
-    onNameChange: setRedName,
-    onStartEditing: () => setEditingRed(true),
-    onStopEditing: () => setEditingRed(false),
-  }
+  const redSide: ScoreboardSideProps = useMemo(
+    () => ({
+      side: 'red',
+      labels: labels.red,
+      score: red,
+      displayName: nameA,
+      editValue: redName,
+      isEditing: editingRed,
+      isPop: popRed,
+      isOverlay: !!overlay,
+      onScore: addRed,
+      onMinus: minusRed,
+      onNameChange: setRedName,
+      onStartEditing: () => setEditingRed(true),
+      onStopEditing: () => setEditingRed(false),
+    }),
+    [labels, red, nameA, redName, editingRed, popRed, overlay, addRed, minusRed],
+  )
 
-  const blueSide: ScoreboardSideProps = {
-    side: 'blue',
-    score: blue,
-    displayName: nameB,
-    editValue: blueName,
-    isEditing: editingBlue,
-    isPop: popBlue,
-    isOverlay: !!overlay,
-    onScore: addBlue,
-    onMinus: minusBlue,
-    onNameChange: setBlueName,
-    onStartEditing: () => setEditingBlue(true),
-    onStopEditing: () => setEditingBlue(false),
-  }
+  const blueSide: ScoreboardSideProps = useMemo(
+    () => ({
+      side: 'blue',
+      labels: labels.blue,
+      score: blue,
+      displayName: nameB,
+      editValue: blueName,
+      isEditing: editingBlue,
+      isPop: popBlue,
+      isOverlay: !!overlay,
+      onScore: addBlue,
+      onMinus: minusBlue,
+      onNameChange: setBlueName,
+      onStartEditing: () => setEditingBlue(true),
+      onStopEditing: () => setEditingBlue(false),
+    }),
+    [labels, blue, nameB, blueName, editingBlue, popBlue, overlay, addBlue, minusBlue],
+  )
 
-  const redEl = <ScoreboardSide {...redSide} />
-  const blueEl = <ScoreboardSide {...blueSide} />
+  // Keyed by side, not by position: swapping must not give the red half the
+  // React identity of the blue one.
+  const redEl = <ScoreboardSide key="red" {...redSide} />
+  const blueEl = <ScoreboardSide key="blue" {...blueSide} />
   const sides = isSwapped ? [blueEl, redEl] : [redEl, blueEl]
 
   const content = (
@@ -250,12 +256,9 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
           <p>{t('scoreboard.notLinked')}</p>
         </div>
       )}
-      {sides.map((el, i) => (
-        <Fragment key={i}>
-          {i > 0 && <ScoreboardDivider />}
-          {el}
-        </Fragment>
-      ))}
+      {sides[0]}
+      <ScoreboardDivider />
+      {sides[1]}
       {fsError && (
         <div
           className="fixed bottom-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 text-center"
@@ -273,6 +276,8 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
         </div>
       )}
       <ScoreboardFooter
+        labels={labels}
+        accentColor={PALETTE.accent}
         isFullscreen={isFullscreen}
         onReset={reset}
         onSwap={doSwap}

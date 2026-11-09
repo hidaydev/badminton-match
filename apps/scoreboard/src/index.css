@@ -19,6 +19,15 @@
   --color-info: rgb(91 143 189);
 }
 
+/* The one focus ring. A new interactive element opts in with `focus-ring`
+   instead of retyping the ring and its colour. */
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
 :root {
   color-scheme: dark;
 }

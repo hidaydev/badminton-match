@@ -9,7 +9,7 @@ import type { DirectoryEntry } from './api'
  * join form: the request still needs the explicit send, so a stray tap cannot
  * queue a request an admin then has to refuse.
  */
-export default function DirectoryList({ onPick }: { onPick: (slug: string) => void }) {
+export function DirectoryList({ onPick }: { onPick: (slug: string) => void }) {
   const [items, setItems] = useState<DirectoryEntry[]>([])
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export default function DirectoryList({ onPick }: { onPick: (slug: string) => vo
             <button
               type="button"
               onClick={() => onPick(entry.slug)}
-              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-border bg-elevated px-3 text-sm text-fg hover:bg-surface focus-visible:ring-2 focus-visible:ring-accent"
+              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl bg-elevated border border-border px-3 text-sm text-fg hover:bg-surface focus-visible:ring-2 focus-visible:ring-accent"
             >
               <span className="truncate font-semibold">{entry.name}</span>
               <span className="shrink-0 text-xs text-fg-dim">{entry.slug}</span>

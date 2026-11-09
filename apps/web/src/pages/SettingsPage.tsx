@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
 import type { CommunityRole } from '../auth/api'
-import { useCommunity } from '../community/CommunityContext'
 import { updateCommunityConfig } from '../community/api'
 import type { CommunityConfig, CommunityConfigEntry, ScoringPreset } from '../community/api'
 import { communityTimeZone, useCommunityConfig } from '../community/useCommunityConfig'
@@ -16,14 +15,18 @@ import {
   setMemberRole,
 } from '../community/adminApi'
 import type { Invite, JoinRequest, Member, PendingClaim } from '../community/adminApi'
+import { useMembership } from '../community/membership'
 import { decideClaim } from '../players/api'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { formatInstantDate } from '../utils/day'
 import { Button } from '../components/Button'
+import { EmptyState } from '../components/EmptyState'
+import { CollapsiblePanel } from '../components/CollapsiblePanel'
+import { useAsyncAction } from '../hooks/useAsyncAction'
 import { Checkbox } from '../components/Checkbox'
 import { ErrorText } from '../components/ErrorText'
-import { Field, Input } from '../components/Field'
+import { Field, Input, Select } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
 import { PageHeader } from '../components/PageHeader'
 
@@ -54,8 +57,7 @@ const ROLE_LABEL: Record<CommunityRole, MessageKey> = {
 /** Everything an admin changes by hand: people, invites and the rating ledger. */
 export default function SettingsPage() {
   const { slug = '' } = useParams<{ slug: string }>()
-  const { memberships } = useCommunity()
-  const membership = memberships.find((candidate) => candidate.slug === slug) ?? null
+  const { membership, can } = useMembership(slug)
 
   // One config read for the whole screen: the settings block edits it and the
   // audit rows below render their instants in the community's zone.
@@ -106,7 +108,7 @@ export default function SettingsPage() {
   const current = data !== null && data.slug === slug ? data : null
   const error = failure !== null && failure.key === slug ? failure.message : null
   const loading = slug !== '' && current === null && error === null
-  const canEdit = membership?.role === 'admin'
+  const canEdit = can('settings.edit')
 
   return (
     <section className="mx-auto max-w-3xl p-4">
@@ -228,8 +230,18 @@ function CommunitySettings({
 }) {
   const [saved, setSaved] = useState<CommunityConfig | null>(null)
   const [edits, setEdits] = useState<Record<string, string | boolean>>({})
-  const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+
+  // Declared with the other hooks: the component returns early while loading.
+  const save = useAsyncAction(
+    async (patch: Record<string, unknown>) => {
+      const updated = await updateCommunityConfig(slug, patch)
+      setSaved(updated)
+      setEdits({})
+    },
+    { describeError: describeSave, onError: setMessage },
+  )
+  const busy = save.busy
 
   if (loading && config === null) {
     return <LoadingState label={t('community.settings')} rows={2} />
@@ -264,26 +276,17 @@ function CommunitySettings({
       setMessage(t('community.settings.saved'))
       return
     }
-    setBusy(true)
     setMessage(null)
-    try {
-      const updated = await updateCommunityConfig(slug, patch)
-      setSaved(updated)
-      setEdits({})
-      setMessage(t('community.settings.saved'))
-    } catch (problem) {
-      setMessage(describeSave(problem))
-    } finally {
-      setBusy(false)
-    }
+    const ok = await save.run(patch)
+    if (ok) setMessage(t('community.settings.saved'))
   }
 
   return (
-    <details className="mt-8 rounded-2xl border border-border-subtle bg-surface p-4">
-      <summary className="min-h-11 cursor-pointer text-sm font-semibold text-fg">
-        {t('community.settings')}
-      </summary>
-      <p className="mt-1 text-xs text-fg-dim">{t('community.settingsHint')}</p>
+    <CollapsiblePanel
+      className="mt-8"
+      title={t('community.settings')}
+      hint={t('community.settingsHint')}
+    >
       <form
         className="mt-3 space-y-3"
         onSubmit={(event) => {
@@ -325,35 +328,37 @@ function CommunitySettings({
                   }}
                 />
               ) : field.kind === 'select' ? (
-                <select
-                  id={id}
-                  value={String(fieldValue(field) ?? '')}
-                  disabled={!canEdit || busy}
-                  onChange={(event) =>
-                    setEdits((current) => ({ ...current, [field.key]: event.target.value }))
-                  }
-                  className="min-h-11 w-40 rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60"
-                >
+                <div className="w-40">
+                  <Select
+                    id={id}
+                    value={String(fieldValue(field) ?? '')}
+                    disabled={!canEdit || busy}
+                    onChange={(event) =>
+                      setEdits((current) => ({ ...current, [field.key]: event.target.value }))
+                    }
+                  >
                   {presets.map((preset) => (
                     <option key={preset.id} value={preset.id}>{preset.label}</option>
                   ))}
-                  {presets.every((preset) => preset.id !== String(fieldValue(field))) && (
-                    <option value={String(fieldValue(field) ?? '')}>
-                      {String(fieldValue(field) ?? '')}
-                    </option>
-                  )}
-                </select>
+                    {presets.every((preset) => preset.id !== String(fieldValue(field))) && (
+                      <option value={String(fieldValue(field) ?? '')}>
+                        {String(fieldValue(field) ?? '')}
+                      </option>
+                    )}
+                  </Select>
+                </div>
               ) : (
-                <input
-                  id={id}
-                  type={field.kind === 'number' ? 'number' : 'text'}
-                  value={String(fieldValue(field) ?? '')}
-                  disabled={!canEdit || busy}
-                  onChange={(event) =>
-                    setEdits((current) => ({ ...current, [field.key]: event.target.value }))
-                  }
-                  className="min-h-11 w-40 rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60"
-                />
+                <div className="w-40">
+                  <Input
+                    id={id}
+                    type={field.kind === 'number' ? 'number' : 'text'}
+                    value={String(fieldValue(field) ?? '')}
+                    disabled={!canEdit || busy}
+                    onChange={(event) =>
+                      setEdits((current) => ({ ...current, [field.key]: event.target.value }))
+                    }
+                  />
+                </div>
               )}
               {pinned && (
                 <p id={reasonId} className="w-full text-xs text-fg-dim">
@@ -377,7 +382,7 @@ function CommunitySettings({
           </div>
         )}
       </form>
-    </details>
+    </CollapsiblePanel>
   )
 }
 
@@ -442,7 +447,7 @@ function MemberRow({
         <span className="flex items-center gap-2">
           <label className="text-xs text-fg-dim">
             <span className="sr-only">{t('admin.members.role', { name: member.displayName })}</span>
-            <select
+            <Select
               value={member.role}
               disabled={busy}
               onChange={(event) =>
@@ -450,14 +455,13 @@ function MemberRow({
                   setMemberRole(slug, member.userId, event.target.value as CommunityRole),
                 )
               }
-              className="min-h-11 rounded-xl border border-border bg-elevated px-2 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
             >
               {ROLES.map((role) => (
                 <option key={role} value={role}>
                   {t(ROLE_LABEL[role])}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           {!confirming && (
             <Button
@@ -537,17 +541,16 @@ function Invites({
         </Field>
         <label className="text-xs text-fg-dim">
           {t('admin.invites.role')}
-          <select
+          <Select
             value={role}
             onChange={(event) => setRole(event.target.value as CommunityRole)}
-            className="mt-1 min-h-11 rounded-xl border border-border bg-elevated px-2 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
           >
             {ROLES.map((value) => (
               <option key={value} value={value}>
                 {t(ROLE_LABEL[value])}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <Button
           type="submit"
@@ -612,7 +615,7 @@ function JoinRequests({
     <section className="mt-8">
       <h3 className="text-sm font-semibold text-fg">{t('admin.requests')}</h3>
       {requests.length === 0 ? (
-        <p className="mt-2 text-sm text-fg-dim">{t('admin.requests.empty')}</p>
+        <EmptyState title={t('admin.requests.empty')} />
       ) : (
         <ul className="mt-2 space-y-2">
           {requests.map((request) => (
@@ -629,7 +632,7 @@ function JoinRequests({
                   <span className="sr-only">
                     {t('admin.requests.roleOf', { name: request.displayName })}
                   </span>
-                  <select
+                  <Select
                     value={roles[request.id] ?? 'member'}
                     disabled={busy}
                     onChange={(event) =>
@@ -638,14 +641,13 @@ function JoinRequests({
                         [request.id]: event.target.value as CommunityRole,
                       }))
                     }
-                    className="min-h-11 rounded-xl border border-border bg-elevated px-2 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
                   >
                     {ROLES.map((role) => (
                       <option key={role} value={role}>
                         {t(ROLE_LABEL[role])}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 <Button
                   disabled={busy}
@@ -715,7 +717,7 @@ function PendingClaims({
       <h3 className="text-sm font-semibold text-fg">{t('admin.claims')}</h3>
       <p className="mt-1 text-xs text-fg-dim">{t('admin.claims.hint')}</p>
       {claims.length === 0 ? (
-        <p className="mt-2 text-sm text-fg-dim">{t('admin.claims.empty')}</p>
+        <EmptyState title={t('admin.claims.empty')} />
       ) : (
         <ul className="mt-2 space-y-2">
           {claims.map((claim) => (

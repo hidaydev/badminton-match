@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
@@ -6,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       'virtual:pwa-register/react': new URL('./src/test/pwa-register.ts', import.meta.url).pathname,
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
   test: {
@@ -47,6 +49,16 @@ export default defineConfig({
           functions: 0,
           branches: 50,
           statements: 33,
+          perFile: true,
+        },
+        // The primitives are the widest blast radius in the app and each one
+        // now has a test file. Lines and functions are pinned at 100 so losing
+        // a test case fails the gate, not only the aggregate.
+        'src/components/**': {
+          lines: 100,
+          functions: 100,
+          branches: 50,
+          statements: 92,
           perFile: true,
         },
         'src/players/**': {

@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { listMembers } from '../community/adminApi'
-import { useCommunity } from '../community/CommunityContext'
 import { communityTimeZone, useCommunityConfig } from '../community/useCommunityConfig'
+import { useMembership } from '../community/membership'
 import { t } from '../i18n'
 import { TIERS } from '../players/api'
 import {
@@ -19,6 +19,11 @@ import { usePlayerDetail, usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
 import { formatInstantDate } from '../utils/day'
 import { Button } from '../components/Button'
+import { EmptyState } from '../components/EmptyState'
+import { Card } from '../components/Card'
+import { ConfirmButton } from '../components/ConfirmButton'
+import { CollapsiblePanel } from '../components/CollapsiblePanel'
+import { useAsyncAction } from '../hooks/useAsyncAction'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input, Select } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
@@ -35,11 +40,10 @@ const CLAIM_STATUS_KEY = {
 
 export default function PlayerDetailPage() {
   const { slug = '', playerId = '' } = useParams<{ slug: string; playerId: string }>()
-  const { memberships } = useCommunity()
+  const { can } = useMembership(slug)
   const { user } = useAuth()
-  const role = memberships.find((candidate) => candidate.slug === slug)?.role ?? null
-  const isAdmin = role === 'admin'
-  const canEdit = role === 'host' || role === 'admin'
+  const isAdmin = can('settings.edit')
+  const canEdit = can('player.manage')
 
   const { player, claims, loading, error, reload } = usePlayerDetail(
     slug === '' ? null : slug,
@@ -77,23 +81,23 @@ export default function PlayerDetailPage() {
   // Merge needs somewhere to merge from; only an admin can ask for the list.
   const candidates = usePlayers(isAdmin ? slug : null, '')
 
-  const [busy, setBusy] = useState(false)
-  const [actionError, setActionError] = useState<string | null>(null)
+  const action = useAsyncAction(
+    async (write: () => Promise<unknown>) => {
+      try {
+        await write()
+      } finally {
+        // A refused write can still have closed the row (a second claim for the
+        // same member), so refresh instead of leaving stale pending actions.
+        reload()
+      }
+    },
+    { describeError: describePlayerError },
+  )
+  const { busy } = action
+  const actionError = action.error
 
-  const run: Run = async (action) => {
-    setBusy(true)
-    setActionError(null)
-    try {
-      await action()
-      reload()
-    } catch (problem) {
-      setActionError(describePlayerError(problem))
-      // A refused write can still have closed the row (a second claim for the
-      // same member), so refresh instead of leaving stale pending actions.
-      reload()
-    } finally {
-      setBusy(false)
-    }
+  const run: Run = async (write) => {
+    await action.run(write)
   }
 
   const mine = claims?.find(
@@ -195,7 +199,7 @@ export default function PlayerDetailPage() {
 
           <h2 className="mt-8 text-sm font-semibold text-fg">{t('playerAdmin.claims')}</h2>
           {claims === null || claims.length === 0 ? (
-            <p className="mt-2 text-sm text-fg-dim">{t('playerAdmin.claims.empty')}</p>
+            <EmptyState title={t('playerAdmin.claims.empty')} />
           ) : (
             <ul className="mt-2 space-y-2">
               {claims.map((claim) => (
@@ -252,10 +256,7 @@ function EditPlayer({ slug, player, busy, onRun }: EditProps) {
   const [aliasesTouched, setAliasesTouched] = useState(false)
 
   return (
-    <details className="mt-4 rounded-2xl border border-border-subtle bg-surface p-4">
-      <summary className="min-h-11 cursor-pointer text-sm font-semibold text-fg">
-        {t('playerAdmin.edit')}
-      </summary>
+    <CollapsiblePanel className="mt-4" title={t('playerAdmin.edit')}>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <Field label={t('players.add.name')}>
           <Input
@@ -311,7 +312,7 @@ function EditPlayer({ slug, player, busy, onRun }: EditProps) {
       >
         {t('playerAdmin.save')}
       </Button>
-    </details>
+    </CollapsiblePanel>
   )
 }
 
@@ -425,10 +426,7 @@ function MergePanel({
   const others = candidates.filter((candidate) => candidate.id !== playerId)
 
   return (
-    <details className="mt-8 rounded-2xl border border-border-subtle bg-surface p-4">
-      <summary className="min-h-11 cursor-pointer text-sm font-semibold text-fg">
-        {t('playerAdmin.merge')}
-      </summary>
+    <CollapsiblePanel className="mt-8" title={t('playerAdmin.merge')}>
       <p className="mt-2 text-xs text-fg-dim">{t('playerAdmin.merge.hint')}</p>
       <div className="mt-2 flex flex-wrap items-end gap-2">
         <Field label={t('playerAdmin.merge.source')} className="min-w-0 flex-1">
@@ -441,19 +439,17 @@ function MergePanel({
             ))}
           </Select>
         </Field>
-        <Button
+        <ConfirmButton
           variant="secondary"
+          confirmLabel={t('playerAdmin.merge.confirm', {
+            source: others.find((candidate) => candidate.id === source)?.name ?? source,
+            target: playerName,
+          })}
           disabled={busy || source === ''}
-          onClick={() => {
-            const sourceName = others.find((candidate) => candidate.id === source)?.name ?? source
-            const confirmed = window.confirm(
-              t('playerAdmin.merge.confirm', { source: sourceName, target: playerName }),
-            )
-            if (confirmed) void onRun(() => mergePlayers(slug, playerId, source))
-          }}
+          onConfirm={() => void onRun(() => mergePlayers(slug, playerId, source))}
         >
           {t('playerAdmin.merge.submit')}
-        </Button>
+        </ConfirmButton>
       </div>
       {hasMore && (
         <Button
@@ -465,7 +461,7 @@ function MergePanel({
           {loadingMore ? t('players.loadingMore') : t('players.loadMore')}
         </Button>
       )}
-    </details>
+    </CollapsiblePanel>
   )
 }
 
@@ -518,11 +514,7 @@ export function DeletePanel({
   }
 
   return (
-    <div
-      role="group"
-      aria-label={t('playerAdmin.delete')}
-      className="mt-6 rounded-2xl border border-border-subtle bg-surface p-4"
-    >
+    <Card role="group" aria-label={t('playerAdmin.delete')} padding="md" className="mt-6">
       <p className="text-sm text-fg-dim">{t('playerAdmin.delete.confirm')}</p>
       {error !== null && (
         <ErrorText className="mt-2">{error}</ErrorText>
@@ -544,6 +536,6 @@ export function DeletePanel({
           {t('playerAdmin.delete.cancel')}
         </Button>
       </div>
-    </div>
+    </Card>
   )
 }

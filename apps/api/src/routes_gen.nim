@@ -66,6 +66,15 @@ const routes* = [
     isWebSocket: false,
   ),
   RouteSpec(
+    operationId: "listPendingClaims",
+    httpMethod: "GET",
+    path: "/c/{slug}/claims",
+    tag: "community",
+    pathParams: "slug",
+    hasBody: false,
+    isWebSocket: false,
+  ),
+  RouteSpec(
     operationId: "getCommunityConfig",
     httpMethod: "GET",
     path: "/c/{slug}/config",
@@ -688,7 +697,7 @@ const routes* = [
   ),
 ]
 
-const routeCount* = 75
+const routeCount* = 76
 
 import std/macros
 

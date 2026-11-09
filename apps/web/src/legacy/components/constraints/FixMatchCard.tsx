@@ -3,7 +3,7 @@ import { toPlayerId, toTimeString } from '../../types'
 import { useStore } from '../../store'
 import { computeTimeSlots, courtsAtTime } from '../../utils/time'
 import { courtLabel } from '../../utils/courtLabel'
-import { t } from '../../../i18n'
+import { t } from '@/i18n'
 import { SlotPicker } from './SlotPicker'
 
 // ── Fix Match card ────────────────────────────────────────────────────────────

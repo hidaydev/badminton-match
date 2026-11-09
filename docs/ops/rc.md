@@ -252,6 +252,25 @@ Google Cloud Console: add
 If the one that ends up installed is instead `<project>-<team>.vercel.app`, change
 `OIDC_REDIRECT_URI` in the RC env and the URI in Google, then restart the unit.
 
+### 5.3 Scoreboard PWA
+
+The courtside scoreboard is a separate Vercel project, `majadu-score`, built
+from the repository root (the workspace filter needs the lockfile):
+
+| Item | Value |
+|---|---|
+| Project | `majadu-score` |
+| Root Directory | repository root |
+| Install Command | `pnpm install --frozen-lockfile` |
+| Build Command | `pnpm --filter majadu-score build` |
+| Output Directory | `apps/scoreboard/dist` |
+| Domain | `https://majadu-score.vercel.app` (default; a custom domain replaces it) |
+
+`apps/scoreboard/vercel.json` owns the commands, the security headers and the
+`no-store` HTML policy; the build fails if it drifts (`check-headers.mjs`). The
+app's install, offline and storage expectations live in
+`apps/scoreboard/README.md`.
+
 ## 6. After merging to main
 
 Once the RC is validated, the production cutover uses the path already in the

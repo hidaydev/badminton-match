@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { useCommunity } from '../community/CommunityContext'
+import { useMembership } from '../community/membership'
 import { t } from '../i18n'
 import { TIERS } from '../players/api'
 import { createPlayer } from '../players/api'
 import { usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
 import { Button } from '../components/Button'
+import { CollapsiblePanel } from '../components/CollapsiblePanel'
+import { useAsyncAction } from '../hooks/useAsyncAction'
+import { EmptyState } from '../components/EmptyState'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input, Select } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
@@ -17,9 +20,8 @@ const SEARCH_DEBOUNCE_MS = 300
 
 export default function PlayersPage() {
   const { slug = '' } = useParams<{ slug: string }>()
-  const { memberships } = useCommunity()
-  const role = memberships.find((candidate) => candidate.slug === slug)?.role ?? null
-  const canManage = role === 'host' || role === 'admin'
+  const { can } = useMembership(slug)
+  const canManage = can('player.manage')
 
   // The search lives in the URL so a filtered list can be linked to or
   // reloaded, and so the browser's back button undoes a search.
@@ -62,14 +64,8 @@ export default function PlayersPage() {
   const [gender, setGender] = useState<'M' | 'F'>('M')
   const [tier, setTier] = useState('')
   const [aliases, setAliases] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
-
-  const add = async () => {
-    if (slug === '' || name.trim() === '') return
-    setBusy(true)
-    setFormError(null)
-    try {
+  const addAction = useAsyncAction(
+    async () => {
       await createPlayer(slug, {
         name: name.trim(),
         gender,
@@ -79,11 +75,15 @@ export default function PlayersPage() {
       setName('')
       setAliases('')
       reload()
-    } catch (problem) {
-      setFormError(describePlayerError(problem))
-    } finally {
-      setBusy(false)
-    }
+    },
+    { describeError: describePlayerError },
+  )
+  const { busy } = addAction
+  const formError = addAction.error
+
+  const add = async () => {
+    if (slug === '' || name.trim() === '') return
+    await addAction.run()
   }
 
   return (
@@ -116,30 +116,29 @@ export default function PlayersPage() {
         <ErrorText className="mt-4">{t('players.error.load')}</ErrorText>
       )}
       {items !== null && items.length === 0 && (
-        <div className="mt-4 rounded-xl border border-border-subtle bg-surface p-4 text-center">
-          <p className="text-sm text-fg-dim">{t('players.empty')}</p>
-          {(query !== '' || canManage) && (
-            <p className="mt-1 text-xs text-fg-dim">
-              {query === ''
+        <EmptyState
+          className="mt-4 border border-border-subtle bg-surface"
+          title={t('players.empty')}
+          description={
+            query !== '' || canManage
+              ? query === ''
                 ? t('players.empty.hint')
-                : t('players.empty.hintQuery', { query })}
-            </p>
-          )}
-          {query !== '' ? (
-            <Button
-              variant="secondary"
-              className="mt-3"
-              onClick={() => {
-                setDraft('')
-                setSearchParams({}, { replace: true })
-              }}
-            >
-              {t('players.empty.clear')}
-            </Button>
-          ) : (
-            canManage && (
+                : t('players.empty.hintQuery', { query })
+              : undefined
+          }
+          action={
+            query !== '' ? (
               <Button
-                className="mt-3"
+                variant="secondary"
+                onClick={() => {
+                  setDraft('')
+                  setSearchParams({}, { replace: true })
+                }}
+              >
+                {t('players.empty.clear')}
+              </Button>
+            ) : canManage ? (
+              <Button
                 onClick={() => {
                   if (addPanel.current !== null) {
                     addPanel.current.open = true
@@ -151,9 +150,9 @@ export default function PlayersPage() {
               >
                 {t('players.add')}
               </Button>
-            )
-          )}
-        </div>
+            ) : undefined
+          }
+        />
       )}
 
       {items !== null && items.length > 0 && (
@@ -195,14 +194,12 @@ export default function PlayersPage() {
       )}
 
       {canManage && (
-        <details
+        <CollapsiblePanel
           ref={addPanel}
           id="players-add"
-          className="mt-8 scroll-mt-20 rounded-2xl border border-border-subtle bg-surface p-4"
+          className="mt-8 scroll-mt-20"
+          title={t('players.add')}
         >
-          <summary className="min-h-11 cursor-pointer text-sm font-semibold text-fg">
-            {t('players.add')}
-          </summary>
           <form
             onSubmit={(event) => {
               event.preventDefault()
@@ -259,7 +256,7 @@ export default function PlayersPage() {
               {t('players.add.submit')}
             </Button>
           </form>
-        </details>
+        </CollapsiblePanel>
       )}
     </section>
   )

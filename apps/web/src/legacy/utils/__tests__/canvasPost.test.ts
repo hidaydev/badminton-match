@@ -12,7 +12,7 @@ import type { PlayerStanding } from '../standings'
 import type { StandingRow } from '../tournament'
 import { toPlayerId } from '../../types'
 import { CANVAS_COLORS as C } from '../../config/canvas'
-import { fakeImage, imageLabelOf, installRecordingContext } from '../../../test/recordingContext'
+import { fakeImage, imageLabelOf, installRecordingContext } from '@/test/recordingContext'
 
 const W = 1080
 const H = 1350

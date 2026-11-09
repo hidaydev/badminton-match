@@ -2,32 +2,42 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { manifest } from './src/manifest'
 
 export default defineConfig({
+  define: {
+    // Support can read this off the footer. It changes on every build, which is
+    // what makes "is this device on the fixed bundle?" answerable (PWA-01).
+    __BUILD_STAMP__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     tailwindcss(),
     VitePWA({
       registerType: 'prompt',
+      // A classic script in <head> blocks parsing until it is fetched, and the
+      // default registration waits for `load`. Deferring costs nothing.
+      injectRegister: 'script-defer',
+      // The logo icons come from `globPatterns`; letting the plugin add them a
+      // second time only duplicates the precache entries (PWA-16).
+      includeManifestIcons: false,
       workbox: {
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        // The board is installed over the worst network in the building. 512 KiB
+        // is the documented ceiling (PWA-18); the total is asserted separately.
+        maximumFileSizeToCacheInBytes: 512 * 1024,
         navigateFallback: '/index.html',
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
+        // A navigation to the API must reach the server, never the cached shell;
+        // otherwise an offline API call looks like a document load.
+        navigateFallbackDenylist: [/^\/api\//, /^\/ws/],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,jpeg,webmanifest}'],
+        // The manifest body is injected by the plugin; ignoring it here keeps
+        // one entry instead of two.
+        // `majadu-logo.png` is never rendered; the install sheet uses logo-192.
+        // `logo-512.png` is a manifest icon the installer fetches, not something
+        // the offline shell draws, so it does not buy a slot in the precache.
+        globIgnores: ['manifest.webmanifest', 'majadu-logo.png', 'logo-512.png'],
       },
-      manifest: {
-        name: 'MAJADU Score',
-        short_name: 'Score',
-        description: 'Badminton scoreboard by MAJADU',
-        theme_color: '#020617',
-        background_color: '#020617',
-        display: 'standalone',
-        orientation: 'any',
-        start_url: '/',
-        icons: [
-          { src: '/logo-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/logo-512.png', sizes: '512x512', type: 'image/png' },
-        ],
-      },
+      manifest,
     }),
   ],
 })

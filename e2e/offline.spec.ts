@@ -45,3 +45,48 @@ test('a navigation under /api is not answered from the precache', async ({ page,
   // and a 200, so an offline API call would look like a working response.
   expect(gotADocument).toBe(false)
 })
+
+/**
+ * PWA-23: the social export draws on a canvas with both decorative faces. If a
+ * face is missing the browser silently substitutes a system font, so compare
+ * pixels and the font-loading verdict, not the text.
+ */
+async function exportFonts(page: Page) {
+  return page.evaluate(async () => {
+    await document.fonts.load('72px Edosz')
+    await document.fonts.load('32px "Road Rage"')
+    const canvas = document.createElement('canvas')
+    canvas.width = 240
+    canvas.height = 100
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('canvas is unavailable')
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, 240, 100)
+    ctx.fillStyle = '#000'
+    ctx.font = '72px Edosz'
+    ctx.fillText('2026', 0, 60)
+    ctx.font = '32px "Road Rage"'
+    ctx.fillText('RC', 4, 95)
+    return {
+      signature: canvas.toDataURL(),
+      edosz: document.fonts.check('72px Edosz'),
+      roadRage: document.fonts.check('32px "Road Rage"'),
+    }
+  })
+}
+
+test('the export fonts render the same offline', async ({ page, context }) => {
+  await precacheShell(page)
+
+  const online = await exportFonts(page)
+  expect(online.edosz).toBe(true)
+  expect(online.roadRage).toBe(true)
+
+  await context.setOffline(true)
+  await page.reload()
+
+  const offline = await exportFonts(page)
+  expect(offline.edosz).toBe(true)
+  expect(offline.roadRage).toBe(true)
+  expect(offline.signature).toBe(online.signature)
+})

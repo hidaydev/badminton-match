@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { ScoreboardSide } from './ScoreboardSide'
-import type { ScoreboardSideProps } from './ScoreboardSide'
+import { ScoreboardSide } from '@majadu/scoreboard-ui'
+import type { ScoreboardSideProps } from '@majadu/scoreboard-ui'
+import { SCOREBOARD_LABELS } from '../scoreboardLabels'
 
 function props(overrides: Partial<ScoreboardSideProps> = {}): ScoreboardSideProps {
   return {
     side: 'red',
+    labels: SCOREBOARD_LABELS.red,
     score: 7,
     displayName: 'Arya',
     editValue: 'Arya',
@@ -57,6 +59,14 @@ describe('ScoreboardSide', () => {
     expect(onScore).toHaveBeenCalledTimes(1)
   })
 
+  it('disables the score and minus controls when read only', () => {
+    render(<ScoreboardSide {...props({ readOnly: true })} />)
+
+    expect(scoreButton()).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Decrease red score' })).toBeDisabled()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  })
+
   it('does not score while typing a space or pressing Enter in the name input', () => {
     const onScore = vi.fn()
     render(<ScoreboardSide {...props({ isEditing: true, onScore })} />)
@@ -93,7 +103,11 @@ describe('ScoreboardSide', () => {
   })
 
   it('labels the minus control per side', () => {
-    render(<ScoreboardSide {...props({ side: 'blue', displayName: 'Bowo' })} />)
+    render(
+      <ScoreboardSide
+        {...props({ side: 'blue', labels: SCOREBOARD_LABELS.blue, displayName: 'Bowo' })}
+      />,
+    )
     expect(screen.getByRole('button', { name: 'Decrease blue score' })).toBeInTheDocument()
   })
 

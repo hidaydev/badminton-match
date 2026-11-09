@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
@@ -6,7 +6,7 @@ import { communitySlugFromPath } from '../routes.manifest'
 import { CommunityContext } from './CommunityContext'
 import type { CommunityContextValue } from './CommunityContext'
 import { communityPath, resolveCommunity } from './selection'
-import { readStoredSlug, writeStoredSlug } from './storage'
+import { readStoredSlug, subscribeStoredSlug, writeStoredSlug } from './storage'
 
 export function CommunityProvider({ children }: { children: ReactNode }) {
   const { memberships } = useAuth()
@@ -14,7 +14,10 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
 
   const pathSlug = communitySlugFromPath(location.pathname)
-  const storedSlug = readStoredSlug()
+  // The stored preference is an external store, not a render-time read: every
+  // render observes the same value until a write notifies it, and a discarded
+  // concurrent render cannot observe a different slug than the write after it.
+  const storedSlug = useSyncExternalStore(subscribeStoredSlug, readStoredSlug, () => null)
   const current = resolveCommunity(memberships, pathSlug, storedSlug)
 
   // Visiting a community the account belongs to makes it the remembered one.

@@ -51,6 +51,10 @@ regression, which is why the functional share is stated rather than implied.
 Every spec waits for the screen's own data (`VisualRoute.ready`) instead of
 `networkidle`, which never settles on a screen holding a WebSocket open. No spec
 uses `test.skip`.
+- **Update check** (`src/pwa/updateCheck.ts`): a visible tab asks the service
+  worker registration `update()` at most once every 15 minutes, so a tab left
+  open all day still learns about a deploy. The unit test mocks the
+  registration; the e2e suite does not simulate a deploy.
 - **Compatibility** (`compat.spec.ts`): a request carrying an older
   `X-API-Version` gets `410 CLIENT_OUTDATED` and the shell shows the reload
   banner.

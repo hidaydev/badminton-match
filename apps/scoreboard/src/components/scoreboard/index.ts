@@ -1,10 +1,3 @@
-export { ScoreboardSide } from './ScoreboardSide'
-export type { ScoreboardSideProps } from './ScoreboardSide'
-
-export { ScoreboardDivider } from './ScoreboardDivider'
-
-export { ScoreboardControls } from './ScoreboardControls'
-export type { ScoreboardControlsProps } from './ScoreboardControls'
-
-export { ScoreboardFooter } from './ScoreboardFooter'
-export type { ScoreboardFooterProps } from './ScoreboardFooter'
+// The scoreboard components live in `@majadu/scoreboard-ui` so the web app and
+// this app render the same markup. This file keeps the app-local import path.
+export * from '@majadu/scoreboard-ui'

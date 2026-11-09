@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
 import { t } from '../i18n'
-import { TabBar, tabId, tabPanelId } from '../components/TabBar'
+import { tabId, tabPanelId } from '../components/TabBar'
 import type { MessageKey } from '../i18n/en'
 import { formatCompactDate } from '../utils/day'
 import { ordinal } from '../legacy/utils/ordinal'
@@ -11,6 +11,8 @@ import { computeDiff, initTallyRow, standardStandingSort, tallyMatch } from '../
 import { getSharedSession } from '../share/api'
 import type { SharedGame, SharedSession, SharedStanding } from '../share/api'
 import { LoadingState } from '../components/LoadingState'
+import { EmptyState } from '../components/EmptyState'
+import { Tabs } from '../components/Tabs'
 
 type Settled = {
   code: string
@@ -214,22 +216,19 @@ export default function SharedSessionPage() {
             )}
           </p>
 
-          <div
-            className="mt-4 flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3"
-          >
-            <TabBar
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
+            <Tabs
               items={[
                 { id: 'games', label: t('session.games') },
                 { id: 'standings', label: t('session.standings') },
               ]}
               value={tab}
-              onChange={setTab}
+              onChange={(id) => setTab(id as Tab)}
+              panelId={panelId}
               label={t('shared.tabs')}
-              idPrefix={panelId}
-              className="flex gap-1"
-              tabClassName={(_item, selected) =>
+              tabClassName={(active) =>
                 `inline-flex min-h-11 items-center text-xs font-semibold px-4 rounded-lg transition-colors ${
-                  selected
+                  active
                     ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300'
                     : 'text-slate-400 hover:text-slate-200'
                 }`
@@ -250,7 +249,7 @@ export default function SharedSessionPage() {
           >
             {tab === 'games' &&
               (session.games.length === 0 ? (
-                <p className="mt-2 text-sm text-slate-400">{t('session.games.empty')}</p>
+                <EmptyState title={t('session.games.empty')} />
               ) : (
                 <div className="flex flex-col divide-y divide-slate-800">
                   {rounds.map((entry) => (
@@ -324,7 +323,7 @@ export default function SharedSessionPage() {
 
             {tab === 'standings' &&
               (standings.length === 0 ? (
-                <p className="mt-2 text-sm text-slate-400">{t('session.standings.empty')}</p>
+                <EmptyState title={t('session.standings.empty')} />
               ) : (
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-2 pl-2 pr-2 mb-1">
