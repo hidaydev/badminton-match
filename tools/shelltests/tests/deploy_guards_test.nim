@@ -315,6 +315,38 @@ suite "deploy-vps.sh":
     check readFile(fixture.root / "deploy" / "last-attempt.json")
       .contains("\"step\":\"env-split\"")
 
+  # OPS-18: a log created by `tee` used to be world-readable until the next
+  # hourly rotation, and a share code in a request path is a credential.
+  test "the deploy log and state files are private from the first byte":
+    let fixture = newFixture("deploy-log-mode")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    # A log left behind by an older deploy is 0644; the next run has to fix it
+    # instead of appending to it.
+    touch(fixture.root / "logs" / "deploy.log", "old line\n")
+    setFilePermissions(fixture.root / "logs" / "deploy.log",
+      {fpUserRead, fpUserWrite, fpGroupRead, fpOthersRead})
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    check result.exitCode == 1
+    let logPerms = getFilePermissions(fixture.root / "logs" / "deploy.log")
+    check fpGroupRead notin logPerms
+    check fpOthersRead notin logPerms
+    let statePerms = getFilePermissions(
+      fixture.root / "deploy" / "last-attempt.json")
+    check fpGroupRead notin statePerms
+    check fpOthersRead notin statePerms
+    let logDir = getFilePermissions(fixture.root / "logs")
+    check fpGroupRead notin logDir
+    check fpOthersRead notin logDir
+
   test "a missing tool env fails before the release lookup":
     let fixture = newFixture("deploy-tool-env-missing")
     defer: removeDir(fixture.root)
@@ -1102,6 +1134,12 @@ suite "rollback.sh":
     writeExecutable(onlyDir / "date", "#!/bin/sh\nprintf '2026-01-01 00:00:00'")
     writeExecutable(onlyDir / "tee", "#!/bin/sh\nexec /bin/cat")
     writeExecutable(onlyDir / "mkdir", "#!/bin/sh\nexit 0")
+    # The scripts create the log private before they look for podman, so the
+    # stub has to create the directory the log lives in.
+    writeExecutable(onlyDir / "install",
+      "#!/bin/sh\nfor a in \"$@\"; do case \"$a\" in -*) ;; *) " &
+      "/bin/mkdir -p \"$a\" ;; esac; done\n")
+    writeExecutable(onlyDir / "chmod", "#!/bin/sh\nexit 0")
     writeExecutable(onlyDir / "bash", "#!/bin/sh\nexec /bin/bash \"$@\"\n")
     let result = fixture.runShell(fixture.installOpsScript("rollback.sh"),
       @[], appDir(fixture) & @[("PATH", onlyDir)])

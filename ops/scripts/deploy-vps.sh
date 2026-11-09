@@ -35,6 +35,11 @@
 # last-attempt.json.
 set -Eeuo pipefail
 
+# The log holds request paths and share codes are bearer credentials, so every
+# file these scripts create is private from the first byte instead of waiting for
+# the hourly rotation to chmod it.
+umask 077
+
 REPO_NAME="${1:-badminton-match}"
 REF="${2:-}"
 
@@ -56,7 +61,9 @@ LOCK_FILE="$APP_DIR/.deploy.lock"
 
 STEP="start"
 SCHEMA=""
-mkdir -p "$APP_DIR/logs" "$STATE_DIR"
+install -d -m 700 "$APP_DIR/logs" "$STATE_DIR"
+: >>"$LOG"
+chmod 600 "$LOG" 2>/dev/null || true
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"

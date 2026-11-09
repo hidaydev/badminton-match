@@ -20,6 +20,12 @@
 # cutover.sh takes.
 set -Eeuo pipefail
 
+# The log holds request paths and share codes are bearer credentials, so every
+# file these scripts create is private from the first byte instead of waiting for
+# the hourly rotation to chmod it.
+umask 077
+
+
 APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"
 SERVICE="${MAJADU_SERVICE:-majadu-api}"
 LOCAL_IMAGE="${MAJADU_IMAGE:-localhost/majadu-api}"
@@ -42,7 +48,9 @@ LOG="$APP_DIR/logs/rollback.log"
 DROP_BM2=0
 ABANDON_DATA=0
 
-mkdir -p "$CUTOVER_DIR" "$APP_DIR/logs"
+install -d -m 700 "$CUTOVER_DIR" "$APP_DIR/logs"
+: >>"$LOG"
+chmod 600 "$LOG" 2>/dev/null || true
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"

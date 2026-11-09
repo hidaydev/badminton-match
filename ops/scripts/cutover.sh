@@ -40,6 +40,12 @@
 # alert.
 set -Eeuo pipefail
 
+# The log holds request paths and share codes are bearer credentials, so every
+# file these scripts create is private from the first byte instead of waiting for
+# the hourly rotation to chmod it.
+umask 077
+
+
 APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"
 SERVICE="${MAJADU_SERVICE:-majadu-api}"
 LOCAL_IMAGE="${MAJADU_IMAGE:-localhost/majadu-api}"
@@ -219,7 +225,10 @@ if [ "$CHECK" -eq 1 ]; then
   exit 0
 fi
 
-mkdir -p "$CUTOVER_DIR" "$APP_DIR/logs" "$CADDY_DIR" "$APP_DIR/env"
+install -d -m 700 "$CUTOVER_DIR" "$APP_DIR/logs" "$APP_DIR/env"
+mkdir -p "$CADDY_DIR"
+: >>"$LOG"
+chmod 600 "$LOG" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Guards before anything is touched.
