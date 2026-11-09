@@ -7,6 +7,9 @@ export const en = {
   'app.outdated': 'This page is running an older version and can no longer talk to the server.',
   'app.outdated.action': 'Reload',
   'app.updateAvailable': 'Update available',
+  'notFound.title': 'Page not found',
+  'notFound.body': 'There is no page at {path}.',
+  'notFound.communityHome': 'Community home',
 
   'nav.group.main': 'Main',
   'nav.group.admin': 'Administration',

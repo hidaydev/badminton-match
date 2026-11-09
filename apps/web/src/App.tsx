@@ -14,6 +14,7 @@ import { useCommunity } from './community/CommunityContext'
 import { t } from './i18n'
 import InvitePage from './pages/InvitePage'
 import LoginPage from './pages/LoginPage'
+import NotFoundPage from './pages/NotFoundPage'
 import PlayerDetailPage from './pages/PlayerDetailPage'
 import PlayersPage from './pages/PlayersPage'
 import PrivacyPage from './pages/PrivacyPage'
@@ -323,9 +324,13 @@ function AuthedRoutes() {
 
         <Route path="s/:sessionId" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="shared-session"><LegacySharedSessionPage /></ErrorBoundary></Suspense>} />
         <Route path="scoreboard" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="scoreboard"><ScoreboardPage /></ErrorBoundary></Suspense>} />
+
+        {/* A path inside the community that no screen owns. It stays under
+            `/c/:slug` so the slug is still available to link back to. */}
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   )
 }
