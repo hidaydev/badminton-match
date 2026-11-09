@@ -129,3 +129,15 @@ jobs:
           psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
             -c "CREATE DATABASE bm2_parity_verify_test OWNER bm2_owner"
           ./task parity v2 verify
+      # QA-11: the nightly log is not the only place a failure should land.
+      - name: "Nightly: upload failure reports"
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: nightly-failure-reports
+          path: |
+            .cache/*/failures.tsv
+            .cache/*/junit/junit.xml
+            .cache/*/timing/*.tsv
+          include-hidden-files: true
+          if-no-files-found: warn

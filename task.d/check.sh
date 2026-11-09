@@ -67,8 +67,10 @@ for file in $(list_test_files); do
 done
 
 if [ -f "$REPO_ROOT/tools/archcheck/main.nim" ]; then
-  junit_record "tools/archcheck/main.nim" 0
-  nim_run_check "$REPO_ROOT/tools/archcheck/main.nim"
+  _code=0
+  nim_run_check "$REPO_ROOT/tools/archcheck/main.nim" || _code=$?
+  junit_record "tools/archcheck/main.nim" "$_code"
+  [ "$_code" -eq 0 ] || exit "$_code"
 fi
 
 # QA-10: the same 12 minute warning `test` and `coverage` print, so the job that

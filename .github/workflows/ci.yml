@@ -478,7 +478,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-failure-artifacts
-          path: apps/web/test-results/
+          path: |
+            apps/web/test-results/
+            test-results/
           if-no-files-found: warn
 
   # QA-06: the nightly run owns the full manifest; this job runs the changed
@@ -516,7 +518,7 @@ jobs:
           status=0
           for prefix in apps/api/src/ modules/account/ modules/session/ \
                         modules/tournament/ modules/player/ modules/share/ \
-                        modules/rating/ tools/parity/ tools/import/; do
+                        modules/rating/ tools/parity/; do
             if grep -q "^$prefix" .cache-changed.txt; then
               echo "mutation: changed prefix $prefix"
               ./task mutation --only "$prefix" || status=1
