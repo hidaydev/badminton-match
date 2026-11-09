@@ -40,6 +40,7 @@ const
     ("CSRF_REJECTED", "error.csrfRejected"),
     ("FORBIDDEN", "error.forbidden"),
     ("IDEMPOTENCY_CONFLICT", "error.idempotencyConflict"),
+    ("IDEMPOTENCY_IN_PROGRESS", "error.idempotencyInProgress"),
     ("INTERNAL", "error.internal"),
     ("INVALID_ALIAS", "error.invalidAlias"),
     ("INVALID_BODY", "error.invalidBody"),

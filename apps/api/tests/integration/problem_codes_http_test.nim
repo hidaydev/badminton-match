@@ -634,6 +634,23 @@ suite "problem-code reachability: sessions and schedule":
       "IDEMPOTENCY_CONFLICT", "this key was used with a different body",
       extra = [("Idempotency-Key", "be19-idem")])
 
+    # A live claim with no stored response: another request owns the key.
+    let inFlightKey = "be19-inflight"
+    let inFlightBody = """{"title":"Be19 In Flight","date":"2026-11-22"}"""
+    discard database.execUpdate(
+      """insert into platform.idempotency_keys (user_id, key, body_hash, expires_at)
+         values ((select id from platform.user where google_sub = 'be19-host'),
+                 $1, $2, now() + interval '1 hour')""",
+      @[textParam(communityId & ":" & inFlightKey),
+        textParam(sha256Hex(inFlightBody))])
+    requireRow("inprogress", "POST", "/c/" & slug & "/sessions", hostCookie,
+      inFlightBody, 409, "IDEMPOTENCY_IN_PROGRESS",
+      "this key is still being processed; retry shortly",
+      extra = [("Idempotency-Key", inFlightKey)])
+    discard database.execUpdate(
+      "delete from platform.idempotency_keys where key = $1",
+      @[textParam(communityId & ":" & inFlightKey)])
+
     requireRow("wsunauth", "GET", "/ws/share/be19-deadbeef", "", "", 401,
       "UNAUTHENTICATED", "ticket is invalid, expired or already used")
     requireRow("ws404", "GET", "/ws/c/" & slug & "/sessions/" &
