@@ -27,6 +27,7 @@ const
 #   18094 session     18095 ops_token   18096 rankings  18097 readyz
 #   18098 idor        18099 csrf        18100 oidc      18101 ratelimit
 #   18102 tournament  18103 read_smoke  18108 be08_concurrency  18111 request_cost
+#   18112 share_key
 proc testPort*(base: int): Port =
   doAssert base >= firstTestPort, "test ports start at 18090"
   Port(base)

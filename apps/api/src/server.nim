@@ -169,6 +169,13 @@ proc recordPool*(size, available, inUse: int) =
     registry.setGauge("db_pool_available", float(available))
     registry.setGauge("db_pool_in_use", float(inUse))
 
+proc recordShareKeyProblem*() =
+  ## A live link references a key `SHARE_CODE_KEYS` no longer holds. The rows
+  ## stay live, so without this counter a rotation mistake looks like a quiet
+  ## traffic drop until the 503s reach support.
+  withLock registryLock:
+    registry.inc("share_key_problems_total")
+
 proc renderServerLog*(level: mummy.LogLevel,
                       args: openArray[string]): string =
   ## mummy's own lines ("Handler exception", "Dropped connection, body too

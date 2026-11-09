@@ -17,6 +17,18 @@ type
     sessionDate*: string
     status*: string
 
+  ShareKeyProblem* = object of CatchableError
+    ## A live row references a key this process does not hold, which is what a
+    ## rotation mistake looks like. The row exists, so the caller must not
+    ## answer "no link": that sends the operator to issue a new one instead of
+    ## restoring the key.
+    linkId*: string
+
+proc keyProblem(linkId: string): ref ShareKeyProblem =
+  result = newException(ShareKeyProblem,
+    "the live share link references a key the process does not hold")
+  result.linkId = linkId
+
 ## One definition of "live": a link resolves, is re-displayable, and is watched
 ## only while this holds. The partial unique index in `0001_core.sql` is looser,
 ## it only excludes revoked rows, so an expired row must still be revoked to
@@ -78,7 +90,7 @@ proc currentCode*(db: Db, keyring: Keyring, communityId,
     some(decryptWith(keyring, value.get("key_id"),
       hexBytes(value.get("code_enc")), aadFor(communityId, value.get("id"))))
   except ShareKeyError:
-    none(string)
+    raise keyProblem(value.get("id"))
 
 const shareLookupFrom = """
        from session.links l
@@ -128,7 +140,7 @@ proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
       hexBytes(value.get("code_enc")),
       aadFor(value.get("community_id"), value.get("link_id")))
   except ShareKeyError:
-    return none(ShareLookup)
+    raise keyProblem(value.get("link_id"))
   some(ShareLookup(
     linkId: value.get("link_id"),
     communityId: value.get("community_id"),

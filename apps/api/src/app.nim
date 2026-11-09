@@ -1141,6 +1141,16 @@ proc issueSessionTicket(request: Request, ctx: CommunityContext, user: AuthUser,
   let ticket = wsTicket.issueSession(application.db, user.id, sessionId, ttl)
   jsonResponse(request, 200, %*{"ticket": ticket, "expiresIn": ttl})
 
+proc shareKeyUnavailable(request: Request,
+                         error: ref shareStore.ShareKeyProblem) =
+  ## One refusal for a live row whose key this process does not hold. 503, not
+  ## 404: the row exists and the operator has to restore the key, so "no link"
+  ## would send them to issue a new one. The link id is logged, never the code.
+  recordShareKeyProblem()
+  logError("share link key missing", [("linkId", error.linkId),
+    ("request_id", currentRequestId())])
+  problem(request, 503, "UNAVAILABLE", "share link key is not available")
+
 proc issueShareTicket(request: Request, code: string, snapshot: Snapshot) =
   ## Anonymous path: the share limiter has already run in `route`, before this
   ## insert. Only a `share` channel ticket is ever minted here.
@@ -3656,6 +3666,11 @@ proc guarded*(request: Request, body: proc()) =
         detailForSqlState(error.sqlState))
       return
     internalFailure(request, error)
+  except shareStore.ShareKeyProblem as error:
+    # BE-22: a live row references a key the process does not hold. The row
+    # exists, so the answer is 503, never the 404 that reads "the link was never
+    # created"; the metric and the log line name the link, not the code.
+    shareKeyUnavailable(request, error)
   except Defect as error:
     internalFailure(request, error)
   except CatchableError as error:
