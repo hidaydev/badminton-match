@@ -104,6 +104,20 @@ proc touch(path: string, body = "") =
   createDir(path.parentDir)
   writeFile(path, body)
 
+proc activeAssignment(body, key: string): bool =
+  ## Mirrors the deploy gates: leading whitespace, an `export` prefix and
+  ## whitespace around `=` are accepted; a commented line is not an assignment.
+  for line in body.splitLines:
+    var s = line.strip
+    if s.len == 0 or s.startsWith("#"):
+      continue
+    if s.startsWith("export") and s.len > 6 and s[6] in {' ', '\t'}:
+      s = s[6 .. ^1].strip
+    if s.startsWith(key) and s.len > key.len:
+      if s[key.len .. ^1].strip.startsWith("="):
+        return true
+  false
+
 proc appDir(fixture: Fixture, dir: string = ""): seq[(string, string)] =
   @[("MAJADU_APP_DIR", if dir.len > 0: dir else: fixture.root)]
 
@@ -118,6 +132,25 @@ proc simFakes(fixture: Fixture) =
   fixture.installFake("curl", okFake)
   fixture.installFake("podman", podmanFake)
   fixture.installFake("psql", psqlFake)
+
+proc runDeployForEnvGate(fixture: Fixture, apiBody: string,
+    extra: seq[(string, string)] = @[]): ShellResult =
+  ## Runs the production deploy far enough to reach the API-env gate, with the
+  ## checkout, the tool env and a VERSION so the commented-line case can pass
+  ## the gate and fail later at the release lookup.
+  simFakes(fixture)
+  fixture.installFake("git", gitFake)
+  createDir(fixture.root / "monorepo")
+  touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+  privateFile(fixture.root / "env" / "majadu-prod.env", apiBody)
+  privateFile(fixture.root / "env" / "majadu-tools.env",
+    "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+  # A non-empty token file keeps bash 3.2 from tripping on an empty AUTH array
+  # when the commented-line case reaches the release lookup.
+  privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+  fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+    @["badminton-match", "refs/heads/main"],
+    appDir(fixture) & @[("MAJADU_SKIP_GIT_SYNC", "1")] & extra)
 
 proc rcGateFixture(fixture: Fixture, token = true): string =
   ## Builds the RC tree up to the CI gate: a checkout with VERSION and the
@@ -252,7 +285,7 @@ suite "deploy-vps.sh":
     let envFile = fixture.root / "env" / "majadu-prod.env"
     let toolsFile = fixture.root / "env" / "majadu-tools.env"
     check result.stdout.contains(
-      envFile & " must not contain MAJADU_OWNER_DSN; move it to " & toolsFile)
+      envFile & ":2 must not contain MAJADU_OWNER_DSN; move it to " & toolsFile)
     check readFile(fixture.root / "deploy" / "last-release.json")
       .contains("\"step\":\"env-split\"")
 
@@ -273,6 +306,55 @@ suite "deploy-vps.sh":
     check result.stdout.contains(
       "tool env file " & toolsFile & " is missing; copy ops/env/prod-tools.env.example")
     check not result.stdout.contains("release v")
+
+  test "the prod env gate sees systemd assignment forms":
+    let cases = [
+      ("leading-space", " MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2"),
+      ("leading-tab", "\tMAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2"),
+      ("space-before-equals", "MAJADU_OWNER_DSN =postgres://bm2_owner@127.0.0.1:5432/bm2"),
+      ("export-prefix", "export MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2"),
+    ]
+    for (label, line) in cases:
+      let fixture = newFixture("deploy-gate-" & label)
+      let podmanLog = fixture.root / "podman.log"
+      let result = runDeployForEnvGate(fixture,
+        "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n" & line & "\n",
+        @[("FAKE_PODMAN_LOG", podmanLog)])
+      check result.exitCode == 1
+      check result.stdout.contains(":2 must not contain MAJADU_OWNER_DSN")
+      check result.stdout.contains("move it to " &
+        (fixture.root / "env" / "majadu-tools.env"))
+      check not fileExists(podmanLog)
+      check not fileExists(fixture.root / "home" / ".config" / "systemd" /
+        "user" / "majadu-api.container")
+      removeDir(fixture.root)
+
+  test "a commented tool DSN does not trip the prod env gate":
+    let fixture = newFixture("deploy-gate-comment")
+    defer: removeDir(fixture.root)
+    let result = runDeployForEnvGate(fixture,
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n" &
+      "# MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    check not result.stdout.contains("must not contain MAJADU_OWNER_DSN")
+    check result.stdout.contains("release v2.0.0 has no published image digest")
+
+  test "a pre-cutover host exits 0 without the tool env":
+    let fixture = newFixture("deploy-pre-cutover")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    check result.exitCode == 0
+    check result.stdout.contains(
+      "production does not point at bm2 yet: cutover has not happened, nothing to deploy")
+    check not result.stdout.contains("tool env file")
 
 suite "deploy-vps-rc.sh":
   test "a ref other than the RC branch is ignored":
@@ -692,8 +774,42 @@ suite "deploy-vps-rc.sh":
     let result = runRcGate(fixture, rcDir)
     check result.exitCode == 1
     check result.stdout.contains(
-      envFile & " must not contain MAJADU_OWNER_DSN; move it to " & toolsFile)
+      envFile & ":2 must not contain MAJADU_OWNER_DSN; move it to " & toolsFile)
     check not result.stdout.contains("built localhost/majadu-rc-api:local")
+
+  test "the RC env gate sees systemd assignment forms":
+    let cases = [
+      ("leading-space", " MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2_rc"),
+      ("leading-tab", "\tMAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2_rc"),
+      ("space-before-equals", "MAJADU_OWNER_DSN =postgres://bm2_owner@127.0.0.1:5432/bm2_rc"),
+      ("export-prefix", "export MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2_rc"),
+    ]
+    for (label, line) in cases:
+      let fixture = newFixture("rc-gate-" & label)
+      let rcDir = rcGateFixture(fixture)
+      privateFile(rcDir / "env" / "majadu-rc.env",
+        "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2_rc\n" & line & "\n")
+      let podmanLog = fixture.root / "podman.log"
+      let result = runRcGate(fixture, rcDir, @[("FAKE_PODMAN_LOG", podmanLog)])
+      check result.exitCode == 1
+      check result.stdout.contains(":2 must not contain MAJADU_OWNER_DSN")
+      check result.stdout.contains("move it to " &
+        (rcDir / "env" / "majadu-rc-tools.env"))
+      check not fileExists(podmanLog)
+      check not fileExists(fixture.root / "home" / ".config" / "containers" /
+        "systemd" / "majadu-rc-api.container")
+      removeDir(fixture.root)
+
+  test "a commented tool DSN does not trip the RC env gate":
+    let fixture = newFixture("rc-gate-comment")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    privateFile(rcDir / "env" / "majadu-rc.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2_rc\n" &
+      "# MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2_rc\n")
+    let result = runRcGate(fixture, rcDir)
+    check not result.stdout.contains("must not contain MAJADU_OWNER_DSN")
+    check result.stdout.contains("ci gate: empty or malformed")
 
 suite "cutover.sh":
   test "--from an unknown step exits 2 and names it":
@@ -1179,21 +1295,24 @@ suite "systemd units":
     check envPath == "/srv/qouver/apps/majadu/env/majadu-prod.env"
     let apiEnv = readFile(repoDir / "ops" / "env" / "prod.env.example")
     let toolsEnv = readFile(repoDir / "ops" / "env" / "prod-tools.env.example")
-    check apiEnv.contains("MAJADU_PG_DSN=")
-    for key in ["MAJADU_OWNER_DSN=", "MAJADU_ETL_DSN=",
-                "MAJADU_ETL_SOURCE_DSN=", "MAJADU_CUTOVER_RESTORE_DSN=",
-                "MAJADU_AUDIT_DSN="]:
-      check not apiEnv.contains(key)
-      check toolsEnv.contains(key)
+    check activeAssignment(apiEnv, "MAJADU_PG_DSN")
+    for key in ["MAJADU_OWNER_DSN", "MAJADU_ETL_DSN",
+                "MAJADU_ETL_SOURCE_DSN", "MAJADU_CUTOVER_RESTORE_DSN",
+                "MAJADU_AUDIT_DSN"]:
+      check not activeAssignment(apiEnv, key)
+      check activeAssignment(toolsEnv, key)
 
-  test "the RC API unit loads an env file without the owner DSN":
+  test "the RC API unit loads an env file without any tool DSN":
     var envPath = ""
     for line in readFile(unitsDir / "majadu-rc-api.container").splitLines:
       if line.startsWith("EnvironmentFile="):
         envPath = line.split("=", maxsplit = 1)[1]
     check envPath == "/srv/qouver/apps/majadu-rc/env/majadu-rc.env"
     let apiEnv = readFile(repoDir / "ops" / "env" / "rc.env.example")
-    check apiEnv.contains("MAJADU_PG_DSN=")
-    check not apiEnv.contains("MAJADU_OWNER_DSN=")
     let toolsEnv = readFile(repoDir / "ops" / "env" / "rc-tools.env.example")
-    check toolsEnv.contains("MAJADU_OWNER_DSN=")
+    check activeAssignment(apiEnv, "MAJADU_PG_DSN")
+    for key in ["MAJADU_OWNER_DSN", "MAJADU_ETL_DSN",
+                "MAJADU_ETL_SOURCE_DSN", "MAJADU_CUTOVER_RESTORE_DSN",
+                "MAJADU_AUDIT_DSN"]:
+      check not activeAssignment(apiEnv, key)
+      check activeAssignment(toolsEnv, key)

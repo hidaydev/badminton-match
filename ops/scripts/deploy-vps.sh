@@ -184,10 +184,6 @@ STEP="cutover-gate"
 # cannot tell which database it is about to serve, so it fails instead of
 # reporting success.
 [ -f "$ENV_FILE" ] || fail "prod env file $ENV_FILE is missing"
-# The tool file holds the owner DSN the migrate step needs. Check it here, before
-# the digest and the image pull, so a host that never created it fails fast
-# instead of after pulling a release it cannot migrate.
-[ -f "$TOOLS_ENV" ] || fail "tool env file $TOOLS_ENV is missing; copy ops/env/prod-tools.env.example"
 PROD_DSN=$(sed -n 's/^MAJADU_PG_DSN=//p' "$ENV_FILE" | tail -1)
 case "$PROD_DSN" in
   */bm2|*/bm2\?*|*/bm2\"*) ;;
@@ -197,14 +193,23 @@ case "$PROD_DSN" in
     ;;
 esac
 
+# The cutover gate exited 0 on a pre-cutover host, so everything below only
+# applies once production points at bm2. The tool file holds the owner DSN the
+# migrate step needs; check it before the digest and the image pull so a host
+# that never created it fails fast instead of after pulling a release it cannot
+# migrate.
+[ -f "$TOOLS_ENV" ] || fail "tool env file $TOOLS_ENV is missing; copy ops/env/prod-tools.env.example"
+
 # This file is the API unit's EnvironmentFile. A leftover owner, ETL or audit
 # DSN from the single-file layout would be handed to the public process, so the
 # deploy stops and names the line instead of starting a container with it.
+# systemd skips leading whitespace, allows whitespace around `=`, and accepts an
+# `export` prefix, so the match has to see those forms; comments do not match.
 STEP="env-split"
 for key in MAJADU_OWNER_DSN MAJADU_ETL_DSN MAJADU_ETL_SOURCE_DSN \
   MAJADU_CUTOVER_RESTORE_DSN MAJADU_AUDIT_DSN; do
-  if grep -q "^$key=" "$ENV_FILE"; then
-    fail "$ENV_FILE must not contain $key; move it to $TOOLS_ENV"
+  if hit=$(grep -Ein "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=" "$ENV_FILE"); then
+    fail "$ENV_FILE:${hit%%:*} must not contain $key; move it to $TOOLS_ENV"
   fi
 done
 
@@ -345,7 +350,11 @@ for kind in container service timer; do
     fi
   done
 done
-service daemon-reload >/dev/null 2>&1 || true
+# The units are on disk; a reload failure would leave systemd running the old
+# ones, so report it instead of hiding it.
+if ! reload_out=$(service daemon-reload 2>&1); then
+  log "WARNING: daemon-reload failed: $reload_out"
+fi
 
 # ---------------------------------------------------------------------------
 # Operator scripts come from the repository too: cutover.sh calls backup.sh,

@@ -208,10 +208,12 @@ APP_DB=$(printf '%s' "$APP_DSN" | sed 's/.*\///' | cut -d'?' -f1)
 # This file is the RC unit's EnvironmentFile. An existing host that adds the
 # tool file without deleting the old owner line would keep handing the owner
 # credential to the RC API, so stop before the build and name the line.
+# systemd skips leading whitespace, allows whitespace around `=`, and accepts an
+# `export` prefix, so the match has to see those forms; comments do not match.
 for key in MAJADU_OWNER_DSN MAJADU_ETL_DSN MAJADU_ETL_SOURCE_DSN \
   MAJADU_CUTOVER_RESTORE_DSN MAJADU_AUDIT_DSN; do
-  if grep -q "^$key=" "$ENV_FILE"; then
-    fail "$ENV_FILE must not contain $key; move it to $TOOLS_ENV"
+  if hit=$(grep -Ein "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=" "$ENV_FILE"); then
+    fail "$ENV_FILE:${hit%%:*} must not contain $key; move it to $TOOLS_ENV"
   fi
 done
 
@@ -425,15 +427,11 @@ UNIT_SRC="$MONO_DIR/ops/systemd/majadu-rc-api.container"
 UNIT_DEST="$HOME/.config/containers/systemd/majadu-rc-api.container"
 # The unit bind-mounts this path; podman refuses to start when it is missing.
 mkdir -p "$APP_DIR/logs/main"
-mkdir -p "$(dirname "$UNIT_DEST")"
-if ! cmp -s "$UNIT_SRC" "$UNIT_DEST"; then
-  install -m 644 "$UNIT_SRC" "$UNIT_DEST"
-  log "unit majadu-rc-api.container updated from the repository"
-fi
-# The RC unit alerts through the same template as production. The RC may run on
-# the production user manager (the template already exists) or on its own host,
-# so install it from the repository either way; a missing template would turn
-# OnFailure into a silent no-op.
+# Install the alert template first: if this fails, the run stops before the
+# unit that references it is written, so the host never has a unit with
+# OnFailure on disk and no template to start. The RC may share the production
+# user manager (the template already exists) or have its own host, so install
+# it from the repository either way.
 ALERT_SRC="$MONO_DIR/ops/systemd/majadu-alert@.service"
 ALERT_DEST="$HOME/.config/systemd/user/majadu-alert@.service"
 mkdir -p "$(dirname "$ALERT_DEST")"
@@ -441,10 +439,18 @@ if ! cmp -s "$ALERT_SRC" "$ALERT_DEST"; then
   install -m 644 "$ALERT_SRC" "$ALERT_DEST"
   log "unit majadu-alert@.service updated from the repository"
 fi
+mkdir -p "$(dirname "$UNIT_DEST")"
+if ! cmp -s "$UNIT_SRC" "$UNIT_DEST"; then
+  install -m 644 "$UNIT_SRC" "$UNIT_DEST"
+  log "unit majadu-rc-api.container updated from the repository"
+fi
 # Always reload: the quadlet generator only creates the .service when it runs, so
 # a unit file that was already in place (bootstrap installs it) never becomes a
-# startable unit otherwise.
-service daemon-reload >/dev/null 2>&1 || true
+# startable unit otherwise. A failed reload cannot be silent: the new units are
+# on disk but systemd is still running the old ones.
+if ! reload_out=$(service daemon-reload 2>&1); then
+  log "WARNING: daemon-reload failed: $reload_out"
+fi
 
 STEP="restart"
 service restart "$SERVICE" >>"$LOG" 2>&1
