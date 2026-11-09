@@ -22,7 +22,7 @@ if (!existsSync(htmlPath) || !existsSync(swPath)) {
 
 const config = readFileSync(join(appRoot, 'vite.config.ts'), 'utf8')
 const capMatch = config.match(/maximumFileSizeToCacheInBytes:\s*([0-9*\s]+)/)
-const cap = capMatch ? eval(capMatch[1]) : null // eslint-disable-line no-eval
+const cap = capMatch ? eval(capMatch[1]) : null
 
 const html = readFileSync(htmlPath, 'utf8')
 const referenced = new Set(
@@ -56,6 +56,16 @@ if (cap !== null && largest !== undefined) {
 if (missing.length > 0) {
   console.error('precache: the shell references JS that is not in the precache:')
   for (const url of missing) console.error(`  ${url}`)
+  process.exit(1)
+}
+
+// PWA-23: the canvas social export draws with these faces. A missing font does
+// not fail a build, it silently renders a different PNG offline.
+const requiredFonts = ['road-rage.ttf', 'edosz.ttf']
+const missingFonts = requiredFonts.filter(url => !precached.has(url))
+if (missingFonts.length > 0) {
+  console.error('precache: the canvas export fonts are not precached:')
+  for (const url of missingFonts) console.error(`  ${url}`)
   process.exit(1)
 }
 

@@ -57,7 +57,7 @@ export default defineConfig({
         // The API shares this origin under /api: a navigation there (the OIDC
         // callback) must reach the server, never the cached app shell.
         navigateFallbackDenylist: [/^\/api\//],
-        globPatterns: ['**/*.{js,css,html,ico,svg,webmanifest}', 'logo-*.png', 'fonts/*.woff2'],
+        globPatterns: ['**/*.{js,css,html,ico,svg,webmanifest}', 'logo-*.png', 'fonts/*.woff2', '*.ttf'],
         // The manifest body is injected by vite-plugin-pwa itself; ignoring it
         // here keeps one precache entry instead of two.
         globIgnores: ['team-winner.png', 'anniv-*.png', 'manifest.webmanifest'],
@@ -71,6 +71,16 @@ export default defineConfig({
             options: {
               cacheName: 'images-cache',
               expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
+          {
+            // PWA-23: the decorative TTFs are precached too; this is the
+            // backstop for a font change that lands between deploys.
+            urlPattern: /\.(?:woff2|ttf)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'fonts-cache',
+              expiration: { maxEntries: 12, maxAgeSeconds: 60 * 60 * 24 * 365 },
             },
           },
         ],
