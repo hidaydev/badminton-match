@@ -7,20 +7,31 @@ LOCK="$REPO_ROOT/deps.lock"
 [ -f "$LOCK" ] || fail "missing $LOCK"
 
 mode=check
-case "${1:-}" in
-  "") ;;
-  --print) mode=print ;;
-  -h|--help)
-    cat <<'EOF'
-Usage: ./task deps-check [--print]
+skip=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --print) mode=print ;;
+    --skip)
+      [ "$#" -ge 2 ] || fail "--skip needs a comma-separated list of kinds"
+      skip=$(printf '%s' "$2" | tr ',' ' ')
+      shift
+      ;;
+    -h|--help)
+      cat <<'EOF'
+Usage: ./task deps-check [--print] [--skip <kinds>]
 
   (no argument)  verify installed content against deps.lock
   --print        print the recomputed tree line and entries; writes nothing
+  --skip         do not verify entries of these kinds (comma-separated, for
+                 example --skip npm,playwright-browser) and skip the tree hash,
+                 which cannot be recomputed over a partial entry set
 EOF
-    exit 0
-    ;;
-  *) fail "unknown argument: $1" ;;
-esac
+      exit 0
+      ;;
+    *) fail "unknown argument: $1" ;;
+  esac
+  shift
+done
 
 # Entry fields never contain globs; disable expansion so `set -- $line` splits on spaces only.
 set -f
@@ -221,6 +232,14 @@ while IFS= read -r line || [ -n "$line" ]; do
     continue
   fi
   name=$1 version=$2 source=$3
+  kind=${source%%:*}
+  case " $skip " in
+    *" $kind "*)
+      # A job that never runs the frontend gate does not install npm or browser
+      # entries; asking it to verify them only reports absence, never drift.
+      continue
+      ;;
+  esac
   case " $seen " in
     *" $name "*)
       mismatch "duplicate entry: $name"
@@ -253,7 +272,7 @@ if [ "$mode" = print ]; then
   fi
 else
   # A tree digest over a partial entry set says nothing; entry errors already fail.
-  if [ "$unresolved" -eq 0 ]; then
+  if [ "$unresolved" -eq 0 ] && [ -z "$skip" ]; then
     expected_tree=$(sed -n 's/^tree \([0-9a-f]\{64\}\)$/\1/p' "$LOCK" | head -1)
     if [ -z "$expected_tree" ]; then
       mismatch "missing or malformed 'tree <sha256>' header"
@@ -267,5 +286,9 @@ else
     printf 'deps-check: %d problem(s); update deps.lock (docs/handbook/deps-format.md)\n' "$errors" >&2
     exit 1
   fi
-  printf 'deps-check: ok\n'
+  if [ -n "$skip" ]; then
+    printf 'deps-check: ok (skipped %s; tree not compared)\n' "$(printf '%s' "$skip" | tr ' ' ',')"
+  else
+    printf 'deps-check: ok\n'
+  fi
 fi
