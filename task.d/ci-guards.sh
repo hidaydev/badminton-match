@@ -55,6 +55,37 @@ for workflow in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
   done <"$workflow"
 done
 
+# Golden contract: every job keeps the 15-minute cap. A job without one can run
+# until GitHub's six-hour default and hold a runner that the next push needs.
+missing_timeout=""
+for workflow in "$workflows_dir"/*.yml "$workflows_dir"/*.yaml; do
+  [ -f "$workflow" ] || continue
+  name=${workflow#"$REPO_ROOT"/}
+  found=$(awk -v name="$name" '
+    /^jobs:/ { jobs = 1; next }
+    jobs && /^[^ ]/ { jobs = 0 }
+    jobs && /^  [A-Za-z0-9_-]+:/ {
+      if (job != "" && !ok[job]) print name ":" job
+      job = $0; sub(/^  /, "", job); sub(/:.*/, "", job)
+      ok[job] = 0
+      next
+    }
+    jobs && job != "" && /^    timeout-minutes: 15[[:space:]]*$/ { ok[job] = 1 }
+    END { if (jobs && job != "" && !ok[job]) print name ":" job }
+  ' "$workflow")
+  [ -z "$found" ] || missing_timeout="$missing_timeout$found
+"
+done
+
+if [ -n "$missing_timeout" ]; then
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    report "$entry has no 'timeout-minutes: 15'"
+  done <<EOF
+$missing_timeout
+EOF
+fi
+
 # The RC branch points the SPA at the RC backend through apps/web/vercel.json.
 # That line must be reverted before a tag: a tag built with it ships production
 # against the RC API and the RC database. Only a release run enforces this; a

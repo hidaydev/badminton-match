@@ -10,7 +10,7 @@ usage() {
 Usage: ./task <target> [args...]
 
 Targets:
-  check        nim check, archcheck, unit tests (no database)
+  check        nim check, archcheck, unit and database-backed tests (needs MAJADU_PG_DSN)
   deadcode     fail on dead declarations, unused imports, shadowing and warnings
   build        release build of the API binary
   test         all tests (unit + integration when a database is present)

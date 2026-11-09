@@ -8,7 +8,7 @@
 # The guards are all reached before the first real side effect, so each case
 # stops inside the guard it names instead of deploys.
 
-import std/[os, strutils, unittest]
+import std/[json, os, strutils, unittest]
 import ../harness
 
 const okFake = """#!/bin/sh
@@ -21,6 +21,8 @@ if [ -n "${FAKE_PODMAN_LOG:-}" ]; then
 fi
 case "$*" in
   "image exists "*) exit "${FAKE_PODMAN_IMAGE_EXISTS:-0}" ;;
+  *"State.Running"*) printf '%s\n' "${FAKE_CONTAINER_RUNNING:-false}" ; exit 0 ;;
+  *"migrate --dir /app/db/migrations"*) exit "${FAKE_MIGRATE_EXIT:-0}" ;;
   *"datname = 'bm2'"*) printf '%s\n' "${FAKE_BM2_EXISTS:-}" ; exit 0 ;;
   *"datname = 'bm2_rc'"*) printf '1\n' ; exit 0 ;;
 esac
@@ -291,6 +293,13 @@ suite "deploy-vps.sh":
     check readFile(fixture.root / "deploy" / "last-release.json")
       .contains("\"schema\":\"0031_old\"")
     check readFile(systemctlLog).contains("start majadu-alert@deploy.service")
+    # OPS-23: the failure record is one atomic rename, so it always parses and
+    # never leaves a temp file behind for the next deploy to trip over.
+    let attempt = parseFile(fixture.root / "deploy" / "last-attempt.json")
+    check attempt["step"].getStr == "restart"
+    check attempt["version"].getStr == "1.9.0"
+    for kind, path in walkDir(fixture.root / "deploy"):
+      check not path.extractFilename.contains(".tmp")
 
   test "an owner DSN left in the API env stops the deploy":
     let fixture = newFixture("deploy-api-env-owner")
@@ -314,6 +323,202 @@ suite "deploy-vps.sh":
       envFile & ":2 must not contain MAJADU_OWNER_DSN; move it to " & toolsFile)
     check readFile(fixture.root / "deploy" / "last-attempt.json")
       .contains("\"step\":\"env-split\"")
+
+  # OPS-18: a log created by `tee` used to be world-readable until the next
+  # hourly rotation, and a share code in a request path is a credential.
+  test "the deploy log and state files are private from the first byte":
+    let fixture = newFixture("deploy-log-mode")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    # A log left behind by an older deploy is 0644; the next run has to fix it
+    # instead of appending to it.
+    touch(fixture.root / "logs" / "deploy.log", "old line\n")
+    setFilePermissions(fixture.root / "logs" / "deploy.log",
+      {fpUserRead, fpUserWrite, fpGroupRead, fpOthersRead})
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    check result.exitCode == 1
+    let logPerms = getFilePermissions(fixture.root / "logs" / "deploy.log")
+    check fpGroupRead notin logPerms
+    check fpOthersRead notin logPerms
+    let statePerms = getFilePermissions(
+      fixture.root / "deploy" / "last-attempt.json")
+    check fpGroupRead notin statePerms
+    check fpOthersRead notin statePerms
+    let logDir = getFilePermissions(fixture.root / "logs")
+    check fpGroupRead notin logDir
+    check fpOthersRead notin logDir
+
+  # OPS-22: the "already live" gate trusted deployed-version alone.
+  test "a matching deployed-version with a running service is a no-op":
+    let fixture = newFixture("deploy-live-ok")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    fixture.installFake("curl", """#!/bin/sh
+case "$*" in
+  */version) printf '%s' '{"version":"2.0.0","commit":"abc"}' ;;
+esac
+exit 0
+""")
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("FAKE_CONTAINER_RUNNING", "true"),
+      ])
+    check result.exitCode == 0
+    check result.stdout.contains("version 2.0.0 is already live; nothing to do")
+
+  test "a deleted :local defeats the deployed-version short-circuit":
+    let fixture = newFixture("deploy-live-no-image")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    fixture.installFake("curl", """#!/bin/sh
+case "$*" in
+  */version) printf '%s' '{"version":"2.0.0","commit":"abc"}' ;;
+esac
+exit 0
+""")
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("FAKE_CONTAINER_RUNNING", "true"),
+        ("FAKE_PODMAN_IMAGE_EXISTS", "1"),
+      ])
+    check result.stdout.contains(
+      "2.0.0 is recorded as live but localhost/majadu-api:local is missing")
+    check not result.stdout.contains("nothing to do")
+    # The run falls through to the release lookup, which has no published
+    # digest in this fixture.
+    check result.exitCode == 1
+
+  test "a stopped container defeats the deployed-version short-circuit":
+    let fixture = newFixture("deploy-live-stopped")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("FAKE_CONTAINER_RUNNING", "false"),
+      ])
+    check result.stdout.contains(
+      "2.0.0 is recorded as live but container majadu-api is not running")
+    check not result.stdout.contains("nothing to do")
+
+  test "a different /version defeats the deployed-version short-circuit":
+    let fixture = newFixture("deploy-live-wrong-version")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    fixture.installFake("curl", """#!/bin/sh
+case "$*" in
+  */version) printf '%s' '{"version":"1.9.0","commit":"abc"}' ;;
+esac
+exit 0
+""")
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("FAKE_CONTAINER_RUNNING", "true"),
+      ])
+    check result.stdout.contains(
+      "2.0.0 is recorded as live but http://127.0.0.1:8080/version does not report 2.0.0")
+    check not result.stdout.contains("nothing to do")
+
+  # OPS-17: the GHCR token used to be built into a curl argument, where any
+  # process of the same user reads it with `ps -ef`.
+  test "the release token never reaches curl argv":
+    let fixture = newFixture("deploy-token-argv")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    let curlLog = fixture.root / "curl.log"
+    fixture.installFake("curl", """#!/bin/sh
+printf '%s\n' "$*" >>"$FAKE_CURL_LOG"
+case "$*" in
+  *api.github.com*) printf '%s' '{"body":"digest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n"}' ;;
+esac
+exit 0
+""")
+    # Stop right after the lookup: a failing cosign keeps the case about argv.
+    fixture.installFake("cosign", "#!/bin/sh\nexit 1\n")
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "ghcr-token", "secret-token\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("FAKE_CURL_LOG", curlLog),
+      ])
+    check result.exitCode == 1
+    check result.stdout.contains("cosign verify failed")
+    let argv = readFile(curlLog)
+    check argv.contains("--config -")
+    check not argv.contains("secret-token")
+
+  test "a world-readable credential file fails the deploy":
+    let fixture = newFixture("deploy-env-mode")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+    touch(fixture.root / "env" / "alert.env", "MAJADU_ALERT_WEBHOOK=x\n")
+    setFilePermissions(fixture.root / "env" / "alert.env",
+      {fpUserRead, fpUserWrite, fpGroupRead, fpOthersRead})
+    let alertFile = fixture.root / "env" / "alert.env"
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    check result.exitCode == 1
+    check result.stdout.contains(alertFile & " must be mode 600 (found 644)")
 
   test "a missing tool env fails before the release lookup":
     let fixture = newFixture("deploy-tool-env-missing")
@@ -860,6 +1065,52 @@ suite "deploy-vps-rc.sh":
     check not result.stdout.contains("must not contain MAJADU_OWNER_DSN")
     check result.stdout.contains("ci gate: empty or malformed")
 
+  # OPS-21: a failed migrate used to leave :local on a build that could not
+  # migrate, with no alert, one restart away from an outage.
+  test "a broken migration restores :prev and pages":
+    let fixture = newFixture("rc-migrate-failure")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let podmanLog = fixture.root / "podman.log"
+    let systemctlLog = fixture.root / "systemctl.log"
+    fixture.installFake("systemctl", systemctlLogFake)
+    let result = runRcGate(fixture, rcDir, @[
+      ("FAKE_CI_BODY", ciSuccessBody),
+      ("FAKE_PODMAN_LOG", podmanLog),
+      ("FAKE_SYSTEMCTL_LOG", systemctlLog),
+      ("FAKE_MIGRATE_EXIT", "1"),
+    ])
+    check result.exitCode == 1
+    let calls = readFile(podmanLog)
+    check calls.contains("--memory 3g --cpus 2")
+    let migrateAt = calls.find("migrate --dir /app/db/migrations")
+    let restoreAt = calls.find("tag localhost/majadu-rc-api:prev localhost/majadu-rc-api:local")
+    check migrateAt >= 0
+    check restoreAt > migrateAt
+    let logText = readFile(rcDir / "logs" / "deploy.log")
+    check logText.contains(
+      "restored localhost/majadu-rc-api:local from localhost/majadu-rc-api:prev")
+    check readFile(systemctlLog).contains("start majadu-alert@deploy-rc.service")
+    check readFile(rcDir / "deploy" / "last-attempt.json")
+      .contains("\"step\":\"migrate\"")
+
+  test "an early failure does not replace a healthy :local":
+    let fixture = newFixture("rc-early-failure")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let podmanLog = fixture.root / "podman.log"
+    # No token: the CI gate stops before the build.
+    removeFile(rcDir / "env" / "github-token")
+    let result = runRcGate(fixture, rcDir, @[("FAKE_PODMAN_LOG", podmanLog)])
+    check result.exitCode == 1
+    check not readFile(podmanLog).contains("tag localhost/majadu-rc-api:prev")
+
+  test "the web deploy passes no token on a command line":
+    let script = readFile(opsScriptsDir / "deploy-vps-rc.sh")
+    check not script.contains("--token")
+    check script.contains("export VERCEL_TOKEN")
+    check not script.contains("TOKEN=$(cat")
+
 suite "cutover.sh":
   test "--from an unknown step exits 2 and names it":
     let fixture = newFixture("cutover-step")
@@ -1102,6 +1353,12 @@ suite "rollback.sh":
     writeExecutable(onlyDir / "date", "#!/bin/sh\nprintf '2026-01-01 00:00:00'")
     writeExecutable(onlyDir / "tee", "#!/bin/sh\nexec /bin/cat")
     writeExecutable(onlyDir / "mkdir", "#!/bin/sh\nexit 0")
+    # The scripts create the log private before they look for podman, so the
+    # stub has to create the directory the log lives in.
+    writeExecutable(onlyDir / "install",
+      "#!/bin/sh\nfor a in \"$@\"; do case \"$a\" in -*) ;; *) " &
+      "/bin/mkdir -p \"$a\" ;; esac; done\n")
+    writeExecutable(onlyDir / "chmod", "#!/bin/sh\nexit 0")
     writeExecutable(onlyDir / "bash", "#!/bin/sh\nexec /bin/bash \"$@\"\n")
     let result = fixture.runShell(fixture.installOpsScript("rollback.sh"),
       @[], appDir(fixture) & @[("PATH", onlyDir)])
@@ -1381,6 +1638,19 @@ suite "systemd units":
   test "no unit keeps the %n specifier":
     for kind, path in walkDir(unitsDir):
       check not readFile(path).contains("majadu-alert@%n.service")
+
+  # OPS-16: both API units carry the same runtime hardening. The host-side
+  # proof is `podman inspect` after a deploy; these assertions keep a future
+  # edit from dropping a line on one unit only.
+  test "both API units harden the container":
+    for unit in ["majadu-api.container", "majadu-rc-api.container"]:
+      let text = readFile(unitsDir / unit)
+      for key in ["ReadOnly=true", "Tmpfs=/tmp:size=64m",
+                  "Tmpfs=/run:size=8m", "PidsLimit=256",
+                  "DevicePolicy=closed", "LogSizeMax=10m",
+                  "MemoryHigh=400M", "LimitNOFILE=8192",
+                  "HealthCmd=", "OnFailure=majadu-alert@%N.service"]:
+        check text.contains(key)
 
   test "the RC deploy installs the alert template":
     let script = readFile(opsScriptsDir / "deploy-vps-rc.sh")

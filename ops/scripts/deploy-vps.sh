@@ -35,6 +35,11 @@
 # last-attempt.json.
 set -Eeuo pipefail
 
+# The log holds request paths and share codes are bearer credentials, so every
+# file these scripts create is private from the first byte instead of waiting for
+# the hourly rotation to chmod it.
+umask 077
+
 REPO_NAME="${1:-badminton-match}"
 REF="${2:-}"
 
@@ -56,7 +61,9 @@ LOCK_FILE="$APP_DIR/.deploy.lock"
 
 STEP="start"
 SCHEMA=""
-mkdir -p "$APP_DIR/logs" "$STATE_DIR"
+install -d -m 700 "$APP_DIR/logs" "$STATE_DIR"
+: >>"$LOG"
+chmod 600 "$LOG" 2>/dev/null || true
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"
@@ -82,6 +89,33 @@ require_private_file() {
   esac
 }
 
+# Every credential file, not only the two the deploy reads by name: a 0644
+# alert.env or vercel-token is a read-only host compromise turned into a
+# supply-chain one.
+require_private_env() {
+  local dir="$1" file mode
+  [ -d "$dir" ] || return 0
+  for file in "$dir"/*; do
+    [ -f "$file" ] || continue
+    mode=$(file_mode "$file")
+    case "$mode" in
+      600|400) ;;
+      *) fail "$file must be mode 600 (found $mode)" ;;
+    esac
+  done
+}
+
+# One record, one rename. A crash, a full disk or a SIGKILL between two `>`
+# redirections used to leave half-written JSON and a version with no digest;
+# the temp file is fsynced and renamed in the same directory, so a reader sees
+# either the previous record or the new one.
+atomic_write() {
+  local dest="$1" tmp="$1.tmp.$$"
+  cat >"$tmp"
+  sync
+  mv -f "$tmp" "$dest"
+}
+
 json_field() {
   # A missing state file is the first deploy, not a failure. GNU sed exits 2 on
   # it, and `set -o pipefail` turned that into a failed `fail()` before its
@@ -105,8 +139,8 @@ fail() {
   : "${run_digest:=${DIGEST:-unknown}}"
   printf '{"step":"%s","message":"%s","version":"%s","schema":"%s","digest":"%s","at":"%s"}\n' \
     "$STEP" "$message" "$run_version" "$run_schema" "$run_digest" \
-    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-    >"$STATE_DIR/last-attempt.json"
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" |
+    atomic_write "$STATE_DIR/last-attempt.json"
   alert
   exit 1
 }
@@ -238,11 +272,32 @@ VERSION=$(tr -d '[:space:]' <"$MONO_DIR/VERSION")
 # The decision is the version, not a path filter: a commit that only bumps
 # VERSION is a release and must deploy, while a documentation push that leaves
 # VERSION alone must not restart the service.
+# The state file records intent, not observed state: a host rebuilt from a
+# snapshot, a `podman image prune` or a deleted tag leaves it saying a version
+# is live when nothing serves it. The short-circuit is only taken when the image
+# exists, the container runs and /version answers with the same version.
+container_running() {
+  [ "$(podman inspect --format '{{.State.Running}}' "$SERVICE" 2>/dev/null || true)" = "true" ]
+}
+
+serving_version() {
+  curl -fsS --max-time 5 "$HEALTH_URL/version" 2>/dev/null |
+    grep -q "\"version\":\"$VERSION\""
+}
+
 DEPLOYED=""
 [ -f "$STATE_DIR/deployed-version" ] && DEPLOYED=$(cat "$STATE_DIR/deployed-version")
 if [ "$DEPLOYED" = "$VERSION" ]; then
-  log "version $VERSION is already live; nothing to do"
-  exit 0
+  if ! podman image exists "$LOCAL_IMAGE:local"; then
+    log "$DEPLOYED is recorded as live but $LOCAL_IMAGE:local is missing; deploying $VERSION again"
+  elif ! container_running; then
+    log "$DEPLOYED is recorded as live but container $SERVICE is not running; deploying $VERSION again"
+  elif ! serving_version; then
+    log "$DEPLOYED is recorded as live but $HEALTH_URL/version does not report $VERSION; deploying again"
+  else
+    log "version $VERSION is already live; nothing to do"
+    exit 0
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -257,14 +312,27 @@ require_private_file "$ENV_FILE"
 # loads, and that file too must stay private.
 require_private_file "$TOOLS_ENV"
 require_private_file "$TOKEN_FILE"
-AUTH=()
-if [ -f "$TOKEN_FILE" ]; then
-  AUTH=(-H "Authorization: Bearer $(cat "$TOKEN_FILE")")
-elif [ -n "${GITHUB_TOKEN:-}" ]; then
-  AUTH=(-H "Authorization: Bearer $GITHUB_TOKEN")
-fi
-RELEASE=$(curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
-  "${AUTH[@]}" "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" 2>/dev/null || true)
+require_private_env "$APP_DIR/env"
+# The token travels on stdin as a curl config, so it never reaches argv where
+# `ps -ef` would show it. `read` keeps it out of an `set -x` trace too.
+release_query() {
+  local token=""
+  if [ -f "$TOKEN_FILE" ]; then
+    IFS= read -r token <"$TOKEN_FILE" || true
+  elif [ -n "${GITHUB_TOKEN:-}" ]; then
+    token="$GITHUB_TOKEN"
+  fi
+  if [ -n "$token" ]; then
+    curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
+      --config - "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" <<EOF
+header = "Authorization: Bearer $token"
+EOF
+  else
+    curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
+      "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION"
+  fi
+}
+RELEASE=$(release_query 2>/dev/null || true)
 # The release body starts with the tag message, which is human-writable, so a
 # digest-shaped string anywhere in it is not a binding. `release.yml` appends
 # exactly one machine line `digest: sha256:...`; anything else in the body that
@@ -477,15 +545,15 @@ if [ -n "$CONTAINER_IMAGE" ] && [ "$CONTAINER_IMAGE" != "$LOCAL_ID" ]; then
   fail "container is not running the :local image"
 fi
 
-printf '%s\n' "$VERSION" >"$STATE_DIR/deployed-version"
+printf '%s\n' "$VERSION" | atomic_write "$STATE_DIR/deployed-version"
 # release-rollback.sh needs the previous release's identity after this record is
 # replaced; the image label is not guaranteed to carry it.
 if [ -f "$STATE_DIR/last-release.json" ]; then
   cp -f "$STATE_DIR/last-release.json" "$STATE_DIR/last-release.json.prev"
 fi
 printf '{"version":"%s","commit":"%s","digest":"%s","schema":"%s","at":"%s"}\n' \
-  "$VERSION" "$NEW_REV" "$DIGEST" "$SCHEMA" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-  >"$STATE_DIR/last-release.json"
+  "$VERSION" "$NEW_REV" "$DIGEST" "$SCHEMA" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" |
+  atomic_write "$STATE_DIR/last-release.json"
 
 # Retention: :local and :prev stay tagged, :v1-final is never touched, and
 # everything the rotation left untagged goes away.

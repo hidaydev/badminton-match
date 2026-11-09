@@ -40,6 +40,12 @@
 # alert.
 set -Eeuo pipefail
 
+# The log holds request paths and share codes are bearer credentials, so every
+# file these scripts create is private from the first byte instead of waiting for
+# the hourly rotation to chmod it.
+umask 077
+
+
 APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"
 SERVICE="${MAJADU_SERVICE:-majadu-api}"
 LOCAL_IMAGE="${MAJADU_IMAGE:-localhost/majadu-api}"
@@ -78,6 +84,24 @@ USE_CONTAINER=0
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"
+}
+
+# The registry token travels on stdin as a curl config, so it never appears in
+# argv where any process of the same user can read it with `ps -ef`.
+release_body() {
+  local token=""
+  if [ -f "$APP_DIR/env/ghcr-token" ]; then
+    IFS= read -r token <"$APP_DIR/env/ghcr-token" || true
+  fi
+  if [ -n "$token" ]; then
+    curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
+      --config - "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" <<EOF
+header = "Authorization: Bearer $token"
+EOF
+  else
+    curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
+      "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION"
+  fi
 }
 
 # The same sink deploy-vps.sh uses, so a cutover that stops halfway pages
@@ -200,17 +224,7 @@ if [ "$CHECK" -eq 1 ]; then
   else
     echo "cutover --check: database tools from the host"
   fi
-  auth=()
-  if [ -f "$APP_DIR/env/ghcr-token" ]; then
-    auth=(-H "Authorization: Bearer $(cat "$APP_DIR/env/ghcr-token")")
-  fi
-  if [ "${#auth[@]}" -gt 0 ]; then
-    release=$(curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
-      "${auth[@]}" "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" || true)
-  else
-    release=$(curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
-      "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" || true)
-  fi
+  release=$(release_body || true)
   digest=$(printf '%s' "$release" | grep -oE 'digest:[[:space:]]*sha256:[0-9a-f]{64}' | head -1 || true)
   [ -n "$digest" ] ||
     { echo "cutover --check: release v$VERSION has no published image digest" >&2; exit 2; }
@@ -219,7 +233,10 @@ if [ "$CHECK" -eq 1 ]; then
   exit 0
 fi
 
-mkdir -p "$CUTOVER_DIR" "$APP_DIR/logs" "$CADDY_DIR" "$APP_DIR/env"
+install -d -m 700 "$CUTOVER_DIR" "$APP_DIR/logs" "$APP_DIR/env"
+mkdir -p "$CADDY_DIR"
+: >>"$LOG"
+chmod 600 "$LOG" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Guards before anything is touched.
@@ -292,7 +309,7 @@ log "cutover v$VERSION starting from step '$FROM'"
 # ---------------------------------------------------------------------------
 step_preflight() {
   log "checking the release image"
-  local auth=() token_mode
+  local token_mode
   if [ -f "$APP_DIR/env/ghcr-token" ]; then
     token_mode=$(stat -c '%a' "$APP_DIR/env/ghcr-token" 2>/dev/null || echo "?")
     case "$token_mode" in
@@ -300,17 +317,8 @@ step_preflight() {
       *) fail "$APP_DIR/env/ghcr-token must be mode 600 (found $token_mode)" ;;
     esac
   fi
-  if [ -f "$APP_DIR/env/ghcr-token" ]; then
-    auth=(-H "Authorization: Bearer $(cat "$APP_DIR/env/ghcr-token")")
-  fi
   local release digest markers marker_count strings string_count
-  if [ "${#auth[@]}" -gt 0 ]; then
-    release=$(curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
-      "${auth[@]}" "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" || true)
-  else
-    release=$(curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
-      "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" || true)
-  fi
+  release=$(release_body || true)
   markers=$(printf '%s' "$release" |
     grep -oE 'digest:[[:space:]]*sha256:[0-9a-f]{64}' || true)
   marker_count=$(printf '%s\n' "$markers" | grep -c 'sha256:' || true)

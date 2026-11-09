@@ -26,6 +26,25 @@ Questions the app answers:
   settings, rating, claims). Platform owner is only for platform management.
 - Share links `/s/{code}` are read-only and grant no write access.
 
+## Language and locale
+
+The supported locale is **English (`en`)**. It is a product limit, not an
+oversight:
+
+- `apps/web/src/i18n/en.ts` is the only dictionary (ADR-006). Every new string
+  goes there; a component imports `t` instead of writing a literal.
+- The browser language is not negotiated, and there is no locale switch. A
+  second locale needs a second dictionary and a decision about who translates
+  it, which is why it is a release decision rather than a code change.
+- The legacy tree still contains literal English copy. Those screens are
+  scheduled for the rewrite, so a lint rule that fails on every literal in
+  `apps/web/src/legacy` would be red until then. The accepted limit is
+  recorded as RSK-005 in `docs/handbook/requirements.md`.
+
+Names, comments and announcements entered by users are free text and are not
+translated; the interface labels around them are. Any future locale has to keep
+that distinction.
+
 ## Product areas
 
 ### 1. Sessions

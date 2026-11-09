@@ -27,6 +27,11 @@
 # in last-release.json.
 set -Eeuo pipefail
 
+# The log holds request paths and share codes are bearer credentials, so every
+# file these scripts create is private from the first byte instead of waiting for
+# the hourly rotation to chmod it.
+umask 077
+
 REPO_NAME="${1:-badminton-match}"
 REF="${2:-}"
 
@@ -51,7 +56,9 @@ STEP="start"
 SCHEMA=""
 CI_STATE="unchecked"
 
-mkdir -p "$APP_DIR/logs" "$STATE_DIR"
+install -d -m 700 "$APP_DIR/logs" "$STATE_DIR"
+: >>"$LOG"
+chmod 600 "$LOG" 2>/dev/null || true
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"
@@ -65,11 +72,27 @@ json_field() {
   sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p" "$1" 2>/dev/null | head -1
 }
 
+# The same sink production uses: an RC push that fails is the signal this
+# instance exists to produce, so it must not be the one that stays silent.
+alert() {
+  if systemctl --user list-unit-files 'majadu-alert@.service' >/dev/null 2>&1; then
+    systemctl --user start majadu-alert@deploy-rc.service >/dev/null 2>&1 || true
+  fi
+}
+
 # The running release record survives a failed attempt: the failure belongs in
 # last-attempt.json, next to the version, schema and digest it was serving.
 fail() {
   local run_version run_schema
   log "ERROR: $1 (step: $STEP)"
+  # A failure after the build left :local on a build that may not migrate;
+  # returning :prev to :local means a restart is safe again. Until the build
+  # succeeds this is off, so an early failure cannot replace a healthy :local.
+  if [ "${RESTORE_LOCAL:-0}" = "1" ] && podman image exists "$LOCAL_IMAGE:prev" 2>/dev/null; then
+    if podman tag "$LOCAL_IMAGE:prev" "$LOCAL_IMAGE:local" 2>/dev/null; then
+      log "restored $LOCAL_IMAGE:local from $LOCAL_IMAGE:prev; $COMMIT was not promoted"
+    fi
+  fi
   run_version=$(json_field "$STATE_DIR/last-release.json" version)
   run_schema=$(json_field "$STATE_DIR/last-release.json" schema)
   : "${run_version:=${VERSION:-unknown}}"
@@ -78,6 +101,7 @@ fail() {
     "$STEP" "$CI_STATE" "$1" "$run_version" "$run_schema" \
     "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
     >"$STATE_DIR/last-attempt.json"
+  alert
   exit 1
 }
 
@@ -401,11 +425,17 @@ STEP="build"
 if podman image exists "$LOCAL_IMAGE:local"; then
   podman tag "$LOCAL_IMAGE:local" "$LOCAL_IMAGE:prev"
 fi
+# The build runs beside a 512 MB production container, so it is bounded instead
+# of being allowed to take the whole host while it compiles.
 podman build -f apps/api/Dockerfile \
+  --memory 3g --cpus 2 \
   --build-arg APP_VERSION="$VERSION" \
   --build-arg APP_COMMIT="$COMMIT" \
   -t "$LOCAL_IMAGE:local" . >>"$LOG" 2>&1 ||
   fail "podman build failed; :local was not replaced"
+# From here on the new build owns :local, so a later failure has to hand it
+# back to :prev.
+RESTORE_LOCAL=1
 log "built $LOCAL_IMAGE:local at $COMMIT"
 
 # ---------------------------------------------------------------------------
@@ -415,7 +445,7 @@ log "built $LOCAL_IMAGE:local at $COMMIT"
 STEP="migrate"
 run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
   migrate --dir /app/db/migrations >>"$LOG" 2>&1 ||
-  fail "dbtools migrate failed; the running release was left alone"
+  fail "dbtools migrate failed; :local is restored from :prev and the previous build serves"
 
 STEP="verify-schema"
 run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
@@ -523,7 +553,10 @@ else
   [ -x "$VERCEL_BIN" ] || fail "vercel CLI not found at $VERCEL_BIN"
   TARGET_SCOPE="${MAJADU_RC_VERCEL_SCOPE:-qouver}"
   TARGET_PROJECT="${MAJADU_RC_VERCEL_PROJECT:-majadu-rc}"
-  TOKEN=$(cat "$VERCEL_TOKEN_FILE")
+  # The CLI reads the token from its environment, so no command line carries it
+  # where `ps -ef` can read it. `read` keeps it out of a `set -x` trace.
+  IFS= read -r VERCEL_TOKEN <"$VERCEL_TOKEN_FILE" || true
+  export VERCEL_TOKEN
   # fnm keeps node outside the login PATH this script inherits, and pnpm lives
   # in a third place again; `vercel build` runs the project's install command.
   export PATH="$HOME/.local/share/fnm/aliases/default/bin:$HOME/.local/share/pnpm/bin:$PATH"
@@ -533,15 +566,15 @@ else
   # apps/web makes it look for apps/web/apps/web.
   cd "$MONO_DIR"
   "$VERCEL_BIN" link --yes --scope "$TARGET_SCOPE" --project "$TARGET_PROJECT" \
-    --token "$TOKEN" >>"$LOG" 2>&1 || fail "vercel link failed"
-  "$VERCEL_BIN" pull --yes --environment=production --token "$TOKEN" >>"$LOG" 2>&1 ||
+    >>"$LOG" 2>&1 || fail "vercel link failed"
+  "$VERCEL_BIN" pull --yes --environment=production >>"$LOG" 2>&1 ||
     fail "vercel pull failed"
   # `vercel build` reuses whatever output directory is already there, including
   # builds.json from a failed attempt, and a deploy then refuses the stale
   # record. Start from nothing so the build that is deployed is this one.
   rm -rf "$MONO_DIR/.vercel/output"
-  "$VERCEL_BIN" build --prod --token "$TOKEN" >>"$LOG" 2>&1 || fail "vercel build failed"
-  DEPLOY_JSON=$("$VERCEL_BIN" deploy --prebuilt --prod --yes --json --token "$TOKEN" \
+  "$VERCEL_BIN" build --prod >>"$LOG" 2>&1 || fail "vercel build failed"
+  DEPLOY_JSON=$("$VERCEL_BIN" deploy --prebuilt --prod --yes --json \
     2>>"$LOG" || true)
   WEB_URL=$(printf '%s' "$DEPLOY_JSON" | sed -n 's/.*"url":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
   [ -n "$WEB_URL" ] || fail "vercel deploy returned no url"

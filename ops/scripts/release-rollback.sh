@@ -21,6 +21,12 @@
 #      MAJADU_STATE_DIR, MAJADU_SYSTEMCTL_CMD.
 set -Eeuo pipefail
 
+# The log holds request paths and share codes are bearer credentials, so every
+# file these scripts create is private from the first byte instead of waiting for
+# the hourly rotation to chmod it.
+umask 077
+
+
 APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"
 SERVICE="${MAJADU_SERVICE:-majadu-api}"
 LOCAL_IMAGE="${MAJADU_IMAGE:-localhost/majadu-api}"
@@ -29,7 +35,9 @@ STATE_DIR="${MAJADU_STATE_DIR:-$APP_DIR/deploy}"
 SYSTEMCTL="${MAJADU_SYSTEMCTL_CMD:-systemctl --user}"
 LOG="$APP_DIR/logs/release-rollback.log"
 
-mkdir -p "$APP_DIR/logs" "$STATE_DIR"
+install -d -m 700 "$APP_DIR/logs" "$STATE_DIR"
+: >>"$LOG"
+chmod 600 "$LOG" 2>/dev/null || true
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"
@@ -64,6 +72,14 @@ command -v curl >/dev/null 2>&1 || fail "curl is required"
 
 STATE_FILE="$STATE_DIR/last-release.json"
 [ -f "$STATE_FILE" ] || fail "$STATE_FILE is missing; refusing to guess what is running"
+
+# One record, one rename: see the same helper in deploy-vps.sh.
+atomic_write() {
+  local dest="$1" tmp="$1.tmp.$$"
+  cat >"$tmp"
+  sync
+  mv -f "$tmp" "$dest"
+}
 
 json_field() {
   sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p" "$1" 2>/dev/null | head -1
@@ -123,10 +139,10 @@ case "$served" in
   *) fail "/version does not report v$prev_version after the rollback (got '${served:-<none>}')" ;;
 esac
 
-printf '%s\n' "$prev_version" >"$STATE_DIR/deployed-version"
+printf '%s\n' "$prev_version" | atomic_write "$STATE_DIR/deployed-version"
 printf '{"version":"%s","commit":"%s","digest":"%s","schema":"%s","at":"%s"}\n' \
   "$prev_version" "$prev_commit" "$prev_digest" "${current_schema:-unknown}" \
-  "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-  >"$STATE_FILE"
+  "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" |
+  atomic_write "$STATE_FILE"
 
 log "rolled back to v$prev_version; deployed-version and last-release.json updated"

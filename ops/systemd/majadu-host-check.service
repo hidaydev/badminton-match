@@ -1,0 +1,14 @@
+# Disk, memory and image check, started by majadu-host-check.timer.
+#
+# A failed unit pages through OnFailure, and the script also starts the alert
+# template directly for the threshold and the OOM case, because those are the
+# failures where the unit itself exits 1 and the operator needs the sentence.
+[Unit]
+Description=Majadu host check
+Wants=network-online.target
+After=network-online.target
+OnFailure=majadu-alert@%N.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /srv/qouver/apps/majadu/scripts/host-check.sh

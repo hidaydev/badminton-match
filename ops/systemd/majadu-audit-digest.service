@@ -1,0 +1,15 @@
+# Daily tamper-evidence digest of account.audit, started by the timer.
+#
+# The digest lands in the backup directory, which the operator copies off the
+# host. A row edited in the database changes the next digest, and the previous
+# files already left the machine, so the edit leaves a trace the database cannot
+# remove.
+[Unit]
+Description=Majadu audit digest
+Wants=network-online.target
+After=network-online.target
+OnFailure=majadu-alert@%N.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /srv/qouver/apps/majadu/scripts/audit-digest.sh

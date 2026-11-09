@@ -24,6 +24,12 @@ The task resets `bm2_e2e`, migrates and seeds it, then starts four servers:
 - **A11y** (`a11y.spec.ts`): axe with the WCAG 2.0/2.1 A+AA tags on every route
   in `visual.routes.ts` plus the spectator share page (`/s/:code`), expecting
   zero violations.
+- **A11y, public** (`a11y.public.spec.ts`): the same tags on the screens reachable
+  without a session, which the signed-in sweep never sees: the login screen, the
+  invitation error state, the privacy page and the terms page.
+- **Keyboard** (`keyboard.spec.ts`): opens the account menu, closes it with
+  Escape, tabs into it and activates a menu item without a pointer. The state of
+  the known gaps is in `docs/ops/accessibility.md`.
 - **Visual** (`visual.spec.ts`): one full-page screenshot per route with
   `maxDiffPixels: 0`. Snapshots live in `__screenshots__/{platform}/` and are
   part of the review, never regenerated silently.
@@ -74,14 +80,12 @@ because glyph rasterisation differs between macOS and Linux and production is
 Linux. Both sets are committed.
 
 The checked-in Darwin set is what a developer records and reviews locally. The
-Linux set has to be recorded on a Linux machine, reviewed and committed; CI
-never records a baseline on its own. While `e2e/__screenshots__/linux/` is not
-yet non-empty, tags and `release/*` branches fail when it is absent, while
-`main` and pull requests warn and skip the visual comparison so the rest of the
-suite still runs. Once the directory exists, every ref runs the comparison and a
-missing or different PNG fails the job. The snapshot specs (`visual.spec.ts` and
-`nav.spec.ts`) carry the `@visual` tag, so the fallback excludes exactly them
-with `--grep-invert "@visual"`.
+Linux set was recorded on a Linux machine, reviewed and committed; CI never
+records a baseline on its own. `e2e/__screenshots__/linux/` is part of the
+repository, so a missing or different PNG fails every ref, and a run that finds
+the directory missing fails instead of recording it. To change a baseline,
+record it on the matching platform with `./task e2e --update-snapshots`, review
+the PNGs and commit them with the change.
 
 The job provisions PostgreSQL and calls `./task e2e` itself, so the API, the
 OIDC stub and both previews come from the same script a laptop uses. It is also

@@ -15,7 +15,7 @@ list of access holders; adding a row means adding attack surface.
 | Google account `platform_owner` | Logging in to the app as the platform owner | Repo owner | MFA required, device separate from the social account |
 | GitHub `hidaydev` | Repo, Actions, CI secrets, security advisories | Repo owner | MFA required (passkey/TOTP), no password-only login |
 | VPS Qouver (`qouver.com`) | SSH to the host, `systemctl --user`, rootless Podman, `/srv/qouver/apps/majadu` | Repo owner | SSH keys only, password login disabled, MFA on the provider panel |
-| GHCR (`ghcr.io`) | Release image registry | Repo owner | Scoped access token `read:packages`, stored in a CI secret |
+| GHCR (`ghcr.io`) | Release image registry | Repo owner | Scoped `read:packages` token in `/srv/qouver/apps/majadu/env/ghcr-token`, mode 600; the release workflow pushes with the built-in `GITHUB_TOKEN` |
 | Database `bm2` | Production data | API process (`bm2_app`), ETL (`bm2_etl`), schema owner (`bm2_owner`) | Password only in `/srv/qouver/apps/majadu/env/`, directory mode `700` |
 
 Rules that bind this list:
@@ -32,6 +32,26 @@ Rules that bind this list:
   panel, and `platform_owner` (through `./task opstoken`/the CLI, not manual SQL).
 - Database roles are separated: the app has no right to delete `account.audit`,
   and only `bm2_owner` runs the audit cleaner.
+
+### Credential rotation
+
+Every credential is issued for 90 days and rotated by the owner, on a calendar
+entry, not when something breaks. The deploy reads the files by name; the
+rotation is a file replace plus the restart or re-login in the table.
+
+| Credential | File on the VPS | Rotate by | Verify after |
+|---|---|---|---|
+| GHCR read token | `env/ghcr-token` | issue a new `read:packages` token, replace the file, mode 600 | `podman login ghcr.io -u <user> --password-stdin < env/ghcr-token` |
+| GitHub CI token (RC) | `env/github-token` | new fine-grained token, `actions: read`, replace the file, mode 600 | `env/github-token` is read by the RC CI gate on the next push |
+| Vercel token | `env/vercel-token` | new token in the Vercel account, replace the file, mode 600 | `VERCEL_TOKEN=$(cat env/vercel-token) vercel whoami` |
+| Database passwords | `env/majadu-prod.env`, `env/majadu-tools.env`, `env/majadu-rc*.env` | `alter role ... password` for each role, then update both files | `./task ci` against the DSN, or `curl /readyz` after `systemctl --user restart majadu-api` |
+| Alert webhook | `env/alert.env` | new webhook URL in the provider, replace the file, mode 600 | `systemctl --user start majadu-alert@rotation-test.service` and look for the delivery |
+| Cosign public key | `env/cosign.pub` | follows the signing key, not a secret | `cosign verify --key env/cosign.pub <image>` |
+
+Rotation dates are recorded in the private incident log next to the access
+list; a token older than 90 days is a finding. `deploy-vps.sh` refuses to run
+when any regular file under `env/` is not mode 600 or 400, so a copy made with
+the wrong umask fails the next deploy instead of sitting there readable.
 
 ## 2. Incidents
 
@@ -51,6 +71,41 @@ without these five fields cannot be acted on.
 - **Owner**: one name responsible for closing the follow-up.
 ```
 
+### Severity
+
+The level decides who is woken and how fast. Assign it in the first minute; it
+is cheaper to lower it later than to explain a delay.
+
+| Level | Examples | Containment target | Who is woken | User notice |
+|---|---|---|---|---|
+| SEV-1 | production API down or serving 5xx to everyone; data loss or corruption; a personal-data exposure; the database unreachable | 1 hour | repository owner immediately, by the alert webhook and a phone call to self | within 72 hours if personal data was involved |
+| SEV-2 | a core flow broken for one community (scores cannot be saved, login fails for one provider path); a release rollback used | 4 hours | repository owner the same day | if a community lost data or a feature for more than a day |
+| SEV-3 | degraded but working (slow reads, a badge missing, the RC instance down) | next working day | repository owner at the next check | not required |
+| SEV-4 | cosmetic, documentation, a single person's workaround | next release | nobody | not required |
+
+### First hour
+
+1. Assign the severity from the table above and write it in the note.
+2. Stop the bleeding before diagnosing: `systemctl --user status majadu-api`,
+   the last release in `deploy/last-release.json`, and
+   `ops/scripts/release-rollback.sh` if the last release is the cause.
+3. Write down the time of every step as it happens; the note is the evidence,
+   not a reconstruction.
+4. If personal data may be involved, preserve the logs and the audit digest
+   before rotating anything, and treat the next step as legal, not technical:
+   tell the affected people within 72 hours, name the data, and record the
+   decision even when the answer is "no notice needed".
+5. After containment, write the prevention with its artifact (commit, config,
+   test). "Be more careful" is not prevention.
+
+### Exercises
+
+One tabletop exercise per quarter, recorded as an incident note with the date
+and the scenario (for example "the VPS disk is full at 02:00" or "the Vercel
+account is suspended"). It changes behaviour, so it is summarised in
+`CHANGELOG.md`. An exercise that finds the runbook wrong updates the runbook in
+the same change.
+
 Filling rules:
 
 - **Impact** names specific data, not "the system". A correct example:
@@ -61,16 +116,18 @@ Filling rules:
 - **Prevention** must have an artifact: a commit, a configuration change, or a
   new test. "I will be more careful" is not prevention.
 - Notes are stored in `.local/incidents/` (not in the public repo) and
-  summarized in the release changelog if they touch users.
+  summarized in the release changelog if they touch users. At close, the note
+  is copied into `MAJADU_BACKUP_DIR/incidents/` on the host, so the learning
+  record leaves the laptop with the dumps instead of dying with it.
 
 ## 3. Routine checks
 
 | When | What | Command |
 |---|---|---|
 | Every deploy | Process health; `deploy-vps.sh` runs migrations before the restart | `curl -fsS http://127.0.0.1:8080/readyz` |
-| Every 5 minutes | `/readyz` is watched by `majadu-readyz.timer`; a failure triggers `majadu-alert@` | `systemctl --user list-timers majadu-readyz.timer` |
-| Every hour | Logs are rotated by `majadu-rotate-log.timer` (rename + delete >14 days) | `ls -l /srv/qouver/apps/majadu/logs` |
-| Daily | The deploy log grows without rotation | `ls -l /srv/qouver/apps/majadu/logs` |
+| Every 5 minutes | `/readyz` is watched by `majadu-readyz.timer`; a failure triggers `majadu-alert@`. `majadu-host-check.timer` watches free disk, OOM kills and the running image | `systemctl --user list-timers majadu-readyz.timer majadu-host-check.timer` |
+| Every ten minutes | Logs are rotated by `majadu-rotate-log.timer` (rename, gzip, delete >14 days, disk guard) | `ls -l /srv/qouver/apps/majadu/logs` |
+| Daily | Disk and memory headroom; no undelivered alerts | `df -h /srv && systemctl --user show majadu-api -p NRestarts && ls -l /srv/qouver/apps/majadu/logs/alert-dead-letter.log` |
 | Monthly | Migrations and seeds still match the schema | `./task ci` on a dev machine with `MAJADU_PG_DSN` |
 | Yearly | The access list above is still accurate | review by hand, revoke what is unused |
 
@@ -96,6 +153,7 @@ they cannot report the failure they are most likely to miss: the host itself.
 |---|---|---|
 | `majadu-readyz.timer` | VPS | the API answered `/readyz` in the last five minutes |
 | `majadu-deploy-check.timer` | VPS | the latest release reached `deploy/deployed-version` |
+| `majadu-host-check.timer` | VPS | at least `MIN_FREE_MB` (2048) is free, the container was not OOM-killed, and it runs the `:local` image |
 | external uptime checker | provider | the public origin answers from outside the VPS |
 
 The external checker is an account-level uptime monitor (the provider's own
@@ -115,7 +173,11 @@ host failure is downtime, not a degraded mode.
 
 Journal retention is bounded by `ops/journald/majadu.conf` (200 MB, 30 days).
 Install it on the host as described in the file header, then confirm with
-`journalctl --disk-usage`.
+`journalctl --disk-usage`. The API writes its access line to stdout and nothing
+to disk, so the journal is the only copy; the units mount no log volume. The
+rotate timer still covers the operator logs (deploy, cutover, rollback) under
+`/srv/qouver/apps/majadu/logs`, and `host-check.sh` pages when the volume is
+close to full or the container was killed for memory.
 
 ## 5. Capacity statement
 

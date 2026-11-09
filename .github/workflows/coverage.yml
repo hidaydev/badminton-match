@@ -33,7 +33,10 @@ permissions:
 
 concurrency:
   group: "coverage-${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.head.sha) || format('{0}-{1}', github.event_name, github.ref) }}"
-  cancel-in-progress: true
+  # Only a pull request may cancel an earlier run. A second push to main used to
+  # cancel the first, so the ratchet on the commit that is actually deployed
+  # never finished.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   NIM_VERSION: "2.4.0"
@@ -80,8 +83,26 @@ jobs:
           sudo apt-get install -y libpcre3
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
-      - name: "Coverage: install gcov tooling"
-        run: sudo apt-get update && sudo apt-get install -y lcov gcovr
+      # The same pins `deps.lock` and `ci.yml` use. apt ships lcov 2.0 and
+      # gcovr 7.0 against the locked 2.6 and 8.8, and a measurement taken with
+      # a different tool is not a measurement of the same thing.
+      - name: "Dependencies: install pinned coverage tools"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcapture-tiny-perl libdatetime-perl \
+            libdevel-stacktrace-perl
+          python3 -m pip install --break-system-packages gcovr==8.8
+          git clone --depth 1 --branch v2.6 \
+            https://github.com/linux-test-project/lcov "$RUNNER_TEMP/lcov"
+          sudo make -C "$RUNNER_TEMP/lcov" install LCOV_NO_DOC=1 LCOV_NO_XS=1
+      # Printed for the log; `./task deps-check` is what turns a version that is
+      # not the exact pin into a failure.
+      - name: "Dependencies: pinned coverage tool versions"
+        run: |
+          lcov --version
+          gcovr --version
+      - name: "Dependencies: installed content must match deps.lock"
+        run: ./task deps-check
       - name: "Database: provision and create the test database"
         env:
           MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
@@ -173,8 +194,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: "Coverage: install lcov"
-        run: sudo apt-get update && sudo apt-get install -y lcov
+      # The merge only needs lcov, and it has to be the locked 2.6: a report
+      # written by 2.0 and merged by 2.6 is not the same measurement.
+      - name: "Coverage: install the pinned lcov"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcapture-tiny-perl libdatetime-perl \
+            libdevel-stacktrace-perl
+          git clone --depth 1 --branch v2.6 \
+            https://github.com/linux-test-project/lcov "$RUNNER_TEMP/lcov"
+          sudo make -C "$RUNNER_TEMP/lcov" install LCOV_NO_DOC=1 LCOV_NO_XS=1
+          lcov --version
       # `download-artifact` v7 has no v7.0.1 tag; v7.0.0 is the release in the
       # same line the upload step pins, and both are first-party actions.
       - name: "Coverage: download the shard parts"
@@ -182,6 +212,18 @@ jobs:
         with:
           pattern: coverage-parts-*
           path: .cache/coverage-parts
+      # A rewritten PR history can leave no merge base. task.d/coverage.sh
+      # reports that as a skip so local runs without a remote still work; on a
+      # pull request the gate refuses instead of silently dropping the diff.
+      - name: "Coverage: the merge base exists"
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if ! git merge-base HEAD "origin/$BASE_REF" >/dev/null 2>&1; then
+            echo "::error::no merge base with origin/$BASE_REF; fetch the base branch or rebase the pull request"
+            exit 1
+          fi
       - name: "Coverage: judge or refresh the merged report"
         env:
           PARTS: .cache/coverage-parts
