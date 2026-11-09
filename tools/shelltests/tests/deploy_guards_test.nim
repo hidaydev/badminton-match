@@ -8,7 +8,7 @@
 # The guards are all reached before the first real side effect, so each case
 # stops inside the guard it names instead of deploys.
 
-import std/[os, strutils, unittest]
+import std/[json, os, strutils, unittest]
 import ../harness
 
 const okFake = """#!/bin/sh
@@ -291,6 +291,13 @@ suite "deploy-vps.sh":
     check readFile(fixture.root / "deploy" / "last-release.json")
       .contains("\"schema\":\"0031_old\"")
     check readFile(systemctlLog).contains("start majadu-alert@deploy.service")
+    # OPS-23: the failure record is one atomic rename, so it always parses and
+    # never leaves a temp file behind for the next deploy to trip over.
+    let attempt = parseFile(fixture.root / "deploy" / "last-attempt.json")
+    check attempt["step"].getStr == "restart"
+    check attempt["version"].getStr == "1.9.0"
+    for kind, path in walkDir(fixture.root / "deploy"):
+      check not path.extractFilename.contains(".tmp")
 
   test "an owner DSN left in the API env stops the deploy":
     let fixture = newFixture("deploy-api-env-owner")

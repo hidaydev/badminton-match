@@ -89,6 +89,17 @@ require_private_file() {
   esac
 }
 
+# One record, one rename. A crash, a full disk or a SIGKILL between two `>`
+# redirections used to leave half-written JSON and a version with no digest;
+# the temp file is fsynced and renamed in the same directory, so a reader sees
+# either the previous record or the new one.
+atomic_write() {
+  local dest="$1" tmp="$1.tmp.$$"
+  cat >"$tmp"
+  sync
+  mv -f "$tmp" "$dest"
+}
+
 json_field() {
   # A missing state file is the first deploy, not a failure. GNU sed exits 2 on
   # it, and `set -o pipefail` turned that into a failed `fail()` before its
@@ -112,8 +123,8 @@ fail() {
   : "${run_digest:=${DIGEST:-unknown}}"
   printf '{"step":"%s","message":"%s","version":"%s","schema":"%s","digest":"%s","at":"%s"}\n' \
     "$STEP" "$message" "$run_version" "$run_schema" "$run_digest" \
-    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-    >"$STATE_DIR/last-attempt.json"
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" |
+    atomic_write "$STATE_DIR/last-attempt.json"
   alert
   exit 1
 }
@@ -484,15 +495,15 @@ if [ -n "$CONTAINER_IMAGE" ] && [ "$CONTAINER_IMAGE" != "$LOCAL_ID" ]; then
   fail "container is not running the :local image"
 fi
 
-printf '%s\n' "$VERSION" >"$STATE_DIR/deployed-version"
+printf '%s\n' "$VERSION" | atomic_write "$STATE_DIR/deployed-version"
 # release-rollback.sh needs the previous release's identity after this record is
 # replaced; the image label is not guaranteed to carry it.
 if [ -f "$STATE_DIR/last-release.json" ]; then
   cp -f "$STATE_DIR/last-release.json" "$STATE_DIR/last-release.json.prev"
 fi
 printf '{"version":"%s","commit":"%s","digest":"%s","schema":"%s","at":"%s"}\n' \
-  "$VERSION" "$NEW_REV" "$DIGEST" "$SCHEMA" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-  >"$STATE_DIR/last-release.json"
+  "$VERSION" "$NEW_REV" "$DIGEST" "$SCHEMA" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" |
+  atomic_write "$STATE_DIR/last-release.json"
 
 # Retention: :local and :prev stay tagged, :v1-final is never touched, and
 # everything the rotation left untagged goes away.

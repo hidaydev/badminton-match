@@ -73,6 +73,14 @@ command -v curl >/dev/null 2>&1 || fail "curl is required"
 STATE_FILE="$STATE_DIR/last-release.json"
 [ -f "$STATE_FILE" ] || fail "$STATE_FILE is missing; refusing to guess what is running"
 
+# One record, one rename: see the same helper in deploy-vps.sh.
+atomic_write() {
+  local dest="$1" tmp="$1.tmp.$$"
+  cat >"$tmp"
+  sync
+  mv -f "$tmp" "$dest"
+}
+
 json_field() {
   sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p" "$1" 2>/dev/null | head -1
 }
@@ -131,10 +139,10 @@ case "$served" in
   *) fail "/version does not report v$prev_version after the rollback (got '${served:-<none>}')" ;;
 esac
 
-printf '%s\n' "$prev_version" >"$STATE_DIR/deployed-version"
+printf '%s\n' "$prev_version" | atomic_write "$STATE_DIR/deployed-version"
 printf '{"version":"%s","commit":"%s","digest":"%s","schema":"%s","at":"%s"}\n' \
   "$prev_version" "$prev_commit" "$prev_digest" "${current_schema:-unknown}" \
-  "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-  >"$STATE_FILE"
+  "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" |
+  atomic_write "$STATE_FILE"
 
 log "rolled back to v$prev_version; deployed-version and last-release.json updated"
