@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { createHash, randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { request } from 'playwright/test'
@@ -134,6 +135,35 @@ export default async function globalSetup() {
          where community_id in (select id from platform.community where slug in ('e2e-club', 'e2e-writes'))`,
     ])
 
+    // QA-18: a lower role cannot be reached through the stub, which signs in one
+    // identity, so the member is a row plus a live session. Only the cookie is
+    // stored; the same sha256 hex the API writes is in the database, so the
+    // suite exercises the real session path rather than a test bypass.
+    const memberToken = randomBytes(32).toString('hex')
+    const memberHash = (value: string) =>
+      createHash('sha256').update(value).digest('hex')
+    execFileSync('psql', [
+      dsn,
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      `with member as (
+         insert into platform.user (google_sub, email_hash, display_name)
+         values ('e2e-member', '${memberHash('member@example.invalid')}', 'E2E Member')
+         on conflict (google_sub) do update set display_name = excluded.display_name
+         returning id
+       ), membership as (
+         insert into community.membership (community_id, user_id, role)
+         select c.id, m.id, 'member'
+           from member m, platform.community c
+          where c.slug = 'e2e-club'
+         on conflict (community_id, user_id) do update set role = 'member'
+       )
+       insert into account.sessions (user_id, token_hash, absolute_expires_at)
+       select id, decode('${memberHash(memberToken)}', 'hex'), now() + interval '1 day'
+         from member`,
+    ])
+
     const playerIds: string[] = []
     for (const name of ['Ani', 'Budi', 'Candra', 'Dewi']) {
       const player = await api.post('/api/c/e2e-club/players', { data: { name } })
@@ -262,6 +292,7 @@ export default async function globalSetup() {
           writableByProject,
           occByProject,
           writableCommunitySlug: 'e2e-writes',
+          memberCookie: memberToken,
         },
         null,
         2,

@@ -17,6 +17,12 @@ export type E2eState = {
   occByProject: Record<string, string>
   /** Writable sessions live outside the community the baselines pin. */
   writableCommunitySlug: string
+  /**
+   * A live member session cookie for `e2e-club` (QA-18). The OIDC stub signs in
+   * one identity only, so a lower role cannot be reached through the login
+   * screen; global-setup mints this row and the authz spec replays it.
+   */
+  memberCookie: string
 }
 
 /**
