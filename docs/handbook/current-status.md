@@ -29,7 +29,7 @@ Postgres 18.6 · schema per domain (platform, community, player, session,
 
 ## 2. Contract & database
 
-- **75 operations** in the contract: `packages/contracts/openapi/CONTRACT.sha256`
+- **76 operations** in the contract: `packages/contracts/openapi/CONTRACT.sha256`
   (`operations 75`), generated output in `apps/api/src/routes_gen.nim`.
   Hand-written sources: `core.yaml` + `community.yaml`; generated output: `api.yaml`,
   `routes_gen.nim`, `packages/web-client/src/api.ts`.

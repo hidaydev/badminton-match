@@ -22,7 +22,7 @@ contract generated from OpenAPI.
 
 | | |
 |---|---|
-| **Contract** | 75 operations, generated into Nim routes and the TypeScript client |
+| **Contract** | 76 operations, generated into Nim routes and the TypeScript client |
 | **Schema** | 36 migrations, every table keyed by `community_id` |
 | **Domain** | 9 modules: account, community, player, session, tournament, rating, achievement, share, platform |
 | **Gates** | 659 assertions in 102 suites, 143 parity cases, 66 browser checks |
