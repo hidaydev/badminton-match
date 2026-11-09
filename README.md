@@ -23,7 +23,7 @@ contract generated from OpenAPI.
 | | |
 |---|---|
 | **Contract** | 75 operations, generated into Nim routes and the TypeScript client |
-| **Schema** | 35 migrations, every table keyed by `community_id` |
+| **Schema** | 36 migrations, every table keyed by `community_id` |
 | **Domain** | 9 modules: account, community, player, session, tournament, rating, achievement, share, platform |
 | **Gates** | 659 assertions in 102 suites, 143 parity cases, 66 browser checks |
 
@@ -65,7 +65,7 @@ majadu/
 ├── packages/
 │   ├── contracts/openapi/   core.yaml + community.yaml → api.yaml + client
 │   └── web-client/          Generated TypeScript client
-├── db/                      migrations (0001–0035), seeds, platform config
+├── db/                      migrations (0001–0036), seeds, platform config
 ├── ops/                     Quadlet, Caddy, deploy/cutover/backup/restore/smoke
 ├── tools/                   dbtools, contract-gen, archcheck, ETL, parity,
 │                            fixtures, mock-api, rehearsal
@@ -149,7 +149,7 @@ A separate release candidate runs on the same host: branch
 
 ## 📌 Status
 
-The v2 rewrite is complete: 75 contract operations, 35 migrations, backend and
+The v2 rewrite is complete: 75 contract operations, 36 migrations, backend and
 frontend features wired end to end. The v1 Go tree is gone. The release
 candidate `2.0.0-rc.1` is deployed and verified; production still runs v1 until
 the cutover.

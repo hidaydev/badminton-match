@@ -588,11 +588,12 @@ proc startAuth(request: Request, snapshot: Snapshot) =
   let ttl = snapshot.intValue(%*{}, keyAuthFlowTtlMinutes)
   discard application.db.execUpdate(
     """insert into auth.oauth_flows
-       (state_hash, nonce_hash, code_verifier_enc, return_to, expires_at)
-       values (decode($1,'hex'), decode($2,'hex'), decode($3,'hex'), $4,
-               now() + make_interval(mins => $5))""",
+       (state_hash, nonce_hash, code_verifier_enc, key_id, return_to, expires_at)
+       values (decode($1,'hex'), decode($2,'hex'), decode($3,'hex'), $4, $5,
+               now() + make_interval(mins => $6))""",
     @[textParam(sha256Hex(state)), textParam(sha256Hex(nonce)),
-      textParam(bytesHex(encrypted)), textParam(safeReturn), intParam(ttl.int64)])
+      textParam(bytesHex(encrypted)), textParam(keyId),
+      textParam(safeReturn), intParam(ttl.int64)])
   jsonResponse(request, 200, %*{
     "authorizeUrl": authorizeUrl(application.oidc, state, nonce, challenge),
     "keyId": keyId,
@@ -617,10 +618,10 @@ proc finishAuth(request: Request) =
     """with deleted as (
          delete from auth.oauth_flows
          where state_hash = decode($1,'hex') and expires_at > now()
-         returning nonce_hash, code_verifier_enc, return_to)
+         returning nonce_hash, code_verifier_enc, key_id, return_to)
        select encode(nonce_hash,'hex') as nonce_hash,
               encode(code_verifier_enc,'hex') as verifier_enc,
-              return_to
+              key_id, return_to
        from deleted""",
     @[textParam(sha256Hex(state))])
   if row.isNone:
@@ -629,7 +630,9 @@ proc finishAuth(request: Request) =
   let flow = row.get
   var verifier = ""
   try:
-    verifier = decryptWith(application.keyring, application.keyring.active,
+    # The key that encrypted the verifier, not the key that happens to be
+    # active now: a rotation between start and finish must not break the login.
+    verifier = decryptWith(application.keyring, flow.get("key_id"),
       hexBytes(flow.get("verifier_enc")), state)
   except ShareKeyError:
     problem(request, 500, "KEY_ERROR", "cannot decrypt flow")
@@ -3692,6 +3695,18 @@ proc identityLookups*(app: App): int =
 proc install*(app: App) =
   application = app
   installHub(app.hub)
+
+proc rotateActiveKey*(keyId: string) =
+  ## Test seam for the documented rotation path: production loads the keyring
+  ## once at boot, and an in-flight flow must still decrypt with the key that
+  ## wrote it. Rejects an id the keyring does not hold, like `decryptWith`.
+  if application.isNil:
+    raise newException(ValueError, "application is not installed")
+  for (candidate, _) in application.keyring.keys:
+    if candidate == keyId:
+      application.keyring.active = keyId
+      return
+  raise newException(ValueError, "unknown key id: " & keyId)
 
 proc handler*(): RequestHandler =
   ## The App lives in a process-wide ref shared by every worker thread. Mummy

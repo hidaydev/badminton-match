@@ -40,9 +40,10 @@ suite "janitor":
       startTime = "19:00")
     discard db.execUpdate(
       """insert into auth.oauth_flows
-           (state_hash, nonce_hash, code_verifier_enc, return_to, created_at, expires_at)
+           (state_hash, nonce_hash, code_verifier_enc, key_id, return_to,
+            created_at, expires_at)
          values (decode(repeat('11', 32), 'hex'), decode(repeat('22', 32), 'hex'),
-                 'x', '/janitor-test', $1::timestamptz, $1::timestamptz)""",
+                 'x', '1', '/janitor-test', $1::timestamptz, $1::timestamptz)""",
       @[textParam(epoch)])
     discard db.execUpdate(
       """insert into platform.idempotency_keys (user_id, key, body_hash, created_at, expires_at)
