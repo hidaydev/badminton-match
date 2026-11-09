@@ -340,7 +340,7 @@ export default function SharedSessionPage() {
                                     {headline}
                                   </span>
                                   {tally !== null && (
-                                    <span className="block text-[9px] text-slate-400">
+                                    <span className="block text-[11px] text-slate-400">
                                       {tally}
                                     </span>
                                   )}

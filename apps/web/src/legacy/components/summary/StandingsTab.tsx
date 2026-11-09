@@ -79,7 +79,7 @@ export default function StandingsTab({
   return (
     <div className="flex flex-col gap-1.5">
       {/* Tiebreaker order strip — hugs top divider */}
-      <div className="flex justify-end gap-1 items-center pl-2 pr-2 -mt-4 pt-1 pb-3 text-[8px] text-slate-400">
+      <div className="flex justify-end gap-1 items-center pl-2 pr-2 -mt-4 pt-1 pb-3 text-[11px] text-slate-400">
         <span>ranked by:</span>
         <span className="font-semibold">W-L</span>
         <span>›</span>

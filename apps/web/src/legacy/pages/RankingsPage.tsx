@@ -185,7 +185,7 @@ export default function RankingsPage() {
                         #{r.displayRank}
                       </span>
                       {isFilteredTier && (
-                        <span className="text-[9px] font-mono text-fg-dim leading-tight mt-0.5">
+                        <span className="text-[11px] font-mono text-fg-dim leading-tight mt-0.5">
                           #{r.rank}
                         </span>
                       )}

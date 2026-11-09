@@ -71,14 +71,17 @@ palette classes (`slate-*`, `indigo-*`). The intended equivalents:
 
 ## Typography Scale
 
-| Level | Classes | Usage |
-|-------|---------|-------|
-| Page Title | `text-xl sm:text-2xl font-bold text-white` | H2 headings |
-| Section Title | `text-sm font-semibold text-white` | Sub-sections |
-| Body | `text-sm text-fg-dim` | Descriptions |
-| Label | `text-xs text-fg-dim` | Form labels |
-| Meta | `text-[10px] font-mono text-fg-dim uppercase` | Timestamps, badges |
-| Micro | `text-[8px] text-fg-dim` | Tiebreaker info |
+The steps are declared in `@theme` (`--text-*`). `text-2xs` (11px) is the floor:
+nothing smaller is allowed, and data never uses a size below `text-xs` (12px).
+
+| Level | Token | Classes | Usage |
+|-------|-------|---------|-------|
+| Page Title | `--text-2xl` / `--text-xl` | `text-xl sm:text-2xl font-bold` | Page `h1` |
+| Section Title | `--text-sm` | `text-sm font-semibold` | Section `h2` |
+| Body | `--text-sm` | `text-sm text-fg-dim` | Descriptions |
+| Label | `--text-xs` | `text-xs text-fg-dim` | Form labels |
+| Meta | `--text-meta` (10px) | `text-[10px] font-mono uppercase tracking-wider` | Single tracked label |
+| Detail | `--text-2xs` (11px) | `text-[11px]` | Compact data, never below |
 
 ## Spacing & Radius
 

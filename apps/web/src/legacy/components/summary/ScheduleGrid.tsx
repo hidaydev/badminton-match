@@ -141,7 +141,7 @@ export default function ScheduleGrid({
           <div key={s} className="flex items-start gap-4 py-4">
             <div className="flex flex-col items-center w-4 shrink-0 pt-0.5 gap-0.5">
               <span className="text-xs font-bold text-slate-400">#{s + 1}</span>
-              <span className="text-[8px] text-slate-400 font-medium leading-none">
+              <span className="text-[11px] text-slate-400 font-medium leading-none">
                 {minutesToTime(timeToMinutes(sessionStart) + s * slotMinutes)}
               </span>
             </div>
@@ -292,7 +292,7 @@ export default function ScheduleGrid({
                           className={`text-[11px] font-bold shrink-0 whitespace-nowrap min-h-6 px-1 leading-tight ${hit44} ${locked ? 'text-slate-300 cursor-default' : 'text-emerald-300 hover:text-emerald-200'}`}
                         >
                           <span className="block">{headline}</span>
-                          {setLine && <span className="block text-[9px] font-medium text-slate-400">{setLine}</span>}
+                          {setLine && <span className="block text-[11px] font-medium text-slate-400">{setLine}</span>}
                         </button>
                       ) : !locked ? (
                         <button

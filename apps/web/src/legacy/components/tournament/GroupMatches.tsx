@@ -130,7 +130,7 @@ export default function GroupMatches({ pairs, groups, matches, canEdit, onSetMat
                       <span className="text-xs text-fg flex-1 text-right truncate">{getPairName(m.pairBId)}</span>
                     </div>
                     {m.picName && (
-                      <span className="text-[9px] text-fg-dim leading-none text-center w-full">{m.picName}</span>
+                      <span className="text-[11px] text-fg-dim leading-none text-center w-full">{m.picName}</span>
                     )}
                   </button>
 

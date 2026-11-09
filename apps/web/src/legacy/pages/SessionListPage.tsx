@@ -297,7 +297,7 @@ export default function SessionListPage() {
                 {/* Date Badge */}
                 <div className="w-11 h-11 rounded-lg bg-elevated border border-border flex flex-col items-center justify-center shrink-0">
                   <span className="text-sm font-bold font-mono text-fg leading-none">{day}</span>
-                  <span className="text-[9px] font-mono font-semibold text-accent uppercase leading-none mt-1">
+                  <span className="text-[11px] font-mono font-semibold text-accent uppercase leading-none mt-1">
                     {month}
                   </span>
                 </div>
@@ -330,7 +330,7 @@ export default function SessionListPage() {
                       {s.playerCount} <span className="text-[10px] font-sans text-fg-dim font-normal">{t('sessions.players')}</span>
                     </span>
                     <span className="text-[10px] text-fg-dim">
-                      {s.totalGames} <span className="text-[9px] font-sans">{t('sessions.games')}</span>
+                      {s.totalGames} <span className="text-[11px] font-sans">{t('sessions.games')}</span>
                     </span>
                   </div>
                   <svg

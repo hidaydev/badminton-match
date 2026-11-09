@@ -91,7 +91,7 @@ export default function GroupAssignment({
                       key={slotIdx}
                       className="flex items-center gap-1.5 bg-elevated border border-border-subtle rounded-lg px-2 py-1.5"
                     >
-                      <span className="text-[8px] font-bold text-fg-dim" style={{ minWidth: '18px' }}>
+                      <span className="text-[11px] font-bold text-fg-dim" style={{ minWidth: '18px' }}>
                         #{num}
                       </span>
                       <span className="text-xs text-fg truncate flex-1 font-medium">
@@ -120,7 +120,7 @@ export default function GroupAssignment({
                     ].join(' ')}
                   >
                     <span
-                      className={`text-[8px] font-bold ${active ? 'text-accent' : 'text-fg-dim'}`}
+                      className={`text-[11px] font-bold ${active ? 'text-accent' : 'text-fg-dim'}`}
                       style={{ minWidth: '18px' }}
                     >
                       #{num}

@@ -107,7 +107,7 @@ export default function TournamentListPage() {
                 {/* Date Badge */}
                 <div className="w-11 h-11 rounded-lg bg-elevated border border-border flex flex-col items-center justify-center shrink-0">
                   <span className="text-sm font-bold font-mono text-fg leading-none">{day}</span>
-                  <span className="text-[9px] font-mono font-semibold text-accent uppercase leading-none mt-1">
+                  <span className="text-[11px] font-mono font-semibold text-accent uppercase leading-none mt-1">
                     {month}
                   </span>
                 </div>

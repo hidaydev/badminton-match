@@ -183,7 +183,7 @@ export default function PlayerChipRenderer({
         <span style={{ position: 'relative' }}>
           <AnnotatedPlayerName name={playerName} />
         </span>
-        {backToBackRun ? <sup className="text-[8px] font-bold text-amber-400 shrink-0 leading-none" style={{ position: 'relative' }}>*{backToBackRun}</sup> : null}
+        {backToBackRun ? <sup className="text-[11px] font-bold text-amber-400 shrink-0 leading-none" style={{ position: 'relative' }}>*{backToBackRun}</sup> : null}
       </span>
     )
   }
@@ -202,7 +202,7 @@ export default function PlayerChipRenderer({
       title={showSkippedIdle ? 'Skipped in this game' : undefined}
     >
       <AnnotatedPlayerName name={playerName} />{showSkippedIdle ? ' ⊘' : ''}
-      {backToBackRun ? <sup className="text-[8px] font-bold text-amber-400 shrink-0 leading-none">*{backToBackRun}</sup> : null}
+      {backToBackRun ? <sup className="text-[11px] font-bold text-amber-400 shrink-0 leading-none">*{backToBackRun}</sup> : null}
     </span>
   )
 }
