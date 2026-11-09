@@ -447,3 +447,88 @@ the limiter counters move to a shared store (PostgreSQL or Redis), the hub gains
 a `LISTEN/NOTIFY` bridge or an outbox producer, and the config cache gains an
 invalidation channel; the parity suite then runs against two instances with no
 duplicate budget and no missed broadcast.
+
+## ADR-017 · A skip points at a game; the court reference waits for courts to exist
+
+**Date:** 2026-11-10
+**Audit finding:** DB-11
+**Status:** Applied for `session.game_skips`; Deferred for the court key
+
+**Decision:** `0051_game_skips_game_fk.sql` adds
+`game_skips_game_fk` from `session.game_skips (community_id, session_id, round_no, court_no)`
+to `session.games`, on delete cascade. The court reference the finding also
+asked for (`games_court_fk`, `game_skips_court_fk`) is not added.
+
+`session.courts` has no writer in v2. The session model, the contract and the
+wizard never create a court row; only the v1 import fills the table. Counted on
+the local clusters the same day: bm2_dev has 288 sessions, 0 courts and 266
+games, every game without a court; bm2_e2e has 10 sessions, 0 courts and 12
+games, likewise. bm2_explore, which was imported from v1, has 126 courts and 0
+orphans. A foreign key to `session.courts` would therefore reject the schedule
+writer for every v2 session while catching nothing that exists.
+
+**Reason:** the finding's premise is that `courts` is the register of courts.
+It is, for the imported database only. The coordinate that games, sets and
+skips share is real and worth enforcing, and the game is the row that owns it,
+so the skip-to-game key closes the sharpest part at no cost. The court key needs
+a product answer first.
+
+**Reopener:** the wizard starts materialising courts (a session owns its court
+rows, with or without a time), or `session.courts` is dropped as dead weight
+from the import. Then the composite key is added in the same release.
+
+## ADR-018 · Tenancy is guarded at build time, not by row level security
+
+**Date:** 2026-11-10
+**Audit finding:** DB-16
+**Status:** Deferred (partial)
+
+**Decision:** no `enable row level security` and no tenant-scoped views. The
+second line of defence is the statement scan in `tools/archcheck`: every SQL
+statement in `apps/`, `modules/` and `tools/` that names a domain table must
+scope it by `community_id` in the same query level, or be listed in
+`tools/archcheck/allowlist_community.txt` with a reason. This change extended
+the scanned set from `session.`/`player.`/`rating.`/`tournament.`/`community.` to
+`achievement.` as well, so badge reads are covered; the one legitimate
+platform-wide statement (the badge catalogue, which has no community column)
+joined the allowlist.
+
+**Reason:** RLS needs the requesting community on every connection, and the pool
+hands a request whichever connection is free per statement (`shared/platform-lib/db/db.nim`).
+A `set_config` is therefore either per transaction (the read paths mostly are
+not) or per statement (a rewrite of every read), and the tools that legitimately
+work across communities would need a bypass role. That is a rewrite, not a
+finding-sized change, and a half-applied policy would be worse than none: it
+would read as a defence while leaving every unscanned path open.
+
+**Reopener:** the read paths move behind one checkout per request (a request
+context that pins the connection and sets `majadu.community_id` locally). Then
+the policies can be enabled table by table, starting with `player.players`,
+`session.sessions` and `rating.player_state`, and the existing scan becomes the
+guard that the policy exists on every tenant table.
+
+## ADR-019 · The deploy must run `dbtools seed`, and the config seed stays insert-only
+
+**Date:** 2026-11-10
+**Audit finding:** DB-06
+**Status:** Deferred (blocked on the deploy script)
+
+**Decision:** `db/seeds/platform_config.sql` keeps `on conflict (key) do
+nothing`. A release that adds a config key must add its seed row in the same
+commit; `tools/archcheck` already fails the build when a registry key has no
+seed row (`boundViolations` in `tools/archcheck/scan_constants.nim`, covered by
+`tools/archcheck/tests/constants_test.nim`). Running `dbtools seed` between
+`migrate` and `verify` in `ops/scripts/deploy-vps.sh` is the remaining half and
+belongs to the operator scripts.
+
+**Reason:** `do update` would make the seed the authority for every value, so a
+deploy would overwrite the per-platform tuning that `platform.config` exists to
+hold, and the current `dbtools seed` comment promises the opposite ("operator
+edits to existing values survive"). Whether the seed or the operator owns a
+default is a product decision; the outage it would prevent is a missing row,
+which the build already refuses.
+
+**Reopener:** the deploy script gains the `seed` step (or the cutover runbook
+is replaced by it). If the seed then runs on every release, decide explicitly
+whether `do update` is wanted, and change the `dbtools seed` comment in the same
+commit.
