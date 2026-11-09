@@ -195,11 +195,13 @@ there are writes without `--abandon-data`; the number that will be lost is
 printed in the error message and in the log. Add `--drop-bm2` if the bm2
 database should be dropped as well, rather than left behind for inspection.
 
-Rollback restores `:v1-final`, the unit and env saved during `preserve-v1`,
-points Caddy back to `site-v1.caddy` (with `caddy validate`), `enable` +
-`start`s v1, waits for `/healthz`, archives the `cutover_state` row to
-`cutover/cutover.state.json`, then deletes it so the next cutover is not
-blocked.
+Rollback restores `:v1-final`, the unit and env saved during `preserve-v1`, then
+enables and restarts v1 and waits for `/healthz` before it touches Caddy. Only
+after v1 answers does it point Caddy back to `site-v1.caddy` (`caddy validate`
+plus a reload). A Caddy failure there is reported as a partial rollback: v1
+keeps running, the site snippet is not switched, and the run pages. Once v1 is
+healthy, rollback archives the `cutover_state` row to
+`cutover/state-archive.json` and deletes it so the next cutover is not blocked.
 
 If the rollback itself fails, do not rerun the cutover: recover by hand from
 `cutover/majadu-api.container.v1`, `cutover/env-target.v1`, and the

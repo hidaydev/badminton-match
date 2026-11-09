@@ -232,6 +232,88 @@ suite "restore.sh":
     check result.exitCode == 0
     check result.stdout.contains("restore: writing " & dump & " into bm2")
 
+  test "a dbname parameter cannot redirect the write":
+    let fixture = newFixture("restore-dsn-dbname")
+    defer: removeDir(fixture.root)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://u@db.example:5432/bm_staging?dbname=bm2"],
+      appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains(
+      "connection parameter 'dbname' in --dsn can change the destination")
+    check result.stderr.contains("only sslmode is allowed")
+
+  test "a mixed-case dbname parameter is refused":
+    let fixture = newFixture("restore-dsn-dbname-case")
+    defer: removeDir(fixture.root)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://u@db.example:5432/bm_staging?DbName=bm2"],
+      appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains(
+      "connection parameter 'DbName' in --dsn can change the destination")
+    check result.stderr.contains("only sslmode is allowed")
+
+  test "a percent-encoded dbname parameter is refused":
+    let fixture = newFixture("restore-dsn-dbname-encoded")
+    defer: removeDir(fixture.root)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://u@db.example:5432/bm_staging?%64bname=bm2"],
+      appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains(
+      "connection parameter 'dbname' in --dsn can change the destination")
+    check result.stderr.contains("only sslmode is allowed")
+
+  test "an undecodable parameter is refused":
+    let fixture = newFixture("restore-dsn-bad-escape")
+    defer: removeDir(fixture.root)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://u@db.example:5432/bm_staging?%zz=1"],
+      appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains("cannot decode connection parameter '%zz'")
+
+  test "sslmode is the only allowed query parameter":
+    let fixture = newFixture("restore-dsn-sslmode")
+    defer: removeDir(fixture.root)
+    fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://u@db.example:5432/bm_staging?sslmode=require"],
+      appDir(fixture))
+    check result.exitCode == 0
+    check result.stdout.contains("restore: writing " & dump & " into bm_staging")
+
+  test "an empty query string is accepted":
+    let fixture = newFixture("restore-dsn-empty-query")
+    defer: removeDir(fixture.root)
+    fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm_staging",
+        "--dsn", "postgres://u@db.example:5432/bm_staging?"],
+      appDir(fixture))
+    check result.exitCode == 0
+    check result.stdout.contains("restore: writing " & dump & " into bm_staging")
+
   test "a held deploy lock stops the write before pg_restore":
     let fixture = newFixture("restore-lock-held")
     defer: removeDir(fixture.root)

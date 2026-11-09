@@ -15,9 +15,12 @@
 # archive, the second is live.
 #
 # The guard protects the database that is written, not the label: the database
-# name in --dsn has to equal --target, and a mismatch is refused. The write also
-# takes the same deploy lock deploy-vps.sh and cutover.sh use, so a restore
-# cannot run while a deploy is swapping the release.
+# name in --dsn has to equal --target, and a mismatch is refused. Only the
+# sslmode parameter may appear in a --dsn query string; libpq lets other keys
+# (notably dbname) override the destination, so any other key, encoded or not,
+# is refused before the lock is taken. The write also takes the same deploy lock
+# deploy-vps.sh and cutover.sh use, so a restore cannot run while a deploy is
+# swapping the release.
 set -euo pipefail
 
 APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"
@@ -90,6 +93,65 @@ DSN_DB=$(dsn_database "$DSN") || {
 if [ "$DSN_DB" != "$TARGET" ]; then
   echo "restore: --target '$TARGET' does not match the database '$DSN_DB' in --dsn; refusing to write into '$DSN_DB'" >&2
   exit 2
+fi
+
+# libpq reads connection keywords from the URI query string, and `dbname` there
+# overrides the path. Only sslmode cannot change where the write goes, so every
+# other key is refused. Keys are decoded first so `%64bname` is caught, compared
+# case-sensitively so `DbName` is refused too, and an undecodable key is an
+# error rather than a pass.
+url_decode_key() {
+  local value=$1 out="" rest ch hex
+  rest=$value
+  while [ -n "$rest" ]; do
+    ch=${rest%%\%*}
+    if [ "$ch" = "$rest" ]; then
+      out=$out$ch
+      break
+    fi
+    out=$out$ch
+    rest=${rest#*%}
+    hex=${rest:0:2}
+    case "$hex" in
+      [0-9A-Fa-f][0-9A-Fa-f]) ;;
+      *) return 1 ;;
+    esac
+    out=$out$(printf "\\$(printf '%03o' "$((16#$hex))")")
+    rest=${rest:2}
+  done
+  printf '%s' "$out"
+}
+
+dsn_query() {
+  case "$1" in
+    *\?*) printf '%s\n' "${1#*\?}" ;;
+  esac
+}
+
+QUERY=$(dsn_query "$DSN")
+if [ -n "$QUERY" ]; then
+  rest=$QUERY
+  while [ -n "$rest" ]; do
+    pair=${rest%%&*}
+    if [ "$pair" = "$rest" ]; then
+      rest=""
+    else
+      rest=${rest#*&}
+    fi
+    key=${pair%%=*}
+    [ -n "$key" ] || {
+      echo "restore: empty connection parameter in --dsn; refusing" >&2
+      exit 2
+    }
+    decoded=$(url_decode_key "$key") || {
+      echo "restore: cannot decode connection parameter '$key' in --dsn" >&2
+      exit 2
+    }
+    [ "$decoded" = "sslmode" ] || {
+      echo "restore: connection parameter '$decoded' in --dsn can change the destination; only sslmode is allowed" >&2
+      exit 2
+    }
+  done
 fi
 
 command -v pg_restore >/dev/null 2>&1 || { echo "restore: pg_restore is required" >&2; exit 2; }

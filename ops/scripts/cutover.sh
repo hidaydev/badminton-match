@@ -27,7 +27,11 @@
 #
 # The *_CMD/*_VALIDATE overrides exist for the rehearsal harness (T-063), which
 # runs the same sequence against a sandbox app dir and a rehearsal unit.
-set -euo pipefail
+#
+# `set -E` is what makes the ERR trap reach into the step functions: without it a
+# failing step exits through set -e with no ERROR line, no step marker and no
+# alert.
+set -Eeuo pipefail
 
 APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"
 SERVICE="${MAJADU_SERVICE:-majadu-api}"
@@ -200,7 +204,7 @@ step_preflight() {
   local release digest
   release=$(curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
     "${auth[@]}" "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" || true)
-  digest=$(printf '%s' "$release" | grep -oE 'sha256:[0-9a-f]{64}' | head -1)
+  digest=$(printf '%s' "$release" | grep -oE 'sha256:[0-9a-f]{64}' | head -1 || true)
   [ -n "$digest" ] || fail "release v$VERSION has no published image digest"
   if [ -f "$APP_DIR/env/ghcr-token" ]; then
     podman login ghcr.io -u "${MAJADU_GHCR_USER:-hidaydev}" --password-stdin \
@@ -277,7 +281,7 @@ step_snapshot() {
     MAJADU_BACKUP_DSN_BM="$V1_DSN" \
     "$APP_DIR/scripts/backup.sh" --tag cutover
   local dump
-  dump=$(ls -t "$APP_DIR"/backups/bm-cutover-*.dump | head -1)
+  dump=$(ls -t "$APP_DIR"/backups/bm-cutover-*.dump 2>/dev/null | head -1 || true)
   [ -n "$dump" ] || fail "no cutover dump was written"
   printf '%s\n' "$dump" >"$CUTOVER_DIR/snapshot.path"
   sha256sum "$dump" | cut -d' ' -f1 >"$CUTOVER_DIR/snapshot.sha256"

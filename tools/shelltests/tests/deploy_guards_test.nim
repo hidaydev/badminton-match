@@ -98,6 +98,7 @@ const ciPendingBody = """{"total_count":1,"workflow_runs":[{"id":105,"name":"CI"
 const ciMissingBody = """{"total_count":0,"workflow_runs":[]}"""
 const ciOrderedBody = """{"total_count":2,"workflow_runs":[{"id":100,"name":"CI","run_number":5,"status":"completed","conclusion":"success"},{"id":200,"name":"CI","run_number":6,"status":"completed","conclusion":"failure"}]}"""
 const ciTooManyBody = """{"total_count":101,"workflow_runs":[]}"""
+const ciMissingRunNumberBody = """{"total_count":2,"workflow_runs":[{"id":300,"name":"CI","status":"completed","conclusion":"failure"},{"id":200,"name":"CI","run_number":6,"status":"completed","conclusion":"success"}]}"""
 
 proc touch(path: string, body = "") =
   createDir(path.parentDir)
@@ -571,6 +572,18 @@ suite "deploy-vps-rc.sh":
     check not result.stdout.contains(
       "built localhost/majadu-rc-api:local")
 
+  test "the CI gate refuses when a run object cannot be parsed":
+    let fixture = newFixture("rc-ci-partial")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let result = runRcGate(fixture, rcDir,
+      @[("FAKE_CI_BODY", ciMissingRunNumberBody)])
+    check result.exitCode == 1
+    check result.stdout.contains(
+      "parsed 1 of 2 ci.yml run objects for abc1234")
+    check not result.stdout.contains(
+      "built localhost/majadu-rc-api:local")
+
   test "the CI gate takes the highest id, not the first array element":
     let fixture = newFixture("rc-ci-order")
     defer: removeDir(fixture.root)
@@ -684,6 +697,32 @@ suite "cutover.sh":
       @["--version", "2.0.0"], appDir(fixture))
     check result.exitCode == 2
     check result.stderr.contains("cutover: ETL_DSN is not set in " & envFile)
+
+  test "a failing step logs an ERROR line and stops the sequence":
+    let fixture = newFixture("cutover-failing-step")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("pg_dump", okFake)
+    fixture.installFake("pg_restore", okFake)
+    fixture.installFake("caddy", okFake)
+    privateFile(fixture.root / "env" / "majadu-prod.env.v2",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n" &
+      "MAJADU_ETL_DSN=postgres://bm2_etl@127.0.0.1:5432/bm2\n" &
+      "MAJADU_ETL_SOURCE_DSN=postgres://bm2_etl@127.0.0.1:5432/bm_staging\n")
+    # The maintenance step succeeds; the Caddy check in the next one fails, so
+    # the ERR trap has to fire inside the step function and stop the sequence.
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--version", "2.0.0", "--from", "maintenance"], appDir(fixture) & @[
+        ("MAJADU_CADDY_VALIDATE", "false"),
+      ])
+    check result.exitCode == 1
+    check result.stdout.contains("ERROR: command failed at line")
+    check result.stdout.contains("(step: maintenance)")
+    check result.stdout.contains("last step: maintenance")
+    check not result.stdout.contains("v1 is stopped and disabled")
+    check not result.stdout.contains("cutover sequence finished")
+    check readFile(fixture.root / "cutover" / "cutover.step")
+      .contains("\"state\":\"failed\"")
 
 suite "rollback.sh":
   test "an unknown argument exits 1 without paging":

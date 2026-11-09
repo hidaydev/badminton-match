@@ -289,12 +289,26 @@ else
     [ "$CI_TOTAL" -le 100 ] ||
       fail "ci gate: $CI_TOTAL $CI_WORKFLOW runs for $COMMIT exceed the 100-run page; refusing to decide on a hidden page"
 
+    # Every workflow run object carries exactly one run_number. Counting them
+    # against total_count catches a truncated body and a run object the parser
+    # below would skip: without it, an older parseable run could decide.
+    CI_RUN_OBJECTS=$(printf '%s' "$CI_COMPACT" |
+      grep -o '"run_number":' | wc -l | tr -d ' ' || true)
+    [ "$CI_RUN_OBJECTS" -eq "$CI_TOTAL" ] ||
+      fail "ci gate: parsed $CI_RUN_OBJECTS of $CI_TOTAL $CI_WORKFLOW run objects for $COMMIT; refusing a partial response"
+
     # Pick the run with the highest id, not the first array element: a reordered
     # response or a force-push reset must not let an older success mask a newer
     # failure. Splitting at `{"id":` marks every object that starts with an id;
     # only the run objects carry `run_number`, so repository and head_commit
     # chunks are skipped. Quotes inside strings are JSON-escaped, so a crafted
     # title or commit message cannot inject a status or conclusion field.
+    #
+    # Limit: this still assumes a run object lists `id` before any nested
+    # object. If that key order ever changes, the id read here belongs to the
+    # first nested object, not the run, and the count guard cannot see it. The
+    # schema has kept `id` first; a strict JSON parser would be the only way to
+    # remove the assumption, and shell cannot do that without a new dependency.
     CI_NEWEST=$(printf '%s' "$CI_COMPACT" | sed 's/{"id":/\
 {"id":/g' | awk '
       BEGIN { newest = -1 }
