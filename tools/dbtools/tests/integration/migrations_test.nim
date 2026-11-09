@@ -132,7 +132,62 @@ try:
       for name in files:
         expected.add(name.changeFileExt(""))
       check applied == expected
-      check "0033_share_legacy_id" in applied
+      check "0034_etl_grants" in applied
+
+    test "bm2_etl can run the cutover import and still cannot change the schema":
+      migrate(scratch, migrationsDir)
+      proc allowed(table, privilege: string): bool =
+        scratch.queryOne(
+          "select has_table_privilege('bm2_etl', $1, $2) as ok",
+          @[textParam(table), textParam(privilege)]).get.getBool("ok")
+      proc schemaUsage(schema, privilege: string): bool =
+        scratch.queryOne(
+          "select has_schema_privilege('bm2_etl', $1, $2) as ok",
+          @[textParam(schema), textParam(privilege)]).get.getBool("ok")
+
+      # USAGE is the privilege whose absence produced "permission denied for
+      # schema"; CREATE must stay out of reach so the loader cannot add objects.
+      for schema in ["platform", "player", "session", "community", "rating",
+                     "tournament", "achievement", "import"]:
+        check schemaUsage(schema, "USAGE")
+        check not schemaUsage(schema, "CREATE")
+
+      # Read and written in the same pass (upserts read their own rows too).
+      let upserted = @["player.players", "session.sessions", "session.courts",
+        "session.participants", "session.games", "tournament.tournaments",
+        "tournament.pairs", "tournament.groups", "tournament.matches",
+        "tournament.teams", "tournament.team_players",
+        "tournament.team_matches", "tournament.team_partai",
+        "rating.sources", "rating.levels", "rating.snapshots",
+        "rating.events", "rating.player_state", "import.row_map"]
+      # Inserted only: the loader never updates these rows.
+      let inserted = @["platform.community", "player.aliases",
+        "session.game_sets", "session.game_skips", "achievement.earned"]
+      # Reference rows the loader reads but never writes.
+      let reference = @["platform.config", "platform.config_version",
+        "platform.cutover_state", "community.settings",
+        "achievement.definitions", "session.game_results"]
+      # The loader clears and rewrites these itself (game sets and skips per
+      # game, the rating tables on every rebuild, stale badges on backfill).
+      let rewritten = @["session.game_sets", "session.game_skips",
+        "rating.events", "rating.player_state", "achievement.earned"]
+
+      for table in upserted:
+        check allowed(table, "SELECT")
+        check allowed(table, "INSERT")
+        check allowed(table, "UPDATE")
+      for table in inserted:
+        check allowed(table, "SELECT")
+        check allowed(table, "INSERT")
+        check not allowed(table, "UPDATE")
+      for table in reference:
+        check allowed(table, "SELECT")
+        check not allowed(table, "INSERT")
+        check not allowed(table, "UPDATE")
+      for table in upserted & inserted & reference:
+        # No TRUNCATE anywhere, and DELETE only on the tables listed above.
+        check not allowed(table, "TRUNCATE")
+        check allowed(table, "DELETE") == (table in rewritten)
 
     test "every relation /readyz requires exists after the migrations":
       migrate(scratch, migrationsDir)
@@ -198,6 +253,6 @@ try:
       migrate(scratch, migrationsDir)
       let last = scratch.queryOne(
         "select version from dbtools.schema_migrations order by version desc limit 1").get
-      check last.get("version") == "0033_share_legacy_id"
+      check last.get("version") == "0034_etl_grants"
 finally:
   shutdown()
