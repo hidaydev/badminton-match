@@ -183,5 +183,39 @@ not exist:
   ```
 
   That line, plus the structured `"msg":"request"` access log, is the current
-  answer to "request rate and 5xx for the last hour". A real backend and an
-  external checker remain on the roadmap.
+  answer to "request rate and 5xx for the last hour".
+
+### 4.1 Metrics scrape checklist
+
+The registry is a Prometheus text exposition on the loopback listener. It is
+not scraped by a server yet, so these are the series an operator reads by hand
+during an incident, and the query each one answers:
+
+| Series | Answers |
+|---|---|
+| `http_requests_total{method,route,status}` | which route is 5xx-ing right now |
+| `http_request_duration_seconds_bucket{route,le}` | p95 latency of one route (`histogram_quantile` over the buckets) |
+| `http_request_duration_seconds_sum` / `_count` | mean latency of one route |
+| `db_pool_available` / `db_pool_in_use` / `db_pool_size` | whether the pool is the reason requests queue |
+| `identity_resolution{source}` | whether anonymous traffic collapsed into one `peer` bucket behind the CDN |
+
+Read them with one command, from the host:
+
+```sh
+podman exec majadu-api curl -fsS http://127.0.0.1:9090/metrics \
+  | grep -E '^(http_request|db_pool|identity_resolution)'
+```
+
+For a latency answer, keep the buckets and compute the quantile:
+
+```sh
+podman exec majadu-api curl -fsS http://127.0.0.1:9090/metrics \
+  | grep '^http_request_duration_seconds_bucket{route="/c/{slug}/sessions"'
+```
+
+A 5xx is joined to its request by id: the problem body carries `request_id`,
+the `"msg":"request"` access line carries the same value, and the audit rows
+written while serving it carry it too, so `journalctl | grep <request_id>`
+reconstructs the request. If a scrape target is added later, the four series
+above are the minimum the dashboard needs; nothing else in the registry is
+required to answer "is it slow, is it failing, is it the pool".

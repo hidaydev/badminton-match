@@ -1,4 +1,4 @@
-import std/[locks, os, strutils]
+import std/[locks, monotimes, os, strutils, times]
 import mummy
 import logger
 import metrics
@@ -82,11 +82,15 @@ initLock(registryLock)
 # is served on a single worker thread, so a threadvar cannot leak between
 # requests.
 var activeRequestId {.threadvar.}: string
+var activeRequestStart {.threadvar.}: MonoTime
+var requestTimed {.threadvar.}: bool
 
 proc beginRequest*() =
   ## Starts one id for the request this thread is about to serve. A nested call
   ## would break the correlation, so only the request chain calls it.
   activeRequestId = uuidv7()
+  activeRequestStart = getMonoTime()
+  requestTimed = true
 
 proc currentRequestId*(): string =
   ## The id of the request being served, empty outside one. `recordAudit` turns
@@ -112,9 +116,21 @@ proc recordResponse*(verb, path: string, status: int, label = "",
     if label.len > 0: label
     elif status == 404: "unmatched"
     else: templateRoute(path)
+  # The elapsed time of the request this worker just served, labelled the same
+  # way as the counter, so "p95 of the session detail route" is answerable from
+  # the process itself. A direct caller of `recordResponse` (a suite) has no
+  # start mark and records nothing.
+  let elapsedSeconds =
+    if requestTimed:
+      float(inNanoseconds(getMonoTime() - activeRequestStart)) / 1_000_000_000.0
+    else:
+      -1.0
   withLock registryLock:
     registry.inc("http_requests_total",
       [("method", verb), ("route", routeLabel), ("status", $status)])
+    if elapsedSeconds >= 0:
+      registry.observe("http_request_duration_seconds", elapsedSeconds,
+        [("route", routeLabel)])
   result = renderLog("info", "request",
     [("method", verb), ("route", routeLabel), ("status", $status),
      ("request_id", requestId)])
@@ -128,6 +144,16 @@ proc recordIdentitySource*(source: string) =
   ## degradation no other metric shows.
   withLock registryLock:
     registry.inc("identity_resolution", [("source", source)])
+
+proc recordPool*(size, available, inUse: int) =
+  ## The pool is the resource a slow query exhausts first, and the one number a
+  ## 503 from `DbPoolTimeout` should have been predicted by. Sampled on every
+  ## answer, so a scrape reads the state of the last request instead of a value
+  ## nobody updated.
+  withLock registryLock:
+    registry.setGauge("db_pool_size", float(size))
+    registry.setGauge("db_pool_available", float(available))
+    registry.setGauge("db_pool_in_use", float(inUse))
 
 proc renderServerLog*(level: mummy.LogLevel,
                       args: openArray[string]): string =

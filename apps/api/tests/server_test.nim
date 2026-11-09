@@ -117,6 +117,26 @@ suite "metrics listener":
     check metricsText().contains(
       """route="/c/{slug}/players/{id}",status="404"}""")
 
+  test "records the request duration in a histogram per route template":
+    beginRequest()
+    discard recordResponse("GET", "/c/acme/sessions/abc", 200,
+      "/c/{slug}/sessions")
+    let text = metricsText()
+    check text.contains("http_request_duration_seconds_bucket")
+    check text.contains(
+      """http_request_duration_seconds_bucket{route="/c/{slug}/sessions",le="+Inf"} 1""")
+    check text.contains(
+      """http_request_duration_seconds_sum{route="/c/{slug}/sessions"}""")
+    check text.contains(
+      """http_request_duration_seconds_count{route="/c/{slug}/sessions"} 1""")
+
+  test "exposes the pool as gauges":
+    recordPool(8, 3, 5)
+    let text = metricsText()
+    check text.contains("db_pool_size 8.0")
+    check text.contains("db_pool_available 3.0")
+    check text.contains("db_pool_in_use 5.0")
+
   test "counts how the limiter named the caller":
     recordIdentitySource("cookie")
     recordIdentitySource("header")

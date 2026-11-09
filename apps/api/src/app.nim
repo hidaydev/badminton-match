@@ -201,6 +201,10 @@ proc send(request: Request, status: int,
   for pair in securityHeaders(application.cookieSecure):
     merged.add(pair)
   request.respond(status, merged, body)
+  # The pool is sampled on every answer so `/metrics` reports the state of the
+  # last request; a scrape-only read would need the listener to hold the pool.
+  let pool = application.db.poolStats()
+  recordPool(pool.size, pool.available, pool.inUse)
   discard recordResponse(request.httpMethod, request.path, status,
     currentRouteLabel, currentRequestId())
 

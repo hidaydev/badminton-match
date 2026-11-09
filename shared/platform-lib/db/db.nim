@@ -442,6 +442,18 @@ proc acquireConn(db: Db): PPGconn =
   result = db.available.pop()
   release(db.lock)
 
+proc poolStats*(db: Db): tuple[size, available, inUse: int] =
+  ## The pool's state for the metrics gauge. `available` is what a checkout can
+  ## take right now; `inUse` is size minus that, which is also what a waiting
+  ## caller is queued behind once it reaches zero.
+  acquire(db.lock)
+  try:
+    result.size = db.size
+    result.available = db.available.len
+  finally:
+    release(db.lock)
+  result.inUse = result.size - result.available
+
 proc connectionTimeouts*(db: Db): seq[(string, string)] =
   ## The effective `statement_timeout` and `lock_timeout` of every pooled
   ## connection. The integration test reads this to prove the settings are on

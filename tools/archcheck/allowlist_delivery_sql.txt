@@ -131,3 +131,7 @@ apps/api/src/ws_ticket.nim:revokeShare
 # Resolves the slug plus membership into the community context itself, so there
 # is no context to pass to a service yet.
 apps/api/src/community_context.nim:loadCommunity
+
+# BE-12: the pool gauge is sampled on every answer, so `send` reads the pool
+# once. It holds no statement of its own.
+apps/api/src/app.nim:send
