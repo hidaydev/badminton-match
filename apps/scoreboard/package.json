@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && node scripts/check-precache.mjs",
+    "build": "tsc -b && vite build && node scripts/check-precache.mjs && node scripts/check-headers.mjs",
     "preview": "vite preview",
     "check:types": "tsc -b --pretty false",
     "check": "pnpm run check:types && pnpm test",
