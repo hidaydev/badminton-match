@@ -450,7 +450,7 @@ export default function InstagramPostPage() {
             <button
               onClick={() => fileInputRef.current?.click()}
               aria-label={t('instagram.replacePhoto')}
-              className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70 hit44"
+              className="h-11 w-11 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 2v6h-6"/>
@@ -462,7 +462,7 @@ export default function InstagramPostPage() {
             <button
               onClick={() => setShowDownloadSheet(true)}
               aria-label={t('instagram.download')}
-              className="w-9 h-9 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300 hit44"
+              className="h-11 w-11 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
