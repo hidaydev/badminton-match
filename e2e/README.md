@@ -6,17 +6,18 @@ bundle from `vite preview`, and talks to the Nim server through the same
 same-origin `/api` path production uses.
 
 ```
-./task e2e                     # a11y + visual + compatibility
+./task e2e                     # a11y + visual + compat + scoreboard
 ./task e2e --update-snapshots  # rewrite this platform's visual baseline
 ```
 
-The task resets `bm2_e2e`, migrates and seeds it, then starts three servers:
+The task resets `bm2_e2e`, migrates and seeds it, then starts four servers:
 
 | What | Port | Notes |
 |---|---|---|
 | API | 18093 | `MAJADU_E2E_API_PORT` |
 | OIDC stub | 19081 | `MAJADU_E2E_STUB_PORT` |
 | Web preview | 5173 | `MAJADU_E2E_WEB_PORT`; must match the seeded `security.allowed_origins` |
+| Scoreboard preview | 4173 | `MAJADU_E2E_SCOREBOARD_PORT`; serves the built `apps/scoreboard` |
 
 ## What is asserted
 
@@ -26,6 +27,10 @@ The task resets `bm2_e2e`, migrates and seeds it, then starts three servers:
 - **Visual** (`visual.spec.ts`): one full-page screenshot per route with
   `maxDiffPixels: 0`. Snapshots live in `__screenshots__/{platform}/` and are
   part of the review, never regenerated silently.
+- **Scoreboard** (`scoreboard.spec.ts`): loads the built scoreboard from its own
+  preview, scores a point, goes offline, reloads from the service worker cache
+  and scores again. It takes no screenshots, so it does not depend on the visual
+  baseline.
 
 Every spec waits for the screen's own data (`VisualRoute.ready`) instead of
 `networkidle`, which never settles on a screen holding a WebSocket open. No spec
@@ -68,14 +73,18 @@ The snapshots are recorded per platform, in `e2e/__screenshots__/{platform}/`,
 because glyph rasterisation differs between macOS and Linux and production is
 Linux. Both sets are committed.
 
-The checked-in set today is Darwin. The first run of the Linux job finds no
-`e2e/__screenshots__/linux/`, records one with `--update-snapshots`, and uploads
-the PNGs as the `playwright-linux-baseline` artifact; committing them turns the
-comparison on for every later run. The job does not skip a check and no spec
-skips: a platform with a baseline is always compared.
+The checked-in Darwin set is what a developer records and reviews locally. The
+Linux set has to be recorded on a Linux machine, reviewed and committed; CI
+never records a baseline on its own. While `e2e/__screenshots__/linux/` is not
+yet non-empty, tags and `release/*` branches fail when it is absent, while
+`main` and pull requests warn and skip the visual comparison so the rest of the
+suite still runs. Once the directory exists, every ref runs the comparison and a
+missing or different PNG fails the job. The snapshot specs (`visual.spec.ts` and
+`nav.spec.ts`) carry the `@visual` tag, so the fallback excludes exactly them
+with `--grep-invert "@visual"`.
 
 The job provisions PostgreSQL and calls `./task e2e` itself, so the API, the
-OIDC stub and the preview server come from the same script a laptop uses. It is
-also the only job that installs every pin in `deps.lock` — Nim packages, pnpm,
-the browser builds and the coverage tools — so it runs `./task deps-check`
-before the suite.
+OIDC stub and both previews come from the same script a laptop uses. It is also
+the only job that installs every pin in `deps.lock` (Nim packages, pnpm, the
+browser builds and the coverage tools), so it runs `./task deps-check` before
+the suite.

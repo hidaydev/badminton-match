@@ -1,8 +1,9 @@
 #!/bin/sh
 # T-072: browser regression against a real API, a real database and the OIDC
-# stub. Three servers, one disposable database, then Playwright.
+# stub. Four servers (the scoreboard preview is PWA-03), one disposable
+# database, then Playwright.
 #
-#   ./task e2e                    # a11y + visual + compat
+#   ./task e2e                    # a11y + visual + compat + scoreboard
 #   ./task e2e --update-snapshots # rewrite the visual baseline
 set -eu
 
@@ -17,6 +18,9 @@ API_PORT=${MAJADU_E2E_API_PORT:-18093}
 STUB_PORT=${MAJADU_E2E_STUB_PORT:-19081}
 # 5173 is the seeded `security.allowed_origins` entry; the preview must own it.
 WEB_PORT=${MAJADU_E2E_WEB_PORT:-5173}
+# The scoreboard makes no API calls, so its origin only has to be stable for the
+# service worker and the spec that drives it.
+SCOREBOARD_PORT=${MAJADU_E2E_SCOREBOARD_PORT:-4173}
 DB=${MAJADU_E2E_DB:-bm2_e2e}
 STUB_EMAIL=stub@example.com
 
@@ -52,7 +56,7 @@ export MAJADU_BOOTSTRAP_OWNER_EMAIL=$STUB_EMAIL
 API_PID=$!
 
 cleanup() {
-  kill "$API_PID" "$STUB_PID" "${WEB_PID:-}" 2>/dev/null || true
+  kill "$API_PID" "$STUB_PID" "${WEB_PID:-}" "${SCOREBOARD_PID:-}" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
@@ -69,11 +73,17 @@ done
 [ "$ready" = 1 ] || fail "API did not answer /healthz on :$API_PORT (log: /tmp/e2e-api.log)"
 
 pnpm --filter badminton-pair-tmp build >/dev/null
+pnpm --filter majadu-score build >/dev/null
 
 E2E_API_PROXY="http://127.0.0.1:$API_PORT" \
   pnpm --filter badminton-pair-tmp exec vite preview --host 127.0.0.1 --port "$WEB_PORT" \
   >/tmp/e2e-web.log 2>&1 &
 WEB_PID=$!
+
+pnpm --filter majadu-score exec vite preview --host 127.0.0.1 \
+  --port "$SCOREBOARD_PORT" --strictPort \
+  >/tmp/e2e-scoreboard.log 2>&1 &
+SCOREBOARD_PID=$!
 
 ready=0
 for _ in $(seq 1 100); do
@@ -85,5 +95,16 @@ for _ in $(seq 1 100); do
 done
 [ "$ready" = 1 ] || fail "web preview did not answer on :$WEB_PORT (log: /tmp/e2e-web.log)"
 
+ready=0
+for _ in $(seq 1 100); do
+  if curl -fsS --max-time 1 "http://127.0.0.1:$SCOREBOARD_PORT/" >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
+  sleep 0.2
+done
+[ "$ready" = 1 ] || fail "scoreboard preview did not answer on :$SCOREBOARD_PORT (log: /tmp/e2e-scoreboard.log)"
+
 E2E_BASE_URL="http://127.0.0.1:$WEB_PORT" \
+  E2E_SCOREBOARD_BASE_URL="http://127.0.0.1:$SCOREBOARD_PORT" \
   pnpm exec playwright test --config "$REPO_ROOT/apps/web/playwright.config.ts" "$@"

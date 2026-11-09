@@ -12,10 +12,11 @@
 # tag; the tag always comes from the operator's signed `git tag -s`.
 #
 # The front end is part of the release gate (QA-02): the web job type checks,
-# tests and builds both apps, and the e2e job drives the built web bundle. Each
-# job keeps the repository's 15-minute cap and its own cache. No suite runs twice
-# in parallel jobs: `./task ci` covers Nim, and web, e2e, coverage, mutation and
-# parity each own one job.
+# tests and builds both apps, and the e2e job drives the built web bundle. No
+# job repeats another job's command: `./task ci` covers the Nim suites, coverage
+# re-runs them instrumented against the committed baseline, and e2e and parity
+# boot the API they drive. Each job keeps the repository's 15-minute cap and its
+# own cache.
 name: Release
 
 on:
@@ -156,25 +157,7 @@ jobs:
       - name: "Scoreboard: build"
         run: pnpm build:scoreboard
       - name: "Scoreboard: assert the service worker precache"
-        run: |
-          node <<'NODE'
-          const fs = require('node:fs');
-          const dist = 'apps/scoreboard/dist';
-          const sw = fs.readFileSync(`${dist}/sw.js`, 'utf8');
-          const html = fs.readFileSync(`${dist}/index.html`, 'utf8');
-          const script = html.match(/<script[^>]*\bsrc=["']([^"']+\.js)["']/);
-          if (!script) throw new Error('apps/scoreboard/dist/index.html has no entry script');
-          const entry = script[1].replace(/^\//, '');
-          const urls = [...sw.matchAll(/["']?url["']?\s*:\s*["']([^"']+)["']/g)]
-            .map((match) => match[1].replace(/^\//, ''));
-          if (!urls.includes('index.html')) {
-            throw new Error('apps/scoreboard/dist/sw.js precache has no /index.html');
-          }
-          if (!urls.includes(entry)) {
-            throw new Error(`apps/scoreboard/dist/sw.js precache has no entry script ${entry}`);
-          }
-          console.log(`scoreboard precache ok: /index.html and ${entry}`);
-          NODE
+        run: ./task scoreboard-pwa
 
   e2e:
     name: "Release: e2e"
