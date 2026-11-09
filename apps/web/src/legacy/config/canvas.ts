@@ -1,5 +1,6 @@
 // src/config/canvas.ts
 // Named constants for canvas drawing — shared across canvasPost.ts and page components.
+import { PALETTE } from '../../theme/palette'
 
 /** Instagram post width (1080px) */
 export const POST_WIDTH = 1080
@@ -19,35 +20,35 @@ export const HEADER_H = 90
 /** Logo display height */
 export const LOGO_H = 28
 
-/** Canvas color palette — single source of truth for canvas drawing */
+/** Canvas color palette, imported from the app palette so an export matches the app */
 export const CANVAS_COLORS = {
-  /** Primary accent (yellow) */
-  accent: '#facc15',
-  /** Brand yellow (slightly different from accent) */
-  brand: '#F5B400',
+  /** Primary accent */
+  accent: PALETTE.accent,
+  /** Brand colour */
+  brand: PALETTE.accent,
   /** Dark background */
-  bgDark: '#1e293b',
+  bgDark: PALETTE.surface,
   /** Muted text / secondary */
-  muted: '#64748b',
+  muted: PALETTE.fgDim,
   /** Border / subtle elements */
-  border: '#475569',
+  border: PALETTE.border,
   /** Primary text on dark */
-  textPrimary: '#e2e8f0',
+  textPrimary: PALETTE.fg,
   /** Dimmed text */
-  textDim: '#94a3b8',
+  textDim: PALETTE.fgDim,
   /** Success / positive */
-  success: '#4ade80',
+  success: PALETTE.success,
   /** Error / negative */
-  error: '#f87171',
+  error: PALETTE.error,
   /** Warning / bronze */
-  warning: '#fb923c',
+  warning: PALETTE.warning,
   /** Silver / 2nd place */
-  silver: '#cbd5e1',
+  silver: PALETTE.silver,
   /** White */
-  white: '#ffffff',
+  white: PALETTE.white,
   /** Black */
-  black: '#000000',
+  black: PALETTE.black,
   /** Dark text on light */
-  darkText: '#111111',
+  darkText: PALETTE.darkText,
 } as const
 

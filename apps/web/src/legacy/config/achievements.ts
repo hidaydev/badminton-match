@@ -8,14 +8,16 @@
 //   yang disengaja: warnanya redup dan tetap cocok di dark UI; indigo/violet
 //   tetap dihindari sesuai aturan redesign app.
 
+import { PALETTE } from '../../theme/palette'
+
 // Bronze, Silver, Gold, Platinum, Onyx.
-export const MEDAL_TONES = ['#c08552', '#c7ccd1', '#e3b341', '#a5d8e0', '#9aa4b2']
+export const MEDAL_TONES = ['#c08552', '#c7ccd1', PALETTE.accent, '#a5d8e0', '#9aa4b2']
 
 // Nama tingkat 1..5, dipakai untuk tangga di popup detail.
 export const MEDAL_TIER_NAMES = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Onyx']
 
 export const EVENT_TONES = [
-  '#e3b341', // gold
+  PALETTE.accent, // gold
   '#d08a4f', // copper
   '#b9a24e', // olive
   '#8fae7a', // moss
@@ -69,7 +71,7 @@ export const MEDAL_TIER_STYLES: MedalTierStyle[] = [
   {
     level: 3,
     name: 'Gold',
-    tone: '#e3b341',
+    tone: PALETTE.accent,
     rimStops: ['#fff4c4', '#f8d254', '#d89b1c', '#7d5206', '#be8512'],
     faceStops: ['#2c210d', '#110c04'],
     glyphStops: ['#fff8d9', '#f3c144', '#946108'],

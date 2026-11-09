@@ -1,4 +1,5 @@
 import { ScoreboardControls } from './ScoreboardControls'
+import { PALETTE } from '../../../theme/palette'
 import { t } from '../../../i18n'
 
 export interface OverlayFooterState {
@@ -51,7 +52,7 @@ export function ScoreboardFooter({
             <button
               onClick={overlay.onKeepScoring}
               className="px-4 min-h-11 inline-flex items-center rounded-lg text-slate-900 font-bold text-sm cursor-pointer active:opacity-80 transition-opacity pointer-events-auto"
-              style={{ background: '#fbbf24' }}
+              style={{ background: PALETTE.accent }}
             >
               Keep scoring
             </button>
@@ -77,7 +78,7 @@ export function ScoreboardFooter({
               onClick={overlay.onSave}
               disabled={overlay.isSaving}
               className="px-4 h-11 flex items-center rounded-lg text-slate-900 font-bold text-sm cursor-pointer active:opacity-80 transition-opacity pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: '#fbbf24' }}
+              style={{ background: PALETTE.accent }}
             >
               {overlay.isSaving ? (
                 <>

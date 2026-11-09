@@ -1,7 +1,7 @@
 // src/pages/InstagramPostPage.tsx
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { instagramTemplates } from '../config/instagramTemplates'
-import { POST_HEIGHT, POST_WIDTH, STORY_HEIGHT, STORY_WIDTH } from '../config/canvas'
+import { CANVAS_COLORS, POST_HEIGHT, POST_WIDTH, STORY_HEIGHT, STORY_WIDTH } from '../config/canvas'
 import { ACTIVE_TEMPLATE } from '../utils/canvas-templates/config'
 import { useListSessions, useFetchSession } from '../queries'
 import { computeStandings } from '../utils/standings'
@@ -333,7 +333,7 @@ export default function InstagramPostPage() {
     if (overlays.storyBg) {
       ctx.drawImage(overlays.storyBg, 0, 0, W, H)
     } else {
-      ctx.fillStyle = '#F5B400'
+      ctx.fillStyle = CANVAS_COLORS.brand
       ctx.fillRect(0, 0, W, H)
     }
 
