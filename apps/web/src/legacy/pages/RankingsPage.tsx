@@ -181,11 +181,11 @@ export default function RankingsPage() {
                   >
                     {/* Rank Number (and Global Rank if filtering by tier) */}
                     <div className="w-9 shrink-0 flex flex-col items-start justify-center">
-                      <span className={`font-mono text-sm leading-none ${rankColor}`}>
+                      <span className={`font-mono text-sm leading-none tabular-nums ${rankColor}`}>
                         #{r.displayRank}
                       </span>
                       {isFilteredTier && (
-                        <span className="text-[11px] font-mono text-fg-dim leading-tight mt-0.5">
+                        <span className="text-[11px] font-mono text-fg-dim leading-tight mt-0.5 tabular-nums">
                           #{r.rank}
                         </span>
                       )}
@@ -193,7 +193,7 @@ export default function RankingsPage() {
 
                     {/* Movement Indicator (▲ / ▼ / ·) when viewing All */}
                     {showDelta && (
-                      <span className="w-3 shrink-0 font-mono text-[10px] leading-none text-center">
+                      <span className="w-3 shrink-0 font-mono text-[10px] leading-none text-center tabular-nums">
                         {r.rank_delta == null || r.rank_delta === 0 ? (
                           <>
                             <span className="text-fg-dim" aria-hidden="true">·</span>
@@ -223,7 +223,7 @@ export default function RankingsPage() {
 
                     {/* Points */}
                     <div className="shrink-0 flex items-center">
-                      <span className="font-mono text-sm font-bold text-fg leading-none">
+                      <span className="font-mono text-sm font-bold text-fg leading-none tabular-nums">
                         {Math.round(r.points).toLocaleString('en-US')}
                       </span>
                     </div>
