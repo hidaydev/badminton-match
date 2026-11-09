@@ -272,11 +272,32 @@ VERSION=$(tr -d '[:space:]' <"$MONO_DIR/VERSION")
 # The decision is the version, not a path filter: a commit that only bumps
 # VERSION is a release and must deploy, while a documentation push that leaves
 # VERSION alone must not restart the service.
+# The state file records intent, not observed state: a host rebuilt from a
+# snapshot, a `podman image prune` or a deleted tag leaves it saying a version
+# is live when nothing serves it. The short-circuit is only taken when the image
+# exists, the container runs and /version answers with the same version.
+container_running() {
+  [ "$(podman inspect --format '{{.State.Running}}' "$SERVICE" 2>/dev/null || true)" = "true" ]
+}
+
+serving_version() {
+  curl -fsS --max-time 5 "$HEALTH_URL/version" 2>/dev/null |
+    grep -q "\"version\":\"$VERSION\""
+}
+
 DEPLOYED=""
 [ -f "$STATE_DIR/deployed-version" ] && DEPLOYED=$(cat "$STATE_DIR/deployed-version")
 if [ "$DEPLOYED" = "$VERSION" ]; then
-  log "version $VERSION is already live; nothing to do"
-  exit 0
+  if ! podman image exists "$LOCAL_IMAGE:local"; then
+    log "$DEPLOYED is recorded as live but $LOCAL_IMAGE:local is missing; deploying $VERSION again"
+  elif ! container_running; then
+    log "$DEPLOYED is recorded as live but container $SERVICE is not running; deploying $VERSION again"
+  elif ! serving_version; then
+    log "$DEPLOYED is recorded as live but $HEALTH_URL/version does not report $VERSION; deploying again"
+  else
+    log "version $VERSION is already live; nothing to do"
+    exit 0
+  fi
 fi
 
 # ---------------------------------------------------------------------------

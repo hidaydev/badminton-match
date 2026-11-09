@@ -26,7 +26,10 @@ The signature is checked with `cosign verify --key env/cosign.pub` before
 `podman pull`.
 
 `deploy-vps.sh` decides to deploy from `VERSION`, not from the tag: a commit that
-bumps `VERSION` is a release, a documentation commit is not. That is why the tag
+bumps `VERSION` is a release, a documentation commit is not. A matching
+`deploy/deployed-version` is not enough to skip the run: the image `:local` must
+exist, the container must be running and `/version` must report the same
+version. Anything else deploys again and says which check failed. That is why the tag
 must already be published **and** its image must already exist before `main` is
 pushed.
 

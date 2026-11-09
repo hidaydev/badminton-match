@@ -21,6 +21,7 @@ if [ -n "${FAKE_PODMAN_LOG:-}" ]; then
 fi
 case "$*" in
   "image exists "*) exit "${FAKE_PODMAN_IMAGE_EXISTS:-0}" ;;
+  *"State.Running"*) printf '%s\n' "${FAKE_CONTAINER_RUNNING:-false}" ; exit 0 ;;
   *"datname = 'bm2'"*) printf '%s\n' "${FAKE_BM2_EXISTS:-}" ; exit 0 ;;
   *"datname = 'bm2_rc'"*) printf '1\n' ; exit 0 ;;
 esac
@@ -353,6 +354,112 @@ suite "deploy-vps.sh":
     let logDir = getFilePermissions(fixture.root / "logs")
     check fpGroupRead notin logDir
     check fpOthersRead notin logDir
+
+  # OPS-22: the "already live" gate trusted deployed-version alone.
+  test "a matching deployed-version with a running service is a no-op":
+    let fixture = newFixture("deploy-live-ok")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    fixture.installFake("curl", """#!/bin/sh
+case "$*" in
+  */version) printf '%s' '{"version":"2.0.0","commit":"abc"}' ;;
+esac
+exit 0
+""")
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("FAKE_CONTAINER_RUNNING", "true"),
+      ])
+    check result.exitCode == 0
+    check result.stdout.contains("version 2.0.0 is already live; nothing to do")
+
+  test "a deleted :local defeats the deployed-version short-circuit":
+    let fixture = newFixture("deploy-live-no-image")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    fixture.installFake("curl", """#!/bin/sh
+case "$*" in
+  */version) printf '%s' '{"version":"2.0.0","commit":"abc"}' ;;
+esac
+exit 0
+""")
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("FAKE_CONTAINER_RUNNING", "true"),
+        ("FAKE_PODMAN_IMAGE_EXISTS", "1"),
+      ])
+    check result.stdout.contains(
+      "2.0.0 is recorded as live but localhost/majadu-api:local is missing")
+    check not result.stdout.contains("nothing to do")
+    # The run falls through to the release lookup, which has no published
+    # digest in this fixture.
+    check result.exitCode == 1
+
+  test "a stopped container defeats the deployed-version short-circuit":
+    let fixture = newFixture("deploy-live-stopped")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("FAKE_CONTAINER_RUNNING", "false"),
+      ])
+    check result.stdout.contains(
+      "2.0.0 is recorded as live but container majadu-api is not running")
+    check not result.stdout.contains("nothing to do")
+
+  test "a different /version defeats the deployed-version short-circuit":
+    let fixture = newFixture("deploy-live-wrong-version")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    fixture.installFake("curl", """#!/bin/sh
+case "$*" in
+  */version) printf '%s' '{"version":"1.9.0","commit":"abc"}' ;;
+esac
+exit 0
+""")
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("FAKE_CONTAINER_RUNNING", "true"),
+      ])
+    check result.stdout.contains(
+      "2.0.0 is recorded as live but http://127.0.0.1:8080/version does not report 2.0.0")
+    check not result.stdout.contains("nothing to do")
 
   # OPS-17: the GHCR token used to be built into a curl argument, where any
   # process of the same user reads it with `ps -ef`.
