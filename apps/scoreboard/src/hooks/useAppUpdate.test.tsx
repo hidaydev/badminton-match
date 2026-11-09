@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { useAppUpdate } from './useAppUpdate'
+import { UPDATE_CHECK_INTERVAL_MS, useAppUpdate } from './useAppUpdate'
 
 interface FakeWorker {
   state: string
@@ -28,6 +28,7 @@ function fakeRegistration(overrides: Record<string, unknown> = {}) {
   return {
     waiting: null as unknown,
     installing: null as unknown,
+    update: vi.fn(async () => undefined),
     addEventListener: vi.fn((event: string, listener: () => void) => {
       listeners.set(event, listener)
     }),
@@ -60,6 +61,7 @@ function installContainer(registration: unknown, controller: unknown = {}) {
 }
 
 afterEach(() => {
+  vi.useRealTimers()
   Reflect.deleteProperty(navigator, 'serviceWorker')
 })
 
@@ -138,6 +140,42 @@ describe('useAppUpdate', () => {
     act(() => worker.fireStateChange())
 
     expect(screen.getByText('refresh')).toBeInTheDocument()
+  })
+
+  it('polls the registration so a board open all day learns about a deploy', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    const registration = fakeRegistration()
+    installContainer(registration)
+
+    await act(async () => {
+      render(<Harness />)
+    })
+    expect(registration.update).not.toHaveBeenCalled()
+
+    act(() => {
+      vi.advanceTimersByTime(UPDATE_CHECK_INTERVAL_MS)
+    })
+    expect(registration.update).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      vi.advanceTimersByTime(UPDATE_CHECK_INTERVAL_MS)
+    })
+    expect(registration.update).toHaveBeenCalledTimes(2)
+  })
+
+  it('stops polling when the board unmounts', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    const registration = fakeRegistration()
+    installContainer(registration)
+
+    const { unmount } = render(<Harness />)
+    await act(async () => {})
+    unmount()
+
+    act(() => {
+      vi.advanceTimersByTime(UPDATE_CHECK_INTERVAL_MS * 2)
+    })
+    expect(registration.update).not.toHaveBeenCalled()
   })
 
   it('hides the prompt after a dismissal', async () => {

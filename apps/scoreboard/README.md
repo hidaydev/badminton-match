@@ -37,6 +37,22 @@ One device writes at a time. A second tab or installed copy takes a Web Lock,
 finds it held, and shows "Another window is keeping score" with its controls
 disabled; it follows the first window through `storage` events.
 
+## Updates
+
+The worker runs in `prompt` mode: a downloaded build waits until the operator
+presses Reload. An open board asks the registration for a new worker every 15
+minutes, because the hall tablet never navigates on its own.
+
+Manual check after a deploy, recorded in the deploy note:
+
+1. On the installed scoreboard, read the build stamp in the bottom-left corner.
+2. Deploy the new build and wait for one poll. The sheet reads "A new version is
+   available".
+3. Press Reload. The build stamp now shows the new build's ISO timestamp.
+
+Record both stamps and the device date. If the sheet never appears, the new
+worker did not install; check the deploy's `sw.js` and the preview origin.
+
 ## Deploy
 
 The Vercel project is `majadu-score`, built from the repository root so the

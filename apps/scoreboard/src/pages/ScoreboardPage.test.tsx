@@ -373,6 +373,10 @@ describe('ScoreboardPage', () => {
 
     renderPage()
     expect(screen.getByText('RED')).toBeInTheDocument()
+    // A blocked store must read as "start at zero" on both halves, not as a
+    // render-phase throw that leaves the installed app blank.
+    expect(halfOf('RED')).toHaveTextContent('0')
+    expect(halfOf('BLUE')).toHaveTextContent('0')
 
     fireEvent.click(halfOf('RED'))
 

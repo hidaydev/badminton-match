@@ -23,6 +23,13 @@ test.beforeEach(async ({ page }) => {
 
 for (const route of visualRoutes) {
   test(`${route.name} matches the baseline @visual`, async ({ page }) => {
+    if (route.suppressInstallSheet) {
+      // The scoreboard is a separate origin, so this has to be set before it
+      // navigates there rather than on the web app the harness signed into.
+      await page.addInitScript(() => {
+        localStorage.setItem('pwa-install-shown', new Date().toDateString())
+      })
+    }
     // The session list prints a date-filter chip and the export poster prints
     // the day it was opened; both read the browser clock. Pin it so a baseline
     // recorded on one day is still valid the next.
@@ -36,9 +43,11 @@ for (const route of visualRoutes) {
     await page.locator(route.ready(state())).filter({ visible: true }).first().waitFor()
     // Fonts are served from the repo and still have to arrive before the glyphs
     // settle; a screenshot taken during the swap diffs every word on the page.
+    const hide = (route.hide ?? [])
+      .map((selector) => `${selector} { visibility: hidden !important; }`)
+      .join(' ')
     await page.addStyleTag({
-      content:
-        '*, *::before, *::after { animation: none !important; transition: none !important; }',
+      content: `*, *::before, *::after { animation: none !important; transition: none !important; } ${hide}`,
     })
     await page.evaluate(async () => {
       await document.fonts.ready
