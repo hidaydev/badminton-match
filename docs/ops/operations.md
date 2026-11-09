@@ -125,7 +125,7 @@ Filling rules:
 | When | What | Command |
 |---|---|---|
 | Every deploy | Process health; `deploy-vps.sh` runs migrations before the restart | `curl -fsS http://127.0.0.1:8080/readyz` |
-| Every 5 minutes | `/readyz` is watched by `majadu-readyz.timer`; a failure triggers `majadu-alert@` | `systemctl --user list-timers majadu-readyz.timer` |
+| Every 5 minutes | `/readyz` is watched by `majadu-readyz.timer`; a failure triggers `majadu-alert@`. `majadu-host-check.timer` watches free disk, OOM kills and the running image | `systemctl --user list-timers majadu-readyz.timer majadu-host-check.timer` |
 | Every ten minutes | Logs are rotated by `majadu-rotate-log.timer` (rename, gzip, delete >14 days, disk guard) | `ls -l /srv/qouver/apps/majadu/logs` |
 | Daily | Disk and memory headroom; no undelivered alerts | `df -h /srv && systemctl --user show majadu-api -p NRestarts && ls -l /srv/qouver/apps/majadu/logs/alert-dead-letter.log` |
 | Monthly | Migrations and seeds still match the schema | `./task ci` on a dev machine with `MAJADU_PG_DSN` |
@@ -153,6 +153,7 @@ they cannot report the failure they are most likely to miss: the host itself.
 |---|---|---|
 | `majadu-readyz.timer` | VPS | the API answered `/readyz` in the last five minutes |
 | `majadu-deploy-check.timer` | VPS | the latest release reached `deploy/deployed-version` |
+| `majadu-host-check.timer` | VPS | at least `MIN_FREE_MB` (2048) is free, the container was not OOM-killed, and it runs the `:local` image |
 | external uptime checker | provider | the public origin answers from outside the VPS |
 
 The external checker is an account-level uptime monitor (the provider's own
@@ -172,7 +173,11 @@ host failure is downtime, not a degraded mode.
 
 Journal retention is bounded by `ops/journald/majadu.conf` (200 MB, 30 days).
 Install it on the host as described in the file header, then confirm with
-`journalctl --disk-usage`.
+`journalctl --disk-usage`. The API writes its access line to stdout and nothing
+to disk, so the journal is the only copy; the units mount no log volume. The
+rotate timer still covers the operator logs (deploy, cutover, rollback) under
+`/srv/qouver/apps/majadu/logs`, and `host-check.sh` pages when the volume is
+close to full or the container was killed for memory.
 
 ## 5. Capacity statement
 

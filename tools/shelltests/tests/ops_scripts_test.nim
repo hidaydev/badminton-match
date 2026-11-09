@@ -1034,3 +1034,58 @@ exit 0
         ("MAJADU_AUDIT_DSN", "postgres://bm2_audit_prune@127.0.0.1:5432/bm2")])
     check result.exitCode == 1
     check result.stderr.contains("unexpected answer")
+
+suite "single log destination":
+  test "no API unit mounts a log volume":
+    for unit in ["majadu-api.container", "majadu-rc-api.container"]:
+      let text = readFile(repoDir / "ops" / "systemd" / unit)
+      check not text.contains(":/logs")
+      check not text.contains("/logs:")
+
+suite "host-check.sh":
+  test "a full volume pages through the disk alert":
+    let fixture = newFixture("host-check-disk")
+    defer: removeDir(fixture.root)
+    fixture.installFake("systemctl", """#!/bin/sh
+printf '%s\n' "$*" >> "$FAKE_SYSTEMCTL_LOG"
+exit 0
+""")
+    let systemctlLog = fixture.root / "systemctl.log"
+    let result = fixture.runShell(fixture.installOpsScript("host-check.sh"),
+      @[], @[("MAJADU_APP_DIR", fixture.root), ("MIN_FREE_MB", "999999999"),
+        ("FAKE_SYSTEMCTL_LOG", systemctlLog)])
+    check result.exitCode == 1
+    check result.stdout.contains("below 999999999 MB")
+    check readFile(systemctlLog).contains("start majadu-alert@disk.service")
+
+  test "an OOM-killed container pages through the memory alert":
+    let fixture = newFixture("host-check-oom")
+    defer: removeDir(fixture.root)
+    fixture.installFake("systemctl", """#!/bin/sh
+printf '%s\n' "$*" >> "$FAKE_SYSTEMCTL_LOG"
+exit 0
+""")
+    fixture.installFake("podman", """#!/bin/sh
+case "$*" in
+  *OOMKilled*) printf 'true\n' ;;
+  *"image exists"*) exit 1 ;;
+esac
+exit 0
+""")
+    let systemctlLog = fixture.root / "systemctl.log"
+    let result = fixture.runShell(fixture.installOpsScript("host-check.sh"),
+      @[], @[("MAJADU_APP_DIR", fixture.root), ("MIN_FREE_MB", "0"),
+        ("FAKE_SYSTEMCTL_LOG", systemctlLog)])
+    check result.exitCode == 1
+    check result.stdout.contains("was OOM-killed")
+    check readFile(systemctlLog).contains("start majadu-alert@memory.service")
+
+  test "a healthy host is quiet":
+    let fixture = newFixture("host-check-ok")
+    defer: removeDir(fixture.root)
+    fixture.installFake("systemctl", "#!/bin/sh\nexit 0\n")
+    fixture.installFake("podman", "#!/bin/sh\nexit 1\n")
+    let result = fixture.runShell(fixture.installOpsScript("host-check.sh"),
+      @[], @[("MAJADU_APP_DIR", fixture.root), ("MIN_FREE_MB", "0")])
+    check result.exitCode == 0
+    check result.stdout.contains("ok:")

@@ -27,14 +27,14 @@ PublishPort=127.0.0.1:8080:8080
 # Read it with `podman exec` (see ADR-007).
 Pull=never
 EnvironmentFile=/srv/qouver/apps/majadu/env/majadu-prod.env
-Volume=/srv/qouver/apps/majadu/logs/main:/logs:Z
 AutoUpdate=local
 UserNS=keep-id:uid=10001
 NoNewPrivileges=true
 DropCapability=ALL
-# The image is immutable at run time: the API writes only to the /logs volume,
-# so anything that lands elsewhere in the image is a defect or an intrusion. The
-# two tmpfs mounts are the only writable scratch space a process may need.
+# The image is immutable at run time: the API writes one JSON line per request to
+# stdout and nothing to disk, so journald is the only copy of the access log and
+# anything that lands in the image is a defect or an intrusion. The two tmpfs
+# mounts are the only writable scratch space a process may need.
 ReadOnly=true
 Tmpfs=/tmp:size=64m
 Tmpfs=/run:size=8m
