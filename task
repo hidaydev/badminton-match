@@ -29,6 +29,7 @@ Targets:
   audit-retention  prune audit rows with the owner role (MAJADU_AUDIT_DSN)
   contract-gen generate Nim routes and the TypeScript client
   contract-check verify the contract fingerprint and generated files
+  docs-check   compare quoted migration and operation counts with the artefacts
   deps-check   verify installed dependencies against deps.lock
   ci-guards    reject unpinned or malformed GitHub Actions refs
   deps-install install the pinned dependencies from deps.lock

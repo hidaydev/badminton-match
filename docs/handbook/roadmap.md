@@ -9,7 +9,7 @@ Status as of **2026-11-08**. The change history is in git history.
   `apps/api/src/main.nim`.
 - **75-operation contract**: `core.yaml` + `community.yaml` → `api.yaml`,
   `routes_gen.nim`, TS client, fingerprint (`packages/contracts/openapi`).
-- **v2 schema**: 33 migrations (`0001`–`0033`), 34 config keys, config and
+- **v2 schema**: 34 migrations (`0001`–`0034`), 34 config keys, config and
   achievement seeds.
 - **Auth & communities**: OIDC + session cookie, `member`/`host`/`admin` membership,
   invite, join request, settings, append-only audit, platform owner.
@@ -43,7 +43,7 @@ Status as of **2026-11-08**. The change history is in git history.
 | # | Item | Why |
 |---|---|---|
 | 1 | **`platform.outbox` producer** | Realtime is still in-memory → the API must be a single instance. For one VPS this is enough; an outbox only becomes necessary when replicas are added. |
-| 2 | **Raise coverage** | The ratchet only holds the line. After the attribution fix, the lowest are: `apps/api` 15.47% (`app.nim` 30k lines with almost no tests), `tools` 21.02% (`import/main.nim` 0%), `modules/player` 42.52%, `modules/rating` 48.27%. `modules/account` 60.81%, `modules/share` 66.88%, `modules/tournament` 57.15%. |
+| 2 | **Raise coverage** | The ratchet only holds the line. The Linux baseline (2026-11-09) is the number CI judges: `tools` 80.55%, `modules/player` 88.29%, `modules/session` 90.31%, `shared` 90.38%, `apps/api` 91.34% (`app.nim` is 3,571 lines). |
 
 ## 🚧 Operations still open
 

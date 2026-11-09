@@ -139,5 +139,16 @@ not exist:
   the journal off-host are not configured; those are VPS steps, not files in
   this repo.
 - `readyz` used to be just a probe; now `majadu-readyz.timer` hits it every 5
-  minutes and a failure becomes an alert. Internal metrics (T-062) are still not
-  exposed; `/ops/ping` only proves the CLI token is alive.
+  minutes and a failure becomes an alert. Internal metrics exist on
+  `MAJADU_METRICS_PORT` (default 9090, bound to 127.0.0.1 inside the container
+  and never published). There is no scrape target or dashboard, so the supported
+  query is manual:
+
+  ```sh
+  podman exec majadu-api curl -fsS http://127.0.0.1:9090/metrics \
+    | grep '^http_requests_total'
+  ```
+
+  That line, plus the structured `"msg":"request"` access log, is the current
+  answer to "request rate and 5xx for the last hour". A real backend and an
+  external checker remain on the roadmap.

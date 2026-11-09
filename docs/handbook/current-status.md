@@ -35,8 +35,8 @@ Postgres 18.6 · schema per domain (platform, community, player, session,
   `routes_gen.nim`, `packages/web-client/src/api.ts`.
 - Every operation has a handler (compilation fails otherwise) and an authorization row in
   `testdata/authz/matrix.yaml`; `./task contract-check` guards the fingerprint.
-- **33 migrations** in `db/migrations/` (`0001`–`0033`, the last one
-  `0033_share_legacy_id.sql`); seeds: `db/seeds/platform_config.sql`,
+- **34 migrations** in `db/migrations/` (`0001`–`0034`, the last one
+  `0034_etl_grants.sql`); seeds: `db/seeds/platform_config.sql`,
   `db/seeds/achievement_definitions.sql`.
 - **34 config keys** in `modules/platform/config/registry.nim`, initial values in the seed;
   per-community overrides in `community.settings` may only narrow the platform.
@@ -113,7 +113,7 @@ communities) is still used; v2 pages that were never mounted in the router
 | Contract | `./task contract-check` | fingerprint + generated output |
 | Parity | `./task parity verify` / `./task parity v2 verify` | frozen v1 71 cases/48 routes; v2 143 cases |
 | Tournament ladder | `./task levels` | read/write `rating.levels`; no row = per-game formula |
-| Coverage | `./task coverage` | per file, module and total ratchet against `coverage-baseline-<platform>.json` (92.09% of 17,102 executable lines, integration; one fresh database per suite, gcov captured per suite, 0.1 pp tolerance for gcov noise, ~10 minutes) |
+| Coverage | `./task coverage` | per file, module and total ratchet against `coverage-baseline-<platform>.json` (88.09% of 19,360 executable lines, Linux baseline measured 2026-11-09, integration; one fresh database per suite, gcov captured per suite, 0.1 pp tolerance for gcov noise, ~10 minutes) |
 | Security | part of `./task test` | IDOR, escalation, CSRF, OIDC replay, rate limit, claims |
 | Web | `pnpm check:web` | TypeScript, ESLint, Tailwind guard, Vitest |
 | E2E | `./task e2e` | Playwright: a11y, visual, navigation, writes, OCC, offline, compatibility; 72 checks across two devices and no skip; snapshots per platform in `e2e/__screenshots__/{platform}/` |
@@ -175,11 +175,10 @@ The rewrite backlog is done; what remains is in [`roadmap.md`](roadmap.md). In s
   T-060/061/065 evidence), T-074 soak, removal of `:v1-final` after 30 days (T-082),
   T-108 force-push postponed by owner decision.
 - **Gaps outside the plan:** `platform.outbox` producer (realtime is still
-  per-process). Coverage was re-measured with the correct harness (gcov
-  read after each binary; previously a stale `.gcda` made tested modules
-  report 0%), so the 39.14% baseline is the first number that can be
-  trusted, not a regression. Lowest modules: `apps/api` 15.47% and `tools`
-  21.02%.
+  per-process). Coverage is measured after the gcov attribution fix, and CI
+  judges `coverage-baseline-linux.json` (88.09% of 19,360 lines on 2026-11-09).
+  The lowest domains are `tools` 80.55%, `modules/player` 88.29% and
+  `modules/session` 90.31%.
 - **Known data differences (accepted):** Salma, Youri, Zaid, and Firda
   differ from the v1 `bm.rank_snapshots` because the v1 ledger for the 2026-10-31 session
   was ingested before that session was edited. Owner decision: v2 follows current

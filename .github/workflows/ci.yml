@@ -230,6 +230,10 @@ jobs:
       # regenerated fingerprint so the contract change is reviewable.
       - name: "Contract: fingerprint and generated files must match the specs"
         run: ./task contract-check
+      # ISO-11: a quoted migration or operation count is a claim. Compare it with
+      # the directory and CONTRACT.sha256 instead of maintaining a second copy.
+      - name: "Docs: quoted counts match the artefacts"
+        run: ./task docs-check
       # Offline: both corpora are hashed against their MANIFEST.sha256 and every
       # case is linted against the generated routes. The recorded cases are the
       # only per-route behaviour record, so a fixture edit that skips the

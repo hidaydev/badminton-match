@@ -93,6 +93,20 @@ suite "task target guards":
     let result = fixture.runTask(@["audit-retention"])
     check result.exitCode != 0
     check result.stderr.contains("MAJADU_AUDIT_DSN is required")
+  test "docs-check refuses a stale migration count":
+    let fixture = newFixture("docs-check-stale")
+    defer: removeDir(fixture.root)
+    createDir(fixture.root / "db" / "migrations")
+    writeFile(fixture.root / "db" / "migrations" / "0001_init.sql", "select 1;\n")
+    createDir(fixture.root / "packages" / "contracts" / "openapi")
+    writeFile(fixture.root / "packages" / "contracts" / "openapi" /
+      "CONTRACT.sha256", "operations 2\n")
+    writeFile(fixture.root / "README.md",
+      "| Schema | 3 migrations |\n| Contract | 2 operations |\n")
+    let result = fixture.runTask(@["docs-check"])
+    check result.exitCode == 1
+    check result.stderr.contains("README.md says 3 migrations")
+
   test "ci-guards rejects a mutable action tag":
     let fixture = newFixture("ci-guards-tag")
     defer: removeDir(fixture.root)
