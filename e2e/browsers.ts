@@ -17,6 +17,9 @@ import type { Project } from 'playwright/test'
 export const projects: Project[] = [
   {
     name: 'iphone-17',
+    // The API spec drives a socket, not a screen, so it runs once in its own
+    // project instead of twice on two phones.
+    testIgnore: /api\.spec\.ts$/,
     use: {
       browserName: 'webkit',
       viewport: { width: 402, height: 874 },
@@ -27,6 +30,7 @@ export const projects: Project[] = [
   },
   {
     name: 'poco-f5',
+    testIgnore: /api\.spec\.ts$/,
     use: {
       browserName: 'chromium',
       viewport: { width: 393, height: 873 },
@@ -46,6 +50,17 @@ export const projects: Project[] = [
     use: {
       browserName: 'chromium',
       viewport: { width: 1440, height: 900 },
+    },
+  },
+  {
+    // QAE-02, QAE-03, QAE-04, QAE-06: the audit findings live on the API's own
+    // socket, so this project uses Playwright's request context against the API
+    // the harness started and never opens a page. `testIgnore` on the phone
+    // projects keeps the spec to one run.
+    name: 'api',
+    testMatch: /api\.spec\.ts$/,
+    use: {
+      browserName: 'chromium',
     },
   },
 ]
