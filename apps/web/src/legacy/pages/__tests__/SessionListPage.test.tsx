@@ -1,11 +1,22 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { mockFetch } from '../../../test/fetchMock'
 import { t } from '../../../i18n'
 import { LegacySlugProvider } from '../../router'
+import { PENDING_OVERWRITE_WINDOW_MS, clearStoreDraft, useStore } from '../../store'
+import { ApiError, getSession, publishSession, setCommunitySlug } from '../../queries/endpoints'
+import type { CloudSnapshot } from '../../types'
 import SessionListPage from '../SessionListPage'
+
+vi.mock('../../queries/endpoints', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../queries/endpoints')>()
+  return { ...actual, publishSession: vi.fn(), getSession: vi.fn() }
+})
+
+const publishMock = vi.mocked(publishSession)
+const getSessionMock = vi.mocked(getSession)
 
 type ApiRow = {
   id: string
@@ -69,6 +80,11 @@ describe('SessionListPage', () => {
     window.localStorage.clear()
     // The request path and the query key both read the slug from the URL.
     window.history.replaceState({}, '', '/c/acme')
+    // The adapter slug is what the pending-publish guard reads.
+    setCommunitySlug('acme')
+    useStore.getState().setPendingPublish(null)
+    publishMock.mockReset()
+    getSessionMock.mockReset()
   })
 
   it('sends the date filter to the server and counts the filtered page against its total', async () => {
@@ -174,5 +190,130 @@ describe('SessionListPage', () => {
     expect(
       screen.queryByRole('button', { name: t('sessions.loadMore') }),
     ).not.toBeInTheDocument()
+  })
+
+  function pendingSnapshot(): CloudSnapshot {
+    return {
+      version: 3,
+      session: useStore.getState().session,
+      players: [],
+      fixMatches: [],
+      schedule: [],
+      playedGames: [],
+      gameScores: {},
+      absentPlayers: [],
+    }
+  }
+
+  it('asks for confirmation before overwriting another editor\'s changes', async () => {
+    mockFetch({ [`GET ${LIST}`]: () => ({ body: { items: list(), total: 2 } }) })
+    const snapshot = pendingSnapshot()
+    useStore.getState().setCloudSessionId('s1')
+    useStore.getState().setPendingPublish({
+      cloudSessionId: 's1',
+      snapshot,
+      message: t('session.stale'),
+      failedAt: Date.now(),
+    })
+    // The server has moved on since the snapshot was taken.
+    getSessionMock.mockResolvedValueOnce({ ...snapshot, version: 7 })
+    publishMock.mockResolvedValueOnce({ ...snapshot, version: 8 })
+
+    renderList()
+
+    expect(await screen.findByText(t('sessions.unsaved.title'))).toBeInTheDocument()
+    expect(screen.getByText(t('session.stale'))).toBeInTheDocument()
+
+    // The safe action is the default one, and nothing is sent until the
+    // consequence is confirmed.
+    expect(screen.getByRole('button', { name: t('sessions.unsaved.reload') })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: t('sessions.unsaved.overwrite') }))
+
+    expect(screen.getByText(t('sessions.unsaved.confirm'))).toBeInTheDocument()
+    expect(screen.getByText(t('sessions.unsaved.confirmBody'))).toBeInTheDocument()
+    expect(publishMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: t('sessions.unsaved.confirmYes') }))
+
+    await waitFor(() =>
+      expect(publishMock).toHaveBeenCalledWith('s1', { ...snapshot, version: 7 }),
+    )
+    await waitFor(() => expect(screen.queryByText(t('sessions.unsaved.title'))).toBeNull())
+    expect(useStore.getState().pendingPublish).toBeNull()
+    expect(useStore.getState().cloudVersion).toBe(8)
+  })
+
+  it('offers only reload for a record older than the overwrite window', async () => {
+    mockFetch({ [`GET ${LIST}`]: () => ({ body: { items: list(), total: 2 } }) })
+    useStore.getState().setCloudSessionId('s1')
+    useStore.getState().setPendingPublish({
+      cloudSessionId: 's1',
+      snapshot: pendingSnapshot(),
+      message: t('session.stale'),
+      failedAt: Date.now() - PENDING_OVERWRITE_WINDOW_MS - 1,
+    })
+
+    renderList()
+
+    expect(await screen.findByText(t('sessions.unsaved.title'))).toBeInTheDocument()
+    expect(await screen.findByText(t('sessions.unsaved.tooOld'))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t('sessions.unsaved.overwrite') })).toBeNull()
+    expect(publishMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: t('sessions.unsaved.reload') }))
+
+    expect(screen.getByTestId('pathname')).toHaveTextContent('/c/acme/s/s1')
+    expect(useStore.getState().pendingPublish).toBeNull()
+    expect(publishMock).not.toHaveBeenCalled()
+  })
+
+  it('does not recreate the record when a confirmed overwrite rejects after expiry', async () => {
+    mockFetch({ [`GET ${LIST}`]: () => ({ body: { items: list(), total: 2 } }) })
+    const snapshot = pendingSnapshot()
+    useStore.getState().setCloudSessionId('s1')
+    useStore.getState().setPendingPublish({
+      cloudSessionId: 's1',
+      snapshot,
+      message: t('session.stale'),
+      failedAt: Date.now(),
+    })
+    getSessionMock.mockResolvedValueOnce({ ...snapshot, version: 7 })
+    let rejectPublish: (error: unknown) => void = () => {}
+    publishMock.mockImplementationOnce(
+      () => new Promise((_resolve, reject) => { rejectPublish = reject }),
+    )
+
+    renderList()
+    expect(await screen.findByText(t('sessions.unsaved.title'))).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: t('sessions.unsaved.overwrite') }))
+    fireEvent.click(screen.getByRole('button', { name: t('sessions.unsaved.confirmYes') }))
+    await waitFor(() => expect(publishMock).toHaveBeenCalledTimes(1))
+
+    // The session ends while the confirmed write is still open.
+    act(() => {
+      clearStoreDraft()
+      setCommunitySlug('')
+    })
+    rejectPublish(new ApiError('401 UNAUTHENTICATED', 'UNAUTHENTICATED', 401))
+    await waitFor(() => expect(useStore.getState().pendingPublish).toBeNull())
+    expect(window.localStorage.getItem('badminton-store') ?? '').not.toContain('pendingPublish')
+  })
+
+  it('dismisses a failed publish only when the user asks', async () => {
+    mockFetch({ [`GET ${LIST}`]: () => ({ body: { items: list(), total: 2 } }) })
+    useStore.getState().setPendingPublish({
+      cloudSessionId: 's1',
+      snapshot: pendingSnapshot(),
+      message: t('session.action.failed'),
+      failedAt: Date.now(),
+    })
+
+    renderList()
+
+    expect(await screen.findByText(t('sessions.unsaved.title'))).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: t('sessions.unsaved.dismiss') }))
+
+    expect(screen.queryByText(t('sessions.unsaved.title'))).toBeNull()
   })
 })

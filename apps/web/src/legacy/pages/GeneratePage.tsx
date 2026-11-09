@@ -14,9 +14,11 @@ import { applySwap, applyTeamSwap, type SwapTarget, type TeamSwapTarget } from '
 import { applySlotSwap, type SlotSwapTarget } from '../utils/slotSwap'
 import { ScheduleView, QualityBanner } from '../components/generate/ScheduleComponents'
 import { useDebouncedPublish } from '../hooks/useDebouncedPublish'
-import { useAutoDismiss } from '../hooks/useAutoDismiss'
+import { isVersionMismatch } from '../queries/errors'
+import { reloadPage } from '../utils/reload'
 import { collectAmbiguousBaseNames } from '../utils/nameParser'
 import { AmbiguousNamesProvider, combineAmbiguous, useAmbiguousNames } from '../context/AmbiguousNamesContext'
+import { t } from '../../i18n'
 
 export default function GeneratePage() {
   const { isSharedView, snapshot, exitSharedView } = useSharedView()
@@ -60,12 +62,12 @@ export default function GeneratePage() {
   )
   const result = isSharedView ? (sharedResult ?? snapshot?.lastResult ?? null) : storeResult
   const [error, setError] = useState<string | null>(null)
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<{ message: string; stale: boolean } | null>(null)
   const [retryInfo, setRetryInfo] = useState<{ attempts: number; perfect: boolean } | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
 
-  // Auto-dismiss error toast after 3 seconds (keputusan poin 4)
-  useAutoDismiss(saveError, setSaveError, 3000)
+  // The publish and score errors below are not success acknowledgements, so
+  // they stay on screen until the user retries or dismisses them.
 
   // Derivasi stabil: map pemain & layout court dihitung ulang hanya saat input berubah.
   const playerMap = useMemo(() => new Map(players.map((p) => [p.id, p])), [players])
@@ -79,7 +81,11 @@ export default function GeneratePage() {
   )
   const slotsPerCourt = useMemo(() => selectSlotsPerCourt(session), [session])
 
-  const { publishToCloud, isSaving } = useDebouncedPublish(cloudSessionId, (msg) => setSaveError(msg))
+  const { publishToCloud, isSaving } = useDebouncedPublish(
+    cloudSessionId,
+    (msg, err) => setSaveError({ message: msg, stale: isVersionMismatch(err) }),
+    () => setSaveError(null),
+  )
 
   // A shared link is a spectator view: the snapshot it decoded is the only
   // owner of the session, so an edit must never reach the draft store (another
@@ -276,8 +282,36 @@ export default function GeneratePage() {
         </div>
       )}
       {saveError && (
-        <div className="p-3 bg-red-900/30 border border-red-700 rounded-xl text-red-400 text-sm" role="alert" aria-live="polite">
-          {saveError}
+        <div className="flex flex-col gap-2 p-3 bg-red-900/30 border border-red-700 rounded-xl text-red-400 text-sm sm:flex-row sm:items-center" role="alert">
+          <span className="min-w-0 flex-1">{saveError.message}</span>
+          <span className="flex shrink-0 items-center gap-2">
+            {saveError.stale ? (
+              // A stale conditional request cannot succeed by resending it.
+              // The safe action is to load the server's current state.
+              <button
+                type="button"
+                onClick={() => reloadPage()}
+                className="min-h-11 rounded-lg border border-red-600 px-3 text-xs font-bold text-red-200 transition-colors hover:bg-red-900/40"
+              >
+                {t('session.action.reload')}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setSaveError(null); publishToCloud() }}
+                className="min-h-11 rounded-lg border border-red-600 px-3 text-xs font-bold text-red-200 transition-colors hover:bg-red-900/40"
+              >
+                {t('session.action.retry')}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setSaveError(null)}
+              className="min-h-11 rounded-lg border border-border px-3 text-xs text-red-300 transition-colors hover:text-red-100"
+            >
+              {t('session.action.dismiss')}
+            </button>
+          </span>
         </div>
       )}
 

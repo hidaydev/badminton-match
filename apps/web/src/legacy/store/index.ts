@@ -11,7 +11,9 @@ import type { ScheduleSlice } from './scheduleSlice'
 import { createScheduleSlice } from './scheduleSlice'
 import type { FixMatchesSlice } from './fixMatchesSlice'
 import { createFixMatchesSlice } from './fixMatchesSlice'
-import type { UISlice } from './uiSlice'
+import type { PendingPublish, UISlice } from './uiSlice'
+
+export { PENDING_OVERWRITE_WINDOW_MS } from './uiSlice'
 import { createUISlice } from './uiSlice'
 
 // Combined state type
@@ -36,6 +38,7 @@ type PersistedDraft = {
   absentPlayers: AppState['absentPlayers']
   cloudSessionId: AppState['cloudSessionId']
   cloudVersion: AppState['cloudVersion']
+  pendingPublish: AppState['pendingPublish']
 }
 
 /** Before the legacy shell renders, the URL is the only source of the slug. */
@@ -73,6 +76,7 @@ function createEmptyDraft(): PersistedDraft {
     absentPlayers: initial.absentPlayers,
     cloudSessionId: initial.cloudSessionId,
     cloudVersion: initial.cloudVersion,
+    pendingPublish: initial.pendingPublish,
   }
 }
 
@@ -97,6 +101,7 @@ export const useStore = create<AppState>()(
         absentPlayers: state.absentPlayers,
         cloudSessionId: state.cloudSessionId,
         cloudVersion: state.cloudVersion,
+        pendingPublish: state.pendingPublish,
       }),
       merge: (persistedState, currentState) => {
         const saved = persistedState as PersistedDraft | undefined
@@ -136,4 +141,32 @@ export function clearStoreDraft(): void {
   useStore.getState().resetSession()
   useStore.persist.clearStorage()
   draftCommunitySlug = null
+}
+
+/**
+ * Persist a failed publish, but only while the draft it belongs to is still
+ * the active one. Expiry clears the draft synchronously, and the 401 handler
+ * can run before the failing request's catch block; an unguarded write would
+ * then recreate the previous account's record for the next account on this
+ * device.
+ */
+export function recordPendingPublish(pending: PendingPublish): boolean {
+  if (currentCommunitySlug() === '') return false
+  const state = useStore.getState()
+  if (state.cloudSessionId !== pending.cloudSessionId) return false
+  const existing = state.pendingPublish
+  const failedAt =
+    existing !== null && existing.cloudSessionId === pending.cloudSessionId && existing.failedAt > 0
+      ? existing.failedAt
+      : pending.failedAt
+  const message =
+    pending.message ??
+    (existing !== null && existing.cloudSessionId === pending.cloudSessionId ? existing.message : null)
+  useStore.getState().setPendingPublish({
+    ...pending,
+    // Keep the original age and the message that first explained the record.
+    failedAt,
+    message,
+  })
+  return true
 }

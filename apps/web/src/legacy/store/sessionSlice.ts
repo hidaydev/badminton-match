@@ -169,5 +169,6 @@ export const createSessionSlice = (
       cloudSessionId: null,
       cloudVersion: null,
       absentPlayers: [],
+      pendingPublish: null,
     })),
 })

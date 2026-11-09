@@ -27,7 +27,7 @@ import SummaryModal from '../components/SummaryModal'
 import ErrorBanner from '../components/ErrorBanner'
 import { useAdmin } from '../context/AdminContext'
 import { useLastSession } from '../hooks/useLastSession'
-import { useAutoDismiss, mutationToastHandlers } from '../hooks/useAutoDismiss'
+import { mutationToastHandlers } from '../hooks/useAutoDismiss'
 import { getSaveErrorMessage } from '../queries/errors'
 import { communityQueryKey } from '../queries/keys'
 import { communityHref } from '../../routes.manifest'
@@ -46,11 +46,8 @@ export default function SharedSessionPage() {
   const { isAdmin } = useAdmin()
   const canEdit = isAdmin
 
-  // Auto-dismiss error toast after 3 seconds (keputusan poin 4)
-  useAutoDismiss(saveError, setSaveError, 3000)
-
   const { mutate: togglePlayed, isPending: togglePlayedPending } = useTogglePlayed(sessionId!)
-  const { mutate: setScore, isPending: setScorePending } = useSetScore(sessionId!)
+  const { mutateAsync: setScore, isPending: setScorePending } = useSetScore(sessionId!)
   const { mutate: swapPlayers, isPending: swapPlayersPending } = useSwapPlayers(sessionId!)
   const { mutate: setAbsent, isPending: setAbsentPending } = useSetAbsent(sessionId!)
   const { mutateAsync: setSkippedAsync, isPending: setSkippedPending } = useSetGameSkipped(sessionId!)
@@ -160,7 +157,7 @@ export default function SharedSessionPage() {
     <AmbiguousNamesProvider value={ambiguousNames}>
     <main className="min-h-screen bg-ground text-fg flex flex-col">
       {header}
-      {saveError && <ErrorBanner message={saveError} />}
+      {saveError && <ErrorBanner message={saveError} onDismiss={() => setSaveError(null)} />}
       <SummaryModal
         result={result!}
         playerMap={playerMap}
@@ -174,7 +171,7 @@ export default function SharedSessionPage() {
           const willBePlayed = !current?.playedGames.includes(key)
           togglePlayed({ key, nextPlayed: willBePlayed }, mutationToastHandlers(setSaveError))
         }}
-        onSetGameScore={(key, sets) => setScore({ key, sets }, mutationToastHandlers(setSaveError))}
+        onSetGameScore={async (key, sets) => { await setScore({ key, sets }) }}
         title={snapshot.session.title ?? ''}
         date={snapshot.session.date ?? ''}
         sessionStart={snapshot.session.sessionStart}

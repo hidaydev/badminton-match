@@ -55,7 +55,7 @@ interface SummaryModalBaseProps {
 /** Edit callback props for SummaryModal (all optional for read-only views) */
 interface SummaryModalEditProps {
   onTogglePlayedGame?: (key: string) => void
-  onSetGameScore?: (key: string, sets: { a: number; b: number }[]) => void
+  onSetGameScore?: (key: string, sets: { a: number; b: number }[]) => void | Promise<void>
   onSwapPlayers?: (t1: SwapTarget, t2: SwapTarget) => void
   onSetAbsent?: (nextAbsent: string[]) => void
   onSetGameSkipped?: (key: string, playerIds: string[]) => void | Promise<void>
@@ -129,7 +129,7 @@ export default function SummaryModal({
   }, !!onClose && !standalone)
 
   const score = useScoreDraft(onSetGameScore, scoring)
-  const { expandedScore, setExpandedScore, scoreError, setScoreError, draftScores, setDraftScores, updateDraftSet, handleScoreSave, handleClearScore } = score
+  const { expandedScore, setExpandedScore, scoreError, setScoreError, draftScores, setDraftScores, updateDraftSet, handleScoreSave, handleClearScore, scoreFailures, retryScore, dismissScoreFailure } = score
 
   // Mode edit (swap/absent/skip/replace/slotSwap/teamSwap/change) — lihat hook.
   const modes = useSummaryEditModes({
@@ -649,6 +649,9 @@ export default function SummaryModal({
             expandedScore={expandedScore}
             draftScores={draftScores}
             scoreError={scoreError}
+            scoreFailures={scoreFailures}
+            retryScore={retryScore}
+            dismissScoreFailure={dismissScoreFailure}
             swapSelected={swapSelected}
             pendingSwap={pendingSwap}
             teamSwapSelected={teamSwapSelected}

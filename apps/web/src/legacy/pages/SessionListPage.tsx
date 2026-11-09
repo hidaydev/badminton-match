@@ -1,7 +1,10 @@
 // src/pages/SessionListPage.tsx: logbook of past and active match sessions.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from '../router'
 import { useListSessions } from '../queries'
+import { getSession, publishSession, currentCommunitySlug } from '../queries/endpoints'
+import { getSaveErrorMessage } from '../queries/errors'
+import { PENDING_OVERWRITE_WINDOW_MS, recordPendingPublish, useStore } from '../store'
 import { useAdmin } from '../context/AdminContext'
 import { t } from '../../i18n'
 
@@ -12,6 +15,25 @@ export default function SessionListPage() {
   const { isAdmin } = useAdmin()
   const [query, setQuery] = useState('')
   const [dateFilter, setDateFilter] = useState('')
+  const pendingPublish = useStore((s) => s.pendingPublish)
+  const setPendingPublish = useStore((s) => s.setPendingPublish)
+  const [busyPending, setBusyPending] = useState(false)
+  // Both flags are keyed by the record's timestamp: a new record cannot
+  // inherit a confirmation panel or an expiry from the previous one.
+  const [confirmingAt, setConfirmingAt] = useState<number | null>(null)
+  const [expiredAt, setExpiredAt] = useState<number | null>(null)
+  const failedAt = pendingPublish?.failedAt ?? null
+  const confirmingOverwrite = failedAt !== null && confirmingAt === failedAt
+  const overwriteExpired = failedAt !== null && expiredAt === failedAt
+
+  // Hide the overwrite action as soon as the record crosses the window; the
+  // handler enforces the same limit in case a click races the timer.
+  useEffect(() => {
+    if (failedAt === null) return
+    const remaining = failedAt + PENDING_OVERWRITE_WINDOW_MS - Date.now()
+    const timer = setTimeout(() => setExpiredAt(failedAt), Math.max(0, remaining))
+    return () => clearTimeout(timer)
+  }, [failedAt])
 
   const hasFilter = Boolean(query.trim() || dateFilter)
   // Server-side search and paging: the query covers the whole logbook, and
@@ -30,6 +52,62 @@ export default function SessionListPage() {
     date: dateFilter || undefined,
   })
 
+  /** The record may only be touched while it still belongs to this session. */
+  function activePendingSessionId(): string | null {
+    if (pendingPublish === null) return null
+    if (currentCommunitySlug() === '') return null
+    if (useStore.getState().cloudSessionId !== pendingPublish.cloudSessionId) return null
+    return pendingPublish.cloudSessionId
+  }
+
+  /** The safe default: show the server's current state and drop the copy. */
+  function reloadPendingSession() {
+    if (pendingPublish === null) return
+    const cloudSessionId = pendingPublish.cloudSessionId
+    if (activePendingSessionId() !== null && !busyPending) {
+      setPendingPublish(null)
+    }
+    navigate(`/s/${cloudSessionId}`)
+  }
+
+  /**
+   * Forcing a stale copy over the server replaces the whole schedule, so this
+   * only runs from the explicit confirmation and only inside the age window.
+   */
+  async function overwritePendingPublish() {
+    if (pendingPublish === null || busyPending) return
+    const cloudSessionId = activePendingSessionId()
+    if (cloudSessionId === null) return
+    if (Date.now() - pendingPublish.failedAt > PENDING_OVERWRITE_WINDOW_MS) {
+      setExpiredAt(pendingPublish.failedAt)
+      setConfirmingAt(null)
+      return
+    }
+    setBusyPending(true)
+    setConfirmingAt(null)
+    try {
+      // The stored basis is older than the server. This is an explicit,
+      // confirmed overwrite, so read the current version once and publish the
+      // copy on top of it.
+      const fresh = await getSession(cloudSessionId)
+      const snapshot = fresh?.version != null
+        ? { ...pendingPublish.snapshot, version: fresh.version }
+        : pendingPublish.snapshot
+      const updated = await publishSession(cloudSessionId, snapshot)
+      if (useStore.getState().cloudSessionId === cloudSessionId) {
+        useStore.getState().setCloudVersion(updated?.version ?? null)
+        useStore.getState().setPendingPublish(null)
+        await refetch()
+      }
+    } catch (error) {
+      // Refuse to write after expiry: the 401 handler may already have cleared
+      // the store for the next account on this device.
+      recordPendingPublish({ ...pendingPublish, message: getSaveErrorMessage(error) })
+    } finally {
+      setBusyPending(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3">
       {/* Header Title */}
@@ -39,6 +117,78 @@ export default function SessionListPage() {
           {hasFilter ? `${filtered.length} / ${total}` : total} {t('common.total')}
         </span>
       </div>
+
+      {/* A write that did not reach the server is never dropped. Reloading
+          the session is the default: it shows the current server state. The
+          copy may only be forced over a collaborator after an explicit
+          confirmation, and only while the record is fresh. */}
+      {pendingPublish && (
+        <div role="alert" className="flex flex-col gap-3 rounded-xl border border-error/60 bg-error/10 p-3 sm:flex-row sm:items-start">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-fg">{t('sessions.unsaved.title')}</p>
+            <p className="text-xs text-fg-dim">
+              {pendingPublish.message ?? t('sessions.unsaved.body')}
+            </p>
+            {overwriteExpired && (
+              <p className="mt-1 text-xs text-fg-dim">{t('sessions.unsaved.tooOld')}</p>
+            )}
+          </div>
+
+          {confirmingOverwrite ? (
+            <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+              <p className="text-xs font-semibold text-fg">{t('sessions.unsaved.confirm')}</p>
+              <p className="text-xs text-fg-dim">{t('sessions.unsaved.confirmBody')}</p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmingAt(null)}
+                  disabled={busyPending}
+                  className="min-h-11 rounded-lg border border-border px-3 text-xs font-mono text-fg-dim transition-colors hover:text-fg disabled:opacity-50"
+                >
+                  {t('sessions.unsaved.cancel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void overwritePendingPublish()}
+                  disabled={busyPending}
+                  className="min-h-11 rounded-lg border border-error bg-error/20 px-3 text-xs font-bold text-error transition-colors hover:bg-error/30 disabled:opacity-50"
+                >
+                  {busyPending ? t('sessions.unsaved.overwriting') : t('sessions.unsaved.confirmYes')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={reloadPendingSession}
+                disabled={busyPending}
+                className="min-h-11 rounded-lg border border-accent/60 px-3 text-xs font-semibold text-accent transition-colors hover:bg-accent/10 disabled:opacity-50"
+              >
+                {t('sessions.unsaved.reload')}
+              </button>
+              {!overwriteExpired && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingAt(pendingPublish.failedAt)}
+                  disabled={busyPending}
+                  className="min-h-11 rounded-lg border border-error/60 px-3 text-xs font-semibold text-error transition-colors hover:bg-error/10 disabled:opacity-50"
+                >
+                  {t('sessions.unsaved.overwrite')}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setPendingPublish(null)}
+                disabled={busyPending}
+                className="min-h-11 rounded-lg border border-border px-3 text-xs font-mono text-fg-dim transition-colors hover:text-fg disabled:opacity-50"
+              >
+                {t('sessions.unsaved.dismiss')}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Search & Date Filter Bar */}
       <div className="flex flex-col sm:flex-row gap-2">

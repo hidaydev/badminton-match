@@ -5,7 +5,7 @@ import { DndContext, type DragEndEvent } from '@dnd-kit/core'
 import type { GeneratorResult } from '../../generator'
 import type { Player, GameScore, SessionScoring } from '../../types'
 import { toGameKey } from '../../types'
-import { draftFromScore, type MatchDraft } from './useScoreDraft'
+import { draftFromScore, type MatchDraft, type ScoreFailure } from './useScoreDraft'
 import { describeSets, setsWon } from '../../utils/scoring'
 import { computeBackToBackRunBySlot } from '../../utils/playerStats'
 import { courtLabel } from '../../utils/courtLabel'
@@ -15,6 +15,7 @@ import type { PlayerChipMode } from './PlayerChipRenderer'
 import PlayerChipRenderer from './PlayerChipRenderer'
 import { hit44 } from '../hitTarget'
 import SlotGameCard from './SlotGameCard'
+import { t } from '../../../i18n'
 
 interface ScheduleGridProps {
   result: GeneratorResult
@@ -34,6 +35,9 @@ interface ScheduleGridProps {
   expandedScore: string | null
   draftScores: Record<string, MatchDraft>
   scoreError: string | null
+  scoreFailures?: Record<string, ScoreFailure>
+  retryScore?: (key: string) => void
+  dismissScoreFailure?: (key: string) => void
   // Swap state
   swapSelected: SwapTarget | null
   pendingSwap: { t1: SwapTarget; t2: SwapTarget } | null
@@ -81,6 +85,9 @@ export default function ScheduleGrid({
   expandedScore,
   draftScores,
   scoreError,
+  scoreFailures = {},
+  retryScore,
+  dismissScoreFailure,
   swapSelected,
   pendingSwap,
   teamSwapSelected,
@@ -299,6 +306,37 @@ export default function ScheduleGrid({
                         </button>
                       ) : null)}
                     </div>
+
+                    {/* A failed score write stays attached to this game until
+                        it is retried or dismissed. It is never timed out. */}
+                    {scoreFailures[key] && (
+                      <div
+                        role="alert"
+                        className="ml-6 flex flex-wrap items-center gap-2 rounded-lg border border-red-700/60 bg-red-900/20 px-2 py-1.5"
+                      >
+                        <span className="text-xs text-red-300">
+                          {t('session.score.notSaved')} {scoreFailures[key].message}
+                        </span>
+                        <span className="ml-auto flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => retryScore?.(key)}
+                            disabled={saving}
+                            className="min-h-11 rounded-md border border-red-500/70 px-2 text-xs font-bold text-red-200 transition-colors hover:bg-red-800/40 disabled:opacity-50"
+                          >
+                            {t('session.action.retry')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => dismissScoreFailure?.(key)}
+                            className="min-h-11 rounded-md px-2 text-xs text-red-300 underline underline-offset-2 transition-colors hover:text-red-100"
+                            aria-label={t('session.score.dismiss', { teams: `${teamANames} vs ${teamBNames}` })}
+                          >
+                            {t('session.action.dismiss')}
+                          </button>
+                        </span>
+                      </div>
+                    )}
 
                     {/* Expandable score panel */}
                     {isOpen && (
