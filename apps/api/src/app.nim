@@ -579,7 +579,8 @@ proc decide(user: AuthUser, slug: string,
 proc respondGate(request: Request, decision: Gate) =
   problem(request, statusFor(decision), codeFor(decision), codeFor(decision))
 
-proc denyAudit(user: AuthUser, community: Option[CommunityContext], slug: string) =
+proc denyAudit(user: AuthUser, community: Option[CommunityContext],
+               slug: string) =
   ## A refused request from an authenticated principal leaves one row. Without
   ## it a member walking another community's surface, or a script probing a
   ## route it may not use, leaves only a counter nobody scrapes.

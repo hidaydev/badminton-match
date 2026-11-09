@@ -341,6 +341,6 @@ podman exec majadu-api curl -fsS http://127.0.0.1:9090/metrics \
 A 5xx is joined to its request by id: the problem body carries `request_id`,
 the `"msg":"request"` access line carries the same value, and the audit rows
 written while serving it carry it too, so `journalctl | grep <request_id>`
-reconstructs the request. If a scrape target is added later, the four series
-above are the minimum the dashboard needs; nothing else in the registry is
+reconstructs the request. Once the textfile agent above is installed, those
+four series are the minimum the dashboard needs; nothing else in the registry is
 required to answer "is it slow, is it failing, is it the pool".
