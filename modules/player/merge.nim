@@ -1,5 +1,9 @@
-import std/options
+import std/[json, options]
 import db/db
+import platform/config/store
+import rating/domain/rating as ratingDomain
+import rating/infrastructure/ingest as ratingIngest
+import rating/infrastructure/params as ratingParams
 
 type
   MergeError* = enum
@@ -36,6 +40,18 @@ proc totalRows(values: MergeResult): int =
     values.ratingStateMoved + values.sessionsMoved + values.gamesMoved +
     values.skipsMoved + values.teamPlayersMoved
 
+proc loadParams(db: Db, communityId: string): ratingDomain.RatingParams =
+  ## The same numbers every rating route reads. The merge can move games that
+  ## already fed the counters, so it must be able to replay the ledger; reading
+  ## them here keeps the signature stable for the route.
+  let snapshot = loadSnapshot(db)
+  let stored = db.queryOne(
+    "select values::text as values from community.settings where community_id = $1::uuid",
+    @[textParam(communityId)])
+  let settings =
+    if stored.isSome: parseJson(stored.get.get("values")) else: newJObject()
+  loadRatingParams(snapshot, settings)
+
 proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutcome =
   ## Moves every row that names the source player onto the target and deletes the
   ## source. Where both players already own a row in the same slot the target
@@ -49,6 +65,7 @@ proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutc
   if targetId == sourceId:
     result.error = meSamePlayer
     return
+  let params = loadParams(db, communityId)
 
   var outcome: MergeOutcome
   try:
@@ -333,10 +350,15 @@ proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutc
            where community_id = $1::uuid and id = $2::uuid""",
         @[textParam(communityId), textParam(sourceId)])
 
+      # The rewritten games now name the target, so the counters derived from
+      # them have to be replayed. Moving one state row and deleting the other
+      # left `games_played` smaller than the history behind it.
+      discard ratingIngest.rebuildConn(conn, communityId, params)
+
       discard conn.execUpdate(
         """insert into player.merge_log
-             (community_id, source_id, target_id, rows_moved, actor_id)
-           values ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid)""",
+             (community_id, source_id, target_id, rows_moved, actor_id, rebuilt)
+           values ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, true)""",
         @[textParam(communityId), textParam(sourceId), textParam(targetId),
           intParam(totalRows(outcome.result).int64), textParam(actorId)]))
   except DbError as error:

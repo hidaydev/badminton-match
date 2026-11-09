@@ -406,3 +406,54 @@ suite "player merge":
            where community_id = $1::uuid and team_id = $2::uuid""",
         @[textParam(communityId), textParam(teamId)]).get.get("player_name") ==
         "Merge Target"
+
+  test "a merge replays the counters of the games it rewrites":
+    block:
+      unblockMerge()
+      let teammateA = playerId("Merge Partner A")
+      let teammateB = playerId("Merge Partner B")
+      # One approved, played game for each player: after the merge both games
+      # name the target, so the rebuilt counters must count two.
+      for (owner, partner) in [(sourceId, teammateA), (targetId, teammateB)]:
+        let sessionId = addSession("Rated game")
+        var players: seq[string] = @[]
+        for player in [owner, partner, teammateA, teammateB]:
+          if player notin players:
+            players.add(player)
+        for player in players:
+          addParticipant(sessionId, player)
+        addGame(sessionId, 0, 0, owner, teammateB)
+        discard db.execUpdate(
+          """update session.games set status = 'played'
+             where community_id = $1::uuid and session_id = $2::uuid""",
+          @[textParam(communityId), textParam(sessionId)])
+        discard db.execUpdate(
+          """insert into session.game_sets
+               (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+             values ($1::uuid, $2::uuid, 0, 0, 1, 30, 21)""",
+          @[textParam(communityId), textParam(sessionId)])
+        discard db.execUpdate(
+          """update session.sessions
+             set status = 'locked', approved_at = now()
+             where community_id = $1::uuid and id = $2::uuid""",
+          @[textParam(communityId), textParam(sessionId)])
+
+      let outcome = merge(db, communityId, targetId, sourceId, actorId)
+      check outcome.error == meOk
+      let state = db.queryOne(
+        """select games_played from rating.player_state
+           where community_id = $1::uuid and player_id = $2::uuid""",
+        @[textParam(communityId), textParam(targetId)])
+      check state.isSome
+      let played = db.queryOne(
+        """select count(*)::int as total from session.game_results
+           where community_id = $1::uuid and status = 'played' and winner <> ''
+             and $2::uuid in (side_a1, side_a2, side_b1, side_b2)""",
+        @[textParam(communityId), textParam(targetId)]).get
+      check played.get("total") == "2"
+      check state.get.get("games_played") == played.get("total")
+      let log = db.queryOne(
+        """select rebuilt from player.merge_log
+           where community_id = $1::uuid order by created_at desc limit 1""",
+        @[textParam(communityId)]).get
+      check log.getBool("rebuilt")
