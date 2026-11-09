@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, Fragment } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef, Fragment } from 'react'
 import { ScoreboardSide, ScoreboardDivider, ScoreboardFooter } from '../components/scoreboard'
 import type { ScoreboardSideProps } from '../components/scoreboard'
 import { useStorageUnavailable } from '../hooks/useStorageUnavailable'
@@ -163,37 +163,43 @@ export default function ScoreboardPage() {
     height: '100dvh',
   }
 
-  const redSide: ScoreboardSideProps = {
-    side: 'red',
-    labels: SCOREBOARD_LABELS.red,
-    score: red,
-    displayName: nameA,
-    editValue: redName,
-    isEditing: editingRed,
-    isPop: popRed,
-    isOverlay: false,
-    onScore: addRed,
-    onMinus: minusRed,
-    onNameChange: setRedName,
-    onStartEditing: () => setEditingRed(true),
-    onStopEditing: () => setEditingRed(false),
-  }
+  const redSide: ScoreboardSideProps = useMemo(
+    () => ({
+      side: 'red',
+      labels: SCOREBOARD_LABELS.red,
+      score: red,
+      displayName: nameA,
+      editValue: redName,
+      isEditing: editingRed,
+      isPop: popRed,
+      isOverlay: false,
+      onScore: addRed,
+      onMinus: minusRed,
+      onNameChange: setRedName,
+      onStartEditing: () => setEditingRed(true),
+      onStopEditing: () => setEditingRed(false),
+    }),
+    [red, nameA, redName, editingRed, popRed, addRed, minusRed],
+  )
 
-  const blueSide: ScoreboardSideProps = {
-    side: 'blue',
-    labels: SCOREBOARD_LABELS.blue,
-    score: blue,
-    displayName: nameB,
-    editValue: blueName,
-    isEditing: editingBlue,
-    isPop: popBlue,
-    isOverlay: false,
-    onScore: addBlue,
-    onMinus: minusBlue,
-    onNameChange: setBlueName,
-    onStartEditing: () => setEditingBlue(true),
-    onStopEditing: () => setEditingBlue(false),
-  }
+  const blueSide: ScoreboardSideProps = useMemo(
+    () => ({
+      side: 'blue',
+      labels: SCOREBOARD_LABELS.blue,
+      score: blue,
+      displayName: nameB,
+      editValue: blueName,
+      isEditing: editingBlue,
+      isPop: popBlue,
+      isOverlay: false,
+      onScore: addBlue,
+      onMinus: minusBlue,
+      onNameChange: setBlueName,
+      onStartEditing: () => setEditingBlue(true),
+      onStopEditing: () => setEditingBlue(false),
+    }),
+    [blue, nameB, blueName, editingBlue, popBlue, addBlue, minusBlue],
+  )
 
   const statusNote = storageUnavailable
     ? 'Scores are not being saved on this device'
@@ -203,17 +209,19 @@ export default function ScoreboardPage() {
         ? 'Scores may be cleared by the browser'
         : null
 
-  const redEl = <ScoreboardSide {...redSide} />
-  const blueEl = <ScoreboardSide {...blueSide} />
-  const sides = isSwapped ? [blueEl, redEl] : [redEl, blueEl]
+  // Keyed by side, not by position: swapping must not give the red half the
+  // React identity of the blue one.
+  const sides = isSwapped
+    ? [{ id: 'blue', props: blueSide }, { id: 'red', props: redSide }]
+    : [{ id: 'red', props: redSide }, { id: 'blue', props: blueSide }]
 
   return (
     <main className="flex overflow-hidden select-none" style={portraitStyle}>
       <h1 className="sr-only">Scoreboard</h1>
-      {sides.map((el, i) => (
-        <Fragment key={i}>
+      {sides.map((side, i) => (
+        <Fragment key={side.id}>
           {i > 0 && <ScoreboardDivider />}
-          {el}
+          <ScoreboardSide {...side.props} />
         </Fragment>
       ))}
       {fsError && (

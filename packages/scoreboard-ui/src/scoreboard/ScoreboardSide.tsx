@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { ScoreboardSideProps } from './types'
 
 const SIDE_BACKGROUND = {
@@ -10,7 +11,7 @@ const MINUS_POSITION = {
   blue: 'left-4',
 } as const
 
-export function ScoreboardSide({
+export const ScoreboardSide = memo(function ScoreboardSide({
   side,
   labels,
   score,
@@ -103,4 +104,4 @@ export function ScoreboardSide({
       </button>
     </div>
   )
-}
+})
