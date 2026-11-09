@@ -63,7 +63,10 @@ export default defineConfig({
         globIgnores: ['team-winner.png', 'anniv-*.png', 'manifest.webmanifest'],
         runtimeCaching: [
           {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
+            // Public asset paths only. The cache is origin-wide, so a rule that
+            // matched every image would outlive logout and hand one account's
+            // image to the next user of a shared tablet (PWA-25).
+            urlPattern: /\/(?:assets\/[^/]+|logo-[^/]+)\.(?:png|jpe?g|svg|gif|webp)$/i,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'images-cache',
