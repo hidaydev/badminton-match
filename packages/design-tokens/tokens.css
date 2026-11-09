@@ -1,0 +1,19 @@
+/* The semantic palette both frontends render with. `apps/web` declares the
+   stock-scale remaps around it; this file is the part they must not disagree
+   on. Colours are hex so the values are readable next to docs/design-system.md;
+   an app that wrote `rgb()` for the same colour compiles to the same pixels. */
+@theme {
+  --color-ground: #0b0e13;
+  --color-surface: #14181f;
+  --color-elevated: #1c212b;
+  --color-border: #2a313c;
+  --color-border-subtle: #22272f;
+  --color-fg: #eef0f3;
+  --color-fg-dim: #8b939c;
+  --color-accent: #e3b341;
+  --color-accent-alt: #6d9dc8;
+  --color-success: #43a57d;
+  --color-error: #d86f6a;
+  --color-warning: #e0985c;
+  --color-info: #5b8fbd;
+}

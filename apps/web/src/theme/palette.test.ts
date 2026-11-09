@@ -2,7 +2,12 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { PALETTE } from './palette'
 
-const css = readFileSync('src/index.css', 'utf8')
+// The semantic tokens live in the shared file both apps import; this test only
+// needs their declarations, wherever they are authored.
+const css = [
+  readFileSync('src/index.css', 'utf8'),
+  readFileSync('../../packages/design-tokens/tokens.css', 'utf8'),
+].join('\n')
 
 function token(name: string): string {
   const match = new RegExp(`--color-${name}:\\s*(#[0-9a-fA-F]{6})`).exec(css)
