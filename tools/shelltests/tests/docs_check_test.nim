@@ -121,3 +121,14 @@ suite "incident policy":
     let result = fixture.runTask(@["docs-check"])
     check result.exitCode == 1
     check result.stderr.contains("does not state Node.js 26")
+
+suite "locale statement":
+  # ISO-23: a single-locale product is a decision; the user-facing document has
+  # to say so instead of leaving it to the reader.
+  test "product-overview names the supported locale and the legacy limit":
+    let text = readFile(repoDir / "docs" / "handbook" / "product-overview.md")
+    check text.contains("## Language and locale")
+    check text.contains("English (`en`)")
+    check text.contains("RSK-005")
+    let register = readFile(repoDir / "docs" / "handbook" / "requirements.md")
+    check register.contains("| RSK-005 |")
