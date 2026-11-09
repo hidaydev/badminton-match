@@ -22,6 +22,11 @@ The full plan and its design rationale are in
 | Public URL | `https://api.qouver.com/majadu-rc/*` |
 | Webhook | hook `majadu-monorepo` → `/srv/qouver/apps/majadu/scripts/deploy-dispatch.sh` |
 
+`deploy-vps-rc.sh` refuses an RC API env that still contains any tool DSN
+(`MAJADU_OWNER_DSN`, `MAJADU_ETL_DSN`, `MAJADU_ETL_SOURCE_DSN`,
+`MAJADU_CUTOVER_RESTORE_DSN`, `MAJADU_AUDIT_DSN`); those belong in
+`majadu-rc-tools.env`, which the unit never loads.
+
 `majadu2` (port 8093, DB `majadu`) is a different application from a different
 repo. Do not touch it and do not use it for this RC.
 
@@ -102,7 +107,10 @@ Push to `release/2.0.0-rc.1` → hook `majadu-monorepo` →
    deploy fails closed.
 6. `:local` → `:prev`, `podman build` the new image.
 7. `dbtools migrate` + `verify` against `bm2_rc`.
-8. Sync the unit, restart `majadu-rc-api`, wait for `/readyz` for 60 seconds.
+8. Sync the unit and `majadu-alert@.service` from the repository, restart
+   `majadu-rc-api`, wait for `/readyz` for 60 seconds. The RC may share the
+   production user manager or have its own host, so the deploy installs the
+   alert template either way; `OnFailure` would otherwise be a silent no-op.
 9. `smoke.sh` + `/version` must report the commit just built.
 10. Readiness failure → `:prev` becomes `:local`, restart, the deploy is declared
     failed.

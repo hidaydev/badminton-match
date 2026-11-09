@@ -99,11 +99,18 @@ read_env() {
 # The owner DSN belongs to the deploy and cutover tools, so it lives in the tool
 # env, not in the file the API unit loads. The v2 env fallback keeps the T-063
 # rehearsal sandbox, which installs a single v2 env, running.
+TOOLS_ENV="$APP_DIR/env/majadu-tools.env"
+V2_ENV="$APP_DIR/env/majadu-prod.env.v2"
 OWNER_DSN=""
-if [ -f "$APP_DIR/env/majadu-tools.env" ]; then
-  OWNER_DSN=$(read_env "$APP_DIR/env/majadu-tools.env" MAJADU_OWNER_DSN)
-elif [ -f "$APP_DIR/env/majadu-prod.env.v2" ]; then
-  OWNER_DSN=$(read_env "$APP_DIR/env/majadu-prod.env.v2" MAJADU_OWNER_DSN)
+if [ -f "$TOOLS_ENV" ]; then
+  OWNER_DSN=$(read_env "$TOOLS_ENV" MAJADU_OWNER_DSN)
+  [ -z "$OWNER_DSN" ] || log "rollback reads the owner DSN from $TOOLS_ENV"
+elif [ -f "$V2_ENV" ]; then
+  OWNER_DSN=$(read_env "$V2_ENV" MAJADU_OWNER_DSN)
+  log "WARNING: $TOOLS_ENV is missing; reading the owner DSN from $V2_ENV (rehearsal fallback)"
+fi
+if [ -z "$OWNER_DSN" ]; then
+  log "WARNING: no owner DSN available; the abandoned-row guard will be skipped, so v2 writes since the cutover are not counted"
 fi
 
 # ---------------------------------------------------------------------------

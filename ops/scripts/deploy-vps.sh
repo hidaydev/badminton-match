@@ -184,6 +184,10 @@ STEP="cutover-gate"
 # cannot tell which database it is about to serve, so it fails instead of
 # reporting success.
 [ -f "$ENV_FILE" ] || fail "prod env file $ENV_FILE is missing"
+# The tool file holds the owner DSN the migrate step needs. Check it here, before
+# the digest and the image pull, so a host that never created it fails fast
+# instead of after pulling a release it cannot migrate.
+[ -f "$TOOLS_ENV" ] || fail "tool env file $TOOLS_ENV is missing; copy ops/env/prod-tools.env.example"
 PROD_DSN=$(sed -n 's/^MAJADU_PG_DSN=//p' "$ENV_FILE" | tail -1)
 case "$PROD_DSN" in
   */bm2|*/bm2\?*|*/bm2\"*) ;;

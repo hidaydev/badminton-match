@@ -192,7 +192,8 @@ done
 
 grep -q "^MAJADU_PG_DSN=.*/$BM2_DB" "$ENV_DIR/v2.env" ||
   fail "$ENV_DIR/v2.env must set MAJADU_PG_DSN to $BM2_DB"
-for key in MAJADU_OWNER_DSN MAJADU_ETL_DSN MAJADU_ETL_SOURCE_DSN; do
+for key in MAJADU_OWNER_DSN MAJADU_ETL_DSN MAJADU_ETL_SOURCE_DSN \
+  MAJADU_CUTOVER_RESTORE_DSN; do
   grep -q "^$key=" "$ENV_DIR/v2.env" || fail "$ENV_DIR/v2.env is missing $key"
 done
 

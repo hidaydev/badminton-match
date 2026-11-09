@@ -256,6 +256,24 @@ suite "deploy-vps.sh":
     check readFile(fixture.root / "deploy" / "last-release.json")
       .contains("\"step\":\"env-split\"")
 
+  test "a missing tool env fails before the release lookup":
+    let fixture = newFixture("deploy-tool-env-missing")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    createDir(fixture.root / "monorepo")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    check result.exitCode == 1
+    let toolsFile = fixture.root / "env" / "majadu-tools.env"
+    check result.stdout.contains(
+      "tool env file " & toolsFile & " is missing; copy ops/env/prod-tools.env.example")
+    check not result.stdout.contains("release v")
+
 suite "deploy-vps-rc.sh":
   test "a ref other than the RC branch is ignored":
     let fixture = newFixture("rc-other-ref")
@@ -662,6 +680,21 @@ suite "deploy-vps-rc.sh":
     check not result.stdout.contains("secret-token")
     check not result.stderr.contains("secret-token")
 
+  test "an owner DSN left in the RC API env stops the deploy":
+    let fixture = newFixture("rc-api-env-owner")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let envFile = rcDir / "env" / "majadu-rc.env"
+    let toolsFile = rcDir / "env" / "majadu-rc-tools.env"
+    privateFile(envFile,
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2_rc\n" &
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2_rc\n")
+    let result = runRcGate(fixture, rcDir)
+    check result.exitCode == 1
+    check result.stdout.contains(
+      envFile & " must not contain MAJADU_OWNER_DSN; move it to " & toolsFile)
+    check not result.stdout.contains("built localhost/majadu-rc-api:local")
+
 suite "cutover.sh":
   test "--from an unknown step exits 2 and names it":
     let fixture = newFixture("cutover-step")
@@ -722,6 +755,9 @@ suite "cutover.sh":
     let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
       @["--version", "2.0.0"], appDir(fixture))
     check result.exitCode == 2
+    check result.stdout.contains(
+      "WARNING: " & (fixture.root / "env" / "majadu-tools.env") &
+      " is missing; reading tool DSNs from " & envFile)
     check result.stderr.contains("cutover: MAJADU_ETL_DSN is not set in " & envFile)
 
   test "a missing restore DSN is refused by name":
@@ -901,6 +937,8 @@ suite "rollback.sh":
       ])
     check result.exitCode == 0
     check result.stdout.contains("rollback complete")
+    check result.stdout.contains(
+      "WARNING: no owner DSN available; the abandoned-row guard will be skipped")
     check not fileExists(psqlLog)
 
   test "a positive abandoned count is refused without --abandon-data":
@@ -917,6 +955,10 @@ suite "rollback.sh":
         ("FAKE_ABANDONED", "3"),
       ])
     check result.exitCode == 1
+    let toolsFile = fixture.root / "env" / "majadu-tools.env"
+    let v2File = fixture.root / "env" / "majadu-prod.env.v2"
+    check result.stdout.contains(
+      "WARNING: " & toolsFile & " is missing; reading the owner DSN from " & v2File)
     check result.stdout.contains(
       "ERROR: 3 row(s) were written to v2 since the cutover; rollback discards them. " &
       "Re-run with --abandon-data to confirm that loss.")
@@ -1099,37 +1141,50 @@ suite "systemd units":
   # docs/ops/operations.md.
   let unitsDir = repoDir / "ops" / "systemd"
 
-  test "every OnFailure names the alert template with %N":
-    var found = 0
+  test "every alerting unit has exactly one OnFailure naming the template":
+    var units = 0
     for kind, path in walkDir(unitsDir):
       if not (path.endsWith(".service") or path.endsWith(".container")):
         continue
+      var lines: seq[string] = @[]
       for line in readFile(path).splitLines:
         if line.startsWith("OnFailure="):
-          check line == "OnFailure=majadu-alert@%N.service"
-          inc found
-    check found > 0
+          lines.add(line)
+      if path.extractFilename == "majadu-alert@.service":
+        # The sink cannot alert itself; it is the one unit with no OnFailure.
+        check lines.len == 0
+        continue
+      check lines.len == 1
+      if lines.len == 1:
+        check lines[0] == "OnFailure=majadu-alert@%N.service"
+      inc units
+    check units > 0
     check fileExists(unitsDir / "majadu-alert@.service")
 
   test "no unit keeps the %n specifier":
     for kind, path in walkDir(unitsDir):
       check not readFile(path).contains("majadu-alert@%n.service")
 
-  test "the API unit loads an env file without the owner or ETL DSN":
+  test "the RC deploy installs the alert template":
+    let script = readFile(opsScriptsDir / "deploy-vps-rc.sh")
+    check script.contains("ops/systemd/majadu-alert@.service")
+    check script.contains("$HOME/.config/systemd/user/majadu-alert@.service")
+    check script.contains("install -m 644 \"$ALERT_SRC\" \"$ALERT_DEST\"")
+
+  test "the API unit loads an env file without any tool DSN":
     var envPath = ""
     for line in readFile(unitsDir / "majadu-api.container").splitLines:
       if line.startsWith("EnvironmentFile="):
         envPath = line.split("=", maxsplit = 1)[1]
     check envPath == "/srv/qouver/apps/majadu/env/majadu-prod.env"
     let apiEnv = readFile(repoDir / "ops" / "env" / "prod.env.example")
-    check apiEnv.contains("MAJADU_PG_DSN=")
-    check not apiEnv.contains("MAJADU_OWNER_DSN=")
-    check not apiEnv.contains("MAJADU_ETL_DSN=")
     let toolsEnv = readFile(repoDir / "ops" / "env" / "prod-tools.env.example")
-    check toolsEnv.contains("MAJADU_OWNER_DSN=")
-    check toolsEnv.contains("MAJADU_ETL_DSN=")
-    check toolsEnv.contains("MAJADU_ETL_SOURCE_DSN=")
-    check toolsEnv.contains("MAJADU_CUTOVER_RESTORE_DSN=")
+    check apiEnv.contains("MAJADU_PG_DSN=")
+    for key in ["MAJADU_OWNER_DSN=", "MAJADU_ETL_DSN=",
+                "MAJADU_ETL_SOURCE_DSN=", "MAJADU_CUTOVER_RESTORE_DSN=",
+                "MAJADU_AUDIT_DSN="]:
+      check not apiEnv.contains(key)
+      check toolsEnv.contains(key)
 
   test "the RC API unit loads an env file without the owner DSN":
     var envPath = ""

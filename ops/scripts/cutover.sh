@@ -178,6 +178,11 @@ DSN_FILE="$TOOLS_ENV"
 if [ ! -f "$TOOLS_ENV" ] && [ -f "$ENV_V2" ]; then
   DSN_FILE="$ENV_V2"
 fi
+if [ "$DSN_FILE" = "$ENV_V2" ]; then
+  log "WARNING: $TOOLS_ENV is missing; reading tool DSNs from $ENV_V2 (rehearsal fallback)"
+else
+  log "tool DSNs from $DSN_FILE"
+fi
 
 if [ -f "$TOOLS_ENV" ]; then
   mode=$(stat -c '%a' "$TOOLS_ENV" 2>/dev/null || stat -f '%Lp' "$TOOLS_ENV" 2>/dev/null || echo "?")

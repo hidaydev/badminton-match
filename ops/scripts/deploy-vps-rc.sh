@@ -205,6 +205,16 @@ APP_DB=$(printf '%s' "$APP_DSN" | sed 's/.*\///' | cut -d'?' -f1)
 [ "$OWNER_DB" = "bm2_rc" ] || fail "MAJADU_OWNER_DSN points at '$OWNER_DB', not bm2_rc"
 [ "$APP_DB" = "bm2_rc" ] || fail "MAJADU_PG_DSN points at '$APP_DB', not bm2_rc"
 
+# This file is the RC unit's EnvironmentFile. An existing host that adds the
+# tool file without deleting the old owner line would keep handing the owner
+# credential to the RC API, so stop before the build and name the line.
+for key in MAJADU_OWNER_DSN MAJADU_ETL_DSN MAJADU_ETL_SOURCE_DSN \
+  MAJADU_CUTOVER_RESTORE_DSN MAJADU_AUDIT_DSN; do
+  if grep -q "^$key=" "$ENV_FILE"; then
+    fail "$ENV_FILE must not contain $key; move it to $TOOLS_ENV"
+  fi
+done
+
 # ---------------------------------------------------------------------------
 # CI gate (QA-01 clause 3). The host has no Nim toolchain, so `./task ci` cannot
 # run here. The build is pinned to the CI workflow for this repository: the
@@ -419,6 +429,17 @@ mkdir -p "$(dirname "$UNIT_DEST")"
 if ! cmp -s "$UNIT_SRC" "$UNIT_DEST"; then
   install -m 644 "$UNIT_SRC" "$UNIT_DEST"
   log "unit majadu-rc-api.container updated from the repository"
+fi
+# The RC unit alerts through the same template as production. The RC may run on
+# the production user manager (the template already exists) or on its own host,
+# so install it from the repository either way; a missing template would turn
+# OnFailure into a silent no-op.
+ALERT_SRC="$MONO_DIR/ops/systemd/majadu-alert@.service"
+ALERT_DEST="$HOME/.config/systemd/user/majadu-alert@.service"
+mkdir -p "$(dirname "$ALERT_DEST")"
+if ! cmp -s "$ALERT_SRC" "$ALERT_DEST"; then
+  install -m 644 "$ALERT_SRC" "$ALERT_DEST"
+  log "unit majadu-alert@.service updated from the repository"
 fi
 # Always reload: the quadlet generator only creates the .service when it runs, so
 # a unit file that was already in place (bootstrap installs it) never becomes a
