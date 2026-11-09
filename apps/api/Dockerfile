@@ -19,6 +19,14 @@ COPY modules ./modules
 COPY apps/api ./apps/api
 COPY db ./db
 COPY tools ./tools
+# The content gate must run on the path that produces the deployed image, not
+# only in a CI job. The npm packages, the Playwright builds and the fonts live
+# outside this build context, and the compiler is pinned by the base image
+# digest, so those kinds are skipped; the Nim packages are verified against
+# deps.lock's content hashes and the two FROM digests are read back from this
+# file, so a moved tag or an unpinned base image fails the build here.
+COPY task task.d ./
+RUN sh task deps-check --skip npm,playwright-browser,repo,toolchain
 # `appVersion` is read from the VERSION file at compile time; the commit only
 # exists in the build arguments, which is what `/version` reports back and what
 # makes a running container traceable to a revision.

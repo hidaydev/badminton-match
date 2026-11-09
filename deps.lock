@@ -1,7 +1,7 @@
 # deps.lock — pinned toolchain, Nim packages, and gate tools.
 # Format: docs/handbook/deps-format.md. Verify with ./task deps-check.
 # tree = sha256 over the sorted entry lines below (comments excluded).
-tree 2dd0563a099dca852f4bc3bb9c27ab0c4ea0dda32e477d42eb9de99d795cb482
+tree 6539c661c8c6fc9cad3927095cc4062f9a77f93007c16dec760cb938f57637a4
 
 # Nim toolchain
 nim 2.4.0 toolchain:nim -
@@ -16,12 +16,12 @@ gcovr 8.8 toolchain:gcovr -
 lcov 2.6 toolchain:lcov -
 
 # Nim packages under ~/.nimble/pkgs2 (sha256 of installed file content)
-crunchy 0.1.11 nimble:https://github.com/guzba/crunchy 897de1f35ef9fe22d56d9e28014350a5d9c5af281e998d613d8627c12a113355
-mummy 0.4.8 nimble:https://github.com/guzba/mummy 3e3a804b8aab0986ecda0e6198125e629f440edf31246705113d6c247955bebc
-nimcrypto 0.7.3 nimble:https://github.com/cheatfate/nimcrypto 8fab0a30dbbaa6b2579297ca776c8395c1d8a22394a463fbcb44554111513d7b
-nimsimd 1.3.2 nimble:https://github.com/guzba/nimsimd 299bb6360c8b02cf399cedc977dff4963fea080dd7597fe3ed058dfb15aa2dd1
-zippy 0.10.20 nimble:https://github.com/guzba/zippy faafe32ba76874294349dcb2bea96bae1573d0dfd20cb9845a6cdbc236e0df3c
-webby 0.2.1 nimble:https://github.com/treeform/webby 2ca24c7acb58d4a2a608d7e353acfebe30e6ce489d985898d2cc87b5e9ceca98
+crunchy 0.1.11 nimble:https://github.com/guzba/crunchy@98eb6526982bb8aae8eec6e8781f4539fa19e049 897de1f35ef9fe22d56d9e28014350a5d9c5af281e998d613d8627c12a113355
+mummy 0.4.8 nimble:https://github.com/guzba/mummy@77a7563e87a1045e4e407a3a68731e299fa3507e 3e3a804b8aab0986ecda0e6198125e629f440edf31246705113d6c247955bebc
+nimcrypto 0.7.3 nimble:https://github.com/cheatfate/nimcrypto@b3dbc9c4d08e58c5b7bfad6dc7ef2ee52f2f4c08 8fab0a30dbbaa6b2579297ca776c8395c1d8a22394a463fbcb44554111513d7b
+nimsimd 1.3.2 nimble:https://github.com/guzba/nimsimd@3f6b2668ffb0867d0bf786a658b817763e611350 299bb6360c8b02cf399cedc977dff4963fea080dd7597fe3ed058dfb15aa2dd1
+zippy 0.10.20 nimble:https://github.com/guzba/zippy@cd562ba43ae8904a4d1ba55611b8a521ef4a179e faafe32ba76874294349dcb2bea96bae1573d0dfd20cb9845a6cdbc236e0df3c
+webby 0.2.1 nimble:https://github.com/treeform/webby@325d6ade0970562bee7d7d53961a2c3287f0c4bc 2ca24c7acb58d4a2a608d7e353acfebe30e6ce489d985898d2cc87b5e9ceca98
 # Commit pin: this package has no usable release for the v2 binder (TECH-SPEC §2).
 db_connector 0.1.0 nimble:https://github.com/nim-lang/db_connector@29450a2063970712422e1ab857695c12d80112a6 2ce3cc65caea957a2c7bfeedb6949e144ac55a580d162c64f30fafbdfee33692
 
