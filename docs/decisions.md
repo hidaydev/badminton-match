@@ -376,3 +376,31 @@ without it.
 
 **Reopener:** the toolchain binds PCRE 2 instead of PCRE 1, or the gate is proven
 green on a newer image. Change the package and the pin together.
+
+---
+
+## ADR-015 · Static analysis is the compiler hint pass, not a SonarQube project
+
+**Date:** 2026-11-09
+**Audit finding:** SQ-01
+**Status:** Applied
+
+**Decision:** the repository does not run SonarQube or SonarCloud, and no
+`sonar-project.properties` is committed. Nim findings are produced by a second,
+quiet `nim check --hints:on --warnings:on` pass in `./task check`, which fails on
+`XDeclaredButNotUsed`, `UnusedImport`, `ShadowIdent`, `CaseTransition` and
+`UserWarning` unless `tools/archcheck/allowlist_deadcode.txt` names them. The
+custom `tools/archcheck` rules and ESLint keep their existing scopes.
+
+**Reason:** there is no Sonar server and no first-party Nim analyser. A Sonar
+project without one would score the 17,102-line Nim tree at zero and report a
+green TS-only quality gate as if it covered the product, which is the same
+blind spot the audit found in `--hints:off`. The compiler already detects the
+bug and dead-code classes that matter here; the gate only had to stop discarding
+the findings.
+
+**Reopener:** a Nim-capable analyser or a hosted Sonar instance with an external
+issue import (`sonar.externalIssuesReportPaths`) is adopted. Then the compiler
+pass stays as the fast local gate and Sonar becomes the dashboard, not the
+oracle.
+

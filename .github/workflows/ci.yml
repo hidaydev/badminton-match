@@ -95,10 +95,56 @@ jobs:
           nim c --hints:off -d:release -o:.cache/ci/dbtools tools/dbtools/main.nim
           .cache/ci/dbtools migrate --dir db/migrations
           .cache/ci/dbtools seed --dir db/seeds
+      # QA-10: `check` runs the import suite, which now refuses to skip. It
+      # needs the small v1 source and the production-shaped source, each with
+      # its own migrated target, so this job provisions all four.
+      - name: "Import: provision the v1 sources and the v2 targets"
+        env:
+          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          IMPORT_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
+          BULK_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_source_test
+        run: |
+          psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE bm2_import_source_test" \
+            -c "CREATE DATABASE bm2_import_target_test OWNER bm2_owner TEMPLATE bm2_test" \
+            -c "CREATE DATABASE bm2_import_bulk_source_test" \
+            -c "CREATE DATABASE bm2_import_bulk_target_test OWNER bm2_owner TEMPLATE bm2_test"
+          psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
+            -f ops/dev/v1/schema.sql
+          psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
+            -f ops/dev/v1/fixtures/v1-fixtures.sql
+          psql -v ON_ERROR_STOP=1 -q -d "$BULK_SOURCE_DSN" \
+            -f ops/dev/v1/schema.sql
+          psql -v ON_ERROR_STOP=1 -q -d "$BULK_SOURCE_DSN" \
+            -f testdata/import/production-shaped.sql
+          for dsn in "$IMPORT_SOURCE_DSN" "$BULK_SOURCE_DSN"; do
+            loaded=$(psql -d "$dsn" -tAc "select to_regnamespace('bm')")
+            if [ "$loaded" != "bm" ]; then
+              echo "$dsn has no bm schema" >&2
+              exit 1
+            fi
+          done
       - name: "API: check"
         env:
           MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
+          MAJADU_IMPORT_TEST_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_target_test
+          MAJADU_IMPORT_TEST_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
+          MAJADU_IMPORT_BULK_TARGET_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_target_test
+          MAJADU_IMPORT_BULK_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_source_test
         run: ./task check
+      # QA-11: a red check leaves the per-suite JUnit report, the failure list
+      # and the timing table on the runner; this makes them downloadable.
+      - name: "API: upload failure reports"
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: api-check-results
+          path: |
+            .cache/*/failures.tsv
+            .cache/*/junit/junit.xml
+            .cache/*/timing/*.tsv
+          include-hidden-files: true
+          if-no-files-found: warn
 
   api-test:
     name: "API: integration (shard ${{ matrix.shard }}/2)"
@@ -170,26 +216,40 @@ jobs:
         env:
           MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           IMPORT_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
+          BULK_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_source_test
         run: |
           psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
             -c "CREATE DATABASE bm2_import_source_test" \
-            -c "CREATE DATABASE bm2_import_target_test OWNER bm2_owner TEMPLATE bm2_test"
+            -c "CREATE DATABASE bm2_import_target_test OWNER bm2_owner TEMPLATE bm2_test" \
+            -c "CREATE DATABASE bm2_import_bulk_source_test" \
+            -c "CREATE DATABASE bm2_import_bulk_target_test OWNER bm2_owner TEMPLATE bm2_test"
           psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
             -f ops/dev/v1/schema.sql
           psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
             -f ops/dev/v1/fixtures/v1-fixtures.sql
+          # QA-10: the production-shaped fixture (104 players, 1,040 games)
+          # has its own pair, because verify maps every source row into one
+          # community.
+          psql -v ON_ERROR_STOP=1 -q -d "$BULK_SOURCE_DSN" \
+            -f ops/dev/v1/schema.sql
+          psql -v ON_ERROR_STOP=1 -q -d "$BULK_SOURCE_DSN" \
+            -f testdata/import/production-shaped.sql
           # An empty source must not pass as a clean import: the cases compare
           # against rows in the bm schema, so a source without one fails here.
-          loaded=$(psql -d "$IMPORT_SOURCE_DSN" -tAc "select to_regnamespace('bm')")
-          if [ "$loaded" != "bm" ]; then
-            echo "bm2_import_source_test has no bm schema" >&2
-            exit 1
-          fi
+          for dsn in "$IMPORT_SOURCE_DSN" "$BULK_SOURCE_DSN"; do
+            loaded=$(psql -d "$dsn" -tAc "select to_regnamespace('bm')")
+            if [ "$loaded" != "bm" ]; then
+              echo "$dsn has no bm schema" >&2
+              exit 1
+            fi
+          done
       - name: "API: test"
         env:
           MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
           MAJADU_IMPORT_TEST_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_target_test
           MAJADU_IMPORT_TEST_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
+          MAJADU_IMPORT_BULK_TARGET_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_target_test
+          MAJADU_IMPORT_BULK_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_source_test
           SHARD: ${{ matrix.shard }}
         run: ./task test --timing --shard "$SHARD/2"
       - name: "API: timing report"
@@ -200,6 +260,19 @@ jobs:
             echo "== $f"
             sort -t"$(printf '\t')" -k2,2nr "$f" | head -10
           done
+      # QA-11: JUnit, the machine-readable failure list and the timing table
+      # from this shard, uploaded only when the shard fails.
+      - name: "API: upload failure reports"
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: api-test-results-${{ matrix.shard }}
+          path: |
+            .cache/*/failures.tsv
+            .cache/*/junit/junit.xml
+            .cache/*/timing/*.tsv
+          include-hidden-files: true
+          if-no-files-found: warn
 
   contract:
     name: "Contract: generated files"
@@ -437,6 +510,62 @@ jobs:
           name: playwright-linux-baseline
           path: e2e/__screenshots__/linux/
           if-no-files-found: error
+      # QA-11: traces, failure screenshots, videos, the JSON report and the
+      # HTML report all live under the config directory, which the runner would
+      # otherwise delete with the job.
+      - name: "E2E: upload failure artifacts"
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-failure-artifacts
+          path: |
+            apps/web/test-results/
+            test-results/
+          if-no-files-found: warn
+
+  # QA-06: the nightly run owns the full manifest; this job runs the changed
+  # prefixes on a pull request, so a new write path or access decision gets a
+  # mutant without paying for the whole list on every push.
+  mutation:
+    name: "Mutation: changed modules"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+        with:
+          nim-version: ${{ env.NIM_VERSION }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nimble
+          key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre3
+      - name: "Dependencies: install pinned Nim packages"
+        run: ./task deps-install
+      - name: "Mutation: run the changed prefixes"
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --no-tags origin "$BASE_SHA"
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > .cache-changed.txt
+          status=0
+          for prefix in apps/api/src/ modules/account/ modules/session/ \
+                        modules/tournament/ modules/player/ modules/share/ \
+                        modules/rating/ tools/parity/; do
+            if grep -q "^$prefix" .cache-changed.txt; then
+              echo "mutation: changed prefix $prefix"
+              ./task mutation --only "$prefix" || status=1
+            fi
+          done
+          rm -f .cache-changed.txt
+          exit "$status"
 
   image:
     name: "Image: build"
@@ -478,7 +607,7 @@ jobs:
     name: "Gate"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    needs: [api-check, api-test, contract, supply-chain, web, e2e, image]
+    needs: [api-check, api-test, contract, supply-chain, web, e2e, mutation, image]
     if: always()
     steps:
       - name: "Gate: require every job"
@@ -486,4 +615,8 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
         run: |
           echo "$NEEDS"
-          echo "$NEEDS" | jq -e 'all(.[]; .result == "success")'
+          # `mutation` is pull-request only; a push run treats it as skipped.
+          echo "$NEEDS" | jq -e '
+            to_entries | all(.[];
+              .value.result == "success" or
+              (.key == "mutation" and .value.result == "skipped"))'

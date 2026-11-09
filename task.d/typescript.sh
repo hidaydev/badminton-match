@@ -4,8 +4,9 @@
 #
 # Ratchet policy, the same shape as the Nim baseline:
 #   * a threshold may only be raised, never lowered;
-#   * after a change that raises coverage, raise `test.coverage.thresholds` in
-#     the package's vitest config in the same commit;
+#   * after a change that raises coverage, raise the thresholds in the
+#     package's vitest config in the same commit; the config carries the
+#     measured totals and the per-file floors for the behaviour-carrying trees;
 #   * a file that drops by more than 0.1 point is a regression, even when the
 #     total still passes, and the per-package threshold is not a substitute for
 #     reading the report;

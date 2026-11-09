@@ -32,6 +32,27 @@ suite "lib.sh guards":
     check present.exitCode == 0
     check present.stdout == "ok\n"
 
+  test "junit_finish writes one testcase per suite and marks failures and skips":
+    let fixture = newFixture("lib-junit")
+    defer: removeDir(fixture.root)
+    let result = fixture.runLib(""". "$1"
+junit_begin
+junit_record "modules/alpha/tests/alpha_test.nim" 0
+junit_record "tools/import/tests/import_test.nim" 77
+junit_record "apps/api/tests/broken_test.nim" 1
+junit_finish""")
+    check result.exitCode == 0
+    let report = readFile(
+      fixture.root / ".cache" / "tl18-wt" / "junit" / "junit.xml")
+    check report.contains("tests=\"3\"")
+    check report.contains("failures=\"1\"")
+    check report.contains("skipped=\"1\"")
+    check report.contains("<testcase name=\"modules/alpha/tests/alpha_test.nim\"/>")
+    check report.contains(
+      "<testcase name=\"tools/import/tests/import_test.nim\"><skipped/></testcase>")
+    check report.contains(
+      "<testcase name=\"apps/api/tests/broken_test.nim\"><failure message=\"exit 1\"/></testcase>")
+
   test "list_test_files hides integration suites unless INTEGRATION=1":
     let fixture = newFixture("lib-list")
     defer: removeDir(fixture.root)

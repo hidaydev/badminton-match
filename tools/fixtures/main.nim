@@ -200,9 +200,6 @@ proc boolLit(value: bool): string =
 proc nullable(value: int): string =
   if value < 0: "null" else: $value
 
-proc nullableLit(value: string): string =
-  if value.len == 0: "null" else: lit(value)
-
 proc emitInsert(sql: var seq[string]; table: string; columns: openArray[string];
                 rows: seq[seq[string]]) =
   if rows.len == 0:

@@ -22,13 +22,21 @@ export default defineConfig({
   forbidOnly: process.env.CI === 'true',
   retries: 0,
   // A machine-readable report as well, so a flaky test can be named from the
-  // artifact instead of from a scrolling log (QA-13).
+  // artifact instead of from a scrolling log (QA-13), and an HTML report for
+  // human triage (QA-11). Artifacts land under `test-results/` next to the
+  // config, which is the directory CI uploads on failure.
+  outputDir: 'test-results',
   reporter: process.env.CI === 'true'
-    ? [['line'], ['json', { outputFile: 'test-results/playwright.json' }]]
+    ? [['line'], ['json', { outputFile: 'test-results/playwright.json' }],
+       ['html', { outputFolder: 'test-results/html', open: 'never' }]]
     : [['list'], ['json', { outputFile: 'test-results/playwright.json' }]],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://127.0.0.1:5173',
+    // QA-11: a failure must leave the frame, the video and the trace behind,
+    // not only a console line. `retain-on-failure` keeps a passing run cheap.
     trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
   },
   projects,
 })

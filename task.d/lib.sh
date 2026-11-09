@@ -88,6 +88,62 @@ test_binary() {
   printf '%s\n' "$NIMCACHE_BUILD/bin/$_name"
 }
 
+# --- machine-readable results (QA-11) ----------------------------------------
+#
+# A red job that leaves only a scrolling log behind cannot be triaged without a
+# rerun. Every runner records one row per suite and writes a JUnit file at the
+# end, so CI can upload a report that names the failing file instead of making
+# a reviewer search the console output.
+JUNIT_DIR=""
+JUNIT_FINISHED=0
+
+junit_begin() {
+  JUNIT_DIR="$REPO_ROOT/.cache/$WORKTREE/junit"
+  mkdir -p "$JUNIT_DIR"
+  : >"$JUNIT_DIR/results.tsv"
+  JUNIT_FINISHED=0
+}
+
+junit_record() {
+  # $1 suite path, $2 exit status (0 passed, 77 skipped, anything else failed)
+  [ -n "$JUNIT_DIR" ] || return 0
+  printf '%s\t%s\n' "$1" "$2" >>"$JUNIT_DIR/results.tsv"
+}
+
+junit_finish() {
+  [ -n "$JUNIT_DIR" ] || return 0
+  [ "$JUNIT_FINISHED" = "0" ] || return 0
+  JUNIT_FINISHED=1
+  [ -f "$JUNIT_DIR/results.tsv" ] || : >"$JUNIT_DIR/results.tsv"
+  awk -F"$(printf '\t')" '
+    {
+      total++
+      if ($2 == 77) skipped++
+      else if ($2 != 0) failures++
+    }
+    END {
+      printf "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+      printf "<testsuites tests=\"%d\" failures=\"%d\" skipped=\"%d\">\n", total, failures, skipped
+      printf "  <testsuite name=\"nim\" tests=\"%d\" failures=\"%d\" skipped=\"%d\">\n", total, failures, skipped
+    }
+  ' "$JUNIT_DIR/results.tsv" >"$JUNIT_DIR/junit.xml"
+  while IFS="$(printf '\t')" read -r _suite _code; do
+    [ -n "$_suite" ] || continue
+    _name=$(printf '%s' "$_suite" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' \
+      -e 's/>/\&gt;/g' -e 's/"/\&quot;/g')
+    if [ "$_code" = "0" ]; then
+      printf '    <testcase name="%s"/>\n' "$_name" >>"$JUNIT_DIR/junit.xml"
+    elif [ "$_code" = "77" ]; then
+      printf '    <testcase name="%s"><skipped/></testcase>\n' "$_name" \
+        >>"$JUNIT_DIR/junit.xml"
+    else
+      printf '    <testcase name="%s"><failure message="exit %s"/></testcase>\n' \
+        "$_name" "$_code" >>"$JUNIT_DIR/junit.xml"
+    fi
+  done <"$JUNIT_DIR/results.tsv"
+  printf '  </testsuite>\n</testsuites>\n' >>"$JUNIT_DIR/junit.xml"
+}
+
 SKIP_COUNT=0
 SKIP_FILES=""
 

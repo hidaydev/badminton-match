@@ -63,33 +63,44 @@ jobs:
           nim c --hints:off -d:release -o:.cache/ci/dbtools tools/dbtools/main.nim
           .cache/ci/dbtools migrate --dir db/migrations
           .cache/ci/dbtools seed --dir db/seeds
-      # TL-07: `./task ci` runs the import suite, which skips itself without
-      # both DSNs. The source is the captured v1 schema plus the fixture, and
-      # the target is a fresh copy of the migrated database, not bm2_dev.
+      # TL-07: `./task ci` runs the import suite, which now refuses to skip
+      # (QA-10). The source is the captured v1 schema plus the small fixture
+      # and the production-shaped fixture, each with its own migrated target.
       - name: "Import: provision the v1 source and the v2 target"
         env:
           MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           IMPORT_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
+          BULK_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_source_test
         run: |
           psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
             -c "CREATE DATABASE bm2_import_source_test" \
-            -c "CREATE DATABASE bm2_import_target_test OWNER bm2_owner TEMPLATE bm2_test"
+            -c "CREATE DATABASE bm2_import_target_test OWNER bm2_owner TEMPLATE bm2_test" \
+            -c "CREATE DATABASE bm2_import_bulk_source_test" \
+            -c "CREATE DATABASE bm2_import_bulk_target_test OWNER bm2_owner TEMPLATE bm2_test"
           psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
             -f ops/dev/v1/schema.sql
           psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
             -f ops/dev/v1/fixtures/v1-fixtures.sql
+          psql -v ON_ERROR_STOP=1 -q -d "$BULK_SOURCE_DSN" \
+            -f ops/dev/v1/schema.sql
+          psql -v ON_ERROR_STOP=1 -q -d "$BULK_SOURCE_DSN" \
+            -f testdata/import/production-shaped.sql
           # A source without the bm schema would import nothing and still read
           # as clean, so the job fails before the suite can run.
-          loaded=$(psql -d "$IMPORT_SOURCE_DSN" -tAc "select to_regnamespace('bm')")
-          if [ "$loaded" != "bm" ]; then
-            echo "bm2_import_source_test has no bm schema" >&2
-            exit 1
-          fi
+          for dsn in "$IMPORT_SOURCE_DSN" "$BULK_SOURCE_DSN"; do
+            loaded=$(psql -d "$dsn" -tAc "select to_regnamespace('bm')")
+            if [ "$loaded" != "bm" ]; then
+              echo "$dsn has no bm schema" >&2
+              exit 1
+            fi
+          done
       - name: "Nightly: full"
         env:
           MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
           MAJADU_IMPORT_TEST_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_target_test
           MAJADU_IMPORT_TEST_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
+          MAJADU_IMPORT_BULK_TARGET_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_target_test
+          MAJADU_IMPORT_BULK_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_source_test
         run: ./task ci
       # QA-05: line coverage cannot prove an assertion would fail. Mutation
       # testing is slow enough that it belongs in the nightly run, and a
@@ -118,6 +129,18 @@ jobs:
           psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
             -c "CREATE DATABASE bm2_parity_verify_test OWNER bm2_owner"
           ./task parity v2 verify
+      # QA-11: the nightly log is not the only place a failure should land.
+      - name: "Nightly: upload failure reports"
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: nightly-failure-reports
+          path: |
+            .cache/*/failures.tsv
+            .cache/*/junit/junit.xml
+            .cache/*/timing/*.tsv
+          include-hidden-files: true
+          if-no-files-found: warn
 
   notify:
     name: "Notify: red nightly"
@@ -138,4 +161,3 @@ jobs:
           curl -fsS -m 10 -H "Content-Type: application/json" \
             --data "{\"text\":\"majadu: nightly failed $RUN_URL\"}" \
             "$WEBHOOK"
-

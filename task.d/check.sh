@@ -24,6 +24,12 @@ if [ "$run_suites" = "1" ]; then
 fi
 
 nim_check "$(api_entrypoint)"
+sh "$REPO_ROOT/task.d/deadcode.sh"
+
+# QA-11: the JUnit report is written even when the first failing suite stops
+# the loop, so a red run leaves a machine-readable result behind.
+junit_begin
+trap 'junit_finish' EXIT
 
 # QA-06: the database-backed suites get a fresh database per file here too, or
 # a suite that no longer resets its rows fails on whatever the last run left.
@@ -40,6 +46,7 @@ for file in $(list_test_files); do
     # say why in the job log. A pass stays quiet.
     _log=$(mktemp "${TMPDIR:-/tmp}/majadu-check.XXXXXX")
     nim_run_check "$file" >"$_log" 2>&1 || _code=$?
+    junit_record "${file#"$REPO_ROOT"/}" "$_code"
     timing_add "${file#"$REPO_ROOT"/}" "$(( $(now_ms) - _start ))" "$_code"
     if [ "$_code" -ne 0 ]; then
       printf 'check: %s failed with exit %s\n' "${file#"$REPO_ROOT"/}" \
@@ -60,7 +67,10 @@ for file in $(list_test_files); do
 done
 
 if [ -f "$REPO_ROOT/tools/archcheck/main.nim" ]; then
-  nim_run_check "$REPO_ROOT/tools/archcheck/main.nim"
+  _code=0
+  nim_run_check "$REPO_ROOT/tools/archcheck/main.nim" || _code=$?
+  junit_record "tools/archcheck/main.nim" "$_code"
+  [ "$_code" -eq 0 ] || exit "$_code"
 fi
 
 # QA-10: the same 12 minute warning `test` and `coverage` print, so the job that
