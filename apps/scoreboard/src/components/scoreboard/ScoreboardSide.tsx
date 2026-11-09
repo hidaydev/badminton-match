@@ -1,4 +1,4 @@
-import type { MouseEvent, KeyboardEvent } from 'react'
+import type { MouseEvent } from 'react'
 
 const SIDE_CONFIG = {
   red: {
@@ -50,15 +50,11 @@ export function ScoreboardSide({
 
   return (
     <div
-      className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-150 duration-75"
+      className="flex-1 flex flex-col items-center justify-center relative active:brightness-150 duration-75"
       style={{ background: config.bg, transitionProperty: 'filter' }}
-      onClick={onScore}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onScore() } }}
     >
       {/* Player name */}
-      <div className="absolute top-0 left-0 right-0 flex justify-center pt-5" onClick={e => e.stopPropagation()}>
+      <div className="absolute top-0 left-0 right-0 flex justify-center pt-5">
         {isOverlay ? (
           <span
             className="uppercase font-bold text-white truncate px-4 py-1 rounded-full pointer-events-none"
@@ -89,25 +85,37 @@ export function ScoreboardSide({
         )}
       </div>
 
-      {/* Score */}
-      <span
-        className="text-white font-black font-sans leading-none pointer-events-none"
-        style={{
-          fontSize: 'clamp(6rem, 22vmax, 13rem)',
-          transform: isPop ? 'scale(1.1)' : 'scale(1)',
-          transition: 'transform 0.08s ease-out',
-        }}
+      {/* Score face. This is a real button rather than a role="button" wrapper:
+          it is the only control that adds a point, so keydown from the name
+          field and the minus button can never reach it. */}
+      <button
+        type="button"
+        onClick={onScore}
+        aria-label={`${displayName}, score ${score}. Add a point`}
+        className="w-full flex-1 flex flex-col items-center justify-center cursor-pointer duration-75"
       >
-        {score}
-      </span>
-      <span
-        className="text-white/20 tracking-widest mt-3 pointer-events-none"
-        style={{ fontSize: 'clamp(0.55rem,1.2vmax,0.75rem)' }}
-      >
-        tap to score
-      </span>
+        <span
+          aria-hidden="true"
+          className="text-white font-black font-sans leading-none pointer-events-none"
+          style={{
+            fontSize: 'clamp(6rem, 22vmax, 13rem)',
+            transform: isPop ? 'scale(1.1)' : 'scale(1)',
+            transition: 'transform 0.08s ease-out',
+          }}
+        >
+          {score}
+        </span>
+        <span
+          aria-hidden="true"
+          className="text-white/20 tracking-widest mt-3 pointer-events-none"
+          style={{ fontSize: 'clamp(0.55rem,1.2vmax,0.75rem)' }}
+        >
+          tap to score
+        </span>
+      </button>
 
       <button
+        type="button"
         onClick={onMinus}
         className={`absolute ${config.minusPosition} top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/60 cursor-pointer active:bg-black/40 transition-colors`}
         style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.15)' }}

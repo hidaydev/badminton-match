@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import ScoreboardPage from './ScoreboardPage'
+import { resetStorageStatus } from '../utils/storage'
 
 function renderPage(store: Record<string, string> = {}) {
   for (const [key, value] of Object.entries(store)) localStorage.setItem(key, value)
@@ -8,7 +9,14 @@ function renderPage(store: Record<string, string> = {}) {
 }
 
 const halfOf = (name: string) =>
-  screen.getByText(name).closest('[role="button"]') as HTMLElement
+  screen.getByRole('button', { name: new RegExp(`^${name}, score`) })
+
+const scoreFaces = () =>
+  screen.getAllByRole('button', { name: /, score \d+\. Add a point$/ })
+
+beforeEach(() => {
+  resetStorageStatus()
+})
 
 afterEach(() => {
   vi.useRealTimers()
@@ -84,7 +92,7 @@ describe('ScoreboardPage', () => {
   })
 
   it('swaps the two halves and keeps their scores with them', () => {
-    const { container } = renderPage({
+    renderPage({
       'name-red': 'Arya',
       'name-blue': 'Bowo',
       'score-red': '3',
@@ -93,11 +101,9 @@ describe('ScoreboardPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Swap sides' }))
 
-    const halves = container.querySelectorAll('[role="button"]')
-    expect(halves[0]).toHaveTextContent('Bowo')
-    expect(halves[0]).toHaveTextContent('1')
-    expect(halves[1]).toHaveTextContent('Arya')
-    expect(halves[1]).toHaveTextContent('3')
+    const halves = scoreFaces()
+    expect(halves[0]).toHaveAccessibleName('Bowo, score 1. Add a point')
+    expect(halves[1]).toHaveAccessibleName('Arya, score 3. Add a point')
   })
 
   it('restores stored names, ignores the old colour defaults and falls back to the labels', () => {
@@ -129,6 +135,30 @@ describe('ScoreboardPage', () => {
 
     expect(localStorage.getItem('name-blue')).toBe('Bowo S')
     expect(screen.getByText('Bowo S')).toBeInTheDocument()
+  })
+
+  it('does not score when a space is typed into the team name', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    fireEvent.click(screen.getByText('Arya'))
+    const input = screen.getByLabelText('Red team name')
+    fireEvent.change(input, { target: { value: 'Red Team' } })
+    fireEvent.keyDown(input, { key: ' ' })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(within(halfOf('Red Team')).getByText('0')).toBeInTheDocument()
+    expect(localStorage.getItem('score-red')).toBe('0')
+  })
+
+  it('does not score on Space or Enter on the minus button', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo', 'score-red': '2' })
+
+    const minus = screen.getByRole('button', { name: 'Decrease red score' })
+    fireEvent.keyDown(minus, { key: ' ' })
+    fireEvent.keyDown(minus, { key: 'Enter' })
+
+    expect(within(halfOf('Arya')).getByText('2')).toBeInTheDocument()
+    expect(localStorage.getItem('score-red')).toBe('2')
   })
 
   it('says fullscreen is unavailable instead of failing silently', async () => {
@@ -207,5 +237,38 @@ describe('ScoreboardPage', () => {
     renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo', 'score-red': 'abc' })
 
     expect(within(halfOf('Arya')).getByText('0')).toBeInTheDocument()
+  })
+
+  it('keeps scoring in memory when localStorage is blocked, and says so', () => {
+    const blocked = () => {
+      throw new DOMException('blocked', 'SecurityError')
+    }
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(blocked)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(blocked)
+
+    renderPage()
+    expect(screen.getByText('RED')).toBeInTheDocument()
+
+    fireEvent.click(halfOf('RED'))
+
+    expect(within(halfOf('RED')).getByText('1')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Scores are not being saved on this device',
+    )
+  })
+
+  it('restores scores from memory after a remount while storage is blocked', () => {
+    const blocked = () => {
+      throw new DOMException('blocked', 'SecurityError')
+    }
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(blocked)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(blocked)
+
+    const first = renderPage()
+    fireEvent.click(halfOf('RED'))
+    first.unmount()
+
+    render(<ScoreboardPage />)
+    expect(within(halfOf('RED')).getByText('1')).toBeInTheDocument()
   })
 })

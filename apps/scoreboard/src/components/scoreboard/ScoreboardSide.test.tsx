@@ -21,6 +21,9 @@ function props(overrides: Partial<ScoreboardSideProps> = {}): ScoreboardSideProp
   }
 }
 
+const scoreButton = (name = 'Arya', score = 7) =>
+  screen.getByRole('button', { name: `${name}, score ${score}. Add a point` })
+
 describe('ScoreboardSide', () => {
   it('shows the score and the name, and fills the background by side', () => {
     const { container } = render(<ScoreboardSide {...props()} />)
@@ -30,25 +33,48 @@ describe('ScoreboardSide', () => {
     expect(container.firstElementChild?.getAttribute('style')).toContain('rgb(185, 28, 28)')
   })
 
-  it('scores on click, on Enter and on Space, and ignores other keys', () => {
-    const onScore = vi.fn()
-    render(<ScoreboardSide {...props({ onScore })} />)
-    const half = screen.getByRole('button', { name: /Arya|7/ })
+  it('spreads no role=button and no tab stop outside the real controls', () => {
+    const { container } = render(<ScoreboardSide {...props()} />)
 
-    fireEvent.click(half)
-    fireEvent.keyDown(half, { key: 'Enter' })
-    fireEvent.keyDown(half, { key: ' ' })
-    fireEvent.keyDown(half, { key: 'a' })
-
-    expect(onScore).toHaveBeenCalledTimes(3)
+    expect(container.querySelector('[role="button"]')).toBeNull()
+    expect(container.querySelector('[tabindex]')).toBeNull()
   })
 
-  it('calls onMinus with the click and does not score when the handler stops it', () => {
-    // The page's handlers call `stopPropagation` so a minus tap cannot also add
-    // a point. The component only forwards the event, so the test models the
-    // real caller instead of hoping the bubble does not happen.
+  it('scores on click of the score face', () => {
     const onScore = vi.fn()
-    const onMinus = vi.fn((event: React.MouseEvent) => event.stopPropagation())
+    render(<ScoreboardSide {...props({ onScore })} />)
+
+    fireEvent.click(scoreButton())
+
+    expect(onScore).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not score while typing a space or pressing Enter in the name input', () => {
+    const onScore = vi.fn()
+    render(<ScoreboardSide {...props({ isEditing: true, onScore })} />)
+
+    const input = screen.getByLabelText('Red team name')
+    fireEvent.change(input, { target: { value: 'Red Team' } })
+    fireEvent.keyDown(input, { key: ' ' })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(onScore).not.toHaveBeenCalled()
+  })
+
+  it('does not score on Space or Enter on the minus button', () => {
+    const onScore = vi.fn()
+    render(<ScoreboardSide {...props({ onScore })} />)
+
+    const minus = screen.getByRole('button', { name: 'Decrease red score' })
+    fireEvent.keyDown(minus, { key: ' ' })
+    fireEvent.keyDown(minus, { key: 'Enter' })
+
+    expect(onScore).not.toHaveBeenCalled()
+  })
+
+  it('calls onMinus with the click and does not score', () => {
+    const onScore = vi.fn()
+    const onMinus = vi.fn()
     render(<ScoreboardSide {...props({ onScore, onMinus })} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Decrease red score' }))
