@@ -15,6 +15,7 @@ Targets:
   proc-length  fail when a production proc grows past 100 lines
   build        release build of the API binary
   test         all tests (unit + integration when a database is present)
+  typescript   the web gate: types, lint, tailwind, touch targets, docs and unit tests
   verify       build and test one module: ./task verify <module>
   ci           check + build + test + contract check
   parity       v1 golden corpus and the v2 per-operation corpus
@@ -43,6 +44,7 @@ Targets:
   coverage     run coverage gates
   coverage-debt  fail on a low-coverage file with no dated exception
   flakereport  print the slowest suites and browser specs from the last run
+  flakeregister validate the quarantine register: owner, first seen, expiry, issue
   branch-protection  verify the required checks on a protected branch
   mutation     run the mutation manifest (tools/mutation)
   sharekeys    generate or rotate session share-link keys

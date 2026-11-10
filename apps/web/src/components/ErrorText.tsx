@@ -8,13 +8,17 @@ import type { ReactNode } from 'react'
 export function ErrorText({
   children,
   className,
+  id,
 }: {
   children: ReactNode
   /** Placement only, e.g. the top margin that separates it from the form. */
   className?: string
+  /** Set when a field points at this text from `aria-describedby`. */
+  id?: string
 }) {
   return (
     <p
+      id={id}
       role="alert"
       className={className === undefined ? 'text-sm text-error' : `text-sm text-error ${className}`}
     >
