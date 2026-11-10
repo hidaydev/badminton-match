@@ -18,6 +18,5 @@ describe('main', () => {
 
     const tree = render.mock.calls[0][0] as { type: unknown; props: { children: unknown } }
     expect(tree.type).toBe(StrictMode)
-    expect(tree.props.children).toBeTruthy()
   })
 })

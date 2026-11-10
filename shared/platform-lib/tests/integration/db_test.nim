@@ -1,5 +1,6 @@
 import std/[atomics, monotimes, options, os, strutils, times, unittest]
 import ../../db/db
+import ../../waiters
 
 proc dsn(): string =
   getEnv("MAJADU_PG_DSN")
@@ -8,14 +9,18 @@ type
   HolderArgs = object
     db: Db
     started: ptr Atomic[int]
+    released: ptr Atomic[int]
 
 proc holdConnection(args: HolderArgs) {.thread.} =
-  ## Keeps the only connection checked out long enough for the caller's
-  ## `MAJADU_DB_ACQUIRE_TIMEOUT_MS` to expire.
+  ## Keeps the only connection checked out until the caller says its own
+  ## acquire timeout has expired. The hold is tied to that observation instead
+  ## of a guessed interval, so it is never too short under load (SQ-26).
   {.cast(gcsafe).}:
     args.db.tx(proc(conn: DbConn) =
       args.started[].store(1, moRelaxed)
-      sleep(600))
+      waitUntil(proc(): bool = args.released[].load(moRelaxed) == 1,
+        proc(): string = "the caller never released the held connection",
+        timeoutMs = 30000))
 
 suite "database layer":
   var db: Db
@@ -187,6 +192,8 @@ suite "database layer":
     let begin = getMonoTime()
     var state = ""
     try:
+      # Not a synchronisation wait: the statement itself is the subject of the
+      # test, and `statement_timeout` must cancel it.
       discard probe.queryOne("select pg_sleep(20)")
     except DbError as error:
       state = error.sqlState
@@ -197,11 +204,13 @@ suite "database layer":
     let probe = openDb(dsn(), 1, acquireTimeoutMs = 120)
     defer: probe.close()
     var started: Atomic[int]
+    var released: Atomic[int]
     var thread: Thread[HolderArgs]
     createThread(thread, holdConnection, HolderArgs(db: probe,
-      started: addr started))
-    while started.load(moRelaxed) == 0:
-      sleep(1)
+      started: addr started, released: addr released))
+    waitUntil(proc(): bool = started.load(moRelaxed) == 1,
+      proc(): string = "the holder never checked the connection out",
+      timeoutMs = 30000)
     let begin = getMonoTime()
     var caught = false
     try:
@@ -210,6 +219,9 @@ suite "database layer":
       caught = true
     check caught
     check (getMonoTime() - begin).inMilliseconds < 2000
+    # The holder is released only now, so the connection stayed checked out for
+    # exactly as long as this test needed it.
+    released.store(1, moRelaxed)
     joinThread(thread)
 
   test "a whole-second timestamptz has no fraction":

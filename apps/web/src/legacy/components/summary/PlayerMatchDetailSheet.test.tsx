@@ -71,7 +71,9 @@ describe('PlayerMatchDetailSheet match history', () => {
     const tally = screen.getByText('1 - 1')
     expect(points).toHaveClass('text-sm', 'text-slate-300')
     expect(tally).toHaveClass('text-[11px]', 'text-slate-400')
-    expect(points.compareDocumentPosition(tally) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(points.compareDocumentPosition(tally) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
   })
 
   it('keeps the plain score for a game without recorded sets', () => {
@@ -89,7 +91,7 @@ describe('PlayerMatchDetailSheet match history', () => {
 
     expect(screen.getByText('21–18')).toBeInTheDocument()
     expect(screen.queryByText('18–21')).toBeNull()
-    expect(badge('Won', 'text-emerald-400')).toBeDefined()
+    expect(badge('Won', 'text-emerald-400')?.textContent).toBe('Won')
   })
 
   it('orients the points and the badge to a losing team B player', () => {
@@ -98,7 +100,7 @@ describe('PlayerMatchDetailSheet match history', () => {
     })
 
     expect(screen.getByText('18–21')).toBeInTheDocument()
-    expect(badge('Lost', 'text-red-400')).toBeDefined()
+    expect(badge('Lost', 'text-red-400')?.textContent).toBe('Lost')
   })
 
   it('still shows the Won badge for a winning match', () => {
@@ -106,7 +108,7 @@ describe('PlayerMatchDetailSheet match history', () => {
       [toGameKey(0, 0)]: { a: 21, b: 18, sets: [{ a: 21, b: 18 }] },
     })
 
-    expect(badge('Won', 'text-emerald-400')).toBeDefined()
+    expect(badge('Won', 'text-emerald-400')?.textContent).toBe('Won')
   })
 
   it('still shows the Lost badge for a losing match', () => {
@@ -114,6 +116,6 @@ describe('PlayerMatchDetailSheet match history', () => {
       [toGameKey(0, 0)]: { a: 10, b: 21 },
     })
 
-    expect(badge('Lost', 'text-red-400')).toBeDefined()
+    expect(badge('Lost', 'text-red-400')?.textContent).toBe('Lost')
   })
 })

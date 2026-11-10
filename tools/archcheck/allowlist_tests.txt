@@ -21,7 +21,9 @@
 #   assertion, so nothing would match and the line would be dead text that could
 #   later mask a real finding in the same block.
 #
-#   apps/web/src/pages/__tests__/players.test.tsx is TypeScript and is never
-#   scanned. Adding a rule for it is outside QA-02, so it is not listed either.
+#   apps/web/src/pages/__tests__/players.test.tsx was TypeScript and unscanned
+#   when this file was written. SQ-25 added the TypeScript scan, so a `.test.ts`
+#   or `.test.tsx` line is judged on its own and needs no entry here; the escape
+#   hatch is a `// weak: <reason>` comment on the line itself.
 #
 # Both stay open findings in section 10 of the plan.

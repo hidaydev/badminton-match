@@ -12,6 +12,11 @@ type
     isSession*: bool
     roles*: seq[Role]
     ownerOnly*: bool
+    ## The fail-closed default. `operationAccess` returns this for a shape it
+    ## does not name, so a route the table forgot to classify is refused
+    ## instead of being handed to any member (SQ-06). No matrix row produces
+    ## it: a contract operation that lands here fails the authz matrix test.
+    deny*: bool
 
   Principal* = object
     ## A request identity. `role` is none when the user has no membership in the
@@ -57,6 +62,8 @@ proc parseAccess*(node: JsonNode): Access =
 proc can*(access: Access, principal: Principal): bool =
   ## Platform ownership bypasses management routes only: inside a community the
   ## membership role decides, so an owner who joined as `member` stays a member.
+  if access.deny:
+    return false
   if access.isPublic:
     return true
   if not principal.hasSession:
@@ -72,6 +79,10 @@ proc can*(access: Access, principal: Principal): bool =
   principal.role.get in access.roles
 
 proc describe*(access: Access): string =
+  ## The matrix spelling of a class. `deny` has no row, so a route that falls
+  ## into the default can never agree with a document that grants something.
+  if access.deny:
+    return "deny"
   if access.isPublic:
     return "public"
   var parts: seq[string] = @["session"]

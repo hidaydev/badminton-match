@@ -6,6 +6,11 @@ const roots = ["apps", "modules", "shared", "tools"]
 # A walker that visits nothing compares nothing and still prints `ok`. The floor
 # is far below the tree (177 files today) but far above an empty or broken scan.
 const minScannedFiles = 50
+# SQ-25: the TypeScript tests are scanned by the same pass, from a second walk
+# because they are not Nim files. The floor is the same guard: a walk that finds
+# nothing must fail rather than report a clean tree (129 files today).
+const tsRoots = ["apps", "packages"]
+const minTsTestFiles = 100
 const allowlistPath = "tools/archcheck/allowlist_constants.txt"
 # Statements that touch a domain table without a community predicate and are
 # platform-level by design; each entry carries its reason.
@@ -21,6 +26,24 @@ const deliverySqlAllowlistPath = "tools/archcheck/allowlist_delivery_sql.txt"
 proc at(base, relative: string): string =
   ## `./task check` may be run from any directory; REPO_ROOT names the tree.
   base / relative
+
+proc scanTypescript(base: string): tuple[violations: seq[string], scanned: int] =
+  ## SQ-25: `*.test.ts(x)` beside the source, judged by the TypeScript spelling
+  ## of the same forms. The installed tree and the build output are skipped: a
+  ## dependency's tests are not this repository's tests.
+  for root in tsRoots:
+    let directory = at(base, root)
+    if not dirExists(directory):
+      continue
+    for absolute in walkDirRec(directory):
+      let path = absolute.replace(base & "/", "")
+      if path.contains("node_modules/") or path.contains("/dist/") or
+         path.contains("/coverage/"):
+        continue
+      if not (path.endsWith(".test.ts") or path.endsWith(".test.tsx")):
+        continue
+      result.scanned.inc
+      result.violations.add(typescriptTestViolations(path, readFile(absolute)))
 
 proc main() =
   let base = getEnv("REPO_ROOT", getCurrentDir())
@@ -94,6 +117,8 @@ proc main() =
         testSources.add((path, source))
   for (path, source) in testSources:
     violations.add(honestTestViolations(path, source, honestAllowed, asserting))
+  let ts = scanTypescript(base)
+  violations.add(ts.violations)
   for violation in violations:
     stderr.writeLine "archcheck: " & violation
   if violations.len > 0:
@@ -102,7 +127,12 @@ proc main() =
   if scanned < minScannedFiles:
     stderr.writeLine "archcheck: " & scanFloorViolation(scanned, minScannedFiles)
     quit(1)
-  echo "archcheck: ok (" & $scanned & " files)"
+  if ts.scanned < minTsTestFiles:
+    stderr.writeLine "archcheck: " & $ts.scanned &
+      " TypeScript test files scanned, below the floor of " & $minTsTestFiles
+    quit(1)
+  echo "archcheck: ok (" & $scanned & " Nim files, " & $ts.scanned &
+    " TypeScript tests)"
 
 when isMainModule:
   main()

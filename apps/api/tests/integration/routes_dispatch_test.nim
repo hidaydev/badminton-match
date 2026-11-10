@@ -1,15 +1,15 @@
-import std/[json, options, strutils, unittest]
+import std/[json, options, sets, strutils, tables, unittest]
 import db/db
 import ../../src/routes_gen
 import ../http_support
 
-# The anonymous request sweep. One server for the whole suite, the same path a
-# probe or a CLI uses, and one expectation per operation read from the access
-# matrix: a session row must answer 401 or 403, and a public row must answer a
-# normal 2xx/4xx instead of a server fault. The expected class comes from
-# `testdata/authz/matrix.yaml`, never from `route_access`, so patching the
-# classifier to call a write route public fails this test instead of agreeing
-# with it.
+# The anonymous request sweep, the member and admin gate sweeps, and the method
+# sweep. One server for the whole suite, the same path a probe or a CLI uses,
+# and one expectation per operation read from the access matrix: a session row
+# must answer 401 or 403, and a public row must answer a normal 2xx/4xx instead
+# of a server fault. The expected class comes from `testdata/authz/matrix.yaml`,
+# never from `route_access`, so patching the classifier to call a write route
+# public fails this test instead of agreeing with it.
 let
   port = testPort()
   baseUrl = "http://127.0.0.1:" & $uint16(port)
@@ -112,7 +112,11 @@ suite "generated route dispatch":
       if isPublic:
         # The three public doors and the share URLs may answer 4xx because the
         # placeholder code names no row; a 5xx is a fault the matrix does not
-        # declare.
+        # declare. A 405 here is the shape being in the contract while the
+        # dispatcher does not serve it: since SQ-05 the fallthrough answers 405
+        # for a known shape, so this arm is what keeps a missing handler from
+        # looking like a normal refusal.
+        check response.status != 405
         check response.status in 200 .. 499
       else:
         check sessionAnswer(spec.operationId, response.status)
@@ -194,6 +198,76 @@ suite "generated route dispatch":
       """select count(*)::int as n from player.players
          where community_id = $1::uuid""", @[textParam(communityId)]).get.get("n")
     check playersAfter == playersBefore
+    discard database.execUpdate(
+      """delete from community.membership
+         where community_id = $1::uuid""", @[textParam(communityId)])
+    discard database.execUpdate(
+      "delete from platform.user where id = $1::uuid", @[textParam(userId)])
+    discard database.execUpdate(
+      "delete from platform.community where id = $1::uuid",
+      @[textParam(communityId)])
+
+  test "every contract shape answers 405 for a verb it does not declare":
+    # SQ-05: the 405 answer used to be a second list of sub-paths beside the
+    # dispatch chain, and a shape missing from that list answered 404 for a
+    # route that exists. The answer is now read from the generated contract,
+    # so this walks the contract and asks every shape for one verb it does not
+    # declare. The fixture is an admin because a community route gates before
+    # it inspects the verb: a wrong verb still has to reach the shape check.
+    discard database.execUpdate(
+      """delete from community.membership
+         where user_id in (select id from platform.user
+                           where google_sub = 'dispatch-admin')""")
+    discard database.execUpdate(
+      "delete from platform.user where google_sub = 'dispatch-admin'")
+    discard database.execUpdate(
+      "delete from platform.community where slug = 'dispatch-admin'")
+    let communityId = database.queryOne(
+      """insert into platform.community (slug, name, timezone)
+         values ('dispatch-admin', 'Dispatch Admin', 'Asia/Jakarta')
+         returning id::text as id""").get.get("id")
+    let userId = database.queryOne(
+      """insert into platform.user (google_sub, email_hash, display_name)
+         values ('dispatch-admin', 'dispatch-admin-hash', 'Dispatch Admin')
+         returning id::text as id""").get.get("id")
+    discard database.execUpdate(
+      """insert into community.membership (community_id, user_id, role)
+         values ($1::uuid, $2::uuid, 'admin')""",
+      @[textParam(communityId), textParam(userId)])
+    let cookie = cookieFor(database, userId)
+
+    var declared = initTable[string, HashSet[string]]()
+    for spec in routes:
+      declared.mgetOrPut(spec.path, initHashSet[string]()).incl(spec.httpMethod)
+    const undeclared = [("GET", HttpGet), ("POST", HttpPost), ("PUT", HttpPut),
+                        ("PATCH", HttpPatch), ("DELETE", HttpDelete)]
+    var checked = 0
+    var missingWrongVerb: seq[string] = @[]
+    for shape in declared.keys:
+      var wrong = ""
+      var wrongMethod = HttpGet
+      for (name, candidate) in undeclared:
+        if name notin declared[shape]:
+          wrong = name
+          wrongMethod = candidate
+          break
+      if wrong.len == 0:
+        missingWrongVerb.add(shape)
+        continue
+      var path = concretize(shape)
+      let isCommunity = path.startsWith("/c/")
+      if isCommunity:
+        path = path.replace("/c/dispatch-slug", "/c/dispatch-admin")
+      let response = call(baseUrl, wrongMethod, path,
+        cookie = (if isCommunity: cookie else: ""), origin = allowedOrigin,
+        maxRedirects = 0)
+      checkpoint(wrong & " " & shape & " -> " & $response.status & " " &
+        response.body)
+      check response.body.find("\"code\":\"METHOD\"") >= 0
+      check response.status == 405
+      inc checked
+    check missingWrongVerb.len == 0
+    check checked == declared.len
     discard database.execUpdate(
       """delete from community.membership
          where community_id = $1::uuid""", @[textParam(communityId)])

@@ -29,12 +29,95 @@ proc ownerAccess*(): Access =
   ## Platform-owner management: no community membership is involved.
   Access(isSession: true, ownerOnly: true)
 
+proc denyAccess*(): Access =
+  ## The fail-closed default: no caller satisfies it. A shape the table below
+  ## does not name is refused rather than handed to any member, so forgetting
+  ## an entry costs a 403 instead of a silent grant (SQ-06).
+  Access(deny: true)
+
 type
   Classified = tuple[access: Access, known: bool]
     ## `known` is false only when no rule matched the shape. The old default
     ## granted `readAccess` to anything, so a contract route the table never
     ## learned looked like a deliberate member route. `./task contract-keys`
     ## now fails on that for every operation the spec declares.
+
+proc classifyCommunity(verb: string, parts: openArray[string]): Classified =
+  ## The `/c/{slug}/...` family, one arm per segment the contract declares.
+  ## Split out of `classify` only to keep each routine inside the length the
+  ## gate allows; the arms are unchanged.
+  case parts[3]
+  of "players":
+    if verb == "DELETE" and parts.len == 5:
+      return (adminAccess(), true)
+    if verb == "POST" and parts.len == 6 and parts[5] == "merge":
+      return (adminAccess(), true)
+    if verb == "PATCH" and parts.len == 7 and parts[5] == "claims":
+      return (adminAccess(), true)
+    # Nested reads (claims, achievements, stats) and the plain reads are
+    # member; every other write is host/admin.
+    if parts.len >= 6 or verb == "GET":
+      return (readAccess(), true)
+    return (writeAccess(), true)
+  of "sessions":
+    if parts.len == 6:
+      case parts[5]
+      of "standings", "ws-ticket":
+        return (readAccess(), true)
+      of "rating":
+        if verb in ["POST", "DELETE"]:
+          return (adminAccess(), true)
+        return (writeAccess(), true)
+      of "games":
+        # Reading one game is a member route; scoring it is not.
+        if verb == "GET":
+          return (readAccess(), true)
+        return (writeAccess(), true)
+      else:
+        return (writeAccess(), true)
+    if parts.len == 7 and parts[5] == "games" and verb == "GET":
+      return (readAccess(), true)
+    if parts.len >= 6:
+      return (writeAccess(), true)
+    if verb == "GET":
+      return (readAccess(), true)
+    return (writeAccess(), true)
+  of "tournaments":
+    if parts.len == 6 and parts[5] == "rating" and verb in ["POST", "DELETE"]:
+      return (adminAccess(), true)
+    if verb == "GET":
+      return (readAccess(), true)
+    return (writeAccess(), true)
+  of "ratings", "rating-sources":
+    return (adminAccess(), true)
+  of "members":
+    if parts.len == 4 and verb == "GET":
+      return (readAccess(), true)
+    return (adminAccess(), true)
+  of "join-requests":
+    # Only the exact create shape is the anonymous door; the badge decides
+    # the rest, and an extra segment must not inherit the public class.
+    if verb == "POST" and parts.len == 4:
+      return (publicAccess(), true)
+    return (adminAccess(), true)
+  of "claims", "invites":
+    return (adminAccess(), true)
+  of "config":
+    # The effective config is what a member's screen reads (export sizes,
+    # page limits); it is the only member read in this family.
+    if verb == "GET":
+      return (readAccess(), true)
+    return (adminAccess(), true)
+  of "settings":
+    if verb == "GET":
+      return (readAccess(), true)
+    return (adminAccess(), true)
+  of "rankings":
+    return (readAccess(), true)
+  else:
+    # A family segment the table does not name is not a member read, and it is
+    # not a rule either.
+    return (denyAccess(), false)
 
 proc classify(verb, path: string): Classified =
   ## One row per operation shape. Contract verbs get the class the matrix
@@ -61,80 +144,11 @@ proc classify(verb, path: string): Classified =
   if parts.len == 4 and parts[1] == "invites":
     return (readAccess(), true)
   if parts.len >= 4 and parts[1] == "c":
-    case parts[3]
-    of "players":
-      if verb == "DELETE" and parts.len == 5:
-        return (adminAccess(), true)
-      if verb == "POST" and parts.len == 6 and parts[5] == "merge":
-        return (adminAccess(), true)
-      if verb == "PATCH" and parts.len == 7 and parts[5] == "claims":
-        return (adminAccess(), true)
-      # Nested reads (claims, achievements, stats) and the plain reads are
-      # member; every other write is host/admin.
-      if parts.len >= 6 or verb == "GET":
-        return (readAccess(), true)
-      return (writeAccess(), true)
-    of "sessions":
-      if parts.len == 6:
-        case parts[5]
-        of "standings", "ws-ticket":
-          return (readAccess(), true)
-        of "rating":
-          if verb in ["POST", "DELETE"]:
-            return (adminAccess(), true)
-          return (writeAccess(), true)
-        of "games":
-          # Reading one game is a member route; scoring it is not.
-          if verb == "GET":
-            return (readAccess(), true)
-          return (writeAccess(), true)
-        else:
-          return (writeAccess(), true)
-      if parts.len == 7 and parts[5] == "games" and verb == "GET":
-        return (readAccess(), true)
-      if parts.len >= 6:
-        return (writeAccess(), true)
-      if verb == "GET":
-        return (readAccess(), true)
-      return (writeAccess(), true)
-    of "tournaments":
-      if parts.len == 6 and parts[5] == "rating" and verb in ["POST", "DELETE"]:
-        return (adminAccess(), true)
-      if verb == "GET":
-        return (readAccess(), true)
-      return (writeAccess(), true)
-    of "ratings", "rating-sources":
-      return (adminAccess(), true)
-    of "members":
-      if parts.len == 4 and verb == "GET":
-        return (readAccess(), true)
-      return (adminAccess(), true)
-    of "join-requests":
-      # Only the exact create shape is the anonymous door; the badge decides
-      # the rest, and an extra segment must not inherit the public class.
-      if verb == "POST" and parts.len == 4:
-        return (publicAccess(), true)
-      return (adminAccess(), true)
-    of "claims", "invites":
-      return (adminAccess(), true)
-    of "config":
-      # The effective config is what a member's screen reads (export sizes,
-      # page limits); it is the only member read in this family.
-      if verb == "GET":
-        return (readAccess(), true)
-      return (adminAccess(), true)
-    of "settings":
-      if verb == "GET":
-        return (readAccess(), true)
-      return (adminAccess(), true)
-    of "rankings":
-      return (readAccess(), true)
-    else:
-      discard
-  # No rule matched: the shape is unknown to this table. The class stays the
-  # historical default so the request path is unchanged, but `known` is what
-  # the contract gate reads.
-  (readAccess(), false)
+    return classifyCommunity(verb, parts)
+  # No rule matched: the shape is unknown to this table. The historical default
+  # was a member read, which is exactly how an unnamed route got through; the
+  # class is now the fail-closed one, and `known` is what the contract gate reads.
+  (denyAccess(), false)
 
 proc operationAccess*(verb, path: string): Access =
   classify(verb, path).access

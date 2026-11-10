@@ -38,7 +38,7 @@ describe('join request', () => {
         String(url) === '/api/c/acme/join-requests' &&
         (init as RequestInit | undefined)?.method === 'POST',
     )
-    expect(call).toBeDefined()
+    expect(call?.[0]).toBe('/api/c/acme/join-requests')
   })
 
   it('keeps the slug on screen while it is empty', async () => {

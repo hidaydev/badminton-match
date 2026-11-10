@@ -417,3 +417,46 @@ suite "delivery SQL rule":
   test "application.db inside a string literal is not the global pool":
     let source = "proc handler() =\n  echo \"application.db\"\n"
     check deliverySqlViolations("apps/api/src/app.nim", source).len == 0
+
+suite "typescript test assertions (SQ-25)":
+  test "a value assertion passes":
+    check typescriptTestViolations("apps/web/src/x.test.ts",
+      "expect(call?.[0]).toBe('/api/auth/start')\n").len == 0
+
+  test "toBeTruthy and toBeDefined are findings":
+    # Neither can fail for a wrong-but-present value, which is the shape the
+    # audit counted fourteen times.
+    check typescriptTestViolations("apps/web/src/x.test.tsx",
+      "expect(call).toBeDefined()\n").len == 1
+    check typescriptTestViolations("apps/web/src/x.test.tsx",
+      "expect(tree.props.children).toBeTruthy()\n").len == 1
+
+  test "the three trivially true forms are findings":
+    let source = "expect(true).toBe(true)\n" &
+      "expect(value).toBe(value)\n" &
+      "expect(items.length).toBeGreaterThanOrEqual(0)\n"
+    let found = typescriptTestViolations("apps/web/src/x.test.ts", source)
+    check found.len == 3
+    check found[0].contains(":1:")
+    check found[1].contains(":2:")
+    check found[2].contains(":3:")
+
+  test "a different value on each side is not a finding":
+    check typescriptTestViolations("apps/web/src/x.test.ts",
+      "expect(result).toBe(expected)\n").len == 0
+    check typescriptTestViolations("apps/web/src/x.test.ts",
+      "expect(items.length).toBe(2)\n").len == 0
+
+  test "a weak marker with a reason exempts the line":
+    let found = typescriptTestViolations("apps/web/src/x.test.ts",
+      "expect(call).toBeDefined() // weak: the mock records it and the next line reads it\n")
+    check found.len == 0
+
+  test "an empty weak marker is still a finding":
+    # The reason is the judgement; a bare marker is a silence.
+    check typescriptTestViolations("apps/web/src/x.test.ts",
+      "expect(call).toBeDefined() // weak:   \n").len == 1
+
+  test "a comment that mentions the matcher is not a finding":
+    check typescriptTestViolations("apps/web/src/x.test.ts",
+      "// expect(call).toBeDefined() was the old assertion\n").len == 0

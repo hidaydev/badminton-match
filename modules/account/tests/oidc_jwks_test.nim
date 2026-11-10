@@ -99,3 +99,46 @@ suite "JWKS cache":
     let before = fetchCount.load(moRelaxed)
     discard jwks(config)
     check fetchCount.load(moRelaxed) == before
+
+  test "a failed refresh serves the previous key set instead of raising":
+    # SQ-08: an identity-provider blip used to turn every login into a fresh
+    # round trip to a host that was already failing.
+    var attempts = 0
+    var failing = false
+    setJwksFetcher(proc(config: OidcConfig): seq[Jwk] =
+      inc attempts
+      if failing:
+        raise newException(ValueError, "provider is down")
+      @[Jwk(kid: "k1", modulus: "AQAB", exponent: "AQAB")])
+    let config = OidcConfig(jwksUrl: "http://provider.test/jwks")
+    check jwks(config).len == 1
+    check attempts == 1
+    # Age the entry past its TTL without waiting the hour: the next call takes
+    # the refresh path against a provider that is now down.
+    expireJwksCache()
+    failing = true
+    check jwks(config).len == 1
+    check attempts == 2
+    # Inside the retry window the provider is not asked again, and the stale
+    # keys are still served.
+    for _ in 0 ..< 5:
+      check jwks(config).len == 1
+    check attempts == 2
+
+  test "a refresh failure with no keys in hand still raises":
+    var attempts = 0
+    setJwksFetcher(proc(config: OidcConfig): seq[Jwk] =
+      inc attempts
+      raise newException(ValueError, "provider is down"))
+    let config = OidcConfig(jwksUrl: "http://provider.test/jwks")
+    var raised = false
+    try:
+      discard jwks(config)
+    except ValueError:
+      raised = true
+    check raised
+    check attempts == 1
+    # The retry window applies to the empty cache too, so a second login does
+    # not reach the network while the provider is known to be down.
+    check jwks(config).len == 0
+    check attempts == 1

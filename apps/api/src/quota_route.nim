@@ -47,3 +47,17 @@ proc quotaRoute*(path: string): string =
     if matches(pattern, actual):
       return shape
   UnmatchedRoute
+
+proc contractShapeKnown*(path: string): bool =
+  ## Whether the path names a shape this service serves, decided from the same
+  ## table as the quota label. The dispatcher reads it to answer 405 for a known
+  ## shape asked with the wrong verb, which is why the sub-path list exists once
+  ## instead of once per branch (SQ-05).
+  for fixed in FixedRoutes:
+    if path == fixed:
+      return true
+  let actual = path.split('/')
+  for (_, pattern) in patterns:
+    if matches(pattern, actual):
+      return true
+  false

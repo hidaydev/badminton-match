@@ -84,8 +84,13 @@ proc validateSets*(rules: ScoringRules,
   SetVerdict(error: seOk)
 
 proc setsWon*(sets: openArray[SetScore]): (int, int) =
+  ## A tied set counts for neither side. `validateSets` already refuses a tie,
+  ## but `matchComplete` and `winnerSide` are exported and take sets from any
+  ## caller: awarding a tie to side B would make a single-set draw look like a
+  ## played game with the wrong winner (SQ-22).
   for s in sets:
-    if s.a > s.b: inc result[0] else: inc result[1]
+    if s.a > s.b: inc result[0]
+    elif s.b > s.a: inc result[1]
 
 proc matchComplete*(rules: ScoringRules, sets: openArray[SetScore]): bool =
   let (a, b) = setsWon(sets)

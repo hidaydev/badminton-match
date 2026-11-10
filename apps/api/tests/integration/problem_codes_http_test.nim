@@ -17,6 +17,7 @@ import std/[base64, exitprocs, httpclient, json, net, options, os, osproc,
 import mummy
 import db/db
 import sha256
+import waiters
 import account/infrastructure/oidc
 import share/crypto
 import platform/config/store
@@ -149,18 +150,8 @@ proc startApiWithHeadroom(app: App, transportCap: int) =
     maxBodyLen = transportCap)
   var thread: Thread[ApiArgs]
   createThread(thread, apiServe, ApiArgs(server: server, port: Port(port)))
-  var up = false
-  for _ in 0 ..< 200:
-    try:
-      let client = newHttpClient(timeout = 1000)
-      defer: client.close()
-      if client.get(baseUrl & "/healthz").code.int == 200:
-        up = true
-        break
-    except CatchableError:
-      discard
-    sleep(50)
-  doAssert up, "api did not start on port " & $uint16(port)
+  # SQ-26: a bounded poll, not a fixed number of sleeps.
+  waitForHttp(baseUrl & "/healthz")
 
 proc oidcServe(args: OidcArgs) {.thread.} =
   try:
@@ -172,18 +163,8 @@ proc startOidc() =
   let server = newServer(oidcHandle, workerThreads = 2)
   var thread: Thread[OidcArgs]
   createThread(thread, oidcServe, OidcArgs(server: server, port: Port(oidcPort)))
-  var up = false
-  for _ in 0 ..< 100:
-    try:
-      let client = newHttpClient(timeout = 1000)
-      defer: client.close()
-      if client.get(oidcBase & "/jwks").code.int == 200:
-        up = true
-        break
-    except CatchableError:
-      discard
-    sleep(50)
-  doAssert up, "test OIDC server did not start"
+  # SQ-26: bounded poll on the stub's JWKS endpoint instead of a sleep count.
+  waitForHttp(oidcBase & "/jwks")
 
 proc versionOf(sessionId: string): int =
   database.queryOne(

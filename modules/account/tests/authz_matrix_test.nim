@@ -155,6 +155,29 @@ suite "authorization matrix":
     check operationKnown("GET", "/c/x/sessions")
     check operationKnown("GET", "/c/x/players")
 
+  test "a shape the table does not name is refused for every caller":
+    # SQ-06: the default used to be `readAccess()`, so a write route whose shape
+    # nobody enumerated became member-writable. The default now denies.
+    for path in ["/c/x/not-a-family", "/nothing/here", "/c/x/not-a-family/1"]:
+      let access = operationAccess("POST", path)
+      check access.describe() == "deny"
+      for caller in [principal(role = some(rMember)),
+                     principal(role = some(rHost)),
+                     principal(role = some(rAdmin)),
+                     principal(owner = true),
+                     principal(session = false)]:
+        check not access.can(caller)
+
+  test "no contract route lands on the deny default":
+    # The default is unreachable for the contract: every operation is named by
+    # the table. A new route without an arm fails here, not in production.
+    var denied: seq[string] = @[]
+    for route in routes:
+      let access = operationAccess(route.httpMethod, concrete(route.path))
+      if access.describe() == "deny":
+        denied.add(route.operationId)
+    check denied.len == 0
+
   test "only the exact create shape is the anonymous join-request door":
     # The dispatch reaches the family block for any length >= 4; a public class
     # there would skip the membership check and the handler would read a

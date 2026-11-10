@@ -61,11 +61,8 @@ describe('player stats sharing', () => {
       },
     )
 
-    await waitFor(() => expect(result.current.rating.data).toBeDefined())
-    await waitFor(() => expect(result.current.career.data).toBeDefined())
-
-    expect(result.current.rating.data?.name).toBe('Budi')
-    expect(result.current.career.data?.gamesPlayed).toBe(4)
+    await waitFor(() => expect(result.current.rating.data?.name).toBe('Budi'))
+    await waitFor(() => expect(result.current.career.data?.gamesPlayed).toBe(4))
     // The same `/stats` payload feeds both cards; a second key would fetch it
     // twice (BEP-06).
     expect(fetchMock).toHaveBeenCalledTimes(1)

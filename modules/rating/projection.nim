@@ -15,7 +15,7 @@
 ## A tournament format without an enabled level row falls back to the game
 ## formula, exactly like v1.
 
-import std/[algorithm, json, math, options, sets, strutils, tables]
+import std/[algorithm, json, options, sets, strutils, tables]
 import db/db
 import ./domain/rating
 import ./infrastructure/tournament
@@ -349,6 +349,8 @@ proc project*(db: Db, communityId, asOf: string, params: RatingParams,
     var total = 0.0
     for index in 0 ..< counted:
       total += list[index].points
+    # SQ-19: the board and the ledger round through the same function, so one
+    # integer contract decides both and a half point cannot drift by one.
     result[owner] = Projection(entries: list, counted: counted,
-      available: available, points: int(round(total)),
+      available: available, points: roundPoints(total),
       thinEvidence: available < params.thinEvidenceN)
