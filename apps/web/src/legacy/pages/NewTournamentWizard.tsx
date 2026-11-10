@@ -16,6 +16,7 @@ import {
 } from '../utils/tournament'
 import { TEAM_CLASSES, TEAM_NAMES, type TeamClass } from '../utils/teamTournament'
 import { t } from '../../i18n'
+import { Button } from '../../components/Button'
 
 const PAIR_COUNT = 16
 const emptyPair = () => ({ a: '', b: '' })
@@ -145,13 +146,13 @@ function TeamWizard() {
               className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           </label>
-          <button
+          <Button
+            className="mt-2 w-full font-bold"
             onClick={() => setStep(2)}
             disabled={!name.trim()}
-            className="mt-2 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hit44"
           >
             {t('legacy.next')}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -194,13 +195,13 @@ function TeamWizard() {
               </div>
             ))}
           </div>
-          <button
+          <Button
+            className="mt-1 w-full font-bold"
             onClick={() => { formTeams(); setStep(3) }}
             disabled={!namesComplete || !classesBalanced || !matrixBalanced}
-            className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hit44"
           >
             {t('legacy.next')}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -208,12 +209,13 @@ function TeamWizard() {
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <p className="text-xs text-fg-dim">Team rosters (1 player per class) · slots (Teams 1–6) drawn on matchday</p>
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={formTeams}
-              className="text-xs px-3 py-1.5 rounded-lg border border-border-subtle text-fg-dim hover:text-fg hit44"
             >
               {t('legacy.refresh')}
-            </button>
+            </Button>
           </div>
           {teams.length === 0 && (
             <p className="text-xs text-fg-dim">
@@ -239,13 +241,14 @@ function TeamWizard() {
               </div>
             ))}
           </div>
-          <button
+          <Button
+            className="mt-1 w-full font-bold"
+            loading={isPending}
             onClick={handleCreate}
-            disabled={teams.length !== TEAM_COUNT || teams.some((t) => t.players.length !== TEAM_COUNT) || isPending}
-            className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hit44"
+            disabled={teams.length !== TEAM_COUNT || teams.some((t) => t.players.length !== TEAM_COUNT)}
           >
-            {isPending ? 'Creating…' : 'Create Tournament'}
-          </button>
+            {t('tournaments.create')}
+          </Button>
         </div>
       )}
     </div>
@@ -345,13 +348,13 @@ function ClassicWizard() {
               className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           </label>
-          <button
+          <Button
+            className="mt-2 w-full font-bold"
             onClick={() => setStep(2)}
             disabled={!name.trim()}
-            className="mt-2 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hit44"
           >
             {t('legacy.next')}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -361,12 +364,13 @@ function ClassicWizard() {
             <p className="text-xs text-fg-dim">
               Add <span className="text-accent">{PAIR_COUNT}</span> pairs
             </p>
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setPairs(Array.from({ length: PAIR_COUNT }, emptyPair))}
-              className="text-xs text-fg-dim hover:text-fg hit44"
             >
               {t('legacy.reset')}
-            </button>
+            </Button>
           </div>
           <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
             {pairs.map((p, i) => (
@@ -388,13 +392,13 @@ function ClassicWizard() {
               </div>
             ))}
           </div>
-          <button
+          <Button
+            className="mt-1 w-full font-bold"
             onClick={() => setStep(3)}
             disabled={!pairsComplete}
-            className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hit44"
           >
             {t('legacy.next')}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -402,12 +406,13 @@ function ClassicWizard() {
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <p className="text-xs text-fg-dim">Draw: 4 groups × 4 pairs</p>
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={drawGroups}
-              className="text-xs px-3 py-1.5 rounded-lg border border-border-subtle text-fg-dim hover:text-fg hit44"
             >
               {t('legacy.reDraw')}
-            </button>
+            </Button>
           </div>
           {!groupsFull && (
             <p className="text-xs text-fg-dim">
@@ -428,13 +433,14 @@ function ClassicWizard() {
               </div>
             ))}
           </div>
-          <button
+          <Button
+            className="mt-1 w-full font-bold"
+            loading={isPending}
             onClick={handleCreate}
-            disabled={!groupsFull || isPending}
-            className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hit44"
+            disabled={!groupsFull}
           >
-            {isPending ? 'Creating…' : 'Create Tournament'}
-          </button>
+            {t('tournaments.create')}
+          </Button>
         </div>
       )}
     </div>

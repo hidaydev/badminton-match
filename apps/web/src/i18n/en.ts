@@ -166,6 +166,7 @@ export const en = {
   'tournaments.column.date': 'Date',
   'tournaments.column.format': 'Format',
   'tournaments.column.status': 'Status',
+  'tournaments.create': 'Create Tournament',
   'tournaments.format.classic': 'Classic',
   'tournaments.format.team': 'Team',
   'tournaments.open': 'Open',
