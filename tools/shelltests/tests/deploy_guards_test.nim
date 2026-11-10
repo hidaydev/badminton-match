@@ -304,8 +304,9 @@ suite "deploy-vps.sh":
 
   # DB-06: the production deploy migrated and verified but never seeded, while
   # the RC path seeded on every deploy. A registry key with no row is a container
-  # that boots and cannot answer, so the seed belongs next to the migration.
-  test "the deploy seeds after it verifies the schema":
+  # that boots and cannot answer, so the seed belongs next to the migration:
+  # after `migrate`, before `verify` reads the ledger back.
+  test "the deploy seeds between the migration and the schema check":
     let fixture = newFixture("deploy-seed")
     defer: removeDir(fixture.root)
     simFakes(fixture)
@@ -333,8 +334,8 @@ suite "deploy-vps.sh":
     let verifyAt = calls.find("verify --dir /app/db/migrations")
     let seedAt = calls.find("seed --dir /app/db/seeds")
     check migrateAt >= 0
-    check verifyAt > migrateAt
-    check seedAt > verifyAt
+    check seedAt > migrateAt
+    check verifyAt > seedAt
     check readFile(fixture.root / "logs" / "deploy.log").contains("applied the seed files")
     # The fixture stops later in the pipeline (health and smoke probes under
     # fakes); what this case proves is that the seed ran, and that a failure was

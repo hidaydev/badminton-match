@@ -78,7 +78,7 @@ the sequence is:
 
 1. `git fetch origin main` + `git reset --hard origin/main`.
 2. Resolve the digest from the GitHub Release, `podman pull` that digest.
-3. **`dbtools migrate` + `dbtools verify` + `dbtools seed`** from the newly
+3. **`dbtools migrate` + `dbtools seed` + `dbtools verify`** from the newly
    pulled image, using `MAJADU_OWNER_DSN` from `env/majadu-tools.env` (the API
    unit loads only `env/majadu-prod.env` and never sees that credential). A
    failure here = the release is not installed,
@@ -181,7 +181,7 @@ The deploy runs migrations automatically, so every release must satisfy:
   only run through `dbtools migrate --allow-contract`, one release after the
   deploy that stopped using the old shape has become `:prev`.
 - **Idempotent seeds** (`insert … on conflict do nothing`). The deploy runs
-  `dbtools seed` after `verify` on every release, so the config registry in the
+  `dbtools seed` between `migrate` and `verify` on every release, so the config registry in the
   image and the rows in the database cannot drift apart; a seed file that is not
   idempotent turns the next deploy into a failure.
 - **`/readyz` is not a substitute for `verify`.** Readiness only checks that

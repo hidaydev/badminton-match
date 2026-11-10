@@ -379,14 +379,16 @@ fi
 log "pulled $REGISTRY_IMAGE@$DIGEST"
 
 # ---------------------------------------------------------------------------
-# Schema first, service second. The image carries db/migrations and dbtools, so
-# the release that is about to run also migrates the database. `migrate` is a
-# single transaction with an advisory lock, and `verify` then proves the ledger
-# matches the committed files; either failure aborts here, while :local and
-# :prev still point at the release that is running. The owner DSN is required
-# because DDL needs bm2_owner, not the application role. No --allow-contract:
-# a migration marked `-- contract` is refused here and applied by hand one
-# release later, so a deploy can never be the step that removes the old shape.
+# Schema first, service second. The image carries db/migrations, db/seeds and
+# dbtools, so the release that is about to run also migrates the database.
+# `migrate` is a single transaction with an advisory lock; `seed` then lands the
+# config registry the image expects, before `verify` reads the ledger back and
+# proves it matches the committed files. Either failure aborts here, while
+# :local and :prev still point at the release that is running. The owner DSN is
+# required because DDL needs bm2_owner, not the application role. No
+# --allow-contract: a migration marked `-- contract` is refused here and applied
+# by hand one release later, so a deploy can never be the step that removes the
+# old shape.
 # ---------------------------------------------------------------------------
 # The previous release's schema is read before `migrate`: a later failure writes
 # last-attempt.json and leaves last-release.json as the record of what runs.
@@ -402,21 +404,24 @@ if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
   migrate --dir /app/db/migrations >>"$LOG" 2>&1; then
   fail "dbtools migrate failed; v$VERSION is not deployed and the running release was left alone"
 fi
-STEP="verify-schema"
-if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
-  verify --dir /app/db/migrations >>"$LOG" 2>&1; then
-  fail "dbtools verify failed; the database is not at the committed schema, v$VERSION is not deployed"
-fi
 # DB-06: a registry key with no seeded row boots into a container that cannot
 # answer, and the RC path has seeded since it was written. The seed files are
 # idempotent upserts, so running them on every deploy is what keeps the
-# database and the image's config registry in step.
+# database and the image's config registry in step. It runs between `migrate`
+# and `verify` so the schema, the rows the schema needs and the ledger are one
+# ordered release step: a missing seed aborts before the deploy claims the
+# database is at the committed schema.
 STEP="seed"
 if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
   seed --dir /app/db/seeds >>"$LOG" 2>&1; then
   fail "dbtools seed failed; v$VERSION is not deployed and the running release was left alone"
 fi
 log "applied the seed files"
+STEP="verify-schema"
+if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
+  verify --dir /app/db/migrations >>"$LOG" 2>&1; then
+  fail "dbtools verify failed; the database is not at the committed schema, v$VERSION is not deployed"
+fi
 # The last migration file is the schema this release expects. An empty name is
 # not a version: without it the release record cannot say which schema the image
 # needs, so the deploy stops instead of writing metadata that a later rollback
