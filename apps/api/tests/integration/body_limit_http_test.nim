@@ -12,7 +12,7 @@
 ## than its own default, and a 3 MiB body is answered by the guard with a 413
 ## envelope instead of a dropped connection.
 
-import std/[json, options, strutils, unittest]
+import std/[json, nativesockets, net, options, strutils, unittest]
 import mummy
 import db/db
 import waiters
@@ -67,6 +67,31 @@ proc paddedSessionBody(size: int, title: string): string =
   if size < head.len + tail.len:
     raise newException(ValueError, "size is too small for a session body")
   head & repeat('x', size - head.len - tail.len) & tail
+
+proc rawResponse(port: Port, path, body, cookie: string): string =
+  ## A request with no `Connection` header: HTTP/1.1 defaults to keep-alive, so
+  ## a server that refuses the body but keeps the socket open leaves the client
+  ## waiting, and one that answers and closes is observed as a decision. The
+  ## std/httpclient used by `call` sends `Connection: close` itself, which would
+  ## make mummy echo the header whether the handler asked for it or not.
+  let socket = newSocket()
+  defer: socket.close()
+  socket.connect("127.0.0.1", Port(port.int))
+  var head = "POST " & path & " HTTP/1.1\r\nHost: 127.0.0.1\r\n" &
+    "Content-Type: application/json\r\n" &
+    "Content-Length: " & $body.len & "\r\n"
+  if cookie.len > 0:
+    head.add("Cookie: majadu_session=" & cookie & "\r\n")
+  head.add("\r\n")
+  socket.send(head & body)
+  while true:
+    var readable = @[socket.getFd]
+    if selectRead(readable, 5000) <= 0:
+      break
+    let chunk = socket.recv(8192)
+    if chunk.len == 0:
+      break
+    result.add(chunk)
 
 var
   database: Db
@@ -144,6 +169,22 @@ suite "body size guard over HTTP":
     # a client cannot quote it. Adding it is a contract change, not a test fix.
     check not parsed.hasKey("request_id")
     check sessionCount("WayTooBig") == 0
+
+  test "the 413 closes a keep-alive connection and says so":
+    # QAE-02 residual: the envelope was already right, but the header was not.
+    # Without it a client that asked for keep-alive waits for a request the
+    # server will never read, which is the reset the audit recorded in another
+    # shape. The raw request sends no `Connection` header on purpose.
+    let body = paddedSessionBody(overLimitBody, "CloseHeader")
+    let raw = rawResponse(port, "/c/" & slug & "/sessions", body, hostCookie)
+    let separator = raw.find("\r\n\r\n")
+    check separator > 0
+    let head = raw[0 ..< separator]
+    check head.startsWith("HTTP/1.1 413")
+    check head.toLowerAscii().contains("connection: close")
+    let parsed = parseJson(raw[separator + 4 .. ^1])
+    check parsed["code"].getStr() == "BODY_TOO_LARGE"
+    check parsed["status"].getInt() == 413
 
   test "a body one byte over the limit is a 413 and writes no session":
     let body = paddedSessionBody(limit + 1, "TooBig")
