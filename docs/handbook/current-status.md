@@ -35,8 +35,8 @@ Postgres 18.6 · schema per domain (platform, community, player, session,
   `routes_gen.nim`, `packages/web-client/src/api.ts`.
 - Every operation has a handler (compilation fails otherwise) and an authorization row in
   `testdata/authz/matrix.yaml`; `./task contract-check` guards the fingerprint.
-- **52 migrations** in `db/migrations/` (`0001`–`0052`, the last one
-  `0052_approved_session_needs_results.sql`); seeds: `db/seeds/platform_config.sql`,
+- **54 migrations** in `db/migrations/` (`0001`–`0054`, the last one
+  `0054_played_game_needs_result.sql`); seeds: `db/seeds/platform_config.sql`,
   `db/seeds/achievement_definitions.sql`.
 - **35 config keys** in `modules/platform/config/registry.nim`, initial values in the seed;
   per-community overrides in `community.settings` may only narrow the platform.

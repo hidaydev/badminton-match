@@ -477,6 +477,14 @@ a product answer first.
 rows, with or without a time), or `session.courts` is dropped as dead weight
 from the import. Then the composite key is added in the same release.
 
+**Update 2026-11-10 (wave 5):** `0053_court_coordinate_reference.sql` enforces
+the coordinate where the court register exists, without the foreign key. A game
+or a skip may only name a court the session has once the session has at least
+one `session.courts` row, and a court row still used by a game cannot be deleted
+or renumbered. A session with no court rows, which is every v2 session, behaves
+exactly as before, so the reason for the deferral still holds. The foreign key
+remains deferred, with this guard as the interim control.
+
 ## ADR-018 · Tenancy is guarded at build time, not by row level security
 
 **Date:** 2026-11-10

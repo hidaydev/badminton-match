@@ -23,7 +23,7 @@ contract generated from OpenAPI.
 | | |
 |---|---|
 | **Contract** | 76 operations, generated into Nim routes and the TypeScript client |
-| **Schema** | 52 migrations, every table keyed by `community_id` |
+| **Schema** | 54 migrations, every table keyed by `community_id` |
 | **Domain** | 9 modules: account, community, player, session, tournament, rating, achievement, share, platform |
 | **Gates** | 1,524 Nim test cases in 140 suites, 144 parity cases, 170 end-to-end runs |
 
@@ -149,7 +149,7 @@ A separate release candidate runs on the same host: branch
 
 ## 📌 Status
 
-The v2 rewrite is complete: 76 contract operations, 52 migrations, backend and
+The v2 rewrite is complete: 76 contract operations, 54 migrations, backend and
 frontend features wired end to end. The v1 Go tree is gone. The release
 candidate `2.0.0-rc.1` runs on the RC instance; the production release chain
 (tag, `release.yml`, digest deploy) has not yet run end to end on the VPS, and
