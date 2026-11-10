@@ -218,6 +218,12 @@ jobs:
       # only when one of the two engines the suite drives cannot start.
       - name: "E2E: install browsers"
         run: |
+          # The system libraries come from apt, and a slow mirror has twice
+          # eaten this job's whole budget (14m24s on 2026-11-10, cancelled at
+          # the cap before a single test ran). Each request is bounded so a
+          # stalled mirror fails over or fails fast and names itself.
+          printf 'Acquire::http::Timeout "15";\nAcquire::Retries "3";\n' |
+            sudo tee /etc/apt/apt.conf.d/99-majadu-timeout >/dev/null
           pnpm exec playwright install
           if ! pnpm --filter badminton-pair-tmp exec node -e \
             "const {chromium,webkit}=require('playwright');(async()=>{for(const engine of [chromium,webkit]){const browser=await engine.launch();await browser.close()}})()"; then
