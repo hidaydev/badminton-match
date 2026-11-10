@@ -31,7 +31,11 @@ COPY tools ./tools
 # "Unknown target: deps-check".
 COPY task ./task
 COPY task.d ./task.d
-RUN sh task deps-check --skip npm,playwright-browser,repo,toolchain
+# `release:` entries are CI-only downloads: the image never installs one, and the
+# cross-check that binds an entry to the workflow that fetches it cannot run
+# without `.github`, which the build context does not carry. The full check runs
+# in `API: check`, where both exist.
+RUN sh task deps-check --skip npm,playwright-browser,repo,toolchain,release
 # `appVersion` is read from the VERSION file at compile time; the commit only
 # exists in the build arguments, which is what `/version` reports back and what
 # makes a running container traceable to a revision.
