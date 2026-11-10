@@ -93,6 +93,9 @@ else:
       check parsed["level"].getStr() == "error"
       check parsed["msg"].getStr() == "server"
       check parsed["detail"].getStr().contains("body too long")
+      # There is no request id here because there is no request: mummy drops the
+      # body before a handler runs. `body_limit_http_test` asserts the id on the
+      # 413 the application answers itself.
       check parsed.hasKey("request_id")
       check parsed.hasKey("ts")
 
