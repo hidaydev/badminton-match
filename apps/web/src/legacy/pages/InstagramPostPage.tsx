@@ -13,6 +13,8 @@ import { loadOverlayImages } from '../utils/overlays'
 import { todayLocal } from '../utils/time'
 import { Overlay } from '../../components/Overlay'
 import { Spinner } from '../../components/Spinner'
+import { IconButton } from '../../components/Button'
+import { Card } from '../../components/Card'
 import Icon from '../../components/Icon'
 import { t } from '../../i18n'
 
@@ -397,13 +399,14 @@ export default function InstagramPostPage() {
       {(exportError || overlayError) && (
         <div className="mx-1 mt-2 rounded-xl border border-red-700 bg-red-950/80 px-3 py-2 text-xs text-red-200 flex items-center justify-between gap-2">
           <span>{exportError || overlayError}</span>
-          <button
+          <IconButton
+            label={t('instagram.dismissError')}
+            size="sm"
             onClick={() => { setExportError(null); setOverlayError(null) }}
-            aria-label={t('instagram.dismissError')}
-            className="text-red-400 hover:text-red-200 shrink-0 hit44"
+            className="shrink-0 text-red-400 hover:text-red-200"
           >
             ✕
-          </button>
+          </IconButton>
         </div>
       )}
       {/* Compact header — back ditangani HomeLayout (global) */}
@@ -460,20 +463,20 @@ export default function InstagramPostPage() {
         {/* Swap + Download buttons — top right corner when photo uploaded */}
         {userPhoto && (
           <div className="absolute top-3 right-3 flex gap-2">
-            <button
+            <IconButton
+              label={t('instagram.replacePhoto')}
               onClick={() => fileInputRef.current?.click()}
-              aria-label={t('instagram.replacePhoto')}
-              className="h-11 w-11 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70"
+              className="rounded-full bg-black/50 text-white hover:bg-black/70"
             >
-            <Icon name="rotate" size={17} stroke="white" />
-            </button>
-            <button
+              <Icon name="rotate" size={17} stroke="white" />
+            </IconButton>
+            <IconButton
+              label={t('instagram.download')}
               onClick={() => setShowDownloadSheet(true)}
-              aria-label={t('instagram.download')}
-              className="h-11 w-11 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
+              className="rounded-full bg-yellow-400 text-black hover:bg-yellow-300"
             >
-            <Icon name="download-tray" size={17} stroke="black" />
-            </button>
+              <Icon name="download-tray" size={17} stroke="black" />
+            </IconButton>
           </div>
         )}
       </div>
@@ -500,21 +503,25 @@ export default function InstagramPostPage() {
               <h2 id="instagram-sheet-title" className="text-xs font-sans text-slate-400 tracking-widest uppercase mb-4 pt-4">{t('instagram.sheet.downloadAs')}</h2>
               <div className="grid grid-cols-2 gap-3">
                 {/* Photo Post */}
-                <button
+                <Card
+                  as="button"
+                  variant="interactive"
                   onClick={handleDownloadPost}
-                  className="bg-slate-800 active:bg-slate-700 rounded-lg p-4 flex flex-col items-center gap-3 border border-slate-700 hit44"
+                  className="flex flex-col items-center gap-3 p-4"
                 >
                   <div className="w-12 h-15 rounded-lg bg-slate-700 border border-slate-600" />
                   <div className="text-center">
                     <p className="text-sm font-bold text-white">Post</p>
                     <p className="text-[11px] text-slate-400">{POST_WIDTH} × {POST_HEIGHT}</p>
                   </div>
-                </button>
+                </Card>
 
                 {/* Photo Story */}
-                <button
+                <Card
+                  as="button"
+                  variant="interactive"
                   onClick={handleDownloadStory}
-                  className="bg-yellow-400 active:bg-yellow-300 rounded-lg p-4 flex flex-col items-center gap-3 hit44"
+                  className="flex flex-col items-center gap-3 p-4"
                 >
                   <div className="w-12 h-15 rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
                     <div className="w-7 h-7 rounded bg-yellow-500/40" />
@@ -523,12 +530,14 @@ export default function InstagramPostPage() {
                     <p className="text-sm font-bold text-black">Story</p>
                     <p className="text-[11px] text-yellow-800">{STORY_WIDTH} × {STORY_HEIGHT}</p>
                   </div>
-                </button>
+                </Card>
 
                 {/* Standing Post */}
-                <button
+                <Card
+                  as="button"
+                  variant="interactive"
                   onClick={() => { setPendingStandingMode('post'); setSheetScreen('session-picker') }}
-                  className="bg-slate-800 active:bg-slate-700 rounded-lg p-4 flex flex-col items-center gap-3 border border-slate-700 hit44"
+                  className="flex flex-col items-center gap-3 p-4"
                 >
                   <div className="w-12 h-15 rounded-lg bg-slate-700 border border-slate-600 flex items-center justify-center">
                     <Icon name="tournament" size={20} />
@@ -537,12 +546,14 @@ export default function InstagramPostPage() {
                     <p className="text-sm font-bold text-white">Leaderboard Post</p>
                     <p className="text-[11px] text-slate-400">{POST_WIDTH} × {POST_HEIGHT}</p>
                   </div>
-                </button>
+                </Card>
 
                 {/* Standing Story */}
-                <button
+                <Card
+                  as="button"
+                  variant="interactive"
                   onClick={() => { setPendingStandingMode('story'); setSheetScreen('session-picker') }}
-                  className="bg-yellow-400 active:bg-yellow-300 rounded-lg p-4 flex flex-col items-center gap-3 hit44"
+                  className="flex flex-col items-center gap-3 p-4"
                 >
                   <div className="w-12 h-15 rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
                     <Icon name="tournament" size={20} />
@@ -551,7 +562,7 @@ export default function InstagramPostPage() {
                     <p className="text-sm font-bold text-black">Leaderboard Story</p>
                     <p className="text-[11px] text-yellow-800">{STORY_WIDTH} × {STORY_HEIGHT}</p>
                   </div>
-                </button>
+                </Card>
               </div>
             </>
           )}
@@ -559,13 +570,14 @@ export default function InstagramPostPage() {
           {sheetScreen === 'session-picker' && (
             <>
               <div className="flex items-center gap-3 mb-4 pt-4">
-                <button
+                <IconButton
+                  label={t('instagram.back')}
+                  size="sm"
                   onClick={() => { setSheetScreen('formats'); setIsGenerating(false) }}
-                  aria-label={t('instagram.back')}
-                  className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 text-sm active:bg-slate-700 hit44"
+                  className="rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700"
                 >
                   ←
-                </button>
+                </IconButton>
                 <h2 id="instagram-sheet-title" className="text-xs font-sans text-slate-400 tracking-widest uppercase">{t('instagram.sheet.pickSession')}</h2>
               </div>
 
@@ -598,17 +610,19 @@ export default function InstagramPostPage() {
                     <p className="text-sm text-slate-400 text-center py-4">No sessions found</p>
                   )}
                   {sessionQuery.trim() && sessions?.map(s => (
-                    <button
+                    <Card
+                      as="button"
+                      variant="interactive"
                       key={s.id}
                       onClick={() => handleDownloadStanding(s)}
-                      className="flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-800 active:bg-slate-700 border border-slate-700 text-left hit44"
+                      className="flex items-center gap-3 px-4 py-3"
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-white truncate">{s.title}</p>
                         <p className="text-[11px] text-slate-400">{s.date} · {s.playerCount} players</p>
                       </div>
                       <span className="text-slate-400 text-xs">→</span>
-                    </button>
+                    </Card>
                   ))}
                 </div>
               )}

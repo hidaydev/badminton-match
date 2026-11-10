@@ -157,8 +157,9 @@ the two examples are the contract. Choosing between the primitives is
 ### Button
 
 `src/components/Button.tsx` — the only button. `variant` (`primary` |
-`secondary` | `danger`), `size` (`md` | `sm`), `loading`, and every native
-button prop through `{...rest}` (`aria-label`, `id`, `form`, `onBlur`).
+`secondary` | `danger` | `ghost` | `dashed`), `size` (`md` | `sm`), `loading`,
+and every native button prop through `{...rest}` (`aria-label`, `id`, `form`,
+`onBlur`).
 
 ```tsx
 <Button loading={saving} aria-label="Save settings" onClick={save}>Save</Button>
@@ -177,14 +178,44 @@ router link. Use it for navigation that is styled as the primary action.
 
 Anti-example: `<Link className="bg-accent ...">`.
 
+### IconButton
+
+Exported from `src/components/Button.tsx` — the icon-only action. Same variants
+and sizes as `Button` (both 44px tall), a square box, and `label` is required
+because it becomes the `aria-label`; `loading` swaps the icon for a spinner.
+
+```tsx
+<IconButton label={t('shell.back')} size="sm" onClick={() => navigate(-1)}>
+  <Icon name="chevron-left" size={18} />
+</IconButton>
+```
+
+Anti-example: a `×` button with a `title` and no `aria-label`.
+
+### Chip
+
+`src/components/Chip.tsx` — the filter or single-choice pill. `selected` is
+rendered as `aria-pressed` and as the accent outline, so the state reaches a
+screen reader; `size` is `md` or `sm` and both stay 44px tall.
+
+```tsx
+<Chip selected={tier === t} onClick={() => setTier(t)}>{TIER_LABELS[t]}</Chip>
+```
+
+Anti-example: a `<button>` whose selected state is only a blue background.
+
 ### Card
 
 `src/components/Card.tsx` — the panel container. `padding` is `none` (default),
 `sm` (p-3) or `md` (p-4); the remaining div props pass through. `CARD_RECIPE`
 is exported for the one component that has to spell the recipe on a `details`.
+`variant="interactive"` is the whole-surface target: it adds the hover and press
+affordances and takes `as` so the card is a real `button` (or a link) instead of
+a clickable div.
 
 ```tsx
 <Card padding="md" role="group" aria-label="Danger zone">...</Card>
+<Card as="button" variant="interactive" onClick={open}>Sunday draft</Card>
 ```
 
 Anti-example: `rounded-2xl border border-border-subtle bg-surface` in a page.

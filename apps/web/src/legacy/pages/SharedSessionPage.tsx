@@ -34,6 +34,7 @@ import { communityHref } from '../../routes.manifest'
 import { t } from '../../i18n'
 import Icon from '../components/Icon'
 import { PAGE_COLUMN } from '../../components/Page'
+import { Button, ButtonLink, IconButton } from '../../components/Button'
 
 export default function SharedSessionPage() {
   const { sessionId = '' } = useParams<{ sessionId: string }>()
@@ -86,9 +87,14 @@ export default function SharedSessionPage() {
   const header = (
     <header className="border-b border-border-subtle bg-surface sticky top-0 z-10 pt-[env(safe-area-inset-top)]">
       <div className={`${PAGE_COLUMN} py-2.5 flex flex-wrap items-center gap-2`}>
-        <button onClick={() => navigate(-1)} className="p-1.5 -ml-1.5 rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-[color,transform] shrink-0 hit44" aria-label={t('shell.back')}>
+        <IconButton
+          label={t('shell.back')}
+          size="sm"
+          onClick={() => navigate(-1)}
+          className="-ml-1.5 shrink-0"
+        >
           <Icon name="chevron-left" size={18} />
-        </button>
+        </IconButton>
         <Link to="/" className="flex items-center gap-2">
           <img src="/logo-192.png" alt="" className="w-6 h-6 shrink-0 object-contain" />
           <span className="text-sm font-bold text-fg tracking-tight">MAJADU</span>
@@ -131,12 +137,9 @@ export default function SharedSessionPage() {
         <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
           <span className="text-slate-300 text-sm">{t('session.error.load')}</span>
           <div className="flex flex-wrap items-center justify-center gap-4">
-            <button
-              onClick={() => void refetch()}
-              className="inline-flex min-h-11 items-center rounded-lg bg-elevated px-4 text-xs font-semibold text-fg hover:bg-border transition-colors"
-            >
+            <Button variant="secondary" size="sm" className="font-semibold" onClick={() => void refetch()}>
               {t('session.action.retry')}
-            </button>
+            </Button>
             <Link
               to={communityHref(slug, '/')}
               className="inline-flex min-h-11 items-center text-xs text-indigo-400 hover:text-white underline underline-offset-2"
@@ -155,12 +158,9 @@ export default function SharedSessionPage() {
         {header}
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
           <span className="text-slate-300 text-sm">{t('session.error.notFound')}</span>
-          <button
-            onClick={() => navigate('/')}
-            className="text-xs text-indigo-400 hover:text-white underline underline-offset-2 hit44"
-          >
+          <ButtonLink variant="ghost" size="sm" to={communityHref(slug, '/')}>
             {t('session.backToCommunity')}
-          </button>
+          </ButtonLink>
         </div>
       </div>
     )

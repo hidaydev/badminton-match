@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { Card } from './Card'
 
@@ -28,5 +28,50 @@ describe('Card', () => {
     )
 
     expect(screen.getByRole('group', { name: 'Danger' })).toBeInTheDocument()
+  })
+
+  it('keeps the panel recipe free of interaction styling by default', () => {
+    const { container } = render(<Card>Body</Card>)
+
+    expect(container.firstElementChild).not.toHaveClass('cursor-pointer')
+  })
+
+  it('renders the whole surface as a real button when asked', () => {
+    const onClick = vi.fn()
+    render(
+      <Card as="button" variant="interactive" onClick={onClick}>
+        Sunday draft
+      </Card>,
+    )
+    const card = screen.getByRole('button', { name: 'Sunday draft' })
+
+    card.click()
+    expect(onClick).toHaveBeenCalledTimes(1)
+    expect(card).toHaveAttribute('type', 'button')
+    expect(card.className).toContain('cursor-pointer')
+    expect(card.className).toContain('hover:border-border')
+    expect(card.className).toContain('active:scale-[0.99]')
+  })
+
+  it('passes a submit type through an interactive card', () => {
+    render(
+      <Card as="button" type="submit">
+        Save
+      </Card>,
+    )
+
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveAttribute('type', 'submit')
+  })
+
+  it('renders an interactive card as any other element', () => {
+    render(
+      <Card as="a" variant="interactive" href="/s/1">
+        Open session
+      </Card>,
+    )
+    const link = screen.getByRole('link', { name: 'Open session' })
+
+    expect(link).toHaveAttribute('href', '/s/1')
+    expect(link.className).toContain('cursor-pointer')
   })
 })

@@ -19,6 +19,7 @@ import { reloadPage } from '../utils/reload'
 import { collectAmbiguousBaseNames } from '../utils/nameParser'
 import { AmbiguousNamesProvider, combineAmbiguous, useAmbiguousNames } from '../context/AmbiguousNamesContext'
 import { t } from '../../i18n'
+import { Button } from '../../components/Button'
 
 export default function GeneratePage() {
   const { isSharedView, snapshot, exitSharedView } = useSharedView()
@@ -232,12 +233,9 @@ export default function GeneratePage() {
       {isSharedView && (
         <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-indigo-900/30 border border-indigo-800 text-sm">
           <span className="text-indigo-300">Viewing a shared schedule</span>
-          <button
-            onClick={exitSharedView}
-            className="text-xs text-indigo-400 hover:text-white underline underline-offset-2 shrink-0 transition-colors hit44"
-          >
+          <Button variant="ghost" size="sm" onClick={exitSharedView} className="shrink-0">
             {t('legacy.startOwnSession')}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -252,22 +250,26 @@ export default function GeneratePage() {
         </div>
         {result && (
           <div className="flex gap-1.5 shrink-0">
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setShowSummary(true)}
-              className="text-xs text-indigo-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-indigo-900/50 hover:bg-indigo-800 border border-indigo-700 transition-colors whitespace-nowrap hit44"
+              className="whitespace-nowrap"
             >
               {t('legacy.summary')}
-            </button>
+            </Button>
             {!isSharedView && (
               <>
                 {!cloudSessionId && (
-                  <button
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    loading={isGenerating}
                     onClick={handleRetryUntilGood}
-                    disabled={isGenerating}
-                    className="text-xs text-emerald-400 hover:text-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed px-2.5 py-1.5 rounded-lg bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 transition-colors whitespace-nowrap hit44"
+                    className="whitespace-nowrap"
                   >
-                    {isGenerating ? '⏳ Generating…' : '↺ Regenerate'}
-                  </button>
+                    ↺ Regenerate
+                  </Button>
                 )}
                 <ShareButton />
               </>
@@ -288,29 +290,22 @@ export default function GeneratePage() {
             {saveError.stale ? (
               // A stale conditional request cannot succeed by resending it.
               // The safe action is to load the server's current state.
-              <button
-                type="button"
-                onClick={() => reloadPage()}
-                className="min-h-11 rounded-lg border border-red-600 px-3 text-xs font-bold text-red-200 transition-colors hover:bg-red-900/40"
-              >
+              <Button variant="danger" size="sm" className="font-bold" onClick={() => reloadPage()}>
                 {t('session.action.reload')}
-              </button>
+              </Button>
             ) : (
-              <button
-                type="button"
+              <Button
+                variant="danger"
+                size="sm"
+                className="font-bold"
                 onClick={() => { setSaveError(null); publishToCloud() }}
-                className="min-h-11 rounded-lg border border-red-600 px-3 text-xs font-bold text-red-200 transition-colors hover:bg-red-900/40"
               >
                 {t('session.action.retry')}
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
-              onClick={() => setSaveError(null)}
-              className="min-h-11 rounded-lg border border-border px-3 text-xs text-red-300 transition-colors hover:text-red-100"
-            >
+            <Button variant="secondary" size="sm" onClick={() => setSaveError(null)}>
               {t('session.action.dismiss')}
-            </button>
+            </Button>
           </span>
         </div>
       )}
@@ -339,13 +334,14 @@ export default function GeneratePage() {
       )}
 
       {!result ? (
-        <button
+        <Button
+          className="w-full font-bold"
+          loading={isGenerating}
           onClick={handleRetryUntilGood}
-          disabled={players.length < 4 || isGenerating}
-          className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-sm rounded-lg transition-colors hit44"
+          disabled={players.length < 4}
         >
-          {isGenerating ? '⏳ Generating…' : '▶ Generate Schedule'}
-        </button>
+          ▶ Generate Schedule
+        </Button>
       ) : (
         <ScheduleView
           result={result}

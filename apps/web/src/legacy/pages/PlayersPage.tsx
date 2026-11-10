@@ -24,6 +24,9 @@ function parsePlayerList(raw: string): string[] {
 
 import { TIER_LABELS, TIER_BADGE_COLORS, TIER_ACTIVE, TIER_NAMES, TIERS } from '../config/tiers'
 import Icon from '../components/Icon'
+import { Button, IconButton } from '../../components/Button'
+import { Chip } from '../../components/Chip'
+import { EmptyState } from '../../components/EmptyState'
 
 // Convert canonical tier string (D..A+) to numeric (1..8)
 function tierStringToNumber(tier: string): Tier {
@@ -40,43 +43,27 @@ function TierBadge({ tier }: { tier: Tier }) {
 }
 
 // ── Shared pickers ────────────────────────────────────────────────────────────
-// `type` is forwarded so callers inside a <form> can opt into type="button"
-// without forcing the attribute on standalone usages.
-function GenderToggle({ value, onChange, type }: { value: Gender; onChange: (g: Gender) => void; type?: 'button' }) {
+function GenderToggle({ value, onChange }: { value: Gender; onChange: (g: Gender) => void }) {
   return (
-    <div className="flex rounded-lg overflow-hidden border border-slate-700">
+    <div className="flex shrink-0 gap-1">
       {(['M', 'F'] as Gender[]).map((g) => (
-        <button
-          key={g}
-          type={type}
-          onClick={() => onChange(g)}
-          className={`hit44 px-2.5 py-1 text-xs font-semibold transition-colors ${
-            value === g
-              ? g === 'M' ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
+        <Chip key={g} size="sm" selected={value === g} onClick={() => onChange(g)}>
           {g}
-        </button>
+        </Chip>
       ))}
     </div>
   )
 }
 
-function TierToggle({ value, onChange, type }: { value: Tier; onChange: (t: Tier) => void; type?: 'button' }) {
+function TierToggle({ value, onChange }: { value: Tier; onChange: (t: Tier) => void }) {
   return (
-    <div className="flex rounded-lg overflow-hidden border border-slate-700">
+    // Eight chips do not fit one line at 360 with the name and the remove
+    // button, so the group takes its own line below `sm` and wraps there.
+    <div className="flex w-full flex-wrap gap-1 sm:w-auto sm:flex-nowrap">
       {TIERS.map((t) => (
-        <button
-          key={t}
-          type={type}
-          onClick={() => onChange(t)}
-          className={`hit44 min-w-8 h-8 text-xs font-bold transition-colors ${
-            value === t ? TIER_ACTIVE[t] : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
+        <Chip key={t} size="sm" selected={value === t} onClick={() => onChange(t)}>
           {TIER_LABELS[t]}
-        </button>
+        </Chip>
       ))}
     </div>
   )
@@ -107,7 +94,7 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-1.5 sm:gap-2 bg-surface border border-border-subtle hover:border-slate-700 rounded-xl px-2.5 py-2 group transition-colors">
+      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 bg-surface border border-border-subtle hover:border-slate-700 rounded-xl px-2.5 py-2 group transition-colors">
         {/* Avatar */}
         <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
           {player.name[0].toUpperCase()}
@@ -150,13 +137,14 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
         )}
 
         {/* Delete */}
-        <button
+        <IconButton
+          label={t('wizard.players.remove')}
+          size="sm"
           onClick={onRemove}
-          className="text-slate-400 hover:text-red-400 active:text-red-400 text-sm transition-colors shrink-0 p-2 hit44"
-          aria-label={t('wizard.players.remove')}
+          className="text-fg-dim hover:text-error"
         >
           ✕
-        </button>
+        </IconButton>
       </div>
 
       {ambiguousMatches && ambiguousMatches.length > 0 && (
@@ -166,18 +154,19 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
           </span>
           <div className="flex flex-wrap gap-1.5">
             {ambiguousMatches.map((m) => (
-              <button
+              <Button
                 key={m.name}
-                type="button"
+                variant="secondary"
+                size="sm"
                 onClick={() => {
                   updatePlayer(player.id, { name: m.name, gender: m.gender, tier: m.tier })
                   setName(m.name)
                 }}
-                className="bg-amber-900/90 hover:bg-amber-800 text-amber-100 border border-amber-500/60 font-medium px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm hit44"
+                className="gap-1.5 font-normal"
               >
                 <span>{m.name}</span>
-                <span className="text-[10px] opacity-80">({TIER_LABELS[m.tier]} · {m.gender})</span>
-              </button>
+                <span className="text-[10px] text-fg-dim">({TIER_LABELS[m.tier]} · {m.gender})</span>
+              </Button>
             ))}
           </div>
         </div>
@@ -215,7 +204,7 @@ function AddPlayerRow({ onAdd, onCancel, canonicalPlayers }: {
   }
 
   return (
-    <form onSubmit={submit} className="flex items-center gap-2 bg-slate-900 border border-indigo-600 rounded-xl px-3 py-2">
+    <form onSubmit={submit} className="flex flex-wrap items-center gap-2 bg-slate-900 border border-indigo-600 rounded-xl px-3 py-2">
       <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-slate-400 text-xs shrink-0">
         ?
       </div>
@@ -228,19 +217,15 @@ function AddPlayerRow({ onAdd, onCancel, canonicalPlayers }: {
         className="flex-1 bg-transparent text-white text-sm placeholder-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       />
       {/* Gender picker */}
-      <GenderToggle value={gender} onChange={setGender} type="button" />
+      <GenderToggle value={gender} onChange={setGender} />
       {/* Tier picker */}
-      <TierToggle value={tier} onChange={setTier} type="button" />
-      <button
-        type="submit"
-        disabled={!name.trim()}
-        className="text-indigo-400 hover:text-indigo-300 disabled:opacity-30 text-sm font-medium transition-colors hit44"
-      >
+      <TierToggle value={tier} onChange={setTier} />
+      <Button type="submit" variant="ghost" size="sm" disabled={!name.trim()}>
         {t('legacy.add')}
-      </button>
-      <button type="button" onClick={onCancel} className="text-slate-400 hover:text-slate-200 text-sm transition-colors hit44" aria-label={t('wizard.players.addCancel')}>
+      </Button>
+      <IconButton label={t('wizard.players.addCancel')} size="sm" onClick={onCancel}>
         ✕
-      </button>
+      </IconButton>
     </form>
   )
 }
@@ -277,7 +262,9 @@ function BulkImport({ onClose, existingCount, max, canonicalPlayers }: {
     <div className="bg-elevated border border-border rounded-xl p-4 flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-white">Paste player list</span>
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-200 text-sm hit44" aria-label={t('players.bulkClose')}>✕</button>
+        <IconButton label={t('players.bulkClose')} size="sm" onClick={onClose}>
+          ✕
+        </IconButton>
       </div>
       <textarea
         autoFocus
@@ -302,16 +289,16 @@ function BulkImport({ onClose, existingCount, max, canonicalPlayers }: {
         </div>
       )}
       <div className="flex gap-2">
-        <button
+        <Button
+          className="flex-1"
           disabled={preview.length === 0}
           onClick={handleImport}
-          className="flex-1 py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 text-sm font-semibold rounded-lg transition-colors hit44"
         >
           Import {preview.length > 0 ? preview.length : ''} Players
-        </button>
-        <button onClick={onClose} className="px-4 py-2 text-slate-400 hover:text-slate-200 text-sm rounded-lg hover:bg-slate-700 transition-colors hit44">
+        </Button>
+        <Button variant="secondary" onClick={onClose}>
           {t('legacy.cancel')}
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -425,37 +412,38 @@ export default function PlayersPage() {
         <AddPlayerRow onAdd={handleAdd} onCancel={() => setShowForm(false)} canonicalPlayers={canonicalPlayers} />
       ) : (
         <div className="flex gap-2">
-          <button
+          <Button
+            variant="dashed"
+            className="flex-1"
             disabled={players.length >= required}
             onClick={() => setShowForm(true)}
-            className="flex-1 py-2.5 border-2 border-dashed border-slate-700 hover:border-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-indigo-400 rounded-xl text-sm font-medium transition-colors hit44"
           >
             + Add Player
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="dashed"
             disabled={players.length >= required}
             onClick={() => handleAdd('tbd', 'M', 2)}
-            className="py-2.5 px-4 border-2 border-dashed border-slate-700 hover:border-amber-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-amber-400 rounded-xl text-sm font-medium transition-colors hit44"
             title={t('players.tbdHint')}
           >
             + TBD
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="dashed"
             disabled={players.length >= required}
             onClick={() => setShowBulk((v) => !v)}
-            className="py-2.5 px-4 border-2 border-dashed border-slate-700 hover:border-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors hit44"
             title={t('players.bulkHint')}
           >
             <Icon name="list" size={14} /> Bulk
-          </button>
+          </Button>
         </div>
       )}
 
       {players.length === 0 && !showForm && !showBulk && (
-        <div className="text-center py-12 text-slate-400">
-          <Icon name="history" size={40} className="mx-auto mb-3 text-slate-400" />
-          <p>No players yet. Add {required} players to continue.</p>
-        </div>
+        <EmptyState
+          title={t('wizard.players.empty', { required })}
+          icon={<Icon name="history" size={40} />}
+        />
       )}
 
       {/* Progress hint */}
@@ -467,10 +455,10 @@ export default function PlayersPage() {
         </p>
       )}
 
-      <button
+      <Button
+        className="mt-2 w-full"
         disabled={!isComplete || !session.locked || hasAmbiguous}
         onClick={() => navigate('/session/constraints')}
-        className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors mt-2 hit44"
       >
         {!session.locked
           ? 'Go to Setup to start session'
@@ -479,7 +467,7 @@ export default function PlayersPage() {
           : isComplete
           ? 'Next: Constraints →'
           : `Add players (${players.length}/${required})`}
-      </button>
+      </Button>
     </div>
   )
 }

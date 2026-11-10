@@ -10,6 +10,8 @@ import { useMyPlayer } from '../../players/hooks'
 import InstallModal from '../components/InstallModal'
 import Icon, { type IconName } from '../components/Icon'
 import AdminMenuGrid from '../components/admin/AdminMenuGrid'
+import { Button, ButtonLink } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { t } from '../../i18n'
 
 type MessageKey = Parameters<typeof t>[0]
@@ -65,13 +67,13 @@ export default function HomePage() {
       <h1 className="sr-only">{current?.name ?? t('home.appSection')}</h1>
       {/* Hero CTA — New Session (host/admin only; members read sessions). */}
       {isAdmin && (
-        <button
-          onClick={() => navigate('/session/new')}
-          className="w-full flex items-center justify-center gap-2 py-4 rounded-xl bg-accent text-slate-950 font-bold text-[1rem] transition-[filter,transform] active:scale-[0.98] hover:brightness-110 shadow-sm hit44"
+        <ButtonLink
+          to={communityHref(current?.slug ?? '', '/session/new')}
+          className="inline-flex w-full items-center justify-center gap-2 py-4 text-base font-bold shadow-sm"
         >
           <Icon name="plus" size={20} />
           {t('home.newSession')}
-        </button>
+        </ButtonLink>
       )}
 
       {/* Continue Session Card — the newest draft that still needs work. */}
@@ -90,23 +92,26 @@ export default function HomePage() {
           className="w-full flex items-center gap-3 p-3.5 sm:p-4 rounded-xl bg-surface border border-border-subtle"
         >
           <span className="text-sm text-fg flex-1 min-w-0">{t('home.continue.error')}</span>
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => void draftQuery.refetch()}
-            className="shrink-0 rounded-lg border border-border px-3 py-2 text-sm font-semibold text-fg hover:bg-surface-raised hit44"
+            className="shrink-0 font-semibold"
           >
             {t('home.continue.retry')}
-          </button>
+          </Button>
         </div>
       )}
       {draftSession && current && (
-        <button
+        <Card
+          as="button"
+          variant="interactive"
           onClick={() =>
             navigate(
               communityHref(current.slug, `/s/${encodeURIComponent(draftSession.id)}`),
             )
           }
-          className="w-full flex items-center gap-3.5 p-3.5 sm:p-4 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.99] transition-[border-color,transform] text-left shadow-sm hit44"
+          className="flex items-center gap-3.5 p-3.5 shadow-sm sm:p-4"
         >
           <div className="w-11 h-11 rounded-lg bg-accent/15 border border-accent/30 text-accent flex items-center justify-center shrink-0">
             <Icon name="play" size={20} />
@@ -129,7 +134,7 @@ export default function HomePage() {
             </div>
           </div>
           <Icon name="chevron-right" size={16} className="text-fg-dim/40" />
-        </button>
+        </Card>
       )}
 
       {/* App Grid */}
@@ -139,13 +144,15 @@ export default function HomePage() {
         </p>
         <div className="grid grid-cols-2 gap-2.5">
           {secondary.map((item) => (
-            <button
+            <Card
+              as="button"
               key={item.to}
+              variant="interactive"
               onClick={() => {
                 if (item.to === '/scoreboard') void openScoreboard((path) => { void navigate(path) })
                 else void navigate(item.to)
               }}
-              className="flex items-start gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-[border-color,transform] text-left hit44"
+              className="flex items-start gap-3 p-3.5"
             >
               <div className="w-8 h-8 rounded-lg bg-elevated border border-border-subtle flex items-center justify-center shrink-0 text-accent">
                 <Icon name={item.icon} size={18} />
@@ -154,13 +161,15 @@ export default function HomePage() {
                 <span className="text-sm font-semibold text-fg leading-tight">{t(item.label)}</span>
                 <span className="text-[11px] text-fg-dim leading-snug">{t(item.description)}</span>
               </div>
-            </button>
+            </Card>
           ))}
 
           {myPlayer !== null && (
-            <button
+            <Card
+              as="button"
+              variant="interactive"
               onClick={() => navigate(`/rankings/${encodeURIComponent(myPlayer.id)}`)}
-              className="flex items-start gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-[border-color,transform] text-left hit44"
+              className="flex items-start gap-3 p-3.5"
             >
               <div className="w-8 h-8 rounded-lg bg-elevated border border-border-subtle flex items-center justify-center shrink-0 text-accent">
                 <Icon name="ratings" size={18} />
@@ -171,13 +180,15 @@ export default function HomePage() {
                   {t('home.card.myStats.hint', { name: myPlayer.name })}
                 </span>
               </div>
-            </button>
+            </Card>
           )}
 
           {isInstallable && (
-            <button
+            <Card
+              as="button"
+              variant="interactive"
               onClick={() => setManualInstallOpen(true)}
-              className="flex items-start gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-[border-color,transform] text-left hit44"
+              className="flex items-start gap-3 p-3.5"
             >
               <div className="w-8 h-8 rounded-lg bg-elevated border border-border-subtle flex items-center justify-center shrink-0 text-accent">
                 <Icon name="download" size={18} />
@@ -186,7 +197,7 @@ export default function HomePage() {
                 <span className="text-sm font-semibold text-fg leading-tight">{t('home.installApp')}</span>
                 <span className="text-[11px] text-fg-dim leading-snug">{t('home.installDesc')}</span>
               </div>
-            </button>
+            </Card>
           )}
         </div>
       </div>

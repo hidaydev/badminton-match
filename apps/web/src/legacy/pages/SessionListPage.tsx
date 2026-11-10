@@ -1,18 +1,22 @@
 // src/pages/SessionListPage.tsx: logbook of past and active match sessions.
 import { useEffect, useState } from 'react'
-import { useNavigate } from '../router'
+import { useLegacySlug, useNavigate } from '../router'
 import { useListSessions } from '../queries'
 import { getSession, publishSession, currentCommunitySlug } from '../queries/endpoints'
 import { getSaveErrorMessage } from '../queries/errors'
 import { PENDING_OVERWRITE_WINDOW_MS, recordPendingPublish, useStore } from '../store'
 import { useAdmin } from '../context/AdminContext'
+import { communityHref } from '../../routes.manifest'
 import { t } from '../../i18n'
 import Icon from '../components/Icon'
+import { Button, ButtonLink } from '../../components/Button'
+import { Card } from '../../components/Card'
 
 const MONTH_NAMES = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
 export default function SessionListPage() {
   const navigate = useNavigate()
+  const slug = useLegacySlug()
   const { isAdmin } = useAdmin()
   const [query, setQuery] = useState('')
   const [dateFilter, setDateFilter] = useState('')
@@ -140,52 +144,57 @@ export default function SessionListPage() {
               <p className="text-xs font-semibold text-fg">{t('sessions.unsaved.confirm')}</p>
               <p className="text-xs text-fg-dim">{t('sessions.unsaved.confirmBody')}</p>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => setConfirmingAt(null)}
                   disabled={busyPending}
-                  className="min-h-11 rounded-lg border border-border px-3 text-xs font-mono text-fg-dim transition-colors hover:text-fg disabled:opacity-50"
+                  className="font-mono"
                 >
                   {t('sessions.unsaved.cancel')}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  loading={busyPending}
                   onClick={() => void overwritePendingPublish()}
-                  disabled={busyPending}
-                  className="min-h-11 rounded-lg border border-error bg-error/20 px-3 text-xs font-bold text-error transition-colors hover:bg-error/30 disabled:opacity-50"
+                  className="font-bold"
                 >
-                  {busyPending ? t('sessions.unsaved.overwriting') : t('sessions.unsaved.confirmYes')}
-                </button>
+                  {t('sessions.unsaved.confirmYes')}
+                </Button>
               </div>
             </div>
           ) : (
             <div className="flex shrink-0 flex-wrap items-center gap-2">
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={reloadPendingSession}
                 disabled={busyPending}
-                className="min-h-11 rounded-lg border border-accent/60 px-3 text-xs font-semibold text-accent transition-colors hover:bg-accent/10 disabled:opacity-50"
+                className="font-semibold"
               >
                 {t('sessions.unsaved.reload')}
-              </button>
+              </Button>
               {!overwriteExpired && (
-                <button
-                  type="button"
+                <Button
+                  variant="danger"
+                  size="sm"
                   onClick={() => setConfirmingAt(pendingPublish.failedAt)}
                   disabled={busyPending}
-                  className="min-h-11 rounded-lg border border-error/60 px-3 text-xs font-semibold text-error transition-colors hover:bg-error/10 disabled:opacity-50"
+                  className="font-semibold"
                 >
                   {t('sessions.unsaved.overwrite')}
-                </button>
+                </Button>
               )}
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setPendingPublish(null)}
                 disabled={busyPending}
-                className="min-h-11 rounded-lg border border-border px-3 text-xs font-mono text-fg-dim transition-colors hover:text-fg disabled:opacity-50"
+                className="font-mono"
               >
                 {t('sessions.unsaved.dismiss')}
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -209,12 +218,9 @@ export default function SessionListPage() {
             className="bg-elevated border border-border rounded-lg px-2.5 py-2 text-xs font-mono text-fg focus:border-accent focus:outline-none"
           />
           {dateFilter && (
-            <button
-              onClick={() => setDateFilter('')}
-              className="text-xs text-fg-dim hover:text-fg border border-border rounded-lg px-2.5 py-2 transition-colors active:scale-95 hit44"
-            >
+            <Button variant="secondary" size="sm" onClick={() => setDateFilter('')}>
               {t('sessions.clear')}
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -222,13 +228,9 @@ export default function SessionListPage() {
       {isError && (
         <div className="flex items-center gap-3">
           <p role="alert" className="text-error text-sm">{t('sessions.loadFailed')}</p>
-          <button
-            type="button"
-            onClick={() => void refetch()}
-            className="text-xs font-medium text-accent hover:underline hit44"
-          >
+          <Button variant="ghost" size="sm" onClick={() => void refetch()}>
             {t('legacy.retry')}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -258,30 +260,32 @@ export default function SessionListPage() {
             </p>
           )}
           {hasFilter ? (
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mt-3 font-mono"
               onClick={() => {
                 setQuery('')
                 setDateFilter('')
               }}
-              className="mt-3 min-h-11 rounded-xl border border-border px-3 text-xs font-mono text-fg-dim hover:text-fg transition-colors"
             >
               {t('sessions.clearFilters')}
-            </button>
+            </Button>
           ) : (
             isAdmin && (
-              <button
-                onClick={() => navigate('/session/new')}
-                className="mt-3 min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-ground transition-colors active:scale-[0.98]"
+              <ButtonLink
+                to={communityHref(slug, '/session/new')}
+                className="mt-3 inline-flex items-center"
               >
                 {t('home.newSession')}
-              </button>
+              </ButtonLink>
             )
           )}
         </div>
       )}
 
       {!isError && !isLoading && filtered.length > 0 && (
-        <div className="bg-surface border border-border-subtle rounded-xl divide-y divide-border-subtle overflow-hidden shadow-sm">
+        <div className="flex flex-col gap-2">
           {filtered.map((s) => {
             const dateParts = s.date ? s.date.split('-') : []
             const year = dateParts[0]
@@ -290,10 +294,12 @@ export default function SessionListPage() {
             const month = MONTH_NAMES[monthNum] || ''
 
             return (
-              <button
+              <Card
+                as="button"
+                variant="interactive"
                 key={s.id}
                 onClick={() => navigate(`/s/${s.id}`)}
-                className="w-full flex items-center gap-3.5 px-3.5 py-3 hover:bg-elevated text-left transition-colors active:bg-elevated/70 hit44"
+                className="flex items-center gap-3.5 px-3.5 py-3 hover:bg-elevated"
               >
                 {/* Date Badge */}
                 <div className="w-11 h-11 rounded-lg bg-elevated border border-border flex flex-col items-center justify-center shrink-0">
@@ -336,20 +342,23 @@ export default function SessionListPage() {
                   </div>
                   <Icon name="chevron-right" size={16} className="text-fg-dim/40 ml-1" />
                 </div>
-              </button>
+              </Card>
             )
           })}
         </div>
       )}
 
       {!isError && !isLoading && hasMore && (
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
+          loading={isLoadingMore}
           onClick={() => loadMore()}
           disabled={isLoadingMore}
-          className="self-center text-xs font-mono text-fg-dim hover:text-fg border border-border rounded-lg px-3 py-2 transition-colors active:scale-95 disabled:opacity-50 hit44"
+          className="self-center font-mono"
         >
-          {isLoadingMore ? '…' : t('sessions.loadMore')}
-        </button>
+          {t('sessions.loadMore')}
+        </Button>
       )}
     </div>
   )
