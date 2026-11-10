@@ -210,6 +210,37 @@ psql_cmd() {
   fi
 }
 
+# SEC-06: the share code and the websocket ticket are bearer credentials in the
+# query string, and the site's access log is shared with every other
+# application on the server. The matcher has to name both prefixes, and it has
+# to be present at all: a missing matcher was the case the preflight could not
+# see, so a host that never ran step 3 cut over with live tickets in the log.
+# `$CADDY_DIR/log-share.caddy` is the installed copy of ops/caddy/log-share.caddy;
+# a Caddyfile that imports it is checked through it.
+log_matcher_problem() {
+  local config="$1" installed="$2"
+  if grep -q 'log-share\.caddy' "$config"; then
+    if [ ! -f "$installed" ]; then
+      printf 'the Caddyfile imports log-share.caddy but %s is not installed\n' "$installed"
+      return 0
+    fi
+    config="$installed"
+  elif ! grep -q '@share' "$config"; then
+    if grep -q 'active\.caddy\|handle /majadu/\*' "$config"; then
+      printf '%s has no @share log matcher; share codes and websocket tickets reach the access log\n' "$1"
+      return 0
+    fi
+    return 1
+  fi
+  grep -q '/majadu/s/\*' "$config" ||
+    { printf '%s skips /majadu/ws/* but not /majadu/s/* in the log matcher\n' "$1"; return 0; }
+  grep -q '/majadu/ws/\*' "$config" ||
+    { printf '%s skips /majadu/s/* but not /majadu/ws/* in the log matcher\n' "$1"; return 0; }
+  grep -q 'skip_log @share' "$config" ||
+    { printf '%s defines @share but never skips it; add skip_log @share\n' "$1"; return 0; }
+  return 1
+}
+
 if [ "$CHECK" -eq 1 ]; then
   for tool in podman curl caddy flock; do
     command -v "$tool" >/dev/null 2>&1 ||
@@ -229,6 +260,15 @@ if [ "$CHECK" -eq 1 ]; then
   [ -n "$digest" ] ||
     { echo "cutover --check: release v$VERSION has no published image digest" >&2; exit 2; }
   echo "cutover --check: release v$VERSION resolves to ${digest#*sha256:}"
+  if [ -f "$CADDY_CONFIG" ]; then
+    problem=$(log_matcher_problem "$CADDY_CONFIG" "$CADDY_DIR/log-share.caddy" || true)
+    [ -z "$problem" ] || {
+      echo "cutover --check: $problem" >&2
+      echo "cutover --check: see ops/caddy/Caddyfile.api.qouver.com step 3" >&2
+      exit 2
+    }
+    echo "cutover --check: share codes and websocket tickets stay out of the access log"
+  fi
   echo "cutover --check: ok"
   exit 0
 fi
@@ -345,17 +385,15 @@ step_preflight() {
   install -m 644 "$MONO_DIR/ops/caddy/site-v1.caddy" "$CADDY_DIR/site-v1.caddy"
   install -m 644 "$MONO_DIR/ops/caddy/site-v2.caddy" "$CADDY_DIR/site-v2.caddy"
   install -m 644 "$MONO_DIR/ops/caddy/site-maintenance.caddy" "$CADDY_DIR/site-maintenance.caddy"
+  install -m 644 "$MONO_DIR/ops/caddy/log-share.caddy" "$CADDY_DIR/log-share.caddy"
   [ -e "$CADDY_ACTIVE" ] || ln -s "$CADDY_DIR/site-v1.caddy" "$CADDY_ACTIVE"
   [ -e "$ENV_LINK" ] || ln -s "$ENV_V1" "$ENV_LINK"
 
-  # Share codes and websocket tickets travel in the query string, so the log
-  # matcher has to cover both prefixes. A matcher that only names /majadu/s/*
-  # writes live tickets into the access log of the whole server.
+  # SEC-06: the log policy is a site-level directive, so it cannot live in the
+  # handler snippet; the installed copy is checked here and by `--check`.
   if [ -f "$CADDY_CONFIG" ]; then
-    if grep -q '/majadu/s/\*' "$CADDY_CONFIG" &&
-      ! grep -q '/majadu/ws/\*' "$CADDY_CONFIG"; then
-      fail "$CADDY_CONFIG skips /majadu/s/* but not /majadu/ws/* in the log matcher; see ops/caddy/Caddyfile.api.qouver.com step 3"
-    fi
+    message=$(log_matcher_problem "$CADDY_CONFIG" "$CADDY_DIR/log-share.caddy" || true)
+    [ -z "$message" ] || fail "$message; see ops/caddy/Caddyfile.api.qouver.com step 3"
   fi
 }
 

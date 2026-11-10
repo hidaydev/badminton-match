@@ -302,6 +302,47 @@ suite "deploy-vps.sh":
     for kind, path in walkDir(fixture.root / "deploy"):
       check not path.extractFilename.contains(".tmp")
 
+  # DB-06: the production deploy migrated and verified but never seeded, while
+  # the RC path seeded on every deploy. A registry key with no row is a container
+  # that boots and cannot answer, so the seed belongs next to the migration.
+  test "the deploy seeds after it verifies the schema":
+    let fixture = newFixture("deploy-seed")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    fixture.installFake("curl", releaseCurlFake)
+    fixture.installFake("systemctl", systemctlLogFake)
+    let podmanLog = fixture.root / "podman.log"
+    let mono = fixture.root / "monorepo"
+    touch(mono / "VERSION", "2.0.0\n")
+    touch(mono / "db" / "migrations" / "0001_init.sql", "select 1;\n")
+    createDir(mono / "ops" / "systemd")
+    createDir(mono / "ops" / "scripts")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("FAKE_PODMAN_LOG", podmanLog),
+      ])
+    let calls = readFile(podmanLog)
+    let migrateAt = calls.find("migrate --dir /app/db/migrations")
+    let verifyAt = calls.find("verify --dir /app/db/migrations")
+    let seedAt = calls.find("seed --dir /app/db/seeds")
+    check migrateAt >= 0
+    check verifyAt > migrateAt
+    check seedAt > verifyAt
+    check readFile(fixture.root / "logs" / "deploy.log").contains("applied the seed files")
+    # The fixture stops later in the pipeline (health and smoke probes under
+    # fakes); what this case proves is that the seed ran, and that a failure was
+    # not the seed step.
+    let attempt = fixture.root / "deploy" / "last-attempt.json"
+    if fileExists(attempt):
+      check parseFile(attempt)["step"].getStr != "seed"
+
   test "an owner DSN left in the API env stops the deploy":
     let fixture = newFixture("deploy-api-env-owner")
     defer: removeDir(fixture.root)
@@ -1330,6 +1371,74 @@ suite "cutover.sh":
     check not result.stdout.contains("cutover sequence finished")
     check readFile(fixture.root / "cutover" / "cutover.step")
       .contains("\"state\":\"failed\"")
+
+  # SEC-06: the share code and the websocket ticket are bearer credentials in
+  # the query string, and the site log is shared with every other application.
+  # The preflight used to notice only half of that pair, and it noticed nothing
+  # when the matcher was missing entirely.
+  test "--check refuses a matcher that names only the share prefix":
+    let fixture = newFixture("cutover-matcher-half")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("curl", releaseCurlFake)
+    fixture.installFake("caddy", okFake)
+    for tool in ["psql", "pg_dump", "pg_restore"]:
+      removeFile(fixture.binDir / tool)
+    fixture.hermeticBin(["psql", "pg_dump", "pg_restore"])
+    touch(fixture.root / "env" / "majadu-prod.env.v2", "")
+    let caddyfile = fixture.root / "Caddyfile"
+    writeFile(caddyfile,
+      "@share path /majadu/s/*\nlog {\n\timport log_access\n\tskip_log @share\n}\n")
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--check", "--version", "2.0.0"],
+      appDir(fixture) & @[("PATH", fixture.binDir),
+        ("MAJADU_CADDY_CONFIG", caddyfile)])
+    check result.exitCode == 2
+    check result.stderr.contains("skips /majadu/s/* but not /majadu/ws/*")
+
+  test "--check refuses a Caddyfile with no matcher at all":
+    let fixture = newFixture("cutover-matcher-missing")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("curl", releaseCurlFake)
+    fixture.installFake("caddy", okFake)
+    for tool in ["psql", "pg_dump", "pg_restore"]:
+      removeFile(fixture.binDir / tool)
+    fixture.hermeticBin(["psql", "pg_dump", "pg_restore"])
+    touch(fixture.root / "env" / "majadu-prod.env.v2", "")
+    let caddyfile = fixture.root / "Caddyfile"
+    writeFile(caddyfile,
+      "import /srv/qouver/apps/majadu/caddy/active.caddy\n")
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--check", "--version", "2.0.0"],
+      appDir(fixture) & @[("PATH", fixture.binDir),
+        ("MAJADU_CADDY_CONFIG", caddyfile)])
+    check result.exitCode == 2
+    check result.stderr.contains("has no @share log matcher")
+
+  test "--check accepts the installed log-share companion":
+    let fixture = newFixture("cutover-matcher-companion")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("curl", releaseCurlFake)
+    fixture.installFake("caddy", okFake)
+    for tool in ["psql", "pg_dump", "pg_restore"]:
+      removeFile(fixture.binDir / tool)
+    fixture.hermeticBin(["psql", "pg_dump", "pg_restore"])
+    touch(fixture.root / "env" / "majadu-prod.env.v2", "")
+    createDir(fixture.root / "caddy")
+    writeFile(fixture.root / "caddy" / "log-share.caddy",
+      "@share path /majadu/s/* /majadu/ws/*\nlog {\n\timport log_access\n" &
+      "\tskip_log @share\n}\n")
+    let caddyfile = fixture.root / "Caddyfile"
+    writeFile(caddyfile,
+      "import /srv/qouver/apps/majadu/caddy/log-share.caddy\n")
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--check", "--version", "2.0.0"],
+      appDir(fixture) & @[("PATH", fixture.binDir),
+        ("MAJADU_CADDY_CONFIG", caddyfile)])
+    check result.exitCode == 0
+    check result.stdout.contains("stay out of the access log")
 
 suite "rollback.sh":
   test "an unknown argument exits 1 without paging":

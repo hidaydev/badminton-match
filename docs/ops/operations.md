@@ -39,19 +39,24 @@ Every credential is issued for 90 days and rotated by the owner, on a calendar
 entry, not when something breaks. The deploy reads the files by name; the
 rotation is a file replace plus the restart or re-login in the table.
 
-| Credential | File on the VPS | Rotate by | Verify after |
-|---|---|---|---|
-| GHCR read token | `env/ghcr-token` | issue a new `read:packages` token, replace the file, mode 600 | `podman login ghcr.io -u <user> --password-stdin < env/ghcr-token` |
-| GitHub CI token (RC) | `env/github-token` | new fine-grained token, `actions: read`, replace the file, mode 600 | `env/github-token` is read by the RC CI gate on the next push |
-| Vercel token | `env/vercel-token` | new token in the Vercel account, replace the file, mode 600 | `VERCEL_TOKEN=$(cat env/vercel-token) vercel whoami` |
-| Database passwords | `env/majadu-prod.env`, `env/majadu-tools.env`, `env/majadu-rc*.env` | `alter role ... password` for each role, then update both files | `./task ci` against the DSN, or `curl /readyz` after `systemctl --user restart majadu-api` |
-| Alert webhook | `env/alert.env` | new webhook URL in the provider, replace the file, mode 600 | `systemctl --user start majadu-alert@rotation-test.service` and look for the delivery |
-| Cosign public key | `env/cosign.pub` | follows the signing key, not a secret | `cosign verify --key env/cosign.pub <image>` |
+| Credential | File on the VPS | Rotate by | Verify after | Last rotated | Next due |
+|---|---|---|---|---|---|
+| GHCR read token | `env/ghcr-token` | issue a new `read:packages` token, replace the file, mode 600 | `podman login ghcr.io -u <user> --password-stdin < env/ghcr-token` | not recorded | not recorded |
+| GitHub CI token (RC) | `env/github-token` | new fine-grained token, `actions: read`, replace the file, mode 600 | `env/github-token` is read by the RC CI gate on the next push | not recorded | not recorded |
+| Vercel token | `env/vercel-token` | new token in the Vercel account, replace the file, mode 600 | `VERCEL_TOKEN=$(cat env/vercel-token) vercel whoami` | not recorded | not recorded |
+| Database passwords | `env/majadu-prod.env`, `env/majadu-tools.env`, `env/majadu-rc*.env` | `alter role ... password` for each role, then update both files | `./task ci` against the DSN, or `curl /readyz` after `systemctl --user restart majadu-api` | not recorded | not recorded |
+| Alert webhook | `env/alert.env` | new webhook URL in the provider, replace the file, mode 600 | `systemctl --user start majadu-alert@rotation-test.service` and look for the delivery | not recorded | not recorded |
+| Cosign public key | `env/cosign.pub` | follows the signing key, not a secret | `cosign verify --key env/cosign.pub <image>` | not recorded | not recorded |
 
-Rotation dates are recorded in the private incident log next to the access
-list; a token older than 90 days is a finding. `deploy-vps.sh` refuses to run
-when any regular file under `env/` is not mode 600 or 400, so a copy made with
-the wrong umask fails the next deploy instead of sitting there readable.
+The two date columns are the register, not a pointer to one: a credential whose
+row still says `not recorded` has no evidence that it was ever rotated, which is
+the finding. Fill both cells in the same edit as the rotation, and set `Next due`
+90 days out.
+
+Rotation dates used to live only in the private incident log; `deploy-vps.sh`
+refuses to run when any regular file under `env/` is not mode 600 or 400, so a
+copy made with the wrong umask fails the next deploy instead of sitting there
+readable.
 
 ## 2. Incidents
 

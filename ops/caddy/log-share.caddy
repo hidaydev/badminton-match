@@ -1,0 +1,21 @@
+# Site-level log policy for the Majadu handler on api.qouver.com.
+#
+# The share code and the one-use websocket ticket are query parameters, and this
+# access log is shared with every other application on the site, so a matcher
+# that names only /majadu/s/* writes live tickets into a file that outlives the
+# link. Both prefixes are required and cutover.sh refuses a Caddyfile that names
+# one of them.
+#
+# Install (cutover.sh does this) as:
+#   /srv/qouver/apps/majadu/caddy/log-share.caddy
+#
+# then replace the bare `log` statement of the api.qouver.com site block with:
+#   import /srv/qouver/apps/majadu/caddy/log-share.caddy
+#
+# `skip_log` needs Caddy 2.7+. `log_access` is the host's existing output and
+# format snippet; keep its name so the other applications log unchanged.
+@share path /majadu/s/* /majadu/ws/*
+log {
+	import log_access
+	skip_log @share
+}

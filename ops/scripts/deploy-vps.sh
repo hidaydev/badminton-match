@@ -407,6 +407,16 @@ if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
   verify --dir /app/db/migrations >>"$LOG" 2>&1; then
   fail "dbtools verify failed; the database is not at the committed schema, v$VERSION is not deployed"
 fi
+# DB-06: a registry key with no seeded row boots into a container that cannot
+# answer, and the RC path has seeded since it was written. The seed files are
+# idempotent upserts, so running them on every deploy is what keeps the
+# database and the image's config registry in step.
+STEP="seed"
+if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
+  seed --dir /app/db/seeds >>"$LOG" 2>&1; then
+  fail "dbtools seed failed; v$VERSION is not deployed and the running release was left alone"
+fi
+log "applied the seed files"
 # The last migration file is the schema this release expects. An empty name is
 # not a version: without it the release record cannot say which schema the image
 # needs, so the deploy stops instead of writing metadata that a later rollback

@@ -1085,7 +1085,51 @@ exit 0
     defer: removeDir(fixture.root)
     fixture.installFake("systemctl", "#!/bin/sh\nexit 0\n")
     fixture.installFake("podman", "#!/bin/sh\nexit 1\n")
+    # ISO-22: the journal cap lives in a root-installed drop-in, so a healthy
+    # fixture has to provide one or the check reports the journal as unbounded.
+    createDir(fixture.root / "journald")
+    writeFile(fixture.root / "journald" / "50-majadu.conf",
+      "[Journal]\nSystemMaxUse=200M\n")
     let result = fixture.runShell(fixture.installOpsScript("host-check.sh"),
-      @[], @[("MAJADU_APP_DIR", fixture.root), ("MIN_FREE_MB", "0")])
+      @[], @[("MAJADU_APP_DIR", fixture.root), ("MIN_FREE_MB", "0"),
+        ("MAJADU_JOURNALD_CONF", fixture.root / "absent.conf"),
+        ("MAJADU_JOURNALD_DIR", fixture.root / "journald")])
+    check result.exitCode == 0
+    check result.stdout.contains("ok:")
+
+  # ISO-22: an uncapped journal is the only failure that fills the volume
+  # PostgreSQL shares, and the install is a one-time root step that nothing in
+  # the deploy path can repeat. The check is the only thing that notices it.
+  test "an uncapped journal pages through the disk alert":
+    let fixture = newFixture("host-check-journal")
+    defer: removeDir(fixture.root)
+    fixture.installFake("systemctl", """#!/bin/sh
+printf '%s\n' "$*" >> "$FAKE_SYSTEMCTL_LOG"
+exit 0
+""")
+    fixture.installFake("podman", "#!/bin/sh\nexit 1\n")
+    createDir(fixture.root / "journald")
+    writeFile(fixture.root / "journald" / "50-majadu.conf", "[Journal]\n")
+    let systemctlLog = fixture.root / "systemctl.log"
+    let result = fixture.runShell(fixture.installOpsScript("host-check.sh"),
+      @[], @[("MAJADU_APP_DIR", fixture.root), ("MIN_FREE_MB", "0"),
+        ("MAJADU_JOURNALD_CONF", fixture.root / "absent.conf"),
+        ("MAJADU_JOURNALD_DIR", fixture.root / "journald"),
+        ("FAKE_SYSTEMCTL_LOG", systemctlLog)])
+    check result.exitCode == 1
+    check result.stdout.contains("no SystemMaxUse")
+    check readFile(systemctlLog).contains("start majadu-alert@disk.service")
+
+  test "the main journald.conf cap is enough on its own":
+    let fixture = newFixture("host-check-journal-main")
+    defer: removeDir(fixture.root)
+    fixture.installFake("systemctl", "#!/bin/sh\nexit 0\n")
+    fixture.installFake("podman", "#!/bin/sh\nexit 1\n")
+    writeFile(fixture.root / "journald.conf",
+      "[Journal]\n# the drop-in is optional if this file already caps it\nSystemMaxUse=500M\n")
+    let result = fixture.runShell(fixture.installOpsScript("host-check.sh"),
+      @[], @[("MAJADU_APP_DIR", fixture.root), ("MIN_FREE_MB", "0"),
+        ("MAJADU_JOURNALD_CONF", fixture.root / "journald.conf"),
+        ("MAJADU_JOURNALD_DIR", fixture.root / "absent")])
     check result.exitCode == 0
     check result.stdout.contains("ok:")

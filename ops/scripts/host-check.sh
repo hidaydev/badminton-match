@@ -75,5 +75,25 @@ if command -v podman >/dev/null 2>&1 && podman image exists "$LOCAL_IMAGE:local"
   fi
 fi
 
+# ISO-22: the journal is the only copy of the access log, so an uncapped journal
+# is a slow disk fill that takes PostgreSQL and the API down with it. The
+# drop-in is a one-time root install (ops/journald/majadu.conf) and nothing in
+# the deploy path can write /etc, so this is the check that it happened. Both
+# files are readable by the deploy user, and the last SystemMaxUse seen wins,
+# which is the order systemd applies (drop-ins over the main file).
+JOURNALD_CONF="${MAJADU_JOURNALD_CONF:-/etc/systemd/journald.conf}"
+JOURNALD_DIR="${MAJADU_JOURNALD_DIR:-/etc/systemd/journald.conf.d}"
+journal_cap=""
+for file in "$JOURNALD_CONF" "$JOURNALD_DIR"/*.conf; do
+  [ -f "$file" ] || continue
+  found=$(sed -n 's/^[[:space:]]*SystemMaxUse=[[:space:]]*//p' "$file" | tail -1)
+  [ -z "$found" ] || journal_cap="$found"
+done
+if [ -z "$journal_cap" ]; then
+  log "ERROR: no SystemMaxUse in $JOURNALD_CONF or $JOURNALD_DIR; the journal is unbounded"
+  problems=$((problems + 1))
+  alert disk
+fi
+
 [ "$problems" -eq 0 ] || exit 1
 log "ok: ${free_mb} MB free, no OOM kill"

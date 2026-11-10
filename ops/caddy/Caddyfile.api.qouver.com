@@ -32,20 +32,25 @@
 #          respond "Not Found" 404
 #      }
 #
-# 3. Keep share codes and websocket tickets out of the access log. In the same
-#    site block, add the matcher and one directive to the existing log
-#    statement:
+# 3. Keep share codes and websocket tickets out of the access log. The matcher
+#    is a site-level directive, so it cannot live in the handler snippet that
+#    step 2 imports; `ops/caddy/log-share.caddy` is the installed companion and
+#    cutover.sh copies it next to the three snippets. In the same site block,
+#    replace the existing log statement with:
+#
+#      import /srv/qouver/apps/majadu/caddy/log-share.caddy
+#
+#    The companion holds the two lines this step used to ask for by hand:
 #
 #      @share path /majadu/s/* /majadu/ws/*
-#      log {
-#          import log_access
-#          skip_log @share
-#      }
+#      log { import log_access  skip_log @share }
 #
 #    Both prefixes matter: the share code and the one-use ticket are query
 #    parameters on /majadu/s/* and /majadu/ws/*, and this access log is shared
-#    with the other applications on the server. cutover.sh preflight refuses a
-#    Caddyfile that skips only the first one.
+#    with the other applications on the server. `cutover.sh --check` fails when
+#    the matcher names one prefix, when it is present but never skipped, and
+#    when it is missing altogether while the Majadu handler is imported, so a
+#    host that skipped this step cannot cut over.
 #
 #    `skip_log` needs Caddy 2.7+. The rest of log_access (output, format) stays
 #    as it is, so other applications keep their logs unchanged.
