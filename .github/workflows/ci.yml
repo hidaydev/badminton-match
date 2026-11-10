@@ -71,8 +71,16 @@ jobs:
       # runner image does not ship it.
       - name: "Dependencies: install the runtime C libraries"
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libpcre3
+          # A warm runner already has the package, and skipping apt is what
+          # keeps a slow mirror from spending this job's budget: on 2026-11-10 a
+          # coverage shard sat in this step for fourteen minutes, past its cap,
+          # with nothing to install. When it is missing, each request is bounded
+          # so a stalled mirror fails fast and names itself instead.
+          if ! dpkg -s libpcre3 >/dev/null 2>&1; then
+            apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=15)
+            sudo apt-get update "${apt_opts[@]}"
+            sudo apt-get install -y "${apt_opts[@]}" libpcre3
+          fi
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       # QA-25: `check` is the database-free layer. Every suite that opens a
@@ -143,8 +151,16 @@ jobs:
       # runner image does not ship it.
       - name: "Dependencies: install the runtime C libraries"
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libpcre3
+          # A warm runner already has the package, and skipping apt is what
+          # keeps a slow mirror from spending this job's budget: on 2026-11-10 a
+          # coverage shard sat in this step for fourteen minutes, past its cap,
+          # with nothing to install. When it is missing, each request is bounded
+          # so a stalled mirror fails fast and names itself instead.
+          if ! dpkg -s libpcre3 >/dev/null 2>&1; then
+            apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=15)
+            sudo apt-get update "${apt_opts[@]}"
+            sudo apt-get install -y "${apt_opts[@]}" libpcre3
+          fi
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       - name: "Database: provision and create the test database"
@@ -266,8 +282,16 @@ jobs:
       # runner image does not ship it.
       - name: "Dependencies: install the runtime C libraries"
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libpcre3
+          # A warm runner already has the package, and skipping apt is what
+          # keeps a slow mirror from spending this job's budget: on 2026-11-10 a
+          # coverage shard sat in this step for fourteen minutes, past its cap,
+          # with nothing to install. When it is missing, each request is bounded
+          # so a stalled mirror fails fast and names itself instead.
+          if ! dpkg -s libpcre3 >/dev/null 2>&1; then
+            apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=15)
+            sudo apt-get update "${apt_opts[@]}"
+            sudo apt-get install -y "${apt_opts[@]}" libpcre3
+          fi
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       # Fails when the two source specs, the merged document, the generated Nim
@@ -423,8 +447,16 @@ jobs:
       # runner image does not ship it.
       - name: "Dependencies: install the runtime C libraries"
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libpcre3
+          # A warm runner already has the package, and skipping apt is what
+          # keeps a slow mirror from spending this job's budget: on 2026-11-10 a
+          # coverage shard sat in this step for fourteen minutes, past its cap,
+          # with nothing to install. When it is missing, each request is bounded
+          # so a stalled mirror fails fast and names itself instead.
+          if ! dpkg -s libpcre3 >/dev/null 2>&1; then
+            apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=15)
+            sudo apt-get update "${apt_opts[@]}"
+            sudo apt-get install -y "${apt_opts[@]}" libpcre3
+          fi
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
@@ -552,8 +584,16 @@ jobs:
             nimcache-${{ runner.os }}-
       - name: "Dependencies: install the runtime C libraries"
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libpcre3
+          # A warm runner already has the package, and skipping apt is what
+          # keeps a slow mirror from spending this job's budget: on 2026-11-10 a
+          # coverage shard sat in this step for fourteen minutes, past its cap,
+          # with nothing to install. When it is missing, each request is bounded
+          # so a stalled mirror fails fast and names itself instead.
+          if ! dpkg -s libpcre3 >/dev/null 2>&1; then
+            apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=15)
+            sudo apt-get update "${apt_opts[@]}"
+            sudo apt-get install -y "${apt_opts[@]}" libpcre3
+          fi
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       - name: "Mutation: run the changed prefixes"
