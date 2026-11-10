@@ -23,5 +23,6 @@ frontend) that exists in the repo today.
 - [`../ops/`](../ops/): releases, operations, OAuth, cutover
 - [`../ops/rc-environment.md`](../ops/rc-environment.md): RC environment
 - [`../decisions.md`](../decisions.md): architecture decision records
+- [`../../HANDOVER.md`](../../HANDOVER.md): release-branch state at handover
 - Historical documents (rewrite plan, Go v1 ADRs, old design spec) are in git
   history: `git log --all -- docs/`.

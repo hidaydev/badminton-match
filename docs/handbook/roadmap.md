@@ -28,7 +28,7 @@ Status as of **2026-11-08**. The change history is in git history.
 - **Players**: list, claim/release claim, merge, admin queue.
 - **Realtime**: single-use WebSocket ticket, in-memory fan-out (API).
 - **Gates**: `check`, `test`, `contract-check`, `coverage`, `parity`, `pnpm
-  check:web`, `e2e` (iPhone 17 + POCO F5), CI 7 jobs + gate.
+  check:web`, `e2e` (iPhone 17 + POCO F5), CI's 10 push jobs with `gate` last.
 - **Ops**: deploy/cutover/rollback/backup/restore/smoke, hardened Quadlet, Caddy
   `/majadu` handler, alert unit, rehearsal harness.
 - **Daily snapshot**: `ranksnapshot` ships in the image and is run by

@@ -60,9 +60,12 @@ on this host; the host-binary path remains for a host that already has them.
 site also serves `/hooks`, `/sds`, and `/skyward`; the majadu snippet must not
 replace the whole site. The `/majadu` prefix is kept after cutover, so the OIDC
 redirect, `PUBLIC_BASE_URL`, and the web client do not change. The one-time steps
-(including `skip_log` for `/majadu/s/*` and `/majadu/ws/*`; preflight rejects a
-Caddyfile that mentions only the first) are in
-`ops/caddy/Caddyfile.api.qouver.com`.
+(including the share-log matcher) are in `ops/caddy/Caddyfile.api.qouver.com`.
+The matcher is a site-level directive, so it lives in the companion
+`ops/caddy/log-share.caddy` that cutover copies next to the three handler
+snippets; the site block imports it. `cutover.sh --check` fails when the matcher
+names one prefix, when it is defined but never skipped, and when the Majadu
+handler is imported with no matcher at all.
 
 ## 2. D-7 checklist
 

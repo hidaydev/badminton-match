@@ -25,7 +25,7 @@ contract generated from OpenAPI.
 | **Contract** | 76 operations, generated into Nim routes and the TypeScript client |
 | **Schema** | 52 migrations, every table keyed by `community_id` |
 | **Domain** | 9 modules: account, community, player, session, tournament, rating, achievement, share, platform |
-| **Gates** | 1,518 Nim test cases in 140 suites, 144 parity cases, 170 end-to-end runs |
+| **Gates** | 1,524 Nim test cases in 140 suites, 144 parity cases, 170 end-to-end runs |
 
 ---
 

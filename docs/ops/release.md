@@ -78,10 +78,10 @@ the sequence is:
 
 1. `git fetch origin main` + `git reset --hard origin/main`.
 2. Resolve the digest from the GitHub Release, `podman pull` that digest.
-3. **`dbtools migrate` + `dbtools verify`** from the newly pulled image, using
-   `MAJADU_OWNER_DSN` from `env/majadu-tools.env` (the API unit loads only
-   `env/majadu-prod.env` and never sees that credential). A failure here = the
-   release is not installed,
+3. **`dbtools migrate` + `dbtools verify` + `dbtools seed`** from the newly
+   pulled image, using `MAJADU_OWNER_DSN` from `env/majadu-tools.env` (the API
+   unit loads only `env/majadu-prod.env` and never sees that credential). A
+   failure here = the release is not installed,
    `:local`/`:prev` are not touched, the old service keeps running.
 4. Tag rotation: `:local` → `:prev`, the new image → `:local`.
 5. Sync the systemd units and operator scripts from the repo.
@@ -180,8 +180,10 @@ The deploy runs migrations automatically, so every release must satisfy:
 - **Files with a `-- contract` header are rejected by default.** A removal may
   only run through `dbtools migrate --allow-contract`, one release after the
   deploy that stopped using the old shape has become `:prev`.
-- **Idempotent seeds** (`insert … on conflict do nothing`). The deploy does not
-  call `dbtools seed`; new seeds only arrive through `cutover.sh` or the operator.
+- **Idempotent seeds** (`insert … on conflict do nothing`). The deploy runs
+  `dbtools seed` after `verify` on every release, so the config registry in the
+  image and the rows in the database cannot drift apart; a seed file that is not
+  idempotent turns the next deploy into a failure.
 - **`/readyz` is not a substitute for `verify`.** Readiness only checks that
   relations exist (`to_regclass`); a missing column or seed still passes with 200.
   What proves the schema is `dbtools verify` in the deploy step.

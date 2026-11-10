@@ -107,37 +107,46 @@ communities) is still used; v2 pages that were never mounted in the router
 
 | Suite | Command | Note |
 |---|---|---|
-| `nim check`, archcheck, unit suites | `./task check` | no database; 60 unit suites |
-| Unit + integration | `./task test` | needs `MAJADU_PG_DSN`; 121 suites (60 unit, 61 integration; 2026-11-10), each suite on its own database; `--timing` and `--shard I/N` are used by the two CI shards, which measured 219 s and 196 s against 406 s for one run |
+| `nim check`, archcheck, unit suites | `./task check` | no database; 70 unit suites (`./task check` prints the counts it will run) |
+| Unit + integration | `./task test` | needs `MAJADU_PG_DSN`; 140 suites (70 unit, 70 integration; 2026-11-10), each suite on its own database; `--timing` and `--shard I/N` feed the two CI shards, which took 439 s and 575 s including runner setup on `3afaa78e` |
 | One module | `./task verify <module\|api>` | integration when the DB is present |
 | Contract | `./task contract-check` | fingerprint + generated output |
-| Parity | `./task parity verify` / `./task parity v2 verify` | frozen v1 71 cases/48 routes; v2 143 cases |
+| Parity | `./task parity verify` / `./task parity v2 verify` | frozen v1 71 cases/48 routes; v2 144 cases |
 | Tournament ladder | `./task levels` | read/write `rating.levels`; no row = per-game formula |
-| Coverage | `./task coverage` | per file, module and total ratchet against `coverage-baseline-<platform>.json` (88.09% of 19,360 executable lines, Linux baseline measured 2026-11-09, integration; one fresh database per suite, gcov captured per suite, ~10 minutes). The Nim number is **line coverage only**: gcov branch counts are printed next to it but are not part of the ratchet, so it must not be read as branch coverage. The gate also prints how many files sit below the 50% per-file floor and fails when that count grows (documents with an owner and an expiry live in `docs/handbook/coverage-debt.json`). The gate's 0.1 pp tolerance is published with the number: 88.09% means a lower bound of 87.99%, and a run between them is inside the noise band, not a regression |
+| Coverage | `./task coverage` | per file, module and total ratchet against `coverage-baseline-<platform>.json` (89.06% of 21,219 executable lines, Linux baseline measured 2026-11-10 after waves 3 and 4, integration; one fresh database per suite, gcov captured per suite, ~10 minutes). The Nim number is **line coverage only**: gcov branch counts are printed next to it but are not part of the ratchet, so it must not be read as branch coverage. The gate also prints how many files sit below the 50% per-file floor and fails when that count grows (documents with an owner and an expiry live in `docs/handbook/coverage-debt.json`). The gate's 0.1 pp tolerance is published with the number: 89.06% means a lower bound of 88.96%, and a run between them is inside the noise band, not a regression. Every file also records its branch counters; they are reported, not ratcheted |
 | Security | part of `./task test` | IDOR, escalation, CSRF, OIDC replay, rate limit, claims |
 | Web | `pnpm check:web` | TypeScript, ESLint, Tailwind guard, Vitest |
-| E2E | `./task e2e` | Playwright: a11y, visual, navigation, writes, OCC, offline, compatibility, role boundary; 100 runs across two devices and no skip, 40 of them functional; snapshots per platform in `e2e/__screenshots__/{platform}/` |
+| E2E | `./task e2e` | Playwright: a11y, visual, navigation, writes, OCC, offline, compatibility, role boundary; 170 runs across two devices and no skip, 65 of them drive a flow or the API socket (56 phone flows plus 9 API runs); snapshots per platform in `e2e/__screenshots__/{platform}/` |
 
 E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
 **POCO F5** (Chromium, 393×873, DPR 2.75), `maxDiffPixels: 0`.
 
 ## 6. CI
 
-- `.github/workflows/ci.yml`: 7 jobs: `api-check`, `api-test` (Postgres 18.6),
-  `contract`, `web`, `e2e`, `image`, then `gate`.
+- `.github/workflows/ci.yml`: 12 jobs defined, 10 of them run on a push:
+  `api-check`, `api-test` in two shards (Postgres 18.6), `contract`, `web`,
+  `e2e`, `image`, `supply-chain`, `coverage-gate` (waits for the Coverage run of
+  the same commit), then `gate`; `mutation` runs on pull requests only and
+  `notify` pages on a red main.
 - `.github/workflows/coverage.yml`: instrumented build + ratchet, a separate
   workflow so the cache does not mix with the fast gate.
 - `.github/workflows/nightly.yml`: full `./task ci` with a database service, plus `./task mutation` so a mutant that survives without an allowlist entry fails the night.
 - `.github/workflows/release.yml`: triggered by a `v*` tag, builds the image once and
   writes the digest to the GitHub Release.
 - All jobs use `timeout-minutes: 15`, use caching, and do not interpolate
-  GitHub context directly into the shell.
+  GitHub context directly into the shell. Every apt step skips itself when
+  `dpkg -s` says the package is present and otherwise bounds each request
+  (`Acquire::http::Timeout=15`, `Retries=3`), because an unbounded fetch inside a
+  fifteen minute job is a latent timeout: on 2026-11-10 one coverage shard and one
+  e2e job each spent fourteen minutes in apt and were reported as `cancelled`
+  before a single test ran.
 
 ## 7. Infrastructure
 
 - **Deploy** (`ops/scripts/deploy-vps.sh`): only `refs/heads/main`; `flock`;
   `git fetch` + `reset --hard`; pull the image **by digest**; **`dbtools migrate` +
-  `dbtools verify` from that digest before rotating tags** (failure = release cancelled,
+  `dbtools verify` + `dbtools seed` from that digest before rotating tags** (failure =
+  release cancelled,
   `:local`/`:prev` untouched; the schema revision is recorded in `last-release.json`);
   rotate `:local` → `:prev`; restart the unit; `/readyz` gate; roll back to `:prev`
   on failure. The schema is not rolled back, so migrations must be expand/contract.
@@ -176,9 +185,10 @@ The rewrite backlog is done; what remains is in [`roadmap.md`](roadmap.md). In s
   T-108 force-push postponed by owner decision.
 - **Gaps outside the plan:** `platform.outbox` producer (realtime is still
   per-process). Coverage is measured after the gcov attribution fix, and CI
-  judges `coverage-baseline-linux.json` (88.09% of 19,360 lines on 2026-11-09).
-  The lowest domains are `tools` 80.55%, `modules/player` 88.29% and
-  `modules/session` 90.31%.
+  judges `coverage-baseline-linux.json` (89.06% of 21,219 lines on 2026-11-10,
+  refreshed after waves 3 and 4; every fall in covered lines was checked against
+  the deletions that caused it). The lowest domains are `tools` 81.04%,
+  `modules/player` 89.51% and `modules/session` 91.48%.
 - **Known data differences (accepted):** Salma, Youri, Zaid, and Firda
   differ from the v1 `bm.rank_snapshots` because the v1 ledger for the 2026-10-31 session
   was ingested before that session was edited. Owner decision: v2 follows current

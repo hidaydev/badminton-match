@@ -5,6 +5,7 @@ lowercase and hyphens; `README.md` is the only exception.
 
 ## Start Here
 
+- [`../HANDOVER.md`](../HANDOVER.md): state of the release branch when work changed hands (2026-11-10)
 - [`handbook/README.md`](handbook/README.md): index handbook
 - [`handbook/current-status.md`](handbook/current-status.md): current condition, infrastructure, testing
 - [`handbook/architecture.md`](handbook/architecture.md): FE/BE architecture, WebSocket, PWA

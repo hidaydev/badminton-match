@@ -183,7 +183,11 @@ Install it on the host as described in the file header, then confirm with
 to disk, so the journal is the only copy; the units mount no log volume. The
 rotate timer still covers the operator logs (deploy, cutover, rollback) under
 `/srv/qouver/apps/majadu/logs`, and `host-check.sh` pages when the volume is
-close to full or the container was killed for memory.
+close to full or the container was killed for memory. It also pages when no
+`SystemMaxUse` is set in `/etc/systemd/journald.conf` or its drop-in directory:
+the install is a one-time root step that nothing in the deploy path can repeat,
+so an uncapped journal is a slow disk fill nobody notices until Postgres is
+down.
 
 ## 5. Capacity statement
 

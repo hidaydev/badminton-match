@@ -53,11 +53,12 @@ check over 404s (QAE-03).
   `db/seeds/platform_config.sql` rather than repeated, so the test probes the
   value the deployment has. It runs in the `api` project and never opens a page.
 
-The suite is 40 percent functional: 56 of 162 runs drive a flow on a phone and
-9 more drive the API over its own socket, 24 are the visual baseline, 2 are the
-account-menu screenshot, 60 are the axe walk, 8 are the public axe walk and 3 run
-the static route-coverage guard. A snapshot cannot fail for a permission
-regression, which is why the functional share is stated rather than implied.
+The suite is 170 runs on two devices: 56 drive a flow on a phone, 9 drive the
+API over its own socket, 28 are the pixel baseline (26 routes plus the
+account-menu screenshot on each device) and 77 are axe sweeps, 69 signed in and 8
+on the public screens. A snapshot cannot fail for a permission regression, which
+is why the functional share is stated rather than implied; `--list` prints the
+same split per file if it has drifted.
 
 Every spec waits for the screen's own data (`VisualRoute.ready`) instead of
 `networkidle`, which never settles on a screen holding a WebSocket open. No spec
