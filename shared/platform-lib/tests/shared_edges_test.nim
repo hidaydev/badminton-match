@@ -11,6 +11,7 @@ import std/[monotimes, net, os, osproc, strutils, times, unittest]
 import mummy
 import ../hex
 import ../http_min
+import ../waiters
 
 proc fixtureBinary(): string =
   ## Builds the CLI fixture once, in a cache of its own, so a suite run cannot
@@ -143,17 +144,10 @@ suite "http_min":
     let stub = newServer(answer, workerThreads = 1)
     var worker: Thread[StubArgs]
     createThread(worker, serveStub, StubArgs(server: stub, port: port))
-    var ready = false
-    for _ in 0 ..< 50:
-      try:
-        let probe = newSocket()
-        probe.connect("127.0.0.1", port)
-        probe.close()
-        ready = true
-        break
-      except CatchableError:
-        sleep(100)
-    check ready
+    # SQ-26: bounded poll on the port, not fifty sleeps.
+    waitUntil(proc(): bool = acceptsConnections(port),
+      proc(): string = "the stub did not accept on port " & $port.int,
+      timeoutMs = 5000)
     let (status, body) = httpRequest("http://127.0.0.1:" & $port.int &
       "/probe?x=1", "GET")
     stub.close()

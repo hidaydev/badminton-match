@@ -1,6 +1,7 @@
 import std/[httpclient, json, net, os, strutils, unittest, uri]
 import mummy
 import db/db
+import waiters
 import ../src/app
 import ../src/live
 import account/infrastructure/oidc
@@ -133,18 +134,9 @@ proc startServer*(app: App, port: Port, baseUrl: string,
     else: newServer(handler(), workerThreads = 4)
   var thread: Thread[ServeArgs]
   createThread(thread, serveThread, ServeArgs(server: server, port: port))
-  var up = false
-  for _ in 0 ..< 200:
-    try:
-      let client = newHttpClient(timeout = 1000)
-      defer: client.close()
-      if client.get(baseUrl & "/healthz").code.int == 200:
-        up = true
-        break
-    except CatchableError:
-      discard
-    sleep(50)
-  doAssert up, "api did not start on port " & $uint16(port) & " (" & baseUrl & ")"
+  # SQ-26: a bounded poll on the condition, not a fixed number of sleeps. A
+  # server that never comes up fails here naming the URL it waited on.
+  waitForHttp(baseUrl & "/healthz", timeoutMs = 10000)
 
 proc newTestApp*(db: Db): App =
   newApp(db, OidcConfig(), loadKeyring(keysJson, "1"), newConfigCache(db))

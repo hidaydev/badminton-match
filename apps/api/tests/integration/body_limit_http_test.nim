@@ -12,9 +12,10 @@
 ## than its own default, and a 3 MiB body is answered by the guard with a 413
 ## envelope instead of a dropped connection.
 
-import std/[json, options, os, strutils, unittest]
+import std/[json, options, strutils, unittest]
 import mummy
 import db/db
+import waiters
 import community/infrastructure/community_store
 import platform/config/store
 import tests/fixtures
@@ -55,18 +56,8 @@ proc startServer(app: App, port: Port, baseUrl: string, socketBytes: int) =
   let server = newApiServer(booted, 4)
   var thread: Thread[ServeArgs]
   createThread(thread, serveThread, ServeArgs(server: server, port: port))
-  var up = false
-  for _ in 0 ..< 200:
-    try:
-      let client = newHttpClient(timeout = 1000)
-      defer: client.close()
-      if client.get(baseUrl & "/healthz").code.int == 200:
-        up = true
-        break
-    except CatchableError:
-      discard
-    sleep(50)
-  doAssert up, "api did not start on port " & $uint16(port)
+  # SQ-26: a bounded poll, not a fixed number of sleeps.
+  waitForHttp(baseUrl & "/healthz")
 
 proc paddedSessionBody(size: int, title: string): string =
   ## Exactly `size` bytes of valid JSON. The create handler ignores unknown

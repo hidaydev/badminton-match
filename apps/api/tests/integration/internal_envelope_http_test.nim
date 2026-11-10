@@ -5,9 +5,10 @@
 ## assertion: a `Defect` must produce `application/problem+json` with
 ## `code = INTERNAL` and the request id of the request.
 
-import std/[json, os, strutils, unittest]
+import std/[json, strutils, unittest]
 import mummy
 import db/db
+import waiters
 import ../../src/app
 import ../../src/server
 import ../http_support
@@ -46,18 +47,9 @@ proc bootstrap() =
     logHandler = structuredLogHandler)
   var thread: Thread[ServeArgs]
   createThread(thread, serveThread, ServeArgs(server: server, port: port))
-  var up = false
-  for _ in 0 ..< 200:
-    try:
-      let client = newHttpClient(timeout = 1000)
-      defer: client.close()
-      if client.get(baseUrl & "/healthz").code.int == 500:
-        up = true
-        break
-    except CatchableError:
-      discard
-    sleep(50)
-  doAssert up, "defect handler did not start on port " & $uint16(port)
+  # SQ-26: a bounded poll, not a fixed number of sleeps. The defect handler
+  # answers 500 on purpose, so that is the readiness condition here.
+  waitForHttp(baseUrl & "/healthz", status = 500)
 
 if dsn().len == 0:
   echo "SKIP internal envelope (MAJADU_PG_DSN is not set)"

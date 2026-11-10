@@ -1,7 +1,7 @@
 import std/[exitprocs, httpclient, json, options, os, osproc, strutils, unittest, uri]
 import db/db
-import mummy
 import sha256
+import waiters
 import ../../../src/app
 import account/infrastructure/oidc
 import platform/config/store
@@ -57,18 +57,8 @@ proc startStub() =
   putEnv("OIDC_STUB_CLIENT_ID", clientId)
   stubProcess = startProcess(bin, workingDir = repoRoot(), args = [])
   addExitProc(stopStub)
-  var up = false
-  for _ in 0 ..< 200:
-    try:
-      let client = newHttpClient(timeout = 1000)
-      defer: client.close()
-      if client.get(stubBase & "/healthz").code.int == 200:
-        up = true
-        break
-    except CatchableError:
-      discard
-    sleep(50)
-  doAssert up, "oidc stub did not start on " & stubBase
+  # SQ-26: bounded poll on the stub's readiness instead of a fixed sleep count.
+  waitForHttp(stubBase & "/healthz")
 
 proc bootstrap() =
   database = openDb(dsn(), 1)
