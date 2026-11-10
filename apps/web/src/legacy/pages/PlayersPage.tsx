@@ -129,7 +129,7 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
           >
             {player.name}
             {isPlaceholderName(player.name) && (
-              <span className="ml-2 text-[11px] font-bold text-amber-400/90 bg-amber-900/40 border border-amber-700/50 rounded px-1 py-0.5 uppercase tracking-wider">
+              <span className="ml-2 text-[11px] font-bold text-amber-400/90 bg-amber-900/40 border border-amber-700/50 rounded px-1 py-0.5 label-meta">
                 tbd
               </span>
             )}

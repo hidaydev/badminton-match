@@ -168,7 +168,7 @@ export default function HomeLayout() {
                       aria-label={t('community.label')}
                       className="border-b border-border-subtle p-1.5 sm:hidden"
                     >
-                      <p className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-dim">
+                      <p className="px-3 pb-1 pt-1.5 text-[10px] font-semibold label-meta text-fg-dim">
                         {t('community.label')}
                       </p>
                       {memberships.map((membership) => {

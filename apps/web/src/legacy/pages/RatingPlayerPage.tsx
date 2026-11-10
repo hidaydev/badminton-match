@@ -141,7 +141,7 @@ export default function RatingPlayerPage() {
           {/* Points Highlight Bar */}
           <div className="mt-4 pt-3.5 border-t border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 relative">
             <div>
-              <span className="text-[10px] font-sans text-fg-dim uppercase tracking-wider font-semibold block">
+              <span className="text-[10px] font-sans text-fg-dim label-meta font-semibold block">
                 {t('player.rankPointsTitle')}
               </span>
               {rankLoading ? (
@@ -180,7 +180,7 @@ export default function RatingPlayerPage() {
           {/* Matches */}
           <div className="bg-surface border border-border-subtle rounded-xl p-3 text-center flex flex-col justify-center">
             <span className="text-xl sm:text-2xl font-bold font-mono text-fg leading-none">{games}</span>
-            <span className="text-[10px] sm:text-xs font-sans text-fg-dim uppercase tracking-wider mt-1.5 font-medium">
+            <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1.5 font-medium">
               {t('player.matches')}
             </span>
           </div>
@@ -192,7 +192,7 @@ export default function RatingPlayerPage() {
               <span className="text-fg-dim text-sm font-light">/</span>
               <span className="text-red-400">{losses}L</span>
             </div>
-            <span className="text-[10px] sm:text-xs font-sans text-fg-dim uppercase tracking-wider mt-1.5 font-medium">
+            <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1.5 font-medium">
               {t('player.record')}
             </span>
           </div>
@@ -210,7 +210,7 @@ export default function RatingPlayerPage() {
                 />
               </div>
             )}
-            <span className="text-[10px] sm:text-xs font-sans text-fg-dim uppercase tracking-wider mt-1 font-medium">
+            <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1 font-medium">
               {t('player.winRate')}
             </span>
           </div>
@@ -219,7 +219,7 @@ export default function RatingPlayerPage() {
         {/* Section: Recent Matches */}
         <section className="flex flex-col gap-2">
           <div className="flex items-center justify-between px-1">
-            <h2 className="text-xs font-sans font-semibold text-fg-dim uppercase tracking-wider">
+            <h2 className="text-xs font-sans font-semibold text-fg-dim label-meta">
               {t('player.recentMatches')}
             </h2>
             {safeHistory.length > 0 && (
@@ -335,7 +335,7 @@ export default function RatingPlayerPage() {
         {/* Section: Career History */}
         <section className="flex flex-col gap-2">
           <div className="flex items-center justify-between px-1">
-            <h3 className="text-xs font-sans font-semibold text-fg-dim uppercase tracking-wider">
+            <h3 className="text-xs font-sans font-semibold text-fg-dim label-meta">
               {t('player.careerHistory')}
             </h3>
           </div>
@@ -351,7 +351,7 @@ export default function RatingPlayerPage() {
         {/* Section: Medals & Achievements */}
         <section className="flex flex-col gap-2">
           <div className="flex items-center justify-between px-1">
-            <h3 className="text-xs font-sans font-semibold text-fg-dim uppercase tracking-wider">
+            <h3 className="text-xs font-sans font-semibold text-fg-dim label-meta">
               {t('player.medals')}
             </h3>
           </div>
@@ -377,7 +377,7 @@ export default function RatingPlayerPage() {
               {medalSections.map(({ label, rows }) =>
                 rows.length === 0 ? null : (
                   <div key={label} className="flex flex-col gap-2 border-t border-border-subtle pt-3 first:border-t-0 first:pt-0">
-                    <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider font-semibold">{label}</p>
+                    <p className="text-[10px] font-sans text-fg-dim label-meta font-semibold">{label}</p>
                     <MedalHoneycomb
                       items={rows.map((a) => (
                         <AchievementBadge

@@ -82,7 +82,7 @@ export default function AchievementBadgesPreviewPage() {
 
       {/* ── 1. Milestones by Tier ─────────────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
+        <h3 className="px-1 text-[11px] font-semibold label-meta text-fg-dim">
           1. Milestones by Tier (Bronze..Onyx)
         </h3>
         <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border-subtle bg-surface px-5 py-5">
@@ -103,7 +103,7 @@ export default function AchievementBadgesPreviewPage() {
 
       {/* ── 2. All 9 Glyph Icons ───────────────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
+        <h3 className="px-1 text-[11px] font-semibold label-meta text-fg-dim">
           2. Unique Medal Icons (9 Distinct Glyphs)
         </h3>
         <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border-subtle bg-surface px-5 py-5">
@@ -124,7 +124,7 @@ export default function AchievementBadgesPreviewPage() {
 
       {/* ── 3. Event & Tournament Seals ─────────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
+        <h3 className="px-1 text-[11px] font-semibold label-meta text-fg-dim">
           3. Event & Tournament Medals (Faceted Dimensional Emblems)
         </h3>
         <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border-subtle bg-surface px-5 py-5">
@@ -145,7 +145,7 @@ export default function AchievementBadgesPreviewPage() {
 
       {/* ── 4. Locked State ────────────────────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
+        <h3 className="px-1 text-[11px] font-semibold label-meta text-fg-dim">
           4. Locked State (Frosted Dark Obsidian Silhouette)
         </h3>
         <div className="flex flex-wrap items-center gap-5 rounded-xl border border-border-subtle bg-surface px-5 py-5">
@@ -176,7 +176,7 @@ export default function AchievementBadgesPreviewPage() {
 
       {/* ── 5. Honeycomb Shelf Layout ───────────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
+        <h3 className="px-1 text-[11px] font-semibold label-meta text-fg-dim">
           5. Honeycomb Shelf Layout (Gapless Packing)
         </h3>
         <div className="rounded-xl border border-border-subtle bg-surface px-4 py-6">

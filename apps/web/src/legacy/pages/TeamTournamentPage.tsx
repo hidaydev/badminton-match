@@ -295,7 +295,7 @@ export default function TeamTournamentPage() {
         {tab === 'klasemen' && (
           <>
             <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
-              <div className="px-4 py-2 border-b border-border-subtle text-xs text-fg-dim uppercase tracking-wider">
+              <div className="px-4 py-2 border-b border-border-subtle text-xs text-fg-dim label-meta">
                 {t('legacy.standings')}
               </div>
               {standings.map((r, i) => {
@@ -338,7 +338,7 @@ export default function TeamTournamentPage() {
             </div>
             {groupMatches.length === 0 && (
               <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
-                <div className="px-4 py-2 border-b border-border-subtle text-xs text-fg-dim uppercase tracking-wider">
+                <div className="px-4 py-2 border-b border-border-subtle text-xs text-fg-dim label-meta">
                   Team Draw (match day)
                 </div>
                 {TEAM_NAMES.map((name, k) => {
@@ -448,7 +448,7 @@ export default function TeamTournamentPage() {
                 {/* Export Posts — champion + runner-up photos + download */}
                 {finalPostMode && (
                 <div className="bg-surface border border-border-subtle rounded-lg px-4 py-3 flex flex-col gap-2">
-                  <h3 className="text-xs text-fg-dim uppercase tracking-wider">Position Photos</h3>
+                  <h3 className="text-xs text-fg-dim label-meta">Position Photos</h3>
 
                   {championName && (
                     <div className="flex items-center justify-between">

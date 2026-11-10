@@ -150,6 +150,14 @@
   }
 }
 
+/* DS-15: the micro label that titles a block. Uppercase and wide tracking are
+   the whole recipe; the size and the colour stay at the call site because a
+   stat tile, a sheet heading and a table header really do differ there. */
+@utility label-meta {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 :root {
   color-scheme: dark;
 }

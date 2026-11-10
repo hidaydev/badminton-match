@@ -56,7 +56,7 @@ export default function StandingsTab({
         </div>
         {(absentList.length > 0 || placeholderList.length > 0) && (
           <div className="flex flex-col gap-1.5">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2" id={notPlayingEmptyId}>Not playing</p>
+            <p className="text-[10px] font-bold text-slate-400 label-meta px-2" id={notPlayingEmptyId}>Not playing</p>
             <ul role="list" aria-labelledby={notPlayingEmptyId} className="flex flex-col gap-1.5">
               {absentList.map(p => (
                 <li key={p.id} className="flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl border border-slate-800/50 bg-slate-800/20">
@@ -145,7 +145,7 @@ export default function StandingsTab({
       {(absentList.length > 0 || placeholderList.length > 0) && (
         <>
           <div className="h-px bg-slate-800 my-1" />
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 mt-1" id={notPlayingId}>Not playing</p>
+          <p className="text-[10px] font-bold text-slate-400 label-meta px-2 mt-1" id={notPlayingId}>Not playing</p>
           <ul role="list" aria-labelledby={notPlayingId} className="flex flex-col gap-1.5">
             {absentList.map(p => (
               <li key={p.id} className="flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl border border-slate-800/50 bg-slate-800/20">

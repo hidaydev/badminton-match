@@ -53,7 +53,7 @@ export default function TeamMatchCard({
       {/* Header */}
       <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-border-subtle">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-xs text-fg-dim uppercase tracking-wider truncate">{label}</span>
+          <span className="text-xs text-fg-dim label-meta truncate">{label}</span>
           <label className="flex items-center gap-1 shrink-0">
             <span className="text-[11px] text-fg-dim">Court</span>
             <input

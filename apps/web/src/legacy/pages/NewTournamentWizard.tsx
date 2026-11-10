@@ -225,7 +225,7 @@ function TeamWizard() {
               <div key={t.id} className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
                 <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-subtle">
                   <span className="flex-1 text-sm font-semibold text-fg">{TEAM_NAMES[i]}</span>
-                  <span className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">
+                  <span className="text-[10px] font-sans text-fg-dim label-meta">
                     {t.players.length}/{TEAM_COUNT}
                   </span>
                 </div>
@@ -417,7 +417,7 @@ function ClassicWizard() {
           <div className="flex flex-col gap-2.5">
             {GROUP_IDS.map((g) => (
               <div key={g} className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
-                <div className="px-3 py-1.5 border-b border-border-subtle text-xs font-sans text-fg-dim uppercase tracking-wider">
+                <div className="px-3 py-1.5 border-b border-border-subtle text-xs font-sans text-fg-dim label-meta">
                   Group {g}
                 </div>
                 {groupNames[g].map((n, i) => (

@@ -95,7 +95,7 @@ export default function AchievementDetailModal({
           {/* Tier Name Pill */}
           {isMilestone ? (
             <div
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-[10px] font-bold tracking-wider uppercase ${currentTierStyle.pillBorder} ${currentTierStyle.pillBg} ${currentTierStyle.pillText}`}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-[10px] font-bold label-meta ${currentTierStyle.pillBorder} ${currentTierStyle.pillBg} ${currentTierStyle.pillText}`}
             >
               <span className="text-[11px] leading-none">★</span>
               <span>
@@ -103,12 +103,12 @@ export default function AchievementDetailModal({
               </span>
             </div>
           ) : isEvent ? (
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-elevated px-3 py-0.5 text-[10px] font-bold tracking-wider uppercase text-fg">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-elevated px-3 py-0.5 text-[10px] font-bold label-meta text-fg">
               <span className="text-accent text-[11px] leading-none">◆</span>
               <span>Tournament Medal</span>
             </div>
           ) : (
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-elevated px-3 py-0.5 text-[10px] font-bold tracking-wider uppercase text-fg">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-elevated px-3 py-0.5 text-[10px] font-bold label-meta text-fg">
               <span>Achievement</span>
             </div>
           )}
@@ -127,7 +127,7 @@ export default function AchievementDetailModal({
         {/* ── Tangga Tingkat (Milestone Ladder) ─────────────────── */}
         {isMilestone ? (
           <div className="flex flex-col gap-3 border-t border-border-subtle bg-surface/50 px-5 pt-4 pb-5">
-            <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-fg-dim">
+            <div className="flex items-center justify-between text-[10px] font-semibold label-meta text-fg-dim">
               <span>Milestone Ladder</span>
               <span className="text-fg">
                 {tierLevel} of {thresholds.length} completed

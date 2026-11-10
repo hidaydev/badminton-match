@@ -111,7 +111,7 @@ function SlotSwapConfirmBar({
       description={
         <div className="flex flex-col gap-1.5">
           <div>
-            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">{s1.label}</span>
+            <span className="text-[10px] font-bold text-amber-400 label-meta">{s1.label}</span>
             {s1.players && <p className="text-xs text-slate-200 leading-snug mt-0.5">{s1.players}</p>}
           </div>
           <div className="flex items-center gap-1.5">
@@ -120,7 +120,7 @@ function SlotSwapConfirmBar({
             <div className="h-px flex-1 bg-amber-900/40" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">{s2.label}</span>
+            <span className="text-[10px] font-bold text-amber-400 label-meta">{s2.label}</span>
             {s2.players && <p className="text-xs text-slate-200 leading-snug mt-0.5">{s2.players}</p>}
           </div>
         </div>

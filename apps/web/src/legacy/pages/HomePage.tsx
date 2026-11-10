@@ -112,7 +112,7 @@ export default function HomePage() {
             <Icon name="play" size={20} />
           </div>
           <div className="flex flex-col gap-1 flex-1 min-w-0">
-            <span className="text-[10px] font-sans font-semibold text-fg-dim uppercase tracking-wider">
+            <span className="text-[10px] font-sans font-semibold text-fg-dim label-meta">
               {t('home.continueSession')}
             </span>
             <span className="text-sm sm:text-base font-bold text-fg leading-tight truncate">
@@ -147,7 +147,7 @@ export default function HomePage() {
 
       {/* App Grid */}
       <div className="flex flex-col gap-2">
-        <p className="text-xs font-sans font-semibold text-fg-dim uppercase tracking-wider px-1">
+        <p className="text-xs font-sans font-semibold text-fg-dim label-meta px-1">
           {t('home.appSection')}
         </p>
         <div className="grid grid-cols-2 gap-2.5">
@@ -207,7 +207,7 @@ export default function HomePage() {
       {/* Admin Section */}
       {isAdmin && (
         <div className="flex flex-col gap-2">
-          <p className="text-xs font-sans font-semibold text-amber-500/80 uppercase tracking-wider px-1">
+          <p className="text-xs font-sans font-semibold text-amber-500/80 label-meta px-1">
             {t('legacy.admin')}
           </p>
           <AdminMenuGrid />

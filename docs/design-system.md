@@ -82,7 +82,7 @@ nothing smaller is allowed, and data never uses a size below `text-xs` (12px).
 | Section Title | `--text-sm` | `text-sm font-semibold` | Section `h2` |
 | Body | `--text-sm` | `text-sm text-fg-dim` | Descriptions |
 | Label | `--text-xs` | `text-xs text-fg-dim` | Form labels |
-| Meta | `--text-meta` (10px) | `text-[10px] font-mono uppercase tracking-wider` | Single tracked label |
+| Meta | `--text-meta` (10px) | `text-[10px] font-mono label-meta` | Single tracked label |
 | Detail | `--text-2xs` (11px) | `text-[11px]` | Compact data, never below |
 
 ## Boolean Controls
@@ -357,6 +357,7 @@ That is why the footer no longer carries `pb-[max(...)]`.
 | Rule | Implementation |
 |------|---------------|
 | Focus rings | the `focus-ring` utility (defined once in `index.css`, NOT `focus:ring`) — no tap flash |
+| Micro labels | the `label-meta` utility: uppercase plus 0.05em tracking, the whole recipe; size and colour stay at the call site (DS-15) |
 | Touch targets | ≥44px for interactive elements, enforced by `apps/web/scripts/check-touch-targets.mjs` (`check:touch`) |
 | Reduced motion | `@media (prefers-reduced-motion: reduce)` |
 | Screen readers | `aria-label` on icon buttons, `role="dialog"` on modals |
