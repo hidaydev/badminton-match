@@ -12,6 +12,7 @@
     {"path": "tools/opstoken/main.nim", "owner": "qa", "expires": "2027-03-31", "reason": "CLI entrypoint, covered by the shelltests of its guards"},
     {"path": "tools/ownerseed/main.nim", "owner": "qa", "expires": "2027-03-31", "reason": "CLI entrypoint used once during bootstrap"},
     {"path": "tools/ratinglevels/main.nim", "owner": "qa", "expires": "2027-03-31", "reason": "CLI entrypoint; its store is covered by the rating suites"},
+    {"path": "tools/sharekeys/main.nim", "owner": "qa", "expires": "2027-03-31", "reason": "CLI entrypoint; the argument and usage paths are unit tested, the rekeying paths run by hand on the VPS"},
     {"path": "apps/api/src/auth_middleware.nim", "owner": "security", "expires": "2026-12-31", "reason": "the refusal arms are the debt; the happy path is covered by the session suites"},
     {"path": "modules/rating/infrastructure/jobs.nim", "owner": "qa", "expires": "2026-12-31", "reason": "job scheduling arms; the projection it drives is covered"}
   ]
