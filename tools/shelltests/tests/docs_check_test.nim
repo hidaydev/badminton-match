@@ -3,7 +3,7 @@
 # The fixture is a minimal repository: the artefacts docs-check counts, the two
 # documents it reads, and the task runner. No case reads the real README.
 
-import std/[os, strutils, unittest]
+import std/[os, strutils, times, unittest]
 import ../harness
 
 proc touch(path: string, body = "") =
@@ -41,6 +41,12 @@ proc seed(fixture: Fixture) =
     "| pnpm | 12.17.0 | `packageManager` in `package.json` |\n")
   touch(fixture.root / "docs" / "handbook" / "requirements.md",
     "| REQ-001 | a requirement | `apps/api/src/app.nim` | met |\n")
+  # DS-26: the design system document carries a version and a review date, and
+  # the gate reads both. The fixture is reviewed today, so only a test that
+  # moves the date changes the verdict.
+  touch(fixture.root / "docs" / "design-system.md",
+    "# Design System\n\nVersion: 2.0.0\nLast reviewed: " &
+    now().local.format("yyyy-MM-dd") & "\n")
 
 suite "docs-check":
   test "a consistent tree passes":
@@ -88,6 +94,36 @@ suite "docs-check":
     defer: removeDir(fixture.root)
     check readFile(fixture.root / "task.d" / "ci.sh")
       .contains("task.d/docs-check.sh")
+
+  test "a design system document with no version fails":
+    let fixture = newFixture("docs-ds-version")
+    defer: removeDir(fixture.root)
+    seed(fixture)
+    writeFile(fixture.root / "docs" / "design-system.md",
+      "# Design System\n\nLast reviewed: " & now().local.format("yyyy-MM-dd") & "\n")
+    let result = fixture.runTask(@["docs-check"])
+    check result.exitCode == 1
+    check result.stderr.contains("no 'Version:' line")
+
+  test "a design system review older than the limit fails":
+    let fixture = newFixture("docs-ds-stale")
+    defer: removeDir(fixture.root)
+    seed(fixture)
+    writeFile(fixture.root / "docs" / "design-system.md",
+      "# Design System\n\nVersion: 2.0.0\nLast reviewed: 2020-01-01\n")
+    let result = fixture.runTask(@["docs-check"])
+    check result.exitCode == 1
+    check result.stderr.contains("days ago")
+
+  test "a design system review dated in the future fails":
+    let fixture = newFixture("docs-ds-future")
+    defer: removeDir(fixture.root)
+    seed(fixture)
+    writeFile(fixture.root / "docs" / "design-system.md",
+      "# Design System\n\nVersion: 2.0.0\nLast reviewed: 2999-01-01\n")
+    let result = fixture.runTask(@["docs-check"])
+    check result.exitCode == 1
+    check result.stderr.contains("is in the future")
 
 suite "supplier register":
   # ISO-17: every service the product depends on is named once, and the second

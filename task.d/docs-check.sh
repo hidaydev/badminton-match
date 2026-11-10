@@ -8,6 +8,9 @@
 # and docs/handbook/current-status.md. Prose claims are not parseable, so this
 # does not pretend to review them.
 #
+# The design system document is the exception: DS-26 asks for a version and a
+# review date a machine can hold to, so its two header lines are checked here.
+#
 # Drift that has already shipped is checked by exact string: a sentence that
 # contradicted the configuration was fixed four times and each time came back.
 # The list is short on purpose; a rule that fires on harmless prose teaches
@@ -120,6 +123,56 @@ check_tool_versions() {
 }
 
 check_tool_versions
+
+# DS-26: this document is cited by several findings, and a document that cannot
+# say which version it describes or when a person last read it is a copy of a
+# memory. The date is the part a machine can hold to, so the gate fails 90 days
+# after the last review: the review happens because the build is red, not because
+# someone remembered.
+MAX_DESIGN_REVIEW_AGE_DAYS=90
+
+date_epoch() {
+  # BSD date (macOS) and GNU date (the runner) share no flags, so both are tried
+  # and an empty answer is the caller's signal that the input did not parse.
+  date -j -f "%Y-%m-%d" "$1" "+%s" 2>/dev/null ||
+    date -d "$1 00:00:00" "+%s" 2>/dev/null ||
+    printf ''
+}
+
+check_design_system_version() {
+  file="docs/design-system.md"
+  if [ ! -f "$REPO_ROOT/$file" ]; then
+    report "$file is missing"
+    return 0
+  fi
+  version=$(sed -n 's/^Version: *//p' "$REPO_ROOT/$file" | head -1)
+  reviewed=$(sed -n 's/^Last reviewed: *//p' "$REPO_ROOT/$file" | head -1)
+  if [ -z "$version" ]; then
+    report "$file has no 'Version:' line"
+  elif ! printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    report "$file Version '$version' is not X.Y.Z"
+  fi
+  if [ -z "$reviewed" ]; then
+    report "$file has no 'Last reviewed: YYYY-MM-DD' line"
+    return 0
+  fi
+  _epoch=$(date_epoch "$reviewed")
+  if [ -z "$_epoch" ]; then
+    report "$file Last reviewed '$reviewed' is not a YYYY-MM-DD date"
+    return 0
+  fi
+  _now=$(date +%s)
+  if [ "$_epoch" -gt "$_now" ]; then
+    report "$file Last reviewed $reviewed is in the future"
+    return 0
+  fi
+  _age=$(( (_now - _epoch) / 86400 ))
+  if [ "$_age" -gt "$MAX_DESIGN_REVIEW_AGE_DAYS" ]; then
+    report "$file was last reviewed $reviewed, $_age days ago (limit $MAX_DESIGN_REVIEW_AGE_DAYS); review it and bump the date"
+  fi
+}
+
+check_design_system_version
 
 if [ "$problems" -ne 0 ]; then
   printf 'docs-check: %d problem(s)\n' "$problems" >&2
