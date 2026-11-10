@@ -5,7 +5,7 @@ import token
 import uuidv7
 import tests/fixtures
 import ../../src/live
-import ../../src/ws_ticket
+import ../../../../modules/platform/ws_ticket
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
 

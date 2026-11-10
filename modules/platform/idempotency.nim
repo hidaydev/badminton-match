@@ -80,3 +80,11 @@ proc complete*(db: Db, userId, key: string, statusCode: int,
        where user_id = $1::uuid and key = $2""",
     @[textParam(userId), textParam(key), intParam(statusCode.int64),
       textParam($response)])
+
+proc release*(db: Db, userId, key: string) =
+  ## A failed attempt must not own the key: the retry with a corrected body
+  ## would otherwise answer 409 for the rest of the TTL.
+  discard db.execUpdate(
+    """delete from platform.idempotency_keys
+       where user_id = $1::uuid and key = $2""",
+    @[textParam(userId), textParam(key)])

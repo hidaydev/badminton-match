@@ -26,13 +26,14 @@ import share/crypto
 import share/store as shareStore
 import session/write as sessionWrite
 import session/application/detail as sessionDetail
+import session/application/list as sessionList
 import session/standings as sessionStandings
 import session/schedule as sessionSchedule
 import session/scoring as sessionScoring
 import session/sides as sessionSides
 import session/swap as sessionSwap
 import tournament/store as tournamentStore
-import ws_ticket as wsTicket
+import platform/ws_ticket as wsTicket
 import platform/idempotency
 import player/domain/player as playerDomain
 import player/store as playerStore
@@ -43,6 +44,7 @@ import rating/infrastructure/ingest as ratingIngest
 import rating/infrastructure/jobs as ratingJobs
 import rating/infrastructure/tournament as ratingTournament
 import rating/infrastructure/params as ratingParams
+import rating/infrastructure/sources as ratingSources
 import rating/read as ratingRead
 import achievement/infrastructure/backfill as achievementBackfill
 import account/domain/lifecycle as accountLifecycle
@@ -95,6 +97,12 @@ type
     token*: string
 
 var application: App
+
+proc database(): Db =
+  ## The process pool, named once. A handler receives it from here instead of
+  ## reaching for the global in every routine; the archcheck allowlist records
+  ## this single routine as the documented exception (BE-06).
+  application.db
 
 # `route()` computes the quota label once and `send` hands it to the counter
 # instead of deriving it again. Each connection is served on a single worker
@@ -163,7 +171,7 @@ proc authAudit(action: string, user: AuthUser, outcome = arAllow,
   ## Auth events belong to no community, so the row carries none. The role is
   ## the platform one, because a lesson learned here is about a person's
   ## sessions, not about a membership.
-  recordAudit(application.db, auditEvent(action, communityId = "",
+  recordAudit(database(), auditEvent(action, communityId = "",
     actorId = user.id,
     actorRole = (if user.isOwner: "platform_owner" else: "member"),
     outcome = outcome, targetKind = "user", targetId = user.id,
@@ -172,7 +180,7 @@ proc authAudit(action: string, user: AuthUser, outcome = arAllow,
 proc authRejected(action, reason: string, userId = "") =
   ## A rejected attempt before any session exists: who is unknown unless the
   ## account was already resolved. Only the reason is kept, never the token.
-  recordAudit(application.db, auditEvent(action, communityId = "",
+  recordAudit(database(), auditEvent(action, communityId = "",
     actorId = userId, actorRole = "anonymous", outcome = arDeny,
     targetKind = (if userId.len > 0: "user" else: ""), targetId = userId,
     reason = reason, requestId = currentRequestId()))
@@ -187,8 +195,8 @@ proc auditedWrite(body: proc(tx: Db, conn: DbConn)) =
   ## receives a facade bound to this connection, so a helper that takes a `Db`
   ## cannot check out a second connection and commit before the audit row. If
   ## either the write or the audit fails, both roll back.
-  application.db.tx(proc(conn: DbConn) =
-    body(application.db.boundTo(conn), conn))
+  database().tx(proc(conn: DbConn) =
+    body(database().boundTo(conn), conn))
 
 proc send(request: Request, status: int,
           headers: openArray[(string, string)], body: string) =
@@ -208,7 +216,7 @@ proc send(request: Request, status: int,
   request.respond(status, merged, body)
   # The pool is sampled on every answer so `/metrics` reports the state of the
   # last request; a scrape-only read would need the listener to hold the pool.
-  let pool = application.db.poolStats()
+  let pool = database().poolStats()
   recordPool(pool.size, pool.available, pool.inUse)
   discard recordResponse(request.httpMethod, request.path, status,
     currentRouteLabel, currentRequestId())
@@ -316,13 +324,7 @@ proc configSnapshot(): Snapshot =
   ## Every call probes `platform.config_version` before it can reuse the cache,
   ## so `route` takes one snapshot per request and hands it to the handler. This
   ## stays for helpers that read a single key and are called outside that chain.
-  application.config.snapshot(application.db)
-
-proc database(): Db =
-  ## The process pool, named once. A handler receives it from here instead of
-  ## reaching for the global in every routine; the archcheck allowlist records
-  ## this single routine as the documented exception (BE-06).
-  application.db
+  application.config.snapshot(database())
 
 proc scoringPresets(snapshot: Snapshot): seq[sessionScoring.ScoringRules] =
   ## The platform list. It is reference data for the wizard, not a community
@@ -493,7 +495,7 @@ proc requestIdentity(request: Request, snapshot: Snapshot,
   if token.len > 0:
     let idleDays = snapshot.intValue(%*{}, keySessionIdleDays)
     try:
-      let userId = application.identityCache.cachedUserId(application.db,
+      let userId = application.identityCache.cachedUserId(database(),
         token, idleDays, utcNow().toTime.toUnixFloat)
       if userId.isSome:
         recordIdentitySource("cookie")
@@ -554,14 +556,14 @@ proc authFlowCookie(state: string): string =
 
 proc createSessionToken(userId: string, snapshot: Snapshot): string =
   let days = snapshot.intValue(%*{}, keySessionAbsoluteDays)
-  createSession(application.db, userId, days)
+  createSession(database(), userId, days)
 
 proc currentUser(request: Request, snapshot: Snapshot): Option[AuthUser] =
   let token = cookieValue(request, "majadu_session")
   if token.len == 0:
     return none(AuthUser)
   let idleDays = snapshot.intValue(%*{}, keySessionIdleDays)
-  let user = resolve(application.db, token, idleDays)
+  let user = resolve(database(), token, idleDays)
   if user.isNone:
     return none(AuthUser)
   some(AuthUser(
@@ -585,7 +587,7 @@ proc decide(user: AuthUser, slug: string,
             access: Access): (Gate, Option[CommunityContext]) =
   ## Membership is resolved before the gate so a foreign slug is a 404, not a
   ## 403 that confirms the community exists.
-  let ctx = loadCommunity(application.db, user.id, slug)
+  let ctx = loadCommunity(database(), user.id, slug)
   (gate(access, some(actorOf(user)), ctx), ctx)
 
 proc respondGate(request: Request, decision: Gate) =
@@ -607,7 +609,7 @@ proc denyAudit(user: AuthUser, community: Option[CommunityContext],
     elif community.isSome: $community.get.role
     else: "member"
   try:
-    recordAudit(application.db, auditEvent("authz.denied", communityId,
+    recordAudit(database(), auditEvent("authz.denied", communityId,
       actorId = user.id, actorRole = role, outcome = arDeny,
       targetKind = "route", targetId = currentRouteLabel,
       reason = "denied " & currentRouteLabel,
@@ -640,7 +642,7 @@ proc startAuth(request: Request, snapshot: Snapshot) =
   let challenge = b64url(sha256Raw(verifier))
   let (keyId, encrypted) = encryptWith(application.keyring, verifier, state)
   let ttl = snapshot.intValue(%*{}, keyAuthFlowTtlMinutes)
-  discard application.db.execUpdate(
+  discard database().execUpdate(
     """insert into auth.oauth_flows
        (state_hash, nonce_hash, code_verifier_enc, key_id, return_to, expires_at)
        values (decode($1,'hex'), decode($2,'hex'), decode($3,'hex'), $4, $5,
@@ -667,7 +669,7 @@ proc finishAuth(request: Request, snapshot: Snapshot) =
     return
   # One-shot read: the row is deleted even when the tokens below fail, so a
   # replayed callback can never reuse a flow. Expiry is evaluated by the database.
-  let row = application.db.queryOne(
+  let row = database().queryOne(
     """with deleted as (
          delete from auth.oauth_flows
          where state_hash = decode($1,'hex') and expires_at > now()
@@ -714,7 +716,7 @@ proc finishAuth(request: Request, snapshot: Snapshot) =
     problem(request, 401, "NONCE_MISMATCH", "nonce mismatch")
     return
   let subject = claims["sub"].getStr()
-  let tombstone = application.db.queryOne(
+  let tombstone = database().queryOne(
     """select id, email_hash from platform.user where google_sub = $1""",
     @[textParam(sha256Hex(subject))])
   if tombstone.isSome and accountLifecycle.isAnonymized(
@@ -730,7 +732,7 @@ proc finishAuth(request: Request, snapshot: Snapshot) =
   let displayName =
     if claims.hasKey("name"): claims["name"].getStr() else: email
   let owner = application.bootstrapOwner.len > 0 and email == application.bootstrapOwner
-  let userRow = application.db.queryOne(
+  let userRow = database().queryOne(
     """insert into platform.user
        (google_sub, email_hash, display_name, is_platform_owner)
        values ($1, $2, $3, $4)
@@ -750,8 +752,8 @@ proc finishAuth(request: Request, snapshot: Snapshot) =
   # `community.join` row would claim they joined twice.
   let loginUser = AuthUser(id: userRow.get.get("id"),
     isOwner: userRow.get.get("is_platform_owner") == "t")
-  application.db.tx(proc(conn: DbConn) =
-    for grant in inviteStore.acceptPendingForEmail(application.db.boundTo(conn),
+  database().tx(proc(conn: DbConn) =
+    for grant in inviteStore.acceptPendingForEmail(database().boundTo(conn),
         loginUser.id, sha256Hex(email)):
       auditConn(conn, "community.join", grant.communityId, loginUser, "community",
         grant.communityId, %*{"role": grant.role}, grant.role))
@@ -768,7 +770,7 @@ proc listAuthSessions(request: Request, snapshot: Snapshot) =
   let user = requireUser(request, snapshot)
   if user.isNone: return
   var items = newJArray()
-  for row in listSessions(application.db, user.get.id, user.get.token):
+  for row in listSessions(database(), user.get.id, user.get.token):
     items.add(%*{"id": row.id, "createdAt": row.createdAt,
       "lastSeenAt": row.lastSeenAt, "current": row.current})
   jsonResponse(request, 200, %*{"items": items})
@@ -808,7 +810,7 @@ proc logout(request: Request, snapshot: Snapshot) =
       auditConn(conn, "auth.logout", "", user.get, "user", user.get.id,
         newJObject(), (if user.get.isOwner: "platform_owner" else: "member")))
   elif token.len > 0:
-    revoke(application.db, token)
+    revoke(database(), token)
   # Sockets and every ticket of the principal close with the session.
   if user.isSome:
     application.hub.revokePrincipal(user.get.id)
@@ -859,7 +861,7 @@ proc createCommunity(request: Request, snapshot: Snapshot) =
     return
   # The zone decides which calendar day a session belongs to, so an unknown name
   # is a bad request, not a value to store and fail on later.
-  if not validTimezone(application.db, check.timezone):
+  if not validTimezone(database(), check.timezone):
     problem(request, 400, "INVALID_COMMUNITY",
       "timezone is not a known IANA zone")
     return
@@ -886,7 +888,7 @@ proc listCommunities(request: Request,
   let user = requireUser(request, snapshot)
   if user.isNone: return
   var items = newJArray()
-  for row in application.db.query(
+  for row in database().query(
     """select c.id, c.slug, c.name, m.role
        from community.membership m
        join platform.community c on c.id = m.community_id
@@ -946,16 +948,13 @@ proc release(w: WriteKey) =
   ## would otherwise answer 409 for the rest of the TTL.
   if w.key.len == 0:
     return
-  discard application.db.execUpdate(
-    """delete from platform.idempotency_keys
-       where user_id = $1::uuid and key = $2""",
-    @[textParam(w.userId), textParam(storageKey(w))])
+  idempotency.release(database(), w.userId, storageKey(w))
 
 proc complete(w: WriteKey, status: int, body: JsonNode) =
   ## Stores the response under the row the claim took, so a replay returns it.
   if w.key.len == 0:
     return
-  complete(application.db, w.userId, storageKey(w), status, body)
+  complete(database(), w.userId, storageKey(w), status, body)
 
 proc claimWrite(request: Request, ctx: CommunityContext, user: AuthUser,
                 resource = ""): Option[WriteKey] =
@@ -966,7 +965,7 @@ proc claimWrite(request: Request, ctx: CommunityContext, user: AuthUser,
     key: request.headers["Idempotency-Key"], resource: resource)
   if w.key.len == 0:
     return some(w)
-  let entry = claim(application.db, w.userId, storageKey(w),
+  let entry = claim(database(), w.userId, storageKey(w),
     bodyHash(request.body))
   case entry.status
   of idempotencyNew:
@@ -1045,16 +1044,8 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser,
   let w = claimed.get
   var row: Option[Row]
   auditedWrite(proc(tx: Db, conn: DbConn) =
-    row = tx.queryOne(
-      """insert into session.sessions
-         (community_id, title, session_date, start_time, slot_minutes, status,
-          source, scoring_preset, scoring_rules)
-         values ($1, $2, $3::date, $4::time, $5, 'draft', 'manual', $6,
-                 $7::jsonb)
-         returning id, title, session_date::text as session_date, status""",
-      @[textParam(ctx.communityId), textParam(title), textParam(date),
-        textParam(startTime), intParam(slot.int64), textParam(presetId),
-        textParam($sessionScoring.rulesJson(chosen.get))])
+    row = sessionWrite.create(tx, ctx.communityId, title, date, startTime,
+      slot, presetId, $sessionScoring.rulesJson(chosen.get))
     if row.isSome:
       auditConn(conn, "session.create", ctx, user, "session",
         row.get.get("id"),
@@ -1129,64 +1120,33 @@ proc listSessions(request: Request, ctx: CommunityContext,
   let q = request.queryParams["q"].strip()
   let status = sessionStatusFilter(request)
   var items = newJArray()
-  for row in application.db.query(
-    """select s.id, s.title, s.session_date::text as session_date, s.status,
-              s.version,
-              (select count(*) from session.participants p
-                where p.community_id = s.community_id
-                  and p.session_id = s.id)::int as player_count,
-              (select count(*) from session.games g
-                where g.community_id = s.community_id
-                  and g.session_id = s.id)::int as total_games
-       from session.sessions s
-       where s.community_id = $1::uuid
-         and ($2 = '' or s.session_date = nullif($2, '')::date)
-         and ($3 = '' or strpos(lower(s.title), lower($3)) > 0)
-         and ($4 = '' or s.status = $4)
-       order by s.session_date desc, s.updated_at desc
-       limit $5 offset $6""",
-    @[textParam(ctx.communityId), textParam(date), textParam(q),
-      textParam(status), intParam(limit.int64), intParam(offset.int64)]):
+  for row in sessionList.page(database(), ctx.communityId, date, q, status,
+      limit, offset):
     items.add(%*{"id": row.get("id"), "title": row.get("title"),
       "date": row.get("session_date"), "status": row.get("status"),
       "version": parseInt(row.get("version")),
       "playerCount": parseInt(row.get("player_count")),
       "totalGames": parseInt(row.get("total_games"))})
-  let totalRow = application.db.queryOne(
-    """select count(*)::int as total from session.sessions s
-       where s.community_id = $1::uuid
-         and ($2 = '' or s.session_date = nullif($2, '')::date)
-         and ($3 = '' or strpos(lower(s.title), lower($3)) > 0)
-         and ($4 = '' or s.status = $4)""",
-    @[textParam(ctx.communityId), textParam(date), textParam(q),
-      textParam(status)])
-  let total = if totalRow.isSome: parseInt(totalRow.get.get("total")) else: 0
+  let total = sessionList.total(database(), ctx.communityId, date, q, status)
   pagedJson(request, items, total, limit, offset)
 
 proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
                  sessionId: string, snapshot: Snapshot) =
-  let session = application.db.queryOne(
-    """select id, status from session.sessions
-       where id = $1 and community_id = $2""",
-    @[textParam(sessionId), textParam(ctx.communityId)])
-  if session.isNone:
+  let status = shareStore.sessionStatus(database(), ctx.communityId, sessionId)
+  if status.isNone:
     problem(request, 404, "NOT_FOUND", "session not found")
     return
   # A code hands the session to anyone holding it, so it may only name a
   # session the community has approved. A draft would publish an unfinished
   # schedule and standings for the whole TTL.
-  let status = session.get.get("status")
-  if not shareStore.shareable(status):
+  if not shareStore.shareable(status.get):
     problem(request, 409, "SESSION_NOT_SHAREABLE",
-      "session status is " & status & "; only an approved session is shareable")
+      "session status is " & status.get &
+      "; only an approved session is shareable")
     return
   # Issuing a link revokes the previous one in the same transaction, so its
   # watchers and their tickets go too.
-  let previous = application.db.queryOne(
-    """select id from session.links
-       where community_id = $1::uuid and session_id = $2::uuid
-         and revoked_at is null""",
-    @[textParam(ctx.communityId), textParam(sessionId)])
+  let previous = shareStore.unrevokedLinks(database(), ctx.communityId, sessionId)
   var code = ""
   auditedWrite(proc(tx: Db, conn: DbConn) =
     code = shareStore.issue(tx, application.keyring,
@@ -1194,8 +1154,8 @@ proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
       snapshot.intValue(%*{}, keyShareLinkTtlDays))
     auditConn(conn, "share.issue", ctx, user, "session", sessionId,
       %*{"sessionId": sessionId}))
-  if previous.isSome:
-    application.hub.revokeShare(previous.get.get("id"))
+  for linkId in previous:
+    application.hub.revokeShare(linkId)
   jsonResponse(request, 201, %*{"code": code, "sessionId": sessionId})
 
 proc deleteShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
@@ -1217,14 +1177,11 @@ proc issueSessionTicket(request: Request, ctx: CommunityContext, user: AuthUser,
                         sessionId: string, snapshot: Snapshot) =
   ## Read access is enough: any member may watch. The ticket is bound to the
   ## session row, so a foreign-community id is a 404 before anything is issued.
-  let session = application.db.queryOne(
-    "select id from session.sessions where id = $1 and community_id = $2",
-    @[textParam(sessionId), textParam(ctx.communityId)])
-  if session.isNone:
+  if not sessionDetail.exists(database(), ctx.communityId, sessionId):
     problem(request, 404, "NOT_FOUND", "session not found")
     return
   let ttl = snapshot.intValue(%*{}, keyWsTicketTtlSeconds)
-  let ticket = wsTicket.issueSession(application.db, user.id, sessionId, ttl)
+  let ticket = wsTicket.issueSession(database(), user.id, sessionId, ttl)
   jsonResponse(request, 200, %*{"ticket": ticket, "expiresIn": ttl})
 
 proc shareKeyProblemLine*(linkId, requestId: string): string =
@@ -1245,12 +1202,12 @@ proc shareKeyUnavailable(request: Request,
 proc issueShareTicket(request: Request, code: string, snapshot: Snapshot) =
   ## Anonymous path: the share limiter has already run in `route`, before this
   ## insert. Only a `share` channel ticket is ever minted here.
-  let found = shareStore.resolve(application.db, application.keyring, code)
+  let found = shareStore.resolve(database(), application.keyring, code)
   if found.isNone:
     problem(request, 404, "NOT_FOUND", "link not found")
     return
   let ttl = snapshot.intValue(%*{}, keyWsTicketTtlSeconds)
-  let ticket = wsTicket.issueShare(application.db, found.get.linkId, ttl)
+  let ticket = wsTicket.issueShare(database(), found.get.linkId, ttl)
   jsonResponse(request, 200, %*{"ticket": ticket, "expiresIn": ttl},
     [("X-Robots-Tag", "noindex")])
 
@@ -1428,7 +1385,7 @@ proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
   # A sign-off freezes the source: unlocking withdraws its event, and re-locking
   # used to rewrite `approved_at`/`approved_by`, so a host could re-stamp a
   # result an admin had approved. Both directions refuse now.
-  if ratingIngest.sourceFinalized(application.db, ctx.communityId, sessionId):
+  if ratingIngest.sourceFinalized(database(), ctx.communityId, sessionId):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
   var outcome: sessionWrite.WriteResult
@@ -1494,12 +1451,12 @@ proc patchCommunitySettings(request: Request, ctx: CommunityContext,
   except ValueError:
     problem(request, 400, "INVALID_BODY", "settings patch must be JSON")
     return
-  let result = applyPatch(application.db, snapshot, ctx.communityId,
+  let result = applyPatch(database(), snapshot, ctx.communityId,
     user.id, body, currentRequestId(), $ctx.role)
   case result.outcome
   of soOk:
     jsonResponse(request, 200,
-      %*{"values": visibleSettings(currentSettings(application.db,
+      %*{"values": visibleSettings(currentSettings(database(),
         ctx.communityId))})
   of soUnknownKey:
     problem(request, 400, "UNKNOWN_CONFIG_KEY", result.detail & ": " & result.key)
@@ -1514,7 +1471,7 @@ proc directory(request: Request, snapshot: Snapshot) =
   ## Public listing. Outsiders only see communities that opted in; a member also
   ## sees their own. Entries carry the slug and the name, nothing else.
   let user = currentUser(request, snapshot)
-  let items = communityStore.directory(application.db,
+  let items = communityStore.directory(database(),
     (if user.isSome: some(user.get.id) else: none(string)),
     snapshot.boolValue(%*{}, keyCommunityDirectoryEnabled),
     $keyCommunityDirectoryEnabled)
@@ -1584,7 +1541,7 @@ proc requestJoin(request: Request, slug: string, snapshot: Snapshot) =
         snapshot.intValue(%*{}, keySecurityJoinRequestRate)):
       return
   let row = if user.isSome:
-    application.db.queryOne(
+    database().queryOne(
       """select c.id,
                 coalesce((s.values ->> $2)::boolean, $3) as enabled
          from platform.community c
@@ -1612,12 +1569,12 @@ proc listJoinRequests(request: Request, ctx: CommunityContext,
                       snapshot: Snapshot) =
   let (limit, offset) = pageParams(request, snapshot)
   var items = newJArray()
-  for entry in joinRequestStore.listPending(application.db, ctx.communityId,
+  for entry in joinRequestStore.listPending(database(), ctx.communityId,
                                             limit, offset):
     items.add(%*{"id": entry.id, "userId": entry.userId,
       "displayName": entry.displayName, "createdAt": entry.createdAt})
   pagedJson(request, items,
-    joinRequestStore.countPending(application.db, ctx.communityId), limit,
+    joinRequestStore.countPending(database(), ctx.communityId), limit,
     offset)
 
 proc decideJoinRequest(request: Request, ctx: CommunityContext, user: AuthUser,
@@ -1655,24 +1612,24 @@ proc listPendingClaims(request: Request, ctx: CommunityContext,
                        snapshot: Snapshot) =
   let (limit, offset) = pageParams(request, snapshot)
   var items = newJArray()
-  for entry in playerClaim.listPending(application.db, ctx.communityId,
+  for entry in playerClaim.listPending(database(), ctx.communityId,
                                        limit, offset):
     items.add(%*{"claimId": entry.claimId, "playerId": entry.playerId,
       "playerName": entry.playerName, "userId": entry.userId,
       "displayName": entry.displayName, "createdAt": entry.createdAt})
   pagedJson(request, items,
-    playerClaim.countPending(application.db, ctx.communityId), limit, offset)
+    playerClaim.countPending(database(), ctx.communityId), limit, offset)
 
 proc listMembers(request: Request, ctx: CommunityContext,
                  snapshot: Snapshot) =
   let (limit, offset) = pageParams(request, snapshot)
   var items = newJArray()
-  for member in membershipStore.list(application.db, ctx.communityId, limit,
+  for member in membershipStore.list(database(), ctx.communityId, limit,
                                      offset):
     items.add(%*{"userId": member.userId, "displayName": member.displayName,
       "role": member.role, "joinedAt": member.joinedAt})
   pagedJson(request, items,
-    membershipStore.count(application.db, ctx.communityId), limit, offset)
+    membershipStore.count(database(), ctx.communityId), limit, offset)
 
 proc patchMemberRole(request: Request, ctx: CommunityContext, user: AuthUser,
                      targetId: string,
@@ -1768,13 +1725,13 @@ proc listPlayersRoute(request: Request, ctx: CommunityContext,
   # `mine=1` backs the "my statistics" shortcut: the account asks for the one
   # player it owns instead of walking the roster and matching ids.
   if request.queryParams["mine"] == "1":
-    let owned = playerStore.ownedBy(application.db, ctx.communityId, userId)
+    let owned = playerStore.ownedBy(database(), ctx.communityId, userId)
     var body = newJArray()
     if owned.isSome:
       body.add(owned.get)
     jsonResponse(request, 200, %*{"items": body})
     return
-  let items = playerStore.list(application.db, ctx.communityId,
+  let items = playerStore.list(database(), ctx.communityId,
     pageParams(request, snapshot).limit, request.queryParams["cursor"],
     tierParam(request), request.queryParams["q"])
   var body = newJArray()
@@ -1843,20 +1800,20 @@ proc createPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   of pcOk:
     let playerId = result.player["id"].getStr()
     jsonResponse(request, 201, withAliases(result.player,
-      playerStore.aliases(application.db, ctx.communityId, playerId)))
+      playerStore.aliases(database(), ctx.communityId, playerId)))
 
 proc getPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
                     playerId: string) =
-  let player = playerStore.get(application.db, ctx.communityId, playerId)
+  let player = playerStore.get(database(), ctx.communityId, playerId)
   if player.isNone:
     problem(request, 404, "NOT_FOUND", "player not found")
     return
   var body = withAliases(player.get,
-    playerStore.aliases(application.db, ctx.communityId, playerId))
+    playerStore.aliases(database(), ctx.communityId, playerId))
   # The claim action is refused server-side when the viewer already owns a
   # player here, so the page needs to know before offering the button.
   body["viewerOwnsPlayer"] =
-    %playerClaim.ownsPlayer(application.db, ctx.communityId, user.id)
+    %playerClaim.ownsPlayer(database(), ctx.communityId, user.id)
   jsonResponse(request, 200, body)
 
 proc patchPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
@@ -1888,7 +1845,7 @@ proc patchPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
       problem(request, 409, "ALIAS_TAKEN", "an alias is already used by another player")
       return
     jsonResponse(request, 200, withAliases(result.player,
-      playerStore.aliases(application.db, ctx.communityId, playerId)))
+      playerStore.aliases(database(), ctx.communityId, playerId)))
   of psDuplicate:
     problem(request, 409, "PLAYER_EXISTS", "a player with this name already exists")
   of psNotFound:
@@ -1986,13 +1943,13 @@ proc listClaimsRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   ## Members see the claim trail but not who else applied or who decided:
   ## only a member's own claim stays identifiable, so the page can still say
   ## they are waiting. Hosts and admins need the full record to act on it.
-  if playerStore.get(application.db, ctx.communityId, playerId).isNone:
+  if playerStore.get(database(), ctx.communityId, playerId).isNone:
     problem(request, 404, "NOT_FOUND", "player not found")
     return
   let privileged = ctx.role in [rHost, rAdmin]
   let (limit, offset) = pageParams(request, snapshot)
   var items = newJArray()
-  for claim in playerClaim.list(application.db, ctx.communityId, playerId,
+  for claim in playerClaim.list(database(), ctx.communityId, playerId,
                                 limit, offset):
     let reveal = privileged or claim.userId == user.id
     items.add(%*{
@@ -2005,7 +1962,7 @@ proc listClaimsRoute(request: Request, ctx: CommunityContext, user: AuthUser,
       "createdAt": claim.createdAt,
     })
   pagedJson(request, items,
-    playerClaim.count(application.db, ctx.communityId, playerId), limit, offset)
+    playerClaim.count(database(), ctx.communityId, playerId), limit, offset)
 
 proc submitClaim(request: Request, ctx: CommunityContext, user: AuthUser,
                  playerId: string) =
@@ -2106,7 +2063,7 @@ proc opsPing(request: Request) =
   ## Ops routes accept only a bearer token. A valid browser cookie is not enough,
   ## and the same token never authenticates a web route because those read only
   ## the session cookie.
-  let name = opsToken.verify(application.db, bearerToken(request))
+  let name = opsToken.verify(database(), bearerToken(request))
   if name.isNone:
     problem(request, 401, "UNAUTHENTICATED", "ops token required")
     return
@@ -2135,7 +2092,7 @@ proc readyz(request: Request) =
   ## snapshot that disagrees with CUTOVER_SNAPSHOT_SHA256 is a refusal.
   var detail = ""
   try:
-    let missing = application.db.queryOne(
+    let missing = database().queryOne(
       """select count(*)::int as missing
          from unnest($1::text[]) as wanted(name)
          where not exists (
@@ -2153,7 +2110,7 @@ proc readyz(request: Request) =
   if detail.len == 0:
     let expected = getEnv("CUTOVER_SNAPSHOT_SHA256")
     try:
-      let row = application.db.queryOne(
+      let row = database().queryOne(
         "select snapshot_sha256 from platform.cutover_state where id")
       if row.isSome and expected.len > 0:
         let recorded = row.get["snapshot_sha256"]
@@ -2210,7 +2167,7 @@ proc clearSessionRating(request: Request, ctx: CommunityContext,
   if sessionVersionNow(ctx.communityId, sessionId) == 0:
     problem(request, 404, "NOT_FOUND", "session not found")
     return
-  if ratingIngest.sourceFinalized(application.db, ctx.communityId, sessionId):
+  if ratingIngest.sourceFinalized(database(), ctx.communityId, sessionId):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
   # The rebuild replays every approved session, so deleting the event of a
@@ -2256,72 +2213,28 @@ proc listRatingSources(request: Request, ctx: CommunityContext,
   ## admin has to sign both off. The union keeps the order, the page window and
   ## the total in the database, so neither half is unbounded on its own.
   let (limit, offset) = pageParams(request, snapshot)
-  let sourcesSql = """
-    select id, event_type, local_date, source_id, deltas, finalized,
-           finalized_at
-    from (
-      select e.id, e.event_type, e.local_date::text as local_date,
-             coalesce(e.source_id::text, '') as source_id,
-             e.point_entries::int as deltas,
-             coalesce(s.finalized, false) as finalized,
-             s.finalized_at::text as finalized_at,
-             e.created_at as sort_at
-      from rating.events e
-      left join rating.sources s
-        on s.community_id = e.community_id and s.source_id = e.source_id
-      where e.community_id = $1::uuid
-      union all
-      select t.id, 'tournament' as event_type, t.event_date::text,
-             t.id::text as source_id, 0 as deltas,
-             coalesce(s.finalized, false) as finalized,
-             s.finalized_at::text as finalized_at,
-             t.created_at as sort_at
-      from tournament.tournaments t
-      left join rating.sources s
-        on s.community_id = t.community_id and s.source_id = t.id
-      where t.community_id = $1::uuid
-        and not exists (
-          select 1 from rating.events e
-          where e.community_id = t.community_id
-            and e.event_type = 'tournament' and e.source_id = t.id)
-    ) sources
-  """
   var items = newJArray()
-  for row in application.db.query(
-    sourcesSql & """ order by local_date desc, sort_at desc
-                     limit $2 offset $3""",
-    @[textParam(ctx.communityId), intParam(limit.int64),
-      intParam(offset.int64)]):
+  for row in ratingSources.list(database(), ctx.communityId, limit, offset):
     items.add(%*{"id": row.get("id"), "type": row.get("event_type"),
       "date": row.get("local_date"), "sourceId": row.get("source_id"),
       "deltas": parseInt(row.get("deltas")),
       "finalized": row.get("finalized") == "t",
       "finalizedAt": if row["finalized_at"].isSome:
         %row.get("finalized_at") else: newJNull()})
-  let totalRow = application.db.queryOne(
-    "select count(*)::int as total from (" & sourcesSql & ") sources",
-    @[textParam(ctx.communityId)])
-  let total = if totalRow.isSome: parseInt(totalRow.get.get("total")) else: 0
+  let total = ratingSources.total(database(), ctx.communityId)
   pagedJson(request, items, total, limit, offset)
 
 proc removeRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
                         eventId: string) =
   ## An id that names no event is a 404, not a silent success: the caller is
   ## asking to undo something, and "there was nothing there" is the answer.
-  let known = application.db.queryOne(
-    """select 1 as ok from rating.events
-       where community_id = $1::uuid and id = $2::uuid""",
-    @[textParam(ctx.communityId), textParam(eventId)])
-  if known.isNone:
+  if not ratingSources.eventExists(database(), ctx.communityId, eventId):
     problem(request, 404, "NOT_FOUND", "rating event not found")
     return
-  if ratingIngest.eventFinalized(application.db, ctx.communityId, eventId):
+  if ratingIngest.eventFinalized(database(), ctx.communityId, eventId):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
-  let event = application.db.queryOne(
-    """select event_type, source_id::text as source_id from rating.events
-       where community_id = $1::uuid and id = $2::uuid""",
-    @[textParam(ctx.communityId), textParam(eventId)])
+  let event = ratingSources.eventSource(database(), ctx.communityId, eventId)
   if event.isSome and event.get.get("event_type") == "session" and
       sessionApproved(ctx.communityId, event.get.get("source_id")):
     problem(request, 409, "CONFLICT",
@@ -2331,7 +2244,7 @@ proc removeRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
   # worker afterwards, so a failed replay cannot roll back a delete the caller
   # was told had happened.
   var removed = 0
-  application.db.tx(proc(conn: DbConn) =
+  database().tx(proc(conn: DbConn) =
     removed = ratingIngest.removeEventConn(conn, ctx.communityId, eventId)
     auditConn(conn, "rating.source.delete", ctx, user, "rating_event", eventId,
       %*{"removedDeltas": removed}))
@@ -2347,18 +2260,18 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
   ## is rebuilt so the board cannot keep points from a deleted session. A
   ## signed-off source must be reverted first: deleting it would erase a
   ## decision the ledger is supposed to keep.
-  if ratingIngest.sourceFinalized(application.db, ctx.communityId, sessionId):
+  if ratingIngest.sourceFinalized(database(), ctx.communityId, sessionId):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
   # The links go with the session, so their watchers have to be told before the
   # rows they point at are gone.
-  let links = shareStore.liveLinks(application.db, ctx.communityId, sessionId)
+  let links = shareStore.liveLinks(database(), ctx.communityId, sessionId)
   # Delete and revert in one transaction. The ledger replay that follows is a
   # worker job, because holding this transaction open for it is what made a
   # delete as expensive as the community's whole history.
   var outcome = sessionWrite.dsDeleted
   var removed = 0
-  application.db.tx(proc(conn: DbConn) =
+  database().tx(proc(conn: DbConn) =
     outcome = sessionWrite.removeConn(conn, ctx.communityId, sessionId,
       ctx.role == rAdmin)
     if outcome == sessionWrite.dsDeleted:
@@ -2396,26 +2309,16 @@ proc patchRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
     # A session is only signable once it has a rating. Accepting a draft with
     # no event recorded a flag the ledger never shows, which then blocked the
     # delete and let a later lock create the result under that sign-off.
-    let isSession = application.db.queryOne(
-      """select 1 as ok from session.sessions
-         where community_id = $1::uuid and id = $2::uuid""",
-      @[textParam(ctx.communityId), textParam(eventId)]).isSome
-    if isSession and application.db.queryOne(
-        """select 1 as ok from rating.events
-           where community_id = $1::uuid and source_id = $2::uuid""",
-        @[textParam(ctx.communityId), textParam(eventId)]).isNone:
+    let isSession =
+      ratingSources.sessionExists(database(), ctx.communityId, eventId)
+    if isSession and not ratingSources.eventForSourceExists(database(),
+        ctx.communityId, eventId):
       problem(request, 409, "NOT_RATED", "session has no rating to sign off")
       return
   # Resolve the current flag first: only a source that is being signed off
   # again (not an idempotent repeat) needs its event replayed.
-  let alreadyFinalized = application.db.queryOne(
-    """select 1 as ok from rating.sources s
-       where s.community_id = $1::uuid and s.finalized
-         and (s.source_id = $2::uuid
-              or s.source_id = (select e.source_id from rating.events e
-                                where e.community_id = $1::uuid
-                                  and e.id = $2::uuid))""",
-    @[textParam(ctx.communityId), textParam(eventId)]).isSome
+  let alreadyFinalized =
+    ratingSources.alreadyFinalized(database(), ctx.communityId, eventId)
   var updated: Option[JsonNode]
   auditedWrite(proc(tx: Db, conn: DbConn) =
     updated = ratingIngest.setFinalized(tx, ctx.communityId,
@@ -2429,11 +2332,8 @@ proc patchRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
   if finalized and not alreadyFinalized and
       updated.get["kind"].getStr() == "tournament":
     let sourceId = updated.get["sourceId"].getStr()
-    let ingested = application.db.queryOne(
-      """select 1 as ok from rating.events
-         where community_id = $1::uuid and source_id = $2::uuid""",
-      @[textParam(ctx.communityId), textParam(sourceId)])
-    if ingested.isSome:
+    if ratingSources.eventForSourceExists(database(), ctx.communityId,
+        sourceId):
       # The bracket may have been edited between withdrawing and restoring the
       # sign-off. The stored event still carries the old scores, so replay every
       # source instead of leaving the ledger on a stale result. The replay is
@@ -2653,7 +2553,7 @@ proc getSessionStandingsRoute(request: Request, ctx: CommunityContext,
                               sessionId: string) =
   ## Members read the same board the export draws; an unknown or foreign
   ## session is a 404, never an empty board.
-  let board = sessionStandings.compute(application.db, ctx.communityId, sessionId)
+  let board = sessionStandings.compute(database(), ctx.communityId, sessionId)
   if board.isNone:
     problem(request, 404, "NOT_FOUND", "session not found")
     return
@@ -2767,7 +2667,7 @@ proc getGameRoute(request: Request, ctx: CommunityContext, sessionId,
 proc getShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
                   sessionId: string) =
   ## Re-display of the live code: host/admin only, and every read is audited.
-  let code = shareStore.currentCode(application.db, application.keyring,
+  let code = shareStore.currentCode(database(), application.keyring,
     ctx.communityId, sessionId)
   if code.isNone:
     problem(request, 404, "NOT_FOUND", "no live share link")
@@ -2796,32 +2696,19 @@ proc publicStandings(board: Option[JsonNode]): JsonNode =
   %*{"items": items}
 
 proc resolveShare(code: string): Option[JsonNode] =
-  let found = shareStore.resolve(application.db, application.keyring, code)
+  let found = shareStore.resolve(database(), application.keyring, code)
   if found.isNone:
     return none(JsonNode)
   let value = found.get
-  let rules = sessionSchedule.sessionRules(application.db, value.communityId,
+  let rules = sessionSchedule.sessionRules(database(), value.communityId,
     value.sessionId)
   # Every set of the session in one statement: the public payload is polled by
   # a whole group chat and must not cost one query per game.
-  let allSets = sessionDetail.setsByGame(application.db, value.communityId,
+  let allSets = sessionDetail.setsByGame(database(), value.communityId,
     value.sessionId)
   var games = newJArray()
-  for row in application.db.query(
-    """select r.round_no, r.court_no, r.status, r.winner,
-              r.points_a, r.points_b, r.sets_played, r.sets_a, r.sets_b,
-              coalesce(a1.canonical_name, '') as a1,
-              coalesce(a2.canonical_name, '') as a2,
-              coalesce(b1.canonical_name, '') as b1,
-              coalesce(b2.canonical_name, '') as b2
-       from session.game_results r
-       left join player.players a1 on a1.id = r.side_a1
-       left join player.players a2 on a2.id = r.side_a2
-       left join player.players b1 on b1.id = r.side_b1
-       left join player.players b2 on b2.id = r.side_b2
-       where r.community_id = $1::uuid and r.session_id = $2::uuid
-       order by r.round_no, r.court_no""",
-    @[textParam(value.communityId), textParam(value.sessionId)]):
+  for row in sessionDetail.gameResults(database(), value.communityId,
+      value.sessionId):
     # Names, not ids: a spectator cannot resolve a uuid, and the share payload
     # is the only read that has no session behind it. The round and the court
     # are the keys the public screen renders by, so nothing needs the id.
@@ -2853,7 +2740,7 @@ proc resolveShare(code: string): Option[JsonNode] =
                 "date": value.sessionDate, "status": value.status},
     "community": {"slug": value.slug, "name": value.communityName},
     "games": games,
-    "standings": publicStandings(sessionStandings.compute(application.db,
+    "standings": publicStandings(sessionStandings.compute(database(),
       value.communityId, value.sessionId)),
   }
   if rules.isSome:
@@ -2923,14 +2810,14 @@ proc communityBoard(request: Request, communityId, timezone: string,
   let limit = snapshot.intValue(settings, keyRankBoardLimit)
   let minSessions = minSessionsParam(request,
     snapshot.intValue(settings, keyRankMinSessions))
-  let latest = ratingRead.latestEventDate(application.db, communityId)
+  let latest = ratingRead.latestEventDate(database(), communityId)
   let asOf =
-    if latest.len > 0: latest else: communityToday(application.db, timezone)
+    if latest.len > 0: latest else: communityToday(database(), timezone)
   let query = ratingRead.BoardQuery(communityId: communityId,
     asOf: asOf, params: params, limit: limit,
     tier: tierParam(request), minSessions: minSessions,
     playerIds: playerIds)
-  let rows = ratingRead.board(application.db, query)
+  let rows = ratingRead.board(database(), query)
   jsonResponse(request, 200, %*{"items": boardItems(rows),
     "asOf": asOf,
     "windowWeeks": params.windowWeeks, "bestN": params.bestN,
@@ -2941,9 +2828,9 @@ proc rankingPlayer(request: Request, communityId, timezone, playerId: string,
                    playerIds: seq[string] = @[]) =
   let params = ratingParams.loadRatingParams(snapshot, settings)
   let limit = snapshot.intValue(settings, keyRankBoardLimit)
-  let latest = ratingRead.latestEventDate(application.db, communityId)
+  let latest = ratingRead.latestEventDate(database(), communityId)
   let asOf =
-    if latest.len > 0: latest else: communityToday(application.db, timezone)
+    if latest.len > 0: latest else: communityToday(database(), timezone)
   # `min_sessions` means the same filter as on the board: a player below it is
   # not on the ranking either, instead of the detail route ignoring it.
   let minSessions = minSessionsParam(request,
@@ -2951,7 +2838,7 @@ proc rankingPlayer(request: Request, communityId, timezone, playerId: string,
   let query = ratingRead.BoardQuery(communityId: communityId,
     asOf: asOf, params: params, limit: limit, tier: "",
     minSessions: minSessions, playerIds: playerIds)
-  let rows = ratingRead.board(application.db, query)
+  let rows = ratingRead.board(database(), query)
   var found = false
   var item: JsonNode
   for row in rows:
@@ -2972,17 +2859,17 @@ proc rankingPlayer(request: Request, communityId, timezone, playerId: string,
 
 proc playerAchievements(request: Request, ctx: CommunityContext,
                         playerId: string, snapshot: Snapshot) =
-  if playerStore.get(application.db, ctx.communityId, playerId).isNone:
+  if playerStore.get(database(), ctx.communityId, playerId).isNone:
     problem(request, 404, "NOT_FOUND", "player not found")
     return
   let (limit, offset) = pageParams(request, snapshot)
-  let items = achievementBackfill.listForPlayer(application.db,
+  let items = achievementBackfill.listForPlayer(database(),
     ctx.communityId, playerId, limit, offset)
   var body = newJArray()
   for item in items:
     body.add(item)
   pagedJson(request, body,
-    achievementBackfill.countForPlayer(application.db, ctx.communityId,
+    achievementBackfill.countForPlayer(database(), ctx.communityId,
       playerId), limit, offset)
 
 proc boardPoints(communityId, timezone, playerId: string,
@@ -2993,17 +2880,17 @@ proc boardPoints(communityId, timezone, playerId: string,
   ## no board ever displayed.
   let params = ratingParams.loadRatingParams(snapshot, settings)
   let limit = snapshot.intValue(settings, keyRankBoardLimit)
-  let latest = ratingRead.latestEventDate(application.db, communityId)
+  let latest = ratingRead.latestEventDate(database(), communityId)
   let asOf =
-    if latest.len > 0: latest else: communityToday(application.db, timezone)
-  let row = ratingRead.boardEntry(application.db, ratingRead.BoardQuery(
+    if latest.len > 0: latest else: communityToday(database(), timezone)
+  let row = ratingRead.boardEntry(database(), ratingRead.BoardQuery(
     communityId: communityId, asOf: asOf, params: params, limit: limit,
     tier: ""), playerId)
   if row.isSome: row.get.points else: 0
 
 proc playerStats(request: Request, ctx: CommunityContext, playerId: string,
                  snapshot: Snapshot) =
-  let found = ratingRead.stats(application.db, ctx.communityId, playerId)
+  let found = ratingRead.stats(database(), ctx.communityId, playerId)
   if found.isNone:
     problem(request, 404, "NOT_FOUND", "player not found")
     return
@@ -3022,7 +2909,7 @@ proc getSharedRanking(request: Request, code, playerId: string,
   ## The share code names one session, so the public detail is that player's row
   ## on the shared board. Anyone who did not play in the session is a 404, even
   ## if they sit high on the community ladder.
-  let found = shareStore.resolve(application.db, application.keyring, code)
+  let found = shareStore.resolve(database(), application.keyring, code)
   if found.isNone:
     problem(request, 404, "NOT_FOUND", "link not found")
     return
@@ -3030,16 +2917,16 @@ proc getSharedRanking(request: Request, code, playerId: string,
   if playerId notin playerIds:
     problem(request, 404, "NOT_FOUND", "player is not on the board")
     return
-  let settings = currentSettings(application.db, found.get.communityId)
+  let settings = currentSettings(database(), found.get.communityId)
   rankingPlayer(request, found.get.communityId, found.get.timezone, playerId,
     snapshot, settings, playerIds)
 
 proc getSharedRankings(request: Request, code: string, snapshot: Snapshot) =
-  let found = shareStore.resolve(application.db, application.keyring, code)
+  let found = shareStore.resolve(database(), application.keyring, code)
   if found.isNone:
     problem(request, 404, "NOT_FOUND", "link not found")
     return
-  let settings = currentSettings(application.db, found.get.communityId)
+  let settings = currentSettings(database(), found.get.communityId)
   communityBoard(request, found.get.communityId, found.get.timezone, snapshot,
     settings, sessionPlayerIds(found.get.communityId, found.get.sessionId))
 
@@ -3049,7 +2936,7 @@ proc upgradeSocket(request: Request, snapshot: Snapshot, kind, channelId,
   ## query parameter, so it is read here and never echoed: this process keeps no
   ## access log and no log line below repeats the request path.
   let ticket = request.queryParams["ticket"]
-  let consumed = wsTicket.consume(application.db, ticket, kind, channelId)
+  let consumed = wsTicket.consume(database(), ticket, kind, channelId)
   if consumed.isNone:
     problem(request, 401, "UNAUTHENTICATED",
       "ticket is invalid, expired or already used")
@@ -3095,18 +2982,13 @@ proc handleWebSocket(request: Request, snapshot: Snapshot, parts: seq[string]) =
   if parts.len == 6 and parts[2] == "c" and parts[4] == "sessions":
     # The ticket names the session, but the URL also names a community: refuse
     # a handshake that combines a valid ticket with someone else's slug.
-    let session = application.db.queryOne(
-      """select 1 as ok from session.sessions s
-         join platform.community c on c.id = s.community_id
-         where s.id = $1::uuid and c.slug = $2""",
-      @[textParam(parts[5]), textParam(parts[3])])
-    if session.isNone:
+    if not sessionDetail.inCommunitySlug(database(), parts[5], parts[3]):
       problem(request, 404, "NOT_FOUND", "session not found")
       return
     upgradeSocket(request, snapshot, wsTicket.kindSession, parts[5], address)
     return
   if parts.len == 4 and parts[2] == "share":
-    let found = shareStore.resolve(application.db, application.keyring, parts[3])
+    let found = shareStore.resolve(database(), application.keyring, parts[3])
     if found.isNone:
       problem(request, 401, "UNAUTHENTICATED",
         "ticket is invalid, expired or already used")
@@ -3154,7 +3036,7 @@ proc listTournamentsRoute(request: Request, ctx: CommunityContext,
                           snapshot: Snapshot) =
   let (limit, offset) = pageParams(request, snapshot)
   var items = newJArray()
-  for item in tournamentStore.list(application.db, ctx.communityId,
+  for item in tournamentStore.list(database(), ctx.communityId,
       request.queryParams.getOrDefault("format", ""), limit, offset):
     items.add(item)
   jsonResponse(request, 200, %*{"items": items})
@@ -3195,7 +3077,7 @@ proc createTournamentRoute(request: Request, ctx: CommunityContext,
     [("Location", "/c/" & ctx.slug & "/tournaments/" & id)])
 
 proc getTournamentRoute(request: Request, ctx: CommunityContext, id: string) =
-  let snapshot = tournamentStore.load(application.db, ctx.communityId, id)
+  let snapshot = tournamentStore.load(database(), ctx.communityId, id)
   if snapshot.isNone:
     problem(request, 404, "NOT_FOUND", "tournament not found")
     return
@@ -3264,14 +3146,10 @@ proc clearTournamentRating(request: Request, ctx: CommunityContext,
   ## An id that names no tournament is a 404, like the session variant: the
   ## caller is asking to undo something, and "there was nothing there" is the
   ## answer. Only a known tournament reaches the rebuild.
-  let known = application.db.queryOne(
-    """select 1 as ok from tournament.tournaments
-       where community_id = $1::uuid and id = $2::uuid""",
-    @[textParam(ctx.communityId), textParam(id)])
-  if known.isNone:
+  if not tournamentStore.exists(database(), ctx.communityId, id):
     problem(request, 404, "NOT_FOUND", "tournament not found")
     return
-  if ratingIngest.sourceFinalized(application.db, ctx.communityId, id):
+  if ratingIngest.sourceFinalized(database(), ctx.communityId, id):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
   var removed = 0
@@ -3289,7 +3167,7 @@ proc deleteTournamentRoute(request: Request, ctx: CommunityContext,
   ## The Idempotency-Key is accepted but not persisted: a repeated delete is
   ## already a 404, and a 204 must not carry a replay body. A signed-off source
   ## has to be reverted first: deleting it would erase a ledger decision.
-  if ratingIngest.sourceFinalized(application.db, ctx.communityId, id):
+  if ratingIngest.sourceFinalized(database(), ctx.communityId, id):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
   var deleted = false

@@ -194,6 +194,44 @@ proc loadGame*(db: Db, communityId, sessionId: string,
     return none(Game)
   some(gameFromRow(row.get))
 
+proc exists*(db: Db, communityId, sessionId: string): bool =
+  ## The id names a session of this community. A ticket is bound to the row, so
+  ## a foreign-community id must answer 404 before anything is issued.
+  db.queryOne(
+    """select 1 as ok from session.sessions
+       where id = $1::uuid and community_id = $2::uuid""",
+    @[textParam(sessionId), textParam(communityId)]).isSome
+
+proc inCommunitySlug*(db: Db, sessionId, slug: string): bool =
+  ## A handshake names a ticket for a session and a community slug in the URL;
+  ## the two must describe the same row.
+  db.queryOne(
+    """select 1 as ok from session.sessions s
+       join platform.community c on c.id = s.community_id
+       where s.id = $1::uuid and c.slug = $2""",
+    @[textParam(sessionId), textParam(slug)]).isSome
+
+proc gameResults*(db: Db, communityId, sessionId: string): seq[Row] =
+  ## The public share payload: every game with its side names resolved in the
+  ## same statement, so a whole group chat polling it does not cost a query per
+  ## game.
+  for row in db.query(
+    """select r.round_no, r.court_no, r.status, r.winner,
+              r.points_a, r.points_b, r.sets_played, r.sets_a, r.sets_b,
+              coalesce(a1.canonical_name, '') as a1,
+              coalesce(a2.canonical_name, '') as a2,
+              coalesce(b1.canonical_name, '') as b1,
+              coalesce(b2.canonical_name, '') as b2
+       from session.game_results r
+       left join player.players a1 on a1.id = r.side_a1
+       left join player.players a2 on a2.id = r.side_a2
+       left join player.players b1 on b1.id = r.side_b1
+       left join player.players b2 on b2.id = r.side_b2
+       where r.community_id = $1::uuid and r.session_id = $2::uuid
+       order by r.round_no, r.court_no""",
+    @[textParam(communityId), textParam(sessionId)]):
+    result.add(row)
+
 proc versionOf*(db: Db, communityId, sessionId: string): int =
   ## Zero means the id names no session in this community.
   let row = db.queryOne(
