@@ -39,9 +39,17 @@ tree <sha256>
 | `npm:<package>` | npm package from the FE workspace | `apps/web/node_modules/<package>/package.json` (`version` → `version`) |
 | `playwright-browser:<name>` | Playwright browser build `<name>-<version>` | directory `<browser-cache>/<name>-<version>/INSTALLATION_COMPLETE` |
 | `docker:<image:tag>` | container base image in `apps/api/Dockerfile` | the matching `FROM` must carry `@<sha256>` equal to the fourth field |
+| `release:<url>` | a release asset that only CI downloads (`osv-scanner`) | a workflow must name the URL and carry the same 64-hex sha256; every workflow naming it must agree |
 
 Browser cache: `PLAYWRIGHT_BROWSERS_PATH` when set, otherwise
 `~/Library/Caches/ms-playwright` (macOS) or `~/.cache/ms-playwright` (others).
+
+`release:` exists for a scanner that a laptop does not install. There is no local
+file to hash, so the entry's fourth field is the digest the workflow must check
+with `sha256sum -c` after downloading. The resolver reads the digest back out of
+every workflow that names the URL, which is what makes a re-pin a two-file change:
+changing the URL, the version or the digest in one file fails `deps-check`. Two
+workflows that name the same URL must carry the same digest.
 
 An unknown scheme is a failure, not an entry that is skipped.
 
@@ -128,3 +136,9 @@ holey output must not be copied silently.
 - `deps-check` does not check packages that are installed but not recorded in
   `deps.lock` (there is no claim of completeness for all of `pkgs2`). What is guarded is
   every recorded entry.
+- No advisory scanner reads this file. `./task osv-scan` covers `pnpm-lock.yaml` through
+  OSV; OSV has no Nimble ecosystem, so a `nimble:` entry cannot be matched against an
+  advisory by package or version, and `https://api.osv.dev/v1/query` with a `commit` answers
+  no finding for the commits pinned here (checked against `mummy` and `nimcrypto` on
+  2026-11-10). The Nim universe is guarded by the commit pin and the content digest in this
+  file, not by an advisory feed.

@@ -15,3 +15,9 @@ nim c $CHECK_FLAGS --nimcache:"$NIMCACHE_CHECK" -o:"$bin" tools/contract-gen/che
 "$bin" "$@"
 
 sh "$REPO_ROOT/task.d/contract-gen.sh" --check
+
+# SEC-10: the fingerprint proves the generated routes match the specs; it says
+# nothing about the table the request path reads. Every declared operation needs
+# a matrix key and an explicit rule in route_access.nim, or it silently inherits
+# the table's fallback class.
+sh "$REPO_ROOT/task.d/contract-keys.sh"

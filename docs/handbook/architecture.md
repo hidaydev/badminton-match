@@ -119,7 +119,9 @@ The contract is hand-written in two JSON-syntax documents:
 `apps/api/src/routes_gen.nim` + `packages/web-client/src/api.ts`, and writes
 `CONTRACT.sha256`. The current operation count is **75** (`CONTRACT.sha256`, line
 `operations 75`). `./task contract-check` fails if the spec, the generated output, or the
-fingerprint differ.
+fingerprint differ, and it fails when an operation has no access-table key: every declared
+operation needs a row in `testdata/authz/matrix.yaml` and an explicit rule in
+`apps/api/src/route_access.nim` (`./task contract-keys`).
 
 The contract is not passive documentation: `verifyHandlers` fails at compile time when an
 operation has no handler (`verifyHandlers` in `apps/api/src/routes_gen.nim`), and `apps/api/tests/routes_test.nim`
@@ -273,7 +275,7 @@ v1 leftover.
 | `./task check` | `nim check`, unit tests, archcheck | no |
 | `./task test` | unit + integration (`INTEGRATION=1`) | yes (`MAJADU_PG_DSN`) |
 | `./task verify <module\|api>` | test one module | when integration is present |
-| `./task contract-check` | fingerprint + generated output | no |
+| `./task contract-check` | fingerprint + generated output + access-table keys | no |
 | `./task coverage` | lines per module, ratchet baseline | yes (integration) |
 | `./task parity verify` | frozen v1 corpus + v2 | no / v2: yes |
 | `pnpm check:web` | TypeScript, ESLint, Tailwind, Vitest | no |

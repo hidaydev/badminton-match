@@ -296,6 +296,11 @@ jobs:
         with:
           # gitleaks scans the commits in this run, not only the working tree.
           fetch-depth: 0
+      # `./task osv-scan` compiles the severity gate (tools/osvgate), which is
+      # stdlib only: no nimble packages are installed in this job.
+      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+        with:
+          nim-version: ${{ env.NIM_VERSION }}
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       # No pnpm cache here: the job audits the lockfile without installing, so
       # the store directory never exists and setup-node's post step failed the
@@ -309,6 +314,21 @@ jobs:
         run: ./task ci-guards
       - name: "Supply chain: audit the frontend lockfile"
         run: pnpm audit --audit-level=high --prod
+      # SEC-05: OSV is a second advisory database over the same lockfile, and it
+      # reports the package, the version and the fixing release instead of only
+      # an exit code. The scanner is a release asset pinned by version and by the
+      # sha256 recorded in deps.lock; `./task deps-check` fails when this step
+      # and the lock disagree.
+      - name: "Supply chain: install the pinned OSV scanner"
+        env:
+          OSV_URL: https://github.com/google/osv-scanner/releases/download/v2.7.0/osv-scanner_linux_amd64
+          OSV_SHA256: 160c6253e2922e9e0a6a9771c5c4c40a4b3c6090b34a3cdd5e80c96cc2e4218b
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/osv-scanner" "$OSV_URL"
+          printf '%s  %s\n' "$OSV_SHA256" "$RUNNER_TEMP/osv-scanner" | sha256sum -c -
+          sudo install -m 0755 "$RUNNER_TEMP/osv-scanner" /usr/local/bin/osv-scanner
+      - name: "Supply chain: scan the lockfile against OSV"
+        run: ./task osv-scan
       - name: "Supply chain: scan for committed secrets"
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:

@@ -1,7 +1,7 @@
 # deps.lock — pinned toolchain, Nim packages, and gate tools.
 # Format: docs/handbook/deps-format.md. Verify with ./task deps-check.
 # tree = sha256 over the sorted entry lines below (comments excluded).
-tree 6539c661c8c6fc9cad3927095cc4062f9a77f93007c16dec760cb938f57637a4
+tree 230502ddebc48b791c847363ae0b5f341e6ad7d0fcfb2afa0e8c520530993be1
 
 # Nim toolchain
 nim 2.4.0 toolchain:nim -
@@ -28,6 +28,11 @@ db_connector 0.1.0 nimble:https://github.com/nim-lang/db_connector@29450a2063970
 # Frontend gate tools (T-072)
 playwright 1.64.1 npm:playwright -
 @axe-core/playwright 4.14.0 npm:@axe-core/playwright -
+
+# CI-only scanner (SEC-05). The workflow downloads this exact asset and verifies
+# the fourth field with sha256sum, so the lock is the pin and the workflow is the
+# installer. Update both together: docs/handbook/deps-format.md section 2.
+osv-scanner 2.7.0 release:https://github.com/google/osv-scanner/releases/download/v2.7.0/osv-scanner_linux_amd64 160c6253e2922e9e0a6a9771c5c4c40a4b3c6090b34a3cdd5e80c96cc2e4218b
 
 # Playwright browser builds (revision directory names under the browser cache)
 chromium 1248 playwright-browser:chromium -
