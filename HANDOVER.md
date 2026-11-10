@@ -45,7 +45,7 @@ an agent's.
                            0 failed, 0 skipped
 ./task check --static      ok (254 Nim files, 129 TypeScript tests, proc-length
                            14 procs over 100 lines against a baseline of 14)
-./task docs-check          ok (52 migrations, 76 operations)
+./task docs-check          ok (54 migrations, 76 operations)
 ./task e2e --grep @visual  28 passed (no baseline re-record needed)
 pnpm exec vitest run       564 passed in 111 files
 shelltests                 deploy_guards 87, ops_scripts 62, target_guards 19,

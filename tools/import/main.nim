@@ -404,6 +404,16 @@ proc importParticipants(source, target: Db, communityId: string,
   )
   stats
 
+proc v2GameStatus(status, isPlayed: string, hasScore: bool): string =
+  ## v1 kept a played flag beside a score that could still be empty. v2 has one
+  ## status, and a set is what carries a result: a played row with no score lands
+  ## as `cancelled`, the shape `0054_played_game_needs_result.sql` accepts
+  ## outside a draft session. `verifyGames` applies the same rule, so the import
+  ## and its check cannot disagree.
+  if status != "cancelled" and isPlayed == "t":
+    return (if hasScore: "played" else: "cancelled")
+  status
+
 proc importGames(source, target: Db, communityId: string,
                  dryRun: bool): Result =
   ## v1 keeps the sides in `scheduled_game_players`, one row per slot; v2 keeps
@@ -458,9 +468,8 @@ proc importGames(source, target: Db, communityId: string,
         @[textParam(oldSessionId)]):
         let oldId = row.get("id")
         # v1 stored the flag and the status separately; v2 has only the status.
-        var status = row.get("status")
-        if status != "cancelled" and row.get("is_played") == "t":
-          status = "played"
+        let status = v2GameStatus(row.get("status"), row.get("is_played"),
+          row.get("score_a") != "-1" and row.get("score_b") != "-1")
         if dryRun:
           inc stats.created
           continue
@@ -1510,9 +1519,9 @@ proc verifyGames*(source, target: Db, communityId: string): seq[string] =
         continue
       let ours = actual[key]
       inc checked
-      var wantStatus = source1.get("status")
-      if wantStatus != "cancelled" and source1.get("is_played") == "t":
-        wantStatus = "played"
+      let wantStatus = v2GameStatus(source1.get("status"),
+        source1.get("is_played"),
+        source1["score_a"].isSome and source1["score_b"].isSome)
       if ours.get("status") != wantStatus:
         result.add "game " & key & " of session " & sessionRow.get("share_code") &
           " has status " & ours.get("status") & ", v1 says " & wantStatus

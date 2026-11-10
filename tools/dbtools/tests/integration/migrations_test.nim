@@ -246,7 +246,148 @@ try:
       for key in snapshot.values.keys:
         check key in registry
 
-    test "no shipped migration declares the contract marker":
+    test "a registry key whose seed row is missing is repaired by the deploy's seed":
+      # DB-06: the deploy runs `migrate`, then `seed`, then starts the service.
+      # A new registry key arrives as a row in the seed file, and the boot path
+      # reads only the rows. Take one row away and forget the file's ledger row,
+      # which is the state a changed seed file is in, then prove the boot refuses
+      # and that the deploy's own step repairs it without manual SQL.
+      migrate(scratch, migrationsDir)
+      seed(scratch, seedsDir)
+      let configKey = $allKeys[0].key
+      discard scratch.execUpdate(
+        "delete from platform.config where key = $1", @[textParam(configKey)])
+      discard scratch.execUpdate(
+        "delete from dbtools.seed_files where name = 'platform_config.sql'")
+      var refused = false
+      try:
+        discard loadSnapshot(scratch)
+      except ConfigError:
+        refused = true
+      check refused
+      seed(scratch, seedsDir)
+      let repaired = loadSnapshot(scratch)
+      check repaired.values.len == allKeys.len
+      check repaired.values.hasKey(configKey)
+
+    test "a game on a court the session does not have is refused":
+      # DB-11: the foreign key itself is deferred by ADR-017, because a v2
+      # session has no court rows. Where a court register exists, the coordinate
+      # is enforced, and a court still used by a game cannot be removed.
+      migrate(scratch, migrationsDir)
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('court-guard', 'Court Guard', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      let bareSession = scratch.queryOne(
+        """insert into session.sessions
+             (community_id, session_date, status, source)
+           values ($1::uuid, '2026-11-03', 'draft', 'manual') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      # No court rows: the schedule writer's own shape stays accepted.
+      discard scratch.execUpdate(
+        """insert into session.games
+             (community_id, session_id, round_no, court_no, status)
+           values ($1::uuid, $2::uuid, 0, 99, 'scheduled')""",
+        @[textParam(communityId), textParam(bareSession)])
+
+      let registeredSession = scratch.queryOne(
+        """insert into session.sessions
+             (community_id, session_date, status, source)
+           values ($1::uuid, '2026-11-03', 'draft', 'manual') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      discard scratch.execUpdate(
+        """insert into session.courts
+             (community_id, session_id, court_index, court_name, start_time,
+              end_time)
+           values ($1::uuid, $2::uuid, 0, 'Court 1', '08:00', '09:00')""",
+        @[textParam(communityId), textParam(registeredSession)])
+      var state = ""
+      try:
+        discard scratch.execUpdate(
+          """insert into session.games
+               (community_id, session_id, round_no, court_no, status)
+             values ($1::uuid, $2::uuid, 0, 99, 'scheduled')""",
+          @[textParam(communityId), textParam(registeredSession)])
+      except DbError as error:
+        state = error.sqlState
+      check state == "23503"
+
+      discard scratch.execUpdate(
+        """insert into session.games
+             (community_id, session_id, round_no, court_no, status)
+           values ($1::uuid, $2::uuid, 0, 0, 'scheduled')""",
+        @[textParam(communityId), textParam(registeredSession)])
+      state = ""
+      try:
+        discard scratch.execUpdate(
+          """delete from session.courts
+              where community_id = $1::uuid and session_id = $2::uuid
+                and court_index = 0""",
+          @[textParam(communityId), textParam(registeredSession)])
+      except DbError as error:
+        state = error.sqlState
+      check state == "23503"
+
+    test "a played game with no set cannot move into a rated session":
+      # DB-08: marking a game played before its score is the host flag and is
+      # allowed while the session is a draft. Leaving that state behind in a
+      # session that rates the game is refused at the database.
+      migrate(scratch, migrationsDir)
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('played-guard', 'Played Guard', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      let sessionId = scratch.queryOne(
+        """insert into session.sessions
+             (community_id, session_date, status, source)
+           values ($1::uuid, '2026-11-04', 'draft', 'manual') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      discard scratch.execUpdate(
+        """insert into session.games
+             (community_id, session_id, round_no, court_no, status)
+           values ($1::uuid, $2::uuid, 0, 0, 'scheduled')""",
+        @[textParam(communityId), textParam(sessionId)])
+      discard scratch.execUpdate(
+        """update session.games set status = 'played'
+            where community_id = $1::uuid and session_id = $2::uuid""",
+        @[textParam(communityId), textParam(sessionId)])
+
+      # 0052 refuses the approval while that row exists...
+      var state = ""
+      try:
+        discard scratch.execUpdate(
+          """update session.sessions set status = 'locked'
+              where community_id = $1::uuid and id = $2::uuid""",
+          @[textParam(communityId), textParam(sessionId)])
+      except DbError as error:
+        state = error.sqlState
+      check state == "23514"
+
+      # ...and the game row itself refuses the transition once the session is
+      # already rated, whichever writer makes it.
+      let ratedSession = scratch.queryOne(
+        """insert into session.sessions
+             (community_id, session_date, status, source, approved_at)
+           values ($1::uuid, '2026-11-04', 'locked', 'manual', now())
+           returning id""",
+        @[textParam(communityId)]).get.get("id")
+      discard scratch.execUpdate(
+        """insert into session.games
+             (community_id, session_id, round_no, court_no, status)
+           values ($1::uuid, $2::uuid, 0, 0, 'scheduled')""",
+        @[textParam(communityId), textParam(ratedSession)])
+      state = ""
+      try:
+        discard scratch.execUpdate(
+          """update session.games set status = 'played'
+              where community_id = $1::uuid and session_id = $2::uuid""",
+          @[textParam(communityId), textParam(ratedSession)])
+      except DbError as error:
+        state = error.sqlState
+      check state == "23514"
+
+
       # `deploy-vps.sh` never passes `--allow-contract`, so a pending marker in
       # the shipped directory would stop every deploy. An applied one is fine
       # (its ledger row records the flag), and the from-empty run below proves
