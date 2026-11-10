@@ -115,7 +115,7 @@ export default function PlayerDetailPage() {
   }
 
   return (
-    <section className="mx-auto max-w-3xl p-4">
+    <section className="mx-auto w-full max-w-3xl">
       <Link
         to={`/c/${encodeURIComponent(slug)}/players`}
         className="inline-flex min-h-11 items-center rounded-xl text-sm text-fg-dim hover:text-fg focus-visible:ring-2 focus-visible:ring-accent"

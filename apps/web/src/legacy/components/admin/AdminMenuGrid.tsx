@@ -25,7 +25,7 @@ export default function AdminMenuGrid() {
         <button
           key={it.to}
           onClick={() => navigate(it.to)}
-          className="flex items-start gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-all text-left shadow-xs hit44"
+          className="flex items-start gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-[border-color,transform] text-left shadow-xs hit44"
         >
           <div className="w-8 h-8 rounded-lg bg-elevated border border-border-subtle flex items-center justify-center shrink-0 text-accent">
             <Icon name={it.icon} size={18} />

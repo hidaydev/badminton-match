@@ -1,5 +1,6 @@
 import { Overlay } from '../../components/Overlay'
 import { t } from '../../i18n'
+import Icon from './Icon'
 
 interface InstallModalProps {
   isIos: boolean
@@ -60,7 +61,7 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
         </ol>
       ) : (
         <div className="flex items-start gap-4 py-5">
-          <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-fg-dim"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 21h16"/></svg></div>
+          <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-fg-dim"><Icon name="download" size={18} /></div>
           <div className="flex flex-col gap-1 pt-0.5">
             <span className="text-sm font-semibold text-white">One tap to install</span>
             <span className="text-xs text-slate-400">Opens from your home screen · No app store needed</span>

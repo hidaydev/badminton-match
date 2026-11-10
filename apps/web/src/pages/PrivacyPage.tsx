@@ -8,7 +8,7 @@ import { t } from '../i18n'
 export default function PrivacyPage() {
   return (
     <main className="min-h-screen bg-ground text-fg p-4 sm:p-6">
-      <article className="mx-auto max-w-2xl pb-12">
+      <article className="mx-auto w-full max-w-3xl pb-12">
         <h1 className="text-2xl font-bold text-fg sm:text-3xl">{t('privacy.title')}</h1>
         <p className="mt-2 text-sm text-fg-dim">{t('privacy.updated')}</p>
 

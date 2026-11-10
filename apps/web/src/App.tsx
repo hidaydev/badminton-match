@@ -174,7 +174,7 @@ function LegacySessionRedirect() {
 
 function CommunityNotFound() {
   return (
-    <section className="mx-auto max-w-2xl p-4">
+    <section className="mx-auto w-full max-w-3xl px-4 py-4">
       <PageHeader title={t('community.error.notFound')} />
       <ButtonLink to="/" variant="secondary" className="mt-4 inline-flex items-center">
         {t('nav.home')}
@@ -231,7 +231,7 @@ function RootRedirect() {
   // platform owner can create a community, everyone else asks to join one.
   const isOwner = user?.platformOwner === true
   return (
-    <section className="mx-auto max-w-2xl px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))]">
+    <section className="mx-auto w-full max-w-3xl px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))]">
       <AccountRow />
       <EmptyState
         as="h1"

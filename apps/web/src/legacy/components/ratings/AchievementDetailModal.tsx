@@ -210,7 +210,7 @@ export default function AchievementDetailModal({
                 </div>
                 <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-elevated">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-500"
+                    className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-[width] duration-500"
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>

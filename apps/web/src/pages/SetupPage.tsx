@@ -14,6 +14,8 @@ import { Field, Input } from '../components/Field'
 import { PageHeader } from '../components/PageHeader'
 import { createCommunity } from '../community/ownerApi'
 import type { CreatedCommunity } from '../community/ownerApi'
+import Icon from '../components/Icon'
+import { PAGE_COLUMN } from '../components/Page'
 
 const ROLE_LABEL: Record<CommunityRole, MessageKey> = {
   admin: 'role.admin',
@@ -67,15 +69,13 @@ export default function SetupPage() {
   return (
     <>
       <header className="sticky top-0 z-10 border-b border-border-subtle bg-surface pt-[env(safe-area-inset-top)]">
-        <div className="mx-auto flex max-w-3xl items-center gap-2 px-3 py-2.5">
+        <div className={`flex ${PAGE_COLUMN} items-center gap-2 py-2.5`}>
           <button
             onClick={() => navigate(-1)}
-            className="-ml-1.5 -my-1.5 h-11 w-11 shrink-0 flex items-center justify-center rounded-lg text-fg-dim transition-all hover:text-fg active:scale-90"
+            className="-ml-1.5 -my-1.5 h-11 w-11 shrink-0 flex items-center justify-center rounded-lg text-fg-dim transition-[color,transform] hover:text-fg active:scale-90"
             aria-label={t('shell.back')}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
+            <Icon name="chevron-left" size={18} />
           </button>
           <Link to="/" className="flex items-center gap-2">
             <img src="/logo-192.png" alt="" className="h-6 w-6 shrink-0 object-contain" />
@@ -83,7 +83,7 @@ export default function SetupPage() {
           </Link>
         </div>
       </header>
-      <main className="mx-auto max-w-3xl p-4">
+      <main className={`${PAGE_COLUMN} py-4`}>
       <PageHeader title={t('setup.title')} subtitle={t('setup.subtitle')} />
 
       <h2 className="mt-6 text-sm font-semibold text-fg">{t('setup.mine')}</h2>

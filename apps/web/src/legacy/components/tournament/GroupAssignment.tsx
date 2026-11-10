@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { GroupId, TournamentPair } from '../../utils/tournament'
 import { hit44 } from '../hitTarget'
+import { Spinner } from '../../../components/Spinner'
 import { t } from '../../../i18n'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
@@ -114,7 +115,7 @@ export default function GroupAssignment({
                     key={slotIdx}
                     onClick={() => handleSlotTap(g, slotIdx)}
                     className={['hit44', 
-                      'flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-left transition-all shadow-xs',
+                      'flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-left transition-[background-color,border-color,box-shadow] shadow-xs',
                       active
                         ? 'bg-accent/10 border border-accent ring-2 ring-accent/30'
                         : 'bg-elevated border border-dashed border-border hover:border-border-subtle hover:bg-surface/80',
@@ -150,7 +151,7 @@ export default function GroupAssignment({
                 onClick={() => handlePairTap(p.id)}
                 disabled={!activeSlot}
                 className={['hit44', 
-                  'text-xs rounded-lg px-3 py-2 font-medium transition-all shadow-xs',
+                  'text-xs rounded-lg px-3 py-2 font-medium transition-[background-color,border-color,box-shadow] shadow-xs',
                   activeSlot
                     ? 'bg-elevated text-accent border border-accent font-semibold hover:bg-surface active:scale-98'
                     : 'bg-surface text-fg-dim border border-border-subtle cursor-default',
@@ -168,14 +169,9 @@ export default function GroupAssignment({
         <button
           onClick={onConfirmGroups}
           disabled={isLoading}
-          className="w-full py-3 rounded-xl bg-accent text-slate-950 font-bold text-sm mt-2 disabled:opacity-60 flex items-center justify-center gap-2 hover:bg-accent/90 active:scale-98 transition-all hit44"
+          className="w-full py-3 rounded-xl bg-accent text-slate-950 font-bold text-sm mt-2 disabled:opacity-60 flex items-center justify-center gap-2 hover:bg-accent/90 active:scale-98 transition-[background-color,transform] hit44"
         >
-          {isLoading && (
-            <svg className="animate-spin w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-          )}
+          {isLoading && <Spinner size={16} />}
           {isLoading ? 'Confirming…' : 'Confirm Groups'}
         </button>
       )}

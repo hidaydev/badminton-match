@@ -111,7 +111,7 @@ export default function SettingsPage() {
   const canEdit = can('settings.edit')
 
   return (
-    <section className="mx-auto max-w-3xl p-4">
+    <section className="mx-auto w-full max-w-3xl">
       <PageHeader title={t('admin.title')} subtitle={membership?.name ?? slug} />
 
       {loading && <LoadingState label={t('app.loading')} rows={1} />}

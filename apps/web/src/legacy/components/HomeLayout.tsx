@@ -8,6 +8,8 @@ import { CommunityPicker } from '../../community/CommunityPicker'
 import { t } from '../../i18n'
 import { SkipLink } from '../../components/SkipLink'
 import AccountSessions from './AccountSessions'
+import Icon from '../../components/Icon'
+import { PAGE_COLUMN } from '../../components/Page'
 
 export default function HomeLayout() {
   const location = useLocation()
@@ -81,16 +83,14 @@ export default function HomeLayout() {
     <div className="min-h-screen bg-ground text-fg flex flex-col">
       <SkipLink />
       <header className="border-b border-border-subtle bg-surface sticky top-0 z-10 pt-[env(safe-area-inset-top)]">
-        <div className="max-w-3xl mx-auto px-3 py-2.5 flex items-center gap-2">
+        <div className={`${PAGE_COLUMN} py-2.5 flex items-center gap-2`}>
           {!isHome && (
             <button
               onClick={() => navigate(-1)}
-              className="flex h-11 w-11 -ml-[13px] -mr-[7px] -my-[7px] items-center justify-center rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all shrink-0"
+              className="flex h-11 w-11 -ml-[13px] -mr-[7px] -my-[7px] items-center justify-center rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-[color,transform] shrink-0"
               aria-label={t('shell.back')}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M15 18l-6-6 6-6"/>
-              </svg>
+              <Icon name="chevron-left" size={18} />
             </button>
           )}
           <Link to="/" className="flex min-h-11 -my-[10px] items-center gap-2 flex-1">
@@ -102,15 +102,10 @@ export default function HomeLayout() {
           </div>
           <button
             onClick={() => window.location.reload()}
-            className="flex h-11 w-11 -m-[7.5px] items-center justify-center rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all"
+            className="flex h-11 w-11 -m-[7.5px] items-center justify-center rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-[color,transform]"
             aria-label={t('shell.refresh')}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
-              <path d="M21 3v5h-5"/>
-              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
-              <path d="M8 16H3v5"/>
-            </svg>
+            <Icon name="sync" size={17} />
           </button>
 
           {/* Google login has no admin token: the account menu shows who is
@@ -123,7 +118,7 @@ export default function HomeLayout() {
               aria-label={t('shell.account')}
               aria-haspopup="menu"
               aria-expanded={accountOpen}
-              className="group flex h-11 w-11 -m-[6px] items-center justify-center active:scale-95 transition-all"
+              className="group flex h-11 w-11 -m-[6px] items-center justify-center active:scale-95 transition-[transform]"
             >
               {/* The hit box grew to 44px; the circle itself keeps its 32px
                   size, so nothing on screen moved. */}
@@ -190,9 +185,7 @@ export default function HomeLayout() {
                           >
                             <span className="flex-1 truncate">{membership.name}</span>
                             {selected && (
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
+                              <Icon name="check" size={14} />
                             )}
                           </button>
                         )
@@ -253,7 +246,7 @@ export default function HomeLayout() {
           </div>
         </div>
       </header>
-      <main id="main" className="flex-1 max-w-3xl w-full mx-auto px-3 py-4 relative pb-[env(safe-area-inset-bottom)]">
+      <main id="main" className={`flex-1 ${PAGE_COLUMN} py-4 relative pb-[env(safe-area-inset-bottom)]`}>
         <Outlet />
       </main>
       {sessionsOpen && <AccountSessions onClose={() => setSessionsOpen(false)} />}

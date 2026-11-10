@@ -87,7 +87,7 @@ export function ValidationPanel({ players, matches }: { players: Player[]; match
                 <span className={`w-24 text-xs truncate ${over ? 'text-red-400' : count > 0 ? 'text-slate-300' : 'text-slate-400'}`}>{p.name}</span>
                 <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all ${over ? 'bg-red-500' : count > 0 ? 'bg-indigo-500' : 'bg-slate-700'}`}
+                    className={`h-full rounded-full transition-[width,background-color] ${over ? 'bg-red-500' : count > 0 ? 'bg-indigo-500' : 'bg-slate-700'}`}
                     style={{ width: `${pct}%` }}
                   />
                 </div>

@@ -176,7 +176,7 @@ export default function SharedSessionPage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-xl flex-col p-4">
+    <main className="mx-auto flex w-full max-w-3xl flex-col px-4 py-4">
       <header className="flex items-baseline justify-between gap-3">
         <p className="text-sm font-semibold text-accent">{t('shared.title')}</p>
         {session !== null && (

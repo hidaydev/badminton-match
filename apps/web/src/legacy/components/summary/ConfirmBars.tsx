@@ -2,6 +2,7 @@ import type { Player, ScheduleSlot } from '../../types'
 import type { SwapTarget, TeamSwapTarget } from '../../utils/swap'
 import type { SlotSwapTarget } from '../../utils/slotSwap'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
+import { Spinner } from '@/components/Spinner'
 import { t } from '@/i18n'
 
 type BarColor = 'indigo' | 'red' | 'orange' | 'violet' | 'sky' | 'amber'
@@ -15,7 +16,7 @@ const COLOR_MAP: Record<BarColor, { border: string; bg: string; btn: string; btn
   amber:  { border: 'border-amber-900/40',  bg: 'bg-amber-950/40 border-amber-800/40',   btn: 'bg-amber-600',  btnHover: 'hover:bg-amber-500',  btnText: 'text-white', accent: 'text-amber-200' },
 }
 
-const SPINNER = <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+const SPINNER = <Spinner size={12} />
 
 function ConfirmActionBar({
   color,
@@ -41,7 +42,7 @@ function ConfirmActionBar({
   useEscapeKey(onCancel)
   return (
     <div className={`fixed bottom-0 left-0 right-0 z-50 bg-ground border-t ${c.border} px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]`}>
-      <div className="max-w-xl mx-auto">
+      <div className="max-w-panel mx-auto">
         <div className={`${c.bg} border rounded-xl px-3 py-2.5`}>
           {children}
           <div className="flex items-center gap-3">

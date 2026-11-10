@@ -2,6 +2,8 @@ import { Link, Outlet, useLocation, useNavigate } from '../router'
 import { useStore } from '../store'
 import { t } from '../../i18n'
 import { SkipLink } from '../../components/SkipLink'
+import Icon from '../../components/Icon'
+import { PAGE_COLUMN } from '../../components/Page'
 
 const steps = [
   { to: '/session/new', label: 'Setup' },
@@ -36,15 +38,13 @@ export default function SessionLayout() {
     <div className="min-h-screen bg-ground text-fg flex flex-col">
       <SkipLink />
       <header className="border-b border-border-subtle bg-surface sticky top-0 z-10 pt-[env(safe-area-inset-top)]">
-        <div className="max-w-3xl mx-auto px-3 py-2.5 flex items-center gap-2">
+        <div className={`${PAGE_COLUMN} py-2.5 flex items-center gap-2`}>
           <button
             onClick={() => navigate(-1)}
-            className="flex h-11 w-11 -ml-[13px] -mr-[7px] -my-[7px] items-center justify-center rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all shrink-0"
+            className="flex h-11 w-11 -ml-[13px] -mr-[7px] -my-[7px] items-center justify-center rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-[color,transform] shrink-0"
             aria-label={t('shell.back')}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M15 18l-6-6 6-6"/>
-            </svg>
+            <Icon name="chevron-left" size={18} />
           </button>
           <Link to="/" className="flex min-h-11 -my-[10px] items-center gap-2">
             <img src="/logo-192.png" alt="" className="w-6 h-6 shrink-0 object-contain" />
@@ -67,7 +67,7 @@ export default function SessionLayout() {
         </div>
 
         {/* Progress: 4 segmen tipis (indikator — navigasi via Back/Next di konten) */}
-        <div className="max-w-3xl mx-auto px-3 pb-2">
+        <div className={`${PAGE_COLUMN} pb-2`}>
           <div className="flex items-center gap-2">
             <div className="flex gap-1 flex-1">
               {steps.map((s, i) => {
@@ -91,7 +91,7 @@ export default function SessionLayout() {
         </div>
       </header>
 
-      <main id="main" className="flex-1 max-w-3xl w-full mx-auto px-3 py-4 pb-[env(safe-area-inset-bottom)]">
+      <main id="main" className={`flex-1 ${PAGE_COLUMN} py-4 pb-[env(safe-area-inset-bottom)]`}>
         <Outlet />
       </main>
     </div>

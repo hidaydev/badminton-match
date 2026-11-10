@@ -13,7 +13,7 @@ export default function NotFoundPage() {
   const { slug } = useParams<{ slug?: string }>()
 
   return (
-    <section className="mx-auto max-w-2xl p-4">
+    <section className="mx-auto w-full max-w-3xl px-4 py-4">
       <PageHeader title={t('notFound.title')} subtitle={t('notFound.body', { path: pathname })} />
       <div className="mt-4 flex flex-wrap gap-2">
         {slug !== undefined && (
