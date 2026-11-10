@@ -157,7 +157,7 @@ with 5-second polling while the socket is not yet connected); the public share p
 - **Frontend**: React 19, Vite, Tailwind 4, React Router 7 (`apps/web`).
 - **Backend**: Nim 2.4, Mummy HTTP + WebSocket, `db_connector` (`apps/api/src`).
 - **Database**: PostgreSQL 18, database `bm2`, schema per domain (`db/migrations`).
-- **Contract**: hand-written OpenAPI + codegen, 75 operations
+- **Contract**: hand-written OpenAPI + codegen, 76 operations
   (`packages/contracts/openapi`).
 
 Details: [`architecture.md`](architecture.md) · [`data-model.md`](data-model.md) ·

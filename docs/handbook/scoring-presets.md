@@ -353,7 +353,7 @@ same hook. This avoids a new endpoint and ensures both screens see an identical
 list.
 
 Parity consequence: one config case changes (new field). There is no new
-operation; still 75 operations.
+operation; the contract's operation count is unchanged.
 
 ---
 

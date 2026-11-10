@@ -67,7 +67,7 @@ instead of implying the whole tree.
 |---|---|---|
 | Authorization | every operation in `testdata/authz/matrix.yaml` | `modules/account/tests/authz_matrix_test.nim` (classifier), `apps/api/tests/routes_dispatch_test.nim` (anonymous sweep per operation) |
 | Authorization, role boundary in the UI | a member cannot see or trigger a staff action | `e2e/authz.spec.ts` |
-| Contract | 75 operations, one fingerprint | `./task contract-check`, `./task docs-check` |
+| Contract | 76 operations, one fingerprint | `./task contract-check`, `./task docs-check` |
 | Scoring | the rules in `docs/handbook/scoring-presets.md` | `modules/session/tests/scoring_test.nim`, `tools/rating*/tests` |
 | Concurrency | two writers, one winner | `integration/session_concurrency_http_test.nim`, `e2e/session-occ.spec.ts` |
 | Migration | schema reachable, upgrade from N-1 preserves rows | `tools/dbtools/tests/integration/migrations_test.nim` |

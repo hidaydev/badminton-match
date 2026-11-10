@@ -42,6 +42,12 @@ check_count "README.md" '[0-9]+ migrations' "$migrations" "migrations"
 check_count "README.md" '[0-9]+ operations' "$operations" "operations"
 check_count "docs/handbook/current-status.md" '[0-9]+ migrations' "$migrations" "migrations"
 check_count "docs/handbook/current-status.md" '[0-9]+ operations' "$operations" "operations"
+# The three documents a reader lands on when they ask "how big is the API" quoted
+# 75 while the artefact said 76, and nothing compared them. The count is checked
+# wherever it is written down.
+check_count "docs/handbook/architecture.md" '[0-9]+ operations' "$operations" "operations"
+check_count "docs/handbook/product-overview.md" '[0-9]+ operations' "$operations" "operations"
+check_count "docs/test-plan.md" '[0-9]+ operations' "$operations" "operations"
 
 # OPS-25: statements that contradicted the running configuration.
 check_absent() {

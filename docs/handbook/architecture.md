@@ -117,8 +117,8 @@ The contract is hand-written in two JSON-syntax documents:
 
 `tools/contract-gen` merges them into `api.yaml`, generates
 `apps/api/src/routes_gen.nim` + `packages/web-client/src/api.ts`, and writes
-`CONTRACT.sha256`. The current operation count is **75** (`CONTRACT.sha256`, line
-`operations 75`). `./task contract-check` fails if the spec, the generated output, or the
+`CONTRACT.sha256`. The contract declares 76 operations (`CONTRACT.sha256`, line
+`operations 76`). `./task contract-check` fails if the spec, the generated output, or the
 fingerprint differ, and it fails when an operation has no access-table key: every declared
 operation needs a row in `testdata/authz/matrix.yaml` and an explicit rule in
 `apps/api/src/route_access.nim` (`./task contract-keys`).
