@@ -40,13 +40,13 @@ export const projects: Project[] = [
     },
   },
   {
-    // The width a host actually uses the admin screens at. It runs the a11y
-    // walk only: a screenshot baseline at 1440 x 900 would have to be recorded
-    // on both platforms before the comparison meant anything, and the desktop
-    // branches are what this project is here for (the settings table, the
-    // summary grid).
+    // The width a host actually uses the admin screens at, and the only project
+    // that exercises the `md:`/`lg:` branches: the settings table, the summary
+    // grid and the wider page column. It runs the a11y walk and the pixel
+    // baseline, so a desktop layout change is compared, not just audited. The
+    // desktop baselines are recorded per platform like the phone ones.
     name: 'desktop',
-    testMatch: /a11y\.spec\.ts$/,
+    testMatch: /(a11y|visual)\.spec\.ts$/,
     use: {
       browserName: 'chromium',
       viewport: { width: 1440, height: 900 },

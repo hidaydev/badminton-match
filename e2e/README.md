@@ -53,10 +53,10 @@ check over 404s (QAE-03).
   `db/seeds/platform_config.sql` rather than repeated, so the test probes the
   value the deployment has. It runs in the `api` project and never opens a page.
 
-The suite is 170 runs on two devices: 56 drive a flow on a phone, 9 drive the
-API over its own socket, 28 are the pixel baseline (26 routes plus the
-account-menu screenshot on each device) and 77 are axe sweeps, 69 signed in and 8
-on the public screens. A snapshot cannot fail for a permission regression, which
+The suite is 183 runs over three viewports: 58 drive a flow on a phone, 9 drive
+the API over its own socket, 39 are the pixel baseline (13 routes on each of the
+two phones and the 1440 desktop) plus the account-menu screenshot on each phone,
+and 77 are axe sweeps, 69 signed in and 8 on the public screens. A snapshot cannot fail for a permission regression, which
 is why the functional share is stated rather than implied; `--list` prints the
 same split per file if it has drifted.
 
@@ -84,9 +84,10 @@ layout that only fits one of them fails. The baseline records today's rendering;
 a layout fix changes snapshots on purpose.
 
 `desktop` (Chromium, 1440×900) covers the `sm:`/`md:`/`lg:` branches an admin
-uses at a laptop. It runs only `a11y.spec.ts`: the visual baseline is per
-platform, so a new width would have to be recorded on both before the
-comparison meant anything.
+uses at a laptop. It runs `a11y.spec.ts` and `visual.spec.ts`, so the desktop
+layout has both an axe walk and a pixel baseline; `pnpm check:e2e` is the entry
+point, and its snapshots live in the same per-platform directory as the phone
+ones.
 
 `api` runs only `api.spec.ts`, and the phone projects ignore that file. It is a
 project instead of a spec inside an existing one because the checks talk to a
