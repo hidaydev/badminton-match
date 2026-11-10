@@ -4,6 +4,7 @@
 # documents it reads, and the task runner. No case reads the real README.
 
 import std/[os, strutils, times, unittest]
+import clock
 import ../harness
 
 proc touch(path: string, body = "") =
@@ -46,7 +47,7 @@ proc seed(fixture: Fixture) =
   # moves the date changes the verdict.
   touch(fixture.root / "docs" / "design-system.md",
     "# Design System\n\nVersion: 2.0.0\nLast reviewed: " &
-    now().local.format("yyyy-MM-dd") & "\n")
+    clock.utcNow().local.format("yyyy-MM-dd") & "\n")
 
 suite "docs-check":
   test "a consistent tree passes":
@@ -100,7 +101,7 @@ suite "docs-check":
     defer: removeDir(fixture.root)
     seed(fixture)
     writeFile(fixture.root / "docs" / "design-system.md",
-      "# Design System\n\nLast reviewed: " & now().local.format("yyyy-MM-dd") & "\n")
+      "# Design System\n\nLast reviewed: " & clock.utcNow().local.format("yyyy-MM-dd") & "\n")
     let result = fixture.runTask(@["docs-check"])
     check result.exitCode == 1
     check result.stderr.contains("no 'Version:' line")
