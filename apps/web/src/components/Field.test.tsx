@@ -51,4 +51,53 @@ describe('Field', () => {
     expect(select).toHaveAttribute('id', 'preset')
     expect(screen.getByText('Defaults to 21')).toHaveAttribute('id', 'preset-hint')
   })
+
+  it('marks the control invalid and describes it with the error', () => {
+    render(
+      <Field label="Player name" error="Name is required">
+        <Input />
+      </Field>,
+    )
+
+    const input = screen.getByLabelText('Player name')
+    const error = screen.getByRole('alert')
+    expect(error).toHaveTextContent('Name is required')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(input).toHaveAttribute('aria-describedby', error.id)
+    expect(error.id).toBe(`${input.id}-error`)
+  })
+
+  it('leaves the control valid when there is no error', () => {
+    render(
+      <Field label="Player name">
+        <Input />
+      </Field>,
+    )
+
+    expect(screen.getByLabelText('Player name')).not.toHaveAttribute('aria-invalid')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('describes the control with the hint and the error together', () => {
+    render(
+      <Field label="Aliases" hint="Comma separated" error="Too long">
+        <Input aria-describedby="other" />
+      </Field>,
+    )
+
+    const input = screen.getByLabelText('Aliases')
+    expect(input.getAttribute('aria-describedby')).toBe(
+      `other ${screen.getByText('Comma separated').id} ${screen.getByRole('alert').id}`,
+    )
+  })
+
+  it('keeps an aria-invalid the caller already set while there is no error', () => {
+    render(
+      <Field label="Player name">
+        <Input aria-invalid={true} />
+      </Field>,
+    )
+
+    expect(screen.getByLabelText('Player name')).toHaveAttribute('aria-invalid', 'true')
+  })
 })
