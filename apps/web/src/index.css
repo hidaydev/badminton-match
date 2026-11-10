@@ -177,6 +177,19 @@ body {
   outline-offset: 2px;
 }
 
+/* The router focuses `main` or the screen heading after a navigation so a
+   screen reader announces the new screen (`components/RouteChange.tsx`).
+   Neither is reachable with Tab, so the ring never helps a keyboard user, and
+   both paint it in the wrong place: `main` spans the viewport, so its right
+   edge shows as a stray gold line, and WebKit draws a ring around the heading
+   after a programmatic focus even though the last input was a pointer. */
+main:focus,
+main:focus-visible,
+main h1:focus,
+main h1:focus-visible {
+  outline: none;
+}
+
 /* Prevent iOS Safari from auto-zooming on input focus. Touch devices only, and
    kept in `base` so utility classes (text-xs, text-lg) still win on pointer
    devices instead of every control rendering at 16px. */

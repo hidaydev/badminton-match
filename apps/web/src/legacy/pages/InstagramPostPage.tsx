@@ -424,8 +424,10 @@ export default function InstagramPostPage() {
         />
       </div>
 
-      {/* Canvas — full width, no side padding */}
-      <div className="relative -mx-4">
+      {/* Canvas — full width, no side padding. The layout's content box is
+          `px-3`, so cancelling four units left the poster 8px wider than the
+          viewport: a horizontal scroll and the left edge cropped. */}
+      <div className="relative -mx-3">
         <canvas
           ref={canvasRef}
           width={TEMPLATE.width}
