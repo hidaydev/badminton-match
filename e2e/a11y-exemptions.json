@@ -14,7 +14,6 @@
     {"path": "/c/*/view", "owner": "qa", "expires": "2027-03-31", "reason": "shared-view route; the share door is scanned as /s/:code"},
     {"path": "/c/*/s/*", "owner": "qa", "expires": "2027-03-31", "reason": "in-app spectator route; the share door is scanned as /s/:code"},
     {"path": "/c/*/scoreboard", "owner": "qa", "expires": "2027-03-31", "reason": "in-app wrapper; the standalone PWA is scanned from its own origin"},
-    {"path": "/c/*/rankings/*", "owner": "qa", "expires": "2027-03-31", "reason": "player rating detail needs a rated session fixture; the rankings list is scanned"},
     {"path": "/invites/*", "owner": "qa", "expires": "2027-03-31", "reason": "needs a live invite token; the invite page is asserted by its component test"}
   ]
 }

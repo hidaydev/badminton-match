@@ -176,6 +176,14 @@ export const a11yRoutes: readonly VisualRoute[] = [
   // The first step of the tournament wizard. The later steps need a filled
   // draw, which the fixture does not carry; this one is a plain form and the
   // only signed-in wizard screen with no draft state.
+  // The player rating detail. Approving the fixture session writes rating rows,
+  // so the screen renders its career panels instead of the empty state; the h1
+  // carries the annotated player name.
+  {
+    name: 'rankings-player',
+    path: (state) => `/c/${state.communitySlug}/rankings/${state.playerId}`,
+    ready: (state) => `text=${state.playerName}`,
+  },
   {
     name: 'tournament-wizard',
     path: (state) => `/c/${state.communitySlug}/tournaments/new/classic`,

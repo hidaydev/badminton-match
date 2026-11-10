@@ -41,7 +41,7 @@ export default function CareerStats({ stats, countedPoints }: {
           <div className="flex items-center justify-between pb-0.5">
             <p className="text-[10px] font-sans text-fg-dim label-meta font-semibold">
               {t('career.sessions')} ({stats.sessions.length})
-              <span className="normal-case tracking-normal opacity-80"> {t('career.ratedNote')}</span>
+              <span className="normal-case tracking-normal"> {t('career.ratedNote')}</span>
             </p>
           </div>
           <div className="flex flex-col">
