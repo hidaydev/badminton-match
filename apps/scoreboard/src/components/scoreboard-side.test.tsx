@@ -50,6 +50,14 @@ describe('ScoreboardSide', () => {
     expect(container.querySelector('[tabindex]')).toBeNull()
   })
 
+  it('keeps the score face a single real button with no nested control', () => {
+    render(<ScoreboardSide {...props()} />)
+
+    const face = scoreButton()
+    expect(face.tagName).toBe('BUTTON')
+    expect(face.querySelector('input, button, [role="button"]')).toBeNull()
+  })
+
   it('scores on click of the score face', () => {
     const onScore = vi.fn()
     render(<ScoreboardSide {...props({ onScore })} />)

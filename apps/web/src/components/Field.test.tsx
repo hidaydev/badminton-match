@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import type { ComponentProps, ReactElement, ReactNode } from 'react'
 import { Field, Input, Select } from './Field'
+
+/**
+ * DS-23: the audit's DoD asks for an error that is the field's accessible
+ * description. `FieldProps` has no `error` slot yet, so the test casts the
+ * public component to the props the DoD names. It asserts behaviour only; it
+ * does not add the missing API.
+ */
+type FieldWithErrorProps = ComponentProps<typeof Field> & { error?: ReactNode }
+const FieldWithError = Field as unknown as (props: FieldWithErrorProps) => ReactElement
 
 describe('Field', () => {
   it('links the label to the control by id', () => {
@@ -50,5 +60,16 @@ describe('Field', () => {
     const select = screen.getByLabelText('Score preset')
     expect(select).toHaveAttribute('id', 'preset')
     expect(screen.getByText('Defaults to 21')).toHaveAttribute('id', 'preset-hint')
+  })
+
+  it('exposes a validation error as the field description and marks the field invalid', () => {
+    render(
+      <FieldWithError label="Player name" error="Name is required">
+        <Input />
+      </FieldWithError>,
+    )
+
+    const input = screen.getByRole('textbox', { description: 'Name is required' })
+    expect(input).toHaveAttribute('aria-invalid', 'true')
   })
 })
