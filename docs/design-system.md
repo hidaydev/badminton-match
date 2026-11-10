@@ -1,6 +1,36 @@
 # Majadu App — Design System
 
-> Formalized and adopted across the codebase. Last updated: 2026-11-07.
+Version: 2.0.0
+Last reviewed: 2026-11-10
+
+> Formalized and adopted across the codebase. `./task docs-check` fails when
+> either line above goes missing or the review date goes stale.
+
+## Versioning and review
+
+Two lines at the top of this file are the contract with the gate:
+
+- `Version:` is a semantic version of the documented contract, not of the app.
+  Bump the minor when a token, a component prop or a recipe changes; bump the
+  major when an existing recipe is replaced, so a reader can tell an additive
+  change from a breaking one.
+- `Last reviewed:` is the date a person read this whole file against the code.
+  A review that finds nothing still bumps the date, because the point is when
+  someone last looked.
+
+`task.d/docs-check.sh` reads both. It fails when either line is missing, when
+the version is not `X.Y.Z`, when the date is not `YYYY-MM-DD` or lies in the
+future, and when the review is more than 90 days old. The limit is deliberate:
+a document nobody has opened for a quarter is describing a codebase that has
+moved, and a red build is a better reminder than a note in a calendar.
+
+Two companions hold the parts of the system that are a decision rather than a
+component:
+
+| Document | Answers |
+|---|---|
+| `docs/design/cta-recipe.md` | Which control to use, its variants, sizes and states, and the raw button inventory behind DS-03 |
+| `docs/design/panel-mapping.md` | Which `Card` variant each of the 64 hand-built panels becomes, and which ones cannot be a `Card` |
 
 ## Typography
 
@@ -121,7 +151,8 @@ Four spacing steps, three radii, three elevations, two durations.
 Every file in `apps/web/src/components` is listed here. A component is imported
 by name (`import { Button } from '../components/Button'`); there is no barrel.
 Class strings belong in the component, not in this document: the props table and
-the two examples are the contract.
+the two examples are the contract. Choosing between the primitives is
+`docs/design/cta-recipe.md`; this section is the reference for each one.
 
 ### Button
 

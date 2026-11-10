@@ -30,7 +30,7 @@ explicit `--nimcache` does not add a suffix.
 | `contract-gen` | regenerate routes, client and fingerprint | no |
 | `contract-check` | fail when specs and generated files drift | no |
 | `contract-keys` | fail when a contract operation has no access-table key or no explicit rule | no |
-| `docs-check` | fail when README or current-status quotes a stale migration or operation count | no |
+| `docs-check` | fail when README or current-status quotes a stale migration or operation count, or the design system document loses its version or its review goes past 90 days | no |
 | `loadtest` | committed HTTP/watcher load test for the capacity statement; needs a live API | no |
 | `ci` | check + build + test + contract check | same as `test` |
 | `coverage` | line coverage per module, ratcheted against `coverage-baseline-<platform>.json`; `--update` rewrites the baseline | no |
