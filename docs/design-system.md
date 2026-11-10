@@ -146,6 +146,20 @@ Four spacing steps, three radii, three elevations, two durations.
 | Panel | `--shadow-md` | `shadow-md` | Cards, menus |
 | Sheet | `--shadow-lg` | `shadow-lg` | Overlays |
 
+## Breakpoints and viewports
+
+Layout changes are written with Tailwind's `sm:` (640px), `md:` (768px) and
+`lg:` (1024px) prefixes. The two-column forms use `md:`, the wider page column
+uses `md:`, and the settings screen uses `lg:`. A new prefix is a layout change
+and belongs in this file with the screen that needs it.
+
+Three viewports are compared: `iphone-17` (402x874, WebKit) and `poco-f5`
+(393x873, Chromium) for the phones, and `desktop` (1440x900, Chromium) for the
+admin screens. `pnpm check:e2e` runs the visual baseline on all three, and the
+`desktop` project also runs the axe walk. Snapshots are recorded per platform in
+`e2e/__screenshots__/{platform}/`; a changed screen is recorded on both
+platforms before review.
+
 ## Component Catalogue
 
 Every file in `apps/web/src/components` is listed here. A component is imported
