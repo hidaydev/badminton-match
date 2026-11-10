@@ -18,6 +18,14 @@ proc seed(fixture: Fixture) =
     "# Majadu\n\n1 migrations, 75 operations.\n")
   touch(fixture.root / "docs" / "handbook" / "current-status.md",
     "1 migrations, 75 operations.\n")
+  # The three reader-facing documents whose operation count docs-check compares
+  # with the artefact.
+  touch(fixture.root / "docs" / "handbook" / "architecture.md",
+    "The contract declares 75 operations.\n")
+  touch(fixture.root / "docs" / "handbook" / "product-overview.md",
+    "hand-written OpenAPI + codegen, 75 operations.\n")
+  touch(fixture.root / "docs" / "test-plan.md",
+    "| Contract | 75 operations, one fingerprint |\n")
   touch(fixture.root / "docs" / "ops" / "operations.md",
     "The GHCR token is fine.\n\n| Every ten minutes | rotated |\n")
   touch(fixture.root / "docs" / "ops" / "release.md",
@@ -52,6 +60,18 @@ suite "docs-check":
     let result = fixture.runTask(@["docs-check"])
     check result.exitCode == 1
     check result.stderr.contains("stored in a CI secret")
+
+  test "a stale operation count in a reader-facing document fails":
+    # SQ-07 follow-up: architecture.md said 75 while the artefact said 76 for
+    # two releases, because only README.md and current-status.md were compared.
+    let fixture = newFixture("docs-operation-count")
+    defer: removeDir(fixture.root)
+    seed(fixture)
+    writeFile(fixture.root / "docs" / "handbook" / "architecture.md",
+      "The contract declares 74 operations.\n")
+    let result = fixture.runTask(@["docs-check"])
+    check result.exitCode == 1
+    check result.stderr.contains("architecture.md says 74 operations")
 
   test "a release page that pushes main first fails":
     let fixture = newFixture("docs-order")

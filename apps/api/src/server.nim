@@ -248,6 +248,3 @@ proc makeHandler*(testRoutes: bool): RequestHandler =
       @[("Content-Type", jsonType)],
       outcome.body,
     )
-
-proc newApiServer*(config: ServerConfig, workerThreads: int): Server =
-  newServer(makeHandler(config.testRoutes), workerThreads = workerThreads)

@@ -83,21 +83,6 @@ proc parsePlayerIds*(body: JsonNode): seq[string] =
       raise newException(ValueError, "playerIds must be strings")
     result.add(entry.getStr())
 
-proc sessionVersion(db: Db, communityId, sessionId: string): Option[int] =
-  let row = db.queryOne(
-    """select version from session.sessions
-       where community_id = $1::uuid and id = $2::uuid""",
-    @[textParam(communityId), textParam(sessionId)])
-  if row.isSome: some(parseInt(row.get.get("version"))) else: none(int)
-
-proc classify(db: Db, communityId, sessionId: string,
-              expectedVersion: int): ScheduleStatus =
-  ## Only called after a guarded write matched nothing.
-  let version = sessionVersion(db, communityId, sessionId)
-  if version.isNone: ssNotFound
-  elif version.get != expectedVersion: ssStale
-  else: ssStale
-
 proc gate(conn: DbConn, communityId, sessionId: string,
           expectedVersion: int): ScheduleStatus =
   ## One predicate for every write: a session edits only while it is a draft.

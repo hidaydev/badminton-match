@@ -9,7 +9,6 @@
 # keeps `--hints:off` so its output stays readable; this file is the reviewed
 # remainder, not a place to mute a new finding.
 #
-# SQ-07 deletes `classify` and this entry; the pass prints every allowlisted
+# SQ-07 deleted `classify` and its entry; the pass prints every allowlisted
 # finding on each run, so a stale line stays visible.
 
-modules/session/schedule.nim:classify

@@ -77,18 +77,6 @@ export function communityApiPath(path: string): string {
   return communityPath(path)
 }
 
-
-// Kept for the legacy AdminContext import surface. Admin access now follows
-// membership role, so no bearer token is ever sent.
-export async function verifyAdminToken(_token: string): Promise<boolean> {
-  void _token
-  return false
-}
-
-export function setAdminToken(_token: string) {
-  void _token
-}
-
 export function request<T>(
   method: string,
   path: string,
