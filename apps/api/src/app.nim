@@ -289,6 +289,14 @@ proc methodNotAllowed(request: Request) =
   problem(request, 405, "METHOD", "")
 
 proc routeNotFound(request: Request) =
+  ## SQ-05: a shape the contract declares, asked with a verb that shape does
+  ## not accept, is a 405. Before this the answer came from a second,
+  ## hand-maintained list of sub-paths beside the dispatch chain, and a missed
+  ## entry answered 404 for a route that exists. The generated contract is that
+  ## list, and it is the same table the quota label reads.
+  if contractShapeKnown(request.path):
+    methodNotAllowed(request)
+    return
   problem(request, 404, "NOT_FOUND", "route not found")
 
 proc originNotAllowed(request: Request) =
@@ -3444,359 +3452,349 @@ proc detailForSqlState(state: string): string =
   else:
     "the row is still referenced by other data"
 
-proc dispatch(request: Request) =
-  block:
-    let path = request.path
-    # The probes answer before any database or config read and outside the
-    # quota. A liveness check that needs a database is a database probe, and a
-    # burst must never answer 429 to the probe that decides a deploy is healthy.
-    if path == "/healthz":
-      send(request, 200, """{"status":"ok"}""")
-      return
-    if path == "/readyz":
-      readyz(request)
-      return
-    let parts = path.split('/')
-    let verb = request.httpMethod
-    # The one access table: the test in modules/account compares this with
-    # testdata/authz/matrix.yaml, so a class cannot change here alone.
-    let access = operationAccess(verb, path)
-    let snapshot = configSnapshot()
-    # One label per request: the quota bucket and the counter label both use
-    # the matched contract shape, never the raw path. An unmatched request gets
-    # one shared label, so invented URLs cannot mint pinned buckets.
-    if rejectLargeBody(request, snapshot):
-      return
-    if rejectCrossSite(request, snapshot):
-      return
-    # Resolve the address once: the identity pre-limit, the route budget and
-    # the share budget all use it.
-    let address = clientIp(request, trustedProxies())
-    let now = utcNow().toTime.toUnixFloat
-    let token = cookieValue(request, "majadu_session")
-    # A cookie that was not validated in this window is a database lookup
-    # candidate. Charge the address's pre-limit before it, so random cookies
-    # are refused here and never reach `account.sessions`.
-    if token.len > 0 and not application.identityCache.knows(token, now):
-      if preLimit(request, snapshot, address, now):
-        return
-    let identity = requestIdentity(request, snapshot, address)
-    if quota(request, snapshot, currentRouteLabel, identity,
-        snapshot.intValue(%*{}, keySecurityRateLimitPerMinute)):
-      return
-    if rejectShareScrape(request, snapshot, identity):
-      return
-    if path.startsWith("/ops/"):
-      if path == "/ops/ping" and request.httpMethod == "GET":
-        opsPing(request)
-      else:
-        routeNotFound(request)
-      return
-    if path == "/version":
-      if verb == "GET":
-        jsonResponse(request, 200, %*{"version": appVersion, "commit": appCommit})
-      else:
-        problem(request, 405, "METHOD", "")
-      return
-    if outdatedClient(request):
-      problem(request, 410, "CLIENT_OUTDATED",
-        "this client speaks an older contract; reload the page")
-      return
-    case path
-    of "/auth/start":
-      if verb == "POST": startAuth(request, snapshot)
-      else: problem(request, 405, "METHOD", "")
-      return
-    of "/auth/callback":
-      if verb == "GET": finishAuth(request, snapshot) else: problem(request, 405, "METHOD", "")
-      return
-    of "/auth/logout":
-      if verb == "POST": logout(request, snapshot) else: problem(request, 405, "METHOD", "")
-      return
-    of "/auth/me":
-      if verb == "GET": me(request, snapshot) else: problem(request, 405, "METHOD", "")
-      return
-    of "/auth/sessions":
-      if verb == "GET": listAuthSessions(request, snapshot)
-      elif verb == "DELETE": revokeOtherSessions(request, snapshot)
-      else: problem(request, 405, "METHOD", "")
-      return
-    of "/communities":
-      if verb == "POST": createCommunity(request, snapshot)
-      elif verb == "GET": listCommunities(request, snapshot)
-      else: problem(request, 405, "METHOD", "")
-      return
-    of "/directory":
-      if verb == "GET": directory(request, snapshot)
-      else: problem(request, 405, "METHOD", "")
-      return
-    else: discard
+# --- routing ----------------------------------------------------------------
+#
+# Each family is one proc and the caller picks it by segment. The "method not
+# allowed" answer is not a second list of sub-paths: `routeNotFound` asks the
+# generated contract whether the path names a shape, so every sub-path exists
+# once, in `routes_gen` (SQ-05). A known shape with a wrong verb is a 405 and an
+# invented one is still a 404.
 
-    # /ws/c/{slug}/sessions/{id} and /ws/share/{code}
-    if parts.len >= 3 and parts[1] == "ws":
-      handleWebSocket(request, snapshot, parts)
-      return
-    # /c/{slug}/players[/{id}]
-    if parts.len >= 4 and parts[1] == "c" and parts[3] == "players":
-      let authorized = scoped(request, snapshot, parts[2], access)
-      if authorized.isNone: return
-      let (user, ctx) = authorized.get
-      if parts.len == 4 and verb == "GET":
-        listPlayersRoute(request, ctx, user.id, snapshot)
-        return
-      if parts.len == 4 and verb == "POST":
-        createPlayerRoute(request, ctx, user, snapshot)
-        return
-      if parts.len == 5 and verb == "GET":
-        getPlayerRoute(request, ctx, user, parts[4])
-        return
-      if parts.len == 5 and verb == "PATCH":
-        patchPlayerRoute(request, ctx, user, parts[4], snapshot)
-        return
-      if parts.len == 5 and verb == "DELETE":
-        deletePlayerRoute(request, ctx, user, parts[4])
-        return
-      if parts.len == 6 and parts[5] == "achievements" and verb == "GET":
-        playerAchievements(request, ctx, parts[4], snapshot)
-        return
-      if parts.len == 6 and parts[5] == "stats" and verb == "GET":
-        playerStats(request, ctx, parts[4], snapshot)
-        return
-      if parts.len == 6 and parts[5] == "merge" and verb == "POST":
-        mergePlayerRoute(request, ctx, user, parts[4], snapshot)
-        return
-      if parts.len == 6 and parts[5] == "claims":
-        if verb == "GET":
-          listClaimsRoute(request, ctx, user, parts[4], snapshot)
-          return
-        if verb == "POST":
-          submitClaim(request, ctx, user, parts[4])
-          return
-      if parts.len == 7 and parts[5] == "claims" and verb == "PATCH":
-        decideClaim(request, ctx, user, parts[4], parts[6], snapshot)
-        return
-      if parts.len == 6 and parts[5] == "claim" and verb == "DELETE":
-        releaseOwnClaim(request, ctx, user, parts[4])
-        return
-      if parts.len in [4, 5] or
-         (parts.len == 6 and parts[5] in ["achievements", "stats", "merge",
-                                         "claims", "claim"]) or
-         (parts.len == 7 and parts[5] == "claims"):
-        methodNotAllowed(request)
-        return
-    # /c/{slug}/sessions[/{id}[/share]]
-    if parts.len >= 4 and parts[1] == "c" and parts[3] == "sessions":
-      let authorized = scoped(request, snapshot, parts[2], access)
-      if authorized.isNone: return
-      let (user, ctx) = authorized.get
-      if parts.len == 4 and verb == "GET":
-        listSessions(request, ctx, snapshot)
-        return
-      if parts.len == 4 and verb == "POST":
-        createSession(request, ctx, user, snapshot)
-        return
-      if parts.len == 5 and verb == "PATCH":
-        patchSession(request, ctx, user, parts[4], snapshot)
-        return
-      if parts.len == 6 and parts[5] in ["lock", "unlock"] and verb == "POST":
-        setSessionLock(request, ctx, user, parts[4], parts[5] == "lock", snapshot)
-        return
-      if parts.len == 5 and verb == "DELETE":
-        deleteSession(request, ctx, user, parts[4])
-        return
-      if parts.len == 6 and parts[5] == "standings" and verb == "GET":
-        getSessionStandingsRoute(request, ctx, parts[4])
-        return
-      if parts.len == 5 and verb == "GET":
-        getSessionDetail(request, ctx, parts[4])
-        return
-      if parts.len == 6 and parts[5] == "share":
-        if verb == "POST":
-          createShare(request, ctx, user, parts[4], snapshot)
-          return
-        if verb == "GET":
-          getShareLink(request, ctx, user, parts[4])
-          return
-        if verb == "DELETE":
-          deleteShareLink(request, ctx, user, parts[4])
-          return
-      if parts.len == 6 and parts[5] == "swap" and verb == "POST":
-        swapSession(request, ctx, user, parts[4], snapshot)
-        return
-      if parts.len == 6 and parts[5] == "ws-ticket" and verb == "POST":
-        issueSessionTicket(request, ctx, user, parts[4], snapshot)
-        return
-      if parts.len == 6 and parts[5] == "rating":
-        if verb in ["POST", "DELETE"]:
-          if verb == "POST":
-            ingestSessionRating(request, ctx, user, parts[4], snapshot)
-          else:
-            clearSessionRating(request, ctx, user, parts[4])
-          return
-      if parts.len == 6 and parts[5] == "schedule" and verb == "PUT":
-        putScheduleRoute(request, ctx, user, parts[4], snapshot)
-        return
-      if parts.len == 6 and parts[5] == "absent" and verb == "PATCH":
-        setAbsentRoute(request, ctx, user, parts[4], snapshot)
-        return
-      if parts.len == 7 and parts[5] == "games":
-        if verb == "GET":
-          getGameRoute(request, ctx, parts[4], parts[6])
-          return
-        if verb == "PATCH":
-          setGameScoreRoute(request, ctx, user, parts[4], parts[6], snapshot)
-          return
-      if parts.len == 8 and parts[5] == "games" and parts[7] == "skip" and
-         verb == "PATCH":
-        skipGameRoute(request, ctx, user, parts[4], parts[6], snapshot)
-        return
-      if parts.len in [4, 5] or
-         (parts.len == 6 and parts[5] in
-           ["lock", "unlock", "standings", "share", "swap", "ws-ticket",
-            "rating", "schedule", "absent"]) or
-         (parts.len in [7, 8] and parts[5] == "games"):
-        methodNotAllowed(request)
-        return
-    # /c/{slug}/tournaments[/{id}[/matches/{matchId}]]
-    if parts.len >= 4 and parts[1] == "c" and parts[3] == "tournaments":
-      let authorized = scoped(request, snapshot, parts[2], access)
-      if authorized.isNone: return
-      let (user, ctx) = authorized.get
-      if parts.len == 4 and verb == "GET":
-        listTournamentsRoute(request, ctx, snapshot)
-        return
-      if parts.len == 4 and verb == "POST":
-        createTournamentRoute(request, ctx, user, snapshot)
-        return
-      if parts.len == 5 and verb == "GET":
-        getTournamentRoute(request, ctx, parts[4])
-        return
-      if parts.len == 5 and verb == "PUT":
-        putTournamentRoute(request, ctx, user, parts[4], snapshot)
-        return
-      if parts.len == 5 and verb == "DELETE":
-        deleteTournamentRoute(request, ctx, user, parts[4])
-        return
-      if parts.len == 7 and parts[5] == "matches" and verb == "PATCH":
-        patchTournamentMatchRoute(request, ctx, user, parts[4], parts[6], snapshot)
-        return
-      if parts.len == 6 and parts[5] == "rating" and verb in ["POST", "DELETE"]:
-        if verb == "POST":
-          ingestTournamentRating(request, ctx, user, parts[4], snapshot)
-        else:
-          clearTournamentRating(request, ctx, user, parts[4])
-        return
-      if parts.len in [4, 5] or
-         (parts.len == 6 and parts[5] == "rating") or
-         (parts.len == 7 and parts[5] == "matches"):
-        methodNotAllowed(request)
-        return
-    # /c/{slug}/ratings/rebuild and /c/{slug}/rating-sources[/{id}]
-    if parts.len >= 4 and parts[1] == "c" and
-       parts[3] in ["ratings", "rating-sources"]:
-      let admin = scoped(request, snapshot, parts[2], access)
-      if admin.isNone: return
-      if parts[3] == "ratings" and parts.len == 5 and parts[4] == "rebuild" and
-         verb == "POST":
-        rebuildRatings(request, admin.get[1], admin.get[0])
-        return
-      if parts[3] == "rating-sources" and parts.len == 4 and verb == "GET":
-        listRatingSources(request, admin.get[1], snapshot)
-        return
-      if parts[3] == "rating-sources" and parts.len == 5 and verb == "PATCH":
-        patchRatingSource(request, admin.get[1], admin.get[0], parts[4], snapshot)
-        return
-      if parts[3] == "rating-sources" and parts.len == 5 and verb == "DELETE":
-        removeRatingSource(request, admin.get[1], admin.get[0], parts[4])
-        return
-      if (parts[3] == "ratings" and parts.len == 5 and parts[4] == "rebuild") or
-         (parts[3] == "rating-sources" and parts.len in [4, 5]):
-        methodNotAllowed(request)
-        return
-    # /invites/{token}/accept
-    if parts.len == 4 and parts[1] == "invites" and parts[3] == "accept":
-      if verb == "POST": acceptInvite(request, parts[2], snapshot)
-      else: problem(request, 405, "METHOD", "")
-      return
-    # Anonymous join request: always the same 202, whatever the reason.
-    if parts.len == 4 and parts[1] == "c" and parts[3] == "join-requests" and
-       verb == "POST":
-      requestJoin(request, parts[2], snapshot)
-      return
-    # /c/{slug}/members[/{userId}], /c/{slug}/join-requests[/{id}],
-    # /c/{slug}/claims, /c/{slug}/invites, /c/{slug}/config
-    if parts.len >= 4 and parts[1] == "c" and
-       parts[3] in ["members", "join-requests", "claims", "invites", "config"]:
-      # The member list and the effective config are member reads (export
-      # sizes, page limits); every other operation in this family is admin.
-      let authorized = scoped(request, snapshot, parts[2], access)
-      if authorized.isNone: return
-      let (user, ctx) = authorized.get
-      if parts[3] == "members" and parts.len == 4 and verb == "GET":
-        listMembers(request, ctx, snapshot)
-        return
-      if parts[3] == "config" and parts.len == 4 and verb == "GET":
-        communityConfig(request, ctx, snapshot)
-        return
-      if parts[3] == "members" and parts.len == 5:
-        if verb == "PATCH": patchMemberRole(request, ctx, user, parts[4], snapshot)
-        elif verb == "DELETE": removeMember(request, ctx, user, parts[4])
-        else: problem(request, 405, "METHOD", "")
-        return
-      if parts[3] == "join-requests" and parts.len == 4 and verb == "GET":
-        listJoinRequests(request, ctx, snapshot)
-        return
-      if parts[3] == "join-requests" and parts.len == 5 and verb == "PATCH":
-        decideJoinRequest(request, ctx, user, parts[4], snapshot)
-        return
-      if parts[3] == "claims" and parts.len == 4 and verb == "GET":
-        listPendingClaims(request, ctx, snapshot)
-        return
-      if parts[3] == "invites" and parts.len == 4 and verb == "POST":
-        createInvite(request, ctx, user, snapshot)
-        return
-    # /c/{slug}/settings
-    if parts.len == 4 and parts[1] == "c" and parts[3] == "settings":
-      if verb == "GET":
-        let authorized = scoped(request, snapshot, parts[2], access)
-        if authorized.isNone: return
-        getCommunitySettings(request, authorized.get[1], snapshot)
-      elif verb == "PATCH":
-        # Settings are admin-only: a host raises scores, not the ceiling.
-        let admin = scoped(request, snapshot, parts[2], access)
-        if admin.isNone: return
-        patchCommunitySettings(request, admin.get[1], admin.get[0], snapshot)
-      else:
-        problem(request, 405, "METHOD", "")
-      return
-    # /c/{slug}/rankings[/{playerId}]
-    if parts.len in [4, 5] and parts[1] == "c" and parts[3] == "rankings":
-      let authorized = scoped(request, snapshot, parts[2], access)
-      if authorized.isNone: return
-      let ctx = authorized.get[1]
-      if parts.len == 4:
-        communityBoard(request, ctx.communityId, ctx.timezone, snapshot,
-          ctx.settings)
-      else:
-        rankingPlayer(request, ctx.communityId, ctx.timezone,
-          parts[4], snapshot, ctx.settings)
-      return
-    # /s/{code} and /s/{code}/rankings
-    if parts.len >= 3 and parts[1] == "s":
-      let code = parts[2]
-      if parts.len == 3:
-        getShared(request, code)
-        return
-      if parts.len == 4 and parts[3] == "rankings":
-        getSharedRankings(request, code, snapshot)
-        return
-      if parts.len == 5 and parts[3] == "rankings":
-        getSharedRanking(request, code, parts[4], snapshot)
-        return
-      if parts.len == 4 and parts[3] == "ws-ticket" and verb == "POST":
-        issueShareTicket(request, code, snapshot)
-        return
+proc dispatchFixedRoute(request: Request, path, verb: string,
+                        snapshot: Snapshot): bool =
+  ## The routes with no `/c/{slug}` prefix. `true` means the request was
+  ## answered here; `false` sends it on to the prefix families.
+  case path
+  of "/auth/start":
+    if verb == "POST": startAuth(request, snapshot)
+    else: methodNotAllowed(request)
+  of "/auth/callback":
+    if verb == "GET": finishAuth(request, snapshot)
+    else: methodNotAllowed(request)
+  of "/auth/logout":
+    if verb == "POST": logout(request, snapshot)
+    else: methodNotAllowed(request)
+  of "/auth/me":
+    if verb == "GET": me(request, snapshot)
+    else: methodNotAllowed(request)
+  of "/auth/sessions":
+    if verb == "GET": listAuthSessions(request, snapshot)
+    elif verb == "DELETE": revokeOtherSessions(request, snapshot)
+    else: methodNotAllowed(request)
+  of "/communities":
+    if verb == "POST": createCommunity(request, snapshot)
+    elif verb == "GET": listCommunities(request, snapshot)
+    else: methodNotAllowed(request)
+  of "/directory":
+    if verb == "GET": directory(request, snapshot)
+    else: methodNotAllowed(request)
+  else:
+    return false
+  true
+
+proc dispatchPlayers(request: Request, parts: seq[string], verb: string,
+                     access: Access, snapshot: Snapshot) =
+  let authorized = scoped(request, snapshot, parts[2], access)
+  if authorized.isNone:
+    return
+  let (user, ctx) = authorized.get
+  if parts.len == 4 and verb == "GET":
+    listPlayersRoute(request, ctx, user.id, snapshot)
+  elif parts.len == 4 and verb == "POST":
+    createPlayerRoute(request, ctx, user, snapshot)
+  elif parts.len == 5 and verb == "GET":
+    getPlayerRoute(request, ctx, user, parts[4])
+  elif parts.len == 5 and verb == "PATCH":
+    patchPlayerRoute(request, ctx, user, parts[4], snapshot)
+  elif parts.len == 5 and verb == "DELETE":
+    deletePlayerRoute(request, ctx, user, parts[4])
+  elif parts.len == 6 and parts[5] == "achievements" and verb == "GET":
+    playerAchievements(request, ctx, parts[4], snapshot)
+  elif parts.len == 6 and parts[5] == "stats" and verb == "GET":
+    playerStats(request, ctx, parts[4], snapshot)
+  elif parts.len == 6 and parts[5] == "merge" and verb == "POST":
+    mergePlayerRoute(request, ctx, user, parts[4], snapshot)
+  elif parts.len == 6 and parts[5] == "claims" and verb == "GET":
+    listClaimsRoute(request, ctx, user, parts[4], snapshot)
+  elif parts.len == 6 and parts[5] == "claims" and verb == "POST":
+    submitClaim(request, ctx, user, parts[4])
+  elif parts.len == 7 and parts[5] == "claims" and verb == "PATCH":
+    decideClaim(request, ctx, user, parts[4], parts[6], snapshot)
+  elif parts.len == 6 and parts[5] == "claim" and verb == "DELETE":
+    releaseOwnClaim(request, ctx, user, parts[4])
+  else:
     routeNotFound(request)
+
+proc dispatchSessions(request: Request, parts: seq[string], verb: string,
+                      access: Access, snapshot: Snapshot) =
+  let authorized = scoped(request, snapshot, parts[2], access)
+  if authorized.isNone:
+    return
+  let (user, ctx) = authorized.get
+  if parts.len == 4 and verb == "GET":
+    listSessions(request, ctx, snapshot)
+  elif parts.len == 4 and verb == "POST":
+    createSession(request, ctx, user, snapshot)
+  elif parts.len == 5 and verb == "GET":
+    getSessionDetail(request, ctx, parts[4])
+  elif parts.len == 5 and verb == "PATCH":
+    patchSession(request, ctx, user, parts[4], snapshot)
+  elif parts.len == 5 and verb == "DELETE":
+    deleteSession(request, ctx, user, parts[4])
+  elif parts.len == 6 and parts[5] in ["lock", "unlock"]:
+    if verb == "POST":
+      setSessionLock(request, ctx, user, parts[4], parts[5] == "lock", snapshot)
+    else:
+      methodNotAllowed(request)
+  elif parts.len == 6 and parts[5] == "standings" and verb == "GET":
+    getSessionStandingsRoute(request, ctx, parts[4])
+  elif parts.len == 6 and parts[5] == "share":
+    case verb
+    of "POST": createShare(request, ctx, user, parts[4], snapshot)
+    of "GET": getShareLink(request, ctx, user, parts[4])
+    of "DELETE": deleteShareLink(request, ctx, user, parts[4])
+    else: methodNotAllowed(request)
+  elif parts.len == 6 and parts[5] == "swap" and verb == "POST":
+    swapSession(request, ctx, user, parts[4], snapshot)
+  elif parts.len == 6 and parts[5] == "ws-ticket" and verb == "POST":
+    issueSessionTicket(request, ctx, user, parts[4], snapshot)
+  elif parts.len == 6 and parts[5] == "rating":
+    case verb
+    of "POST": ingestSessionRating(request, ctx, user, parts[4], snapshot)
+    of "DELETE": clearSessionRating(request, ctx, user, parts[4])
+    else: methodNotAllowed(request)
+  elif parts.len == 6 and parts[5] == "schedule" and verb == "PUT":
+    putScheduleRoute(request, ctx, user, parts[4], snapshot)
+  elif parts.len == 6 and parts[5] == "absent" and verb == "PATCH":
+    setAbsentRoute(request, ctx, user, parts[4], snapshot)
+  elif parts.len == 7 and parts[5] == "games":
+    case verb
+    of "GET": getGameRoute(request, ctx, parts[4], parts[6])
+    of "PATCH":
+      setGameScoreRoute(request, ctx, user, parts[4], parts[6], snapshot)
+    else: methodNotAllowed(request)
+  elif parts.len == 8 and parts[5] == "games" and parts[7] == "skip" and
+       verb == "PATCH":
+    skipGameRoute(request, ctx, user, parts[4], parts[6], snapshot)
+  else:
+    routeNotFound(request)
+
+proc dispatchTournaments(request: Request, parts: seq[string], verb: string,
+                         access: Access, snapshot: Snapshot) =
+  let authorized = scoped(request, snapshot, parts[2], access)
+  if authorized.isNone:
+    return
+  let (user, ctx) = authorized.get
+  if parts.len == 4 and verb == "GET":
+    listTournamentsRoute(request, ctx, snapshot)
+  elif parts.len == 4 and verb == "POST":
+    createTournamentRoute(request, ctx, user, snapshot)
+  elif parts.len == 5 and verb == "GET":
+    getTournamentRoute(request, ctx, parts[4])
+  elif parts.len == 5 and verb == "PUT":
+    putTournamentRoute(request, ctx, user, parts[4], snapshot)
+  elif parts.len == 5 and verb == "DELETE":
+    deleteTournamentRoute(request, ctx, user, parts[4])
+  elif parts.len == 7 and parts[5] == "matches" and verb == "PATCH":
+    patchTournamentMatchRoute(request, ctx, user, parts[4], parts[6], snapshot)
+  elif parts.len == 6 and parts[5] == "rating":
+    case verb
+    of "POST": ingestTournamentRating(request, ctx, user, parts[4], snapshot)
+    of "DELETE": clearTournamentRating(request, ctx, user, parts[4])
+    else: methodNotAllowed(request)
+  else:
+    routeNotFound(request)
+
+proc dispatchRatings(request: Request, parts: seq[string], verb: string,
+                     access: Access, snapshot: Snapshot) =
+  ## `/c/{slug}/ratings/rebuild` and `/c/{slug}/rating-sources[/{id}]`. Both are
+  ## admin routes, and the gate runs before the shape is inspected.
+  let admin = scoped(request, snapshot, parts[2], access)
+  if admin.isNone:
+    return
+  if parts[3] == "ratings" and parts.len == 5 and parts[4] == "rebuild" and
+     verb == "POST":
+    rebuildRatings(request, admin.get[1], admin.get[0])
+  elif parts[3] == "rating-sources" and parts.len == 4 and verb == "GET":
+    listRatingSources(request, admin.get[1], snapshot)
+  elif parts[3] == "rating-sources" and parts.len == 5 and verb == "PATCH":
+    patchRatingSource(request, admin.get[1], admin.get[0], parts[4], snapshot)
+  elif parts[3] == "rating-sources" and parts.len == 5 and verb == "DELETE":
+    removeRatingSource(request, admin.get[1], admin.get[0], parts[4])
+  else:
+    routeNotFound(request)
+
+proc dispatchCommunity(request: Request, parts: seq[string], verb: string,
+                       access: Access, snapshot: Snapshot) =
+  ## `members`, `join-requests`, `claims`, `invites` and `config`. The anonymous
+  ## join request is the public door of a community the caller is not a member
+  ## of, so it is answered before the gate.
+  if parts.len == 4 and parts[3] == "join-requests" and verb == "POST":
+    requestJoin(request, parts[2], snapshot)
+    return
+  let authorized = scoped(request, snapshot, parts[2], access)
+  if authorized.isNone:
+    return
+  let (user, ctx) = authorized.get
+  if parts[3] == "members" and parts.len == 4 and verb == "GET":
+    listMembers(request, ctx, snapshot)
+  elif parts[3] == "config" and parts.len == 4 and verb == "GET":
+    communityConfig(request, ctx, snapshot)
+  elif parts[3] == "members" and parts.len == 5:
+    if verb == "PATCH": patchMemberRole(request, ctx, user, parts[4], snapshot)
+    elif verb == "DELETE": removeMember(request, ctx, user, parts[4])
+    else: methodNotAllowed(request)
+  elif parts[3] == "join-requests" and parts.len == 4 and verb == "GET":
+    listJoinRequests(request, ctx, snapshot)
+  elif parts[3] == "join-requests" and parts.len == 5 and verb == "PATCH":
+    decideJoinRequest(request, ctx, user, parts[4], snapshot)
+  elif parts[3] == "claims" and parts.len == 4 and verb == "GET":
+    listPendingClaims(request, ctx, snapshot)
+  elif parts[3] == "invites" and parts.len == 4 and verb == "POST":
+    createInvite(request, ctx, user, snapshot)
+  else:
+    routeNotFound(request)
+
+proc dispatchSettings(request: Request, parts: seq[string], verb: string,
+                      access: Access, snapshot: Snapshot) =
+  ## Settings are a member read and an admin write: a host raises scores, not
+  ## the ceiling.
+  if verb == "GET":
+    let authorized = scoped(request, snapshot, parts[2], access)
+    if authorized.isNone:
+      return
+    getCommunitySettings(request, authorized.get[1], snapshot)
+  elif verb == "PATCH":
+    let admin = scoped(request, snapshot, parts[2], access)
+    if admin.isNone:
+      return
+    patchCommunitySettings(request, admin.get[1], admin.get[0], snapshot)
+  else:
+    methodNotAllowed(request)
+
+proc dispatchRankings(request: Request, parts: seq[string], verb: string,
+                      access: Access, snapshot: Snapshot) =
+  let authorized = scoped(request, snapshot, parts[2], access)
+  if authorized.isNone:
+    return
+  let ctx = authorized.get[1]
+  if verb != "GET":
+    methodNotAllowed(request)
+  elif parts.len == 4:
+    communityBoard(request, ctx.communityId, ctx.timezone, snapshot,
+      ctx.settings)
+  else:
+    rankingPlayer(request, ctx.communityId, ctx.timezone,
+      parts[4], snapshot, ctx.settings)
+
+proc dispatchShare(request: Request, parts: seq[string], verb: string,
+                   snapshot: Snapshot) =
+  ## `/s/{code}` and its readings. The code is the only secret, so these are
+  ## public and the scrape guard in `dispatch` is what bounds them.
+  let code = parts[2]
+  if parts.len == 3 and verb == "GET":
+    getShared(request, code)
+  elif parts.len == 4 and parts[3] == "rankings" and verb == "GET":
+    getSharedRankings(request, code, snapshot)
+  elif parts.len == 5 and parts[3] == "rankings" and verb == "GET":
+    getSharedRanking(request, code, parts[4], snapshot)
+  elif parts.len == 4 and parts[3] == "ws-ticket" and verb == "POST":
+    issueShareTicket(request, code, snapshot)
+  else:
+    routeNotFound(request)
+
+proc dispatch(request: Request) =
+  let path = request.path
+  # The probes answer before any database or config read and outside the
+  # quota. A liveness check that needs a database is a database probe, and a
+  # burst must never answer 429 to the probe that decides a deploy is healthy.
+  if path == "/healthz" or path == "/readyz":
+    if request.httpMethod != "GET":
+      methodNotAllowed(request)
+    elif path == "/healthz":
+      send(request, 200, """{"status":"ok"}""")
+    else:
+      readyz(request)
+    return
+  let parts = path.split('/')
+  let verb = request.httpMethod
+  # The one access table: the test in modules/account compares this with
+  # testdata/authz/matrix.yaml, so a class cannot change here alone.
+  let access = operationAccess(verb, path)
+  let snapshot = configSnapshot()
+  if rejectLargeBody(request, snapshot):
+    return
+  if rejectCrossSite(request, snapshot):
+    return
+  # Resolve the address once: the identity pre-limit, the route budget and
+  # the share budget all use it.
+  let address = clientIp(request, trustedProxies())
+  let now = utcNow().toTime.toUnixFloat
+  let token = cookieValue(request, "majadu_session")
+  # A cookie that was not validated in this window is a database lookup
+  # candidate. Charge the address's pre-limit before it, so random cookies
+  # are refused here and never reach `account.sessions`.
+  if token.len > 0 and not application.identityCache.knows(token, now):
+    if preLimit(request, snapshot, address, now):
+      return
+  let identity = requestIdentity(request, snapshot, address)
+  if quota(request, snapshot, currentRouteLabel, identity,
+      snapshot.intValue(%*{}, keySecurityRateLimitPerMinute)):
+    return
+  if rejectShareScrape(request, snapshot, identity):
+    return
+  if path.startsWith("/ops/"):
+    if path == "/ops/ping" and verb == "GET":
+      opsPing(request)
+    else:
+      routeNotFound(request)
+    return
+  if path == "/version":
+    if verb == "GET":
+      jsonResponse(request, 200, %*{"version": appVersion, "commit": appCommit})
+    else:
+      methodNotAllowed(request)
+    return
+  if outdatedClient(request):
+    problem(request, 410, "CLIENT_OUTDATED",
+      "this client speaks an older contract; reload the page")
+    return
+  if dispatchFixedRoute(request, path, verb, snapshot):
+    return
+  # /ws/c/{slug}/sessions/{id} and /ws/share/{code}
+  if parts.len >= 3 and parts[1] == "ws":
+    handleWebSocket(request, snapshot, parts)
+    return
+  # /c/{slug}/{family}/...
+  if parts.len >= 4 and parts[1] == "c":
+    case parts[3]
+    of "players":
+      dispatchPlayers(request, parts, verb, access, snapshot)
+    of "sessions":
+      dispatchSessions(request, parts, verb, access, snapshot)
+    of "tournaments":
+      dispatchTournaments(request, parts, verb, access, snapshot)
+    of "ratings", "rating-sources":
+      dispatchRatings(request, parts, verb, access, snapshot)
+    of "members", "join-requests", "claims", "invites", "config":
+      dispatchCommunity(request, parts, verb, access, snapshot)
+    of "settings":
+      dispatchSettings(request, parts, verb, access, snapshot)
+    of "rankings":
+      dispatchRankings(request, parts, verb, access, snapshot)
+    else:
+      routeNotFound(request)
+    return
+  # /invites/{token}/accept
+  if parts.len == 4 and parts[1] == "invites" and parts[3] == "accept":
+    if verb == "POST": acceptInvite(request, parts[2], snapshot)
+    else: methodNotAllowed(request)
+    return
+  # /s/{code} and /s/{code}/rankings
+  if parts.len >= 3 and parts[1] == "s":
+    dispatchShare(request, parts, verb, snapshot)
+    return
+  routeNotFound(request)
 
 proc internalFailure(request: Request, error: ref Exception) =
   ## One envelope for a crash. Driver messages echo input values; the logger

@@ -36,3 +36,7 @@ tools/mutation/main.nim:50
 # BE-07: how often `resolve` may touch `last_seen_at`. A write-amplification
 # guard of the session store, not a configurable product limit.
 modules/account/infrastructure/session_store.nim:60
+
+# SQ-08: how long a failed JWKS refresh is left alone before the next attempt.
+# A retry window on the login path, not a configurable product limit.
+modules/account/infrastructure/oidc.nim:60
