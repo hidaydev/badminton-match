@@ -6,6 +6,7 @@ import { t } from '@/i18n'
 import AdminPageShell from '../../components/admin/AdminPageShell'
 import ActionButton from '../../components/admin/ActionButton'
 import Pager from '../../components/admin/Pager'
+import { Card } from '../../../components/Card'
 
 const PAGE = 10
 
@@ -26,7 +27,7 @@ export default function AdminTournamentsPage() {
               <span className="text-xs font-mono text-fg-dim">{(tournaments ?? []).length} tournaments</span>
             </div>
 
-            <div className="bg-surface border border-border-subtle rounded-xl divide-y divide-border-subtle overflow-hidden shadow-xs">
+            <Card variant="flush" radius="xl" className="divide-y divide-border-subtle shadow-xs">
               {slice.length === 0 && (
                 <div className="flex flex-col items-center gap-2 py-6">
                   <p className="text-fg-dim text-xs font-sans text-center">{t('admin.noTournaments')}</p>
@@ -70,7 +71,7 @@ export default function AdminTournamentsPage() {
                   </div>
                 </div>
               ))}
-            </div>
+            </Card>
 
             <Pager page={page} total={(tournaments ?? []).length} onPage={setPage} />
           </section>

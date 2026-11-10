@@ -3,6 +3,7 @@ import { teamMatchOutcome, teamTarget, PARTAI_CLASSES, teamName, DEFAULT_TEAM_CO
 import Icon from '../Icon'
 import { hit44 } from '../hitTarget'
 import { t } from '@/i18n'
+import { Card } from '../../../components/Card'
 
 interface PostProps {
   isPostMode: boolean
@@ -49,7 +50,7 @@ export default function TeamMatchCard({
   }
 
   return (
-    <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
+    <Card radius="lg" className="overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-border-subtle">
         <div className="flex items-center gap-2 min-w-0">
@@ -165,6 +166,6 @@ export default function TeamMatchCard({
           )}
         </div>
       )}
-    </div>
+    </Card>
   )
 }

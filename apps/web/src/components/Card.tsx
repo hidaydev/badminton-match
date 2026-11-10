@@ -1,15 +1,25 @@
 import type { ComponentProps, ElementType, ReactNode } from 'react'
 
 /** The container recipe. Only this file may spell it out. */
-export const CARD_RECIPE = 'rounded-2xl border border-border-subtle bg-surface'
+export const CARD_RECIPE = 'border border-border-subtle bg-surface'
 
 const PADDING = {
   none: '',
   sm: 'p-3',
   md: 'p-4',
+  lg: 'p-6',
 } as const
 
 export type CardPadding = keyof typeof PADDING
+
+/** Adoption keeps the corner a site already had (docs/design/panel-mapping.md §2). */
+const RADIUS = {
+  '2xl': 'rounded-2xl',
+  xl: 'rounded-xl',
+  lg: 'rounded-lg',
+} as const
+
+export type CardRadius = keyof typeof RADIUS
 
 /**
  * `interactive` is for the whole-surface target (docs/design/cta-recipe.md §3):
@@ -21,7 +31,9 @@ const INTERACTIVE =
 
 type CardProps = ComponentProps<'div'> & {
   padding?: CardPadding
-  variant?: 'panel' | 'interactive'
+  radius?: CardRadius
+  /** `flush` is for children that draw their own dividers: a list or a table. */
+  variant?: 'panel' | 'flush' | 'interactive'
   /** The element to render. Pass `'button'` for an interactive card. */
   as?: ElementType
   /** Only used when `as="button"`: keeps the card from submitting a form. */
@@ -31,6 +43,8 @@ type CardProps = ComponentProps<'div'> & {
   children: ReactNode
 }
 
+const FLUSH = 'overflow-hidden'
+
 /**
  * The V2 panel. The radius, border and surface are the recipe; the padding is
  * a closed set so a page cannot reintroduce its own copy of the container.
@@ -38,6 +52,7 @@ type CardProps = ComponentProps<'div'> & {
 export function Card({
   className,
   padding = 'none',
+  radius = '2xl',
   variant = 'panel',
   as,
   type = 'button',
@@ -47,6 +62,8 @@ export function Card({
   const Element = as ?? 'div'
   const classes = [
     CARD_RECIPE,
+    RADIUS[radius],
+    variant === 'flush' ? FLUSH : undefined,
     PADDING[padding],
     variant === 'interactive' ? INTERACTIVE : undefined,
     className,

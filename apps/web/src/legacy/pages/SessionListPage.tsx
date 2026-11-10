@@ -11,6 +11,7 @@ import { t } from '../../i18n'
 import Icon from '../components/Icon'
 import { Button, ButtonLink } from '../../components/Button'
 import { Card } from '../../components/Card'
+import { EmptyState } from '../../components/EmptyState'
 
 const MONTH_NAMES = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
@@ -250,38 +251,37 @@ export default function SessionListPage() {
       )}
 
       {!isError && !isLoading && filtered.length === 0 && (
-        <div className="bg-surface border border-border-subtle rounded-xl p-8 text-center">
-          <p className="text-fg-dim text-xs font-sans">
-            {hasFilter ? t('sessions.noSessionsFound') : t('sessions.noSessionsYet')}
-          </p>
-          {(hasFilter || isAdmin) && (
-            <p className="mt-1 text-xs font-sans text-fg-dim">
-              {hasFilter ? t('sessions.emptyHintFilter') : t('sessions.emptyHint')}
-            </p>
-          )}
-          {hasFilter ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="mt-3 font-mono"
-              onClick={() => {
-                setQuery('')
-                setDateFilter('')
-              }}
-            >
-              {t('sessions.clearFilters')}
-            </Button>
-          ) : (
-            isAdmin && (
-              <ButtonLink
-                to={communityHref(slug, '/session/new')}
-                className="mt-3 inline-flex items-center"
-              >
-                {t('home.newSession')}
-              </ButtonLink>
-            )
-          )}
-        </div>
+        <Card radius="xl">
+          <EmptyState
+            title={hasFilter ? t('sessions.noSessionsFound') : t('sessions.noSessionsYet')}
+            description={
+              hasFilter || isAdmin
+                ? hasFilter
+                  ? t('sessions.emptyHintFilter')
+                  : t('sessions.emptyHint')
+                : undefined
+            }
+            action={
+              hasFilter ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="font-mono"
+                  onClick={() => {
+                    setQuery('')
+                    setDateFilter('')
+                  }}
+                >
+                  {t('sessions.clearFilters')}
+                </Button>
+              ) : isAdmin ? (
+                <ButtonLink to={communityHref(slug, '/session/new')} className="inline-flex items-center">
+                  {t('home.newSession')}
+                </ButtonLink>
+              ) : undefined
+            }
+          />
+        </Card>
       )}
 
       {!isError && !isLoading && filtered.length > 0 && (

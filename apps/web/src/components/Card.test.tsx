@@ -20,6 +20,26 @@ describe('Card', () => {
     expect(container.firstElementChild).toHaveClass('p-4', 'mt-6')
   })
 
+  it('applies the large padding for a section block', () => {
+    const { container } = render(<Card padding="lg">Body</Card>)
+
+    expect(container.firstElementChild).toHaveClass('p-6')
+  })
+
+  it('keeps the radius a migrated site already had', () => {
+    const { container } = render(<Card radius="xl">Body</Card>)
+
+    expect(container.firstElementChild).toHaveClass('rounded-xl')
+    expect(container.firstElementChild).not.toHaveClass('rounded-2xl')
+  })
+
+  it('clips a flush card so its rows own the dividers', () => {
+    const { container } = render(<Card variant="flush">Body</Card>)
+
+    expect(container.firstElementChild).toHaveClass('overflow-hidden')
+    expect(container.firstElementChild).not.toHaveClass('p-4')
+  })
+
   it('passes through the remaining div props', () => {
     render(
       <Card role="group" aria-label="Danger">

@@ -8,6 +8,7 @@ import { useImageUploadMap } from '../../hooks/useImageUploadMap'
 import Icon from '../Icon'
 import { hit44 } from '../hitTarget'
 import ScoreModal from './ScoreModal'
+import { Card } from '../../../components/Card'
 
 interface BracketTabProps {
   pairs: TournamentPair[]
@@ -349,7 +350,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
           },
         ]
         return (
-          <div className="mt-5 bg-surface border border-border-subtle rounded-xl p-4 flex justify-around items-end shadow-xs">
+          <Card padding="md" radius="xl" className="mt-5 flex justify-around items-end shadow-xs">
             {positions.map(({ pos, rank, badgeBg, badgeBorder, rankCls, label, positionLabel, name, mt, champion: isChamp }) => (
               <div key={pos} className={`flex flex-col items-center text-center ${mt}`}>
                 <div className={`flex items-center justify-center rounded-full border ${badgeBg} ${badgeBorder} ${isChamp ? 'w-13 h-13' : 'w-10 h-10'} mb-1`}>
@@ -377,7 +378,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
                 </div>
               </div>
             ))}
-          </div>
+          </Card>
         )
       })()}
 

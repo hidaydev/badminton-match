@@ -13,7 +13,7 @@ type CollapsiblePanelProps = Omit<ComponentProps<'details'>, 'title'> & {
  * sites only pass the heading and the body.
  */
 export function CollapsiblePanel({ title, hint, className, children, ...rest }: CollapsiblePanelProps) {
-  const classes = [CARD_RECIPE, 'p-4', className].filter((part) => part !== undefined && part !== '').join(' ')
+  const classes = [CARD_RECIPE, 'rounded-2xl', 'p-4', className].filter((part) => part !== undefined && part !== '').join(' ')
   return (
     <details className={classes} {...rest}>
       <summary className="min-h-11 cursor-pointer text-sm font-semibold text-fg">{title}</summary>

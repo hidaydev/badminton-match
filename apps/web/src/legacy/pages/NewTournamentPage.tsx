@@ -1,6 +1,7 @@
 // src/pages/NewTournamentPage.tsx: choose tournament format.
 import { useNavigate } from '../router'
 import Icon from '../components/Icon'
+import { Card } from '../../components/Card'
 
 export default function NewTournamentPage() {
   const navigate = useNavigate()
@@ -37,11 +38,7 @@ export default function NewTournamentPage() {
         {options.map((o) => {
           const isAccent = o.tone === 'accent'
           return (
-            <button
-              key={o.format}
-              onClick={() => navigate(o.to)}
-              className="w-full flex items-center gap-3.5 p-4 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.99] transition-[border-color,transform] text-left shadow-sm group hit44"
-            >
+            <Card as="button" variant="interactive" padding="md" radius="xl" className="w-full flex items-center gap-3.5 hover:border-border active:scale-[0.99] transition-[border-color,transform] text-left shadow-sm group hit44" key={o.format} onClick={() => navigate(o.to)}>
               <div
                 className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${
                   isAccent
@@ -71,7 +68,7 @@ export default function NewTournamentPage() {
               </div>
 
               <Icon name="chevron-right" size={18} className="text-fg-dim/40 group-hover:text-fg transition-colors shrink-0" />
-            </button>
+            </Card>
           )
         })}
       </div>

@@ -28,6 +28,7 @@ import { drawPositionPost, loadImage } from '../utils/canvasPost'
 import { canvasToBlob, shareOrDownload } from '../utils/share'
 import { loadOverlayImages } from '../utils/overlays'
 import { t } from '../../i18n'
+import { Card } from '../../components/Card'
 
 type Tab = 'klasemen' | 'jadwal' | 'final'
 
@@ -294,7 +295,7 @@ export default function TeamTournamentPage() {
       <div className="px-3 pt-4 pb-8 flex flex-col gap-4">
         {tab === 'klasemen' && (
           <>
-            <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
+            <Card variant="flush" radius="lg">
               <div className="px-4 py-2 border-b border-border-subtle text-xs text-fg-dim label-meta">
                 {t('legacy.standings')}
               </div>
@@ -335,9 +336,9 @@ export default function TeamTournamentPage() {
                   </div>
                 )
               })}
-            </div>
+            </Card>
             {groupMatches.length === 0 && (
-              <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
+              <Card variant="flush" radius="lg">
                 <div className="px-4 py-2 border-b border-border-subtle text-xs text-fg-dim label-meta">
                   Team Draw (match day)
                 </div>
@@ -374,7 +375,7 @@ export default function TeamTournamentPage() {
                     </button>
                   </div>
                 )}
-              </div>
+              </Card>
             )}
             {canEdit && groupComplete && !hasFinal && (
               <button
@@ -447,7 +448,7 @@ export default function TeamTournamentPage() {
 
                 {/* Export Posts — champion + runner-up photos + download */}
                 {finalPostMode && (
-                <div className="bg-surface border border-border-subtle rounded-lg px-4 py-3 flex flex-col gap-2">
+                <Card padding="sm" radius="lg" className="flex flex-col gap-2">
                   <h3 className="text-xs text-fg-dim label-meta">Position Photos</h3>
 
                   {championName && (
@@ -485,7 +486,7 @@ export default function TeamTournamentPage() {
                   <div className="flex items-center justify-between pt-1 border-t border-border-subtle mt-1">
                     <span className="text-xs text-fg-dim">{Object.keys(finalPhotos).filter(k => k === 'champion' || k === 'runnerup').length} of {(championName ? 1 : 0) + (runnerUpName ? 1 : 0)} position photos</span>
                   </div>
-                </div>
+                </Card>
                 )}
 
                 <input

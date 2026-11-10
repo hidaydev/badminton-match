@@ -17,6 +17,7 @@ import {
 import { TEAM_CLASSES, TEAM_NAMES, type TeamClass } from '../utils/teamTournament'
 import { t } from '../../i18n'
 import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 
 const PAIR_COUNT = 16
 const emptyPair = () => ({ a: '', b: '' })
@@ -164,7 +165,7 @@ function TeamWizard() {
               {classesBalanced && matrixBalanced ? ' ✓' : ' (need 6 per class, 1 per team×class)'}
             </span>
           </p>
-          <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
+          <Card variant="flush" radius="lg" className="divide-y divide-border-subtle">
             {players.map((p, i) => (
               <div key={i} className="flex items-center gap-1.5 px-3 py-2">
                 <span className="w-6 text-xs font-sans text-fg-dim shrink-0">{i + 1}</span>
@@ -194,7 +195,7 @@ function TeamWizard() {
                 </select>
               </div>
             ))}
-          </div>
+          </Card>
           <Button
             className="mt-1 w-full font-bold"
             onClick={() => { formTeams(); setStep(3) }}
@@ -224,7 +225,7 @@ function TeamWizard() {
           )}
           <div className="flex flex-col gap-2.5">
             {teams.map((t, i) => (
-              <div key={t.id} className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
+              <Card radius="lg" key={t.id} className="overflow-hidden">
                 <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-subtle">
                   <span className="flex-1 text-sm font-semibold text-fg">{TEAM_NAMES[i]}</span>
                   <span className="text-[10px] font-sans text-fg-dim label-meta">
@@ -238,7 +239,7 @@ function TeamWizard() {
                     </span>
                   ))}
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
           <Button
@@ -372,7 +373,7 @@ function ClassicWizard() {
               {t('legacy.reset')}
             </Button>
           </div>
-          <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
+          <Card variant="flush" radius="lg" className="divide-y divide-border-subtle">
             {pairs.map((p, i) => (
               <div key={i} className="flex items-center gap-2 px-3 py-2">
                 <span className="w-6 text-xs font-sans text-fg-dim shrink-0">{i + 1}</span>
@@ -391,7 +392,7 @@ function ClassicWizard() {
                 />
               </div>
             ))}
-          </div>
+          </Card>
           <Button
             className="mt-1 w-full font-bold"
             onClick={() => setStep(3)}
@@ -421,7 +422,7 @@ function ClassicWizard() {
           )}
           <div className="flex flex-col gap-2.5">
             {GROUP_IDS.map((g) => (
-              <div key={g} className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
+              <Card variant="flush" radius="lg" key={g}>
                 <div className="px-3 py-1.5 border-b border-border-subtle text-xs font-sans text-fg-dim label-meta">
                   Group {g}
                 </div>
@@ -430,7 +431,7 @@ function ClassicWizard() {
                     {n}
                   </div>
                 ))}
-              </div>
+              </Card>
             ))}
           </div>
           <Button

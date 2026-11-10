@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { computeGroupStandings, GROUP_IDS, QF_IDS, FINAL_ID, THIRD_PLACE_ID } from '../../utils/tournament'
 import type { TournamentMatch, TournamentPair, GroupId } from '../../utils/tournament'
+import { Card } from '../../../components/Card'
 
 const STAGE_LABEL = ['Champion', 'Runner-up', '3rd Place', '4th Place', 'QF Exit', 'Group Stage']
 
@@ -109,7 +110,7 @@ export default function StandingsTab({ pairs, groups, matches }: StandingsTabPro
   return (
     <div className="space-y-4">
       {/* Podium */}
-      <div className="bg-surface border border-border-subtle rounded-xl p-4 flex justify-around items-end shadow-xs">
+      <Card padding="md" radius="xl" className="flex justify-around items-end shadow-xs">
         {top3.map(({ p, rank, badgeBg, badgeBorder, cls, size, circleSize, mt, isChamp }) => (
           <div key={p?.id ?? rank} className={`flex flex-col items-center text-center ${mt}`}>
             <div className={`flex items-center justify-center rounded-full border ${badgeBg} ${badgeBorder} ${circleSize} mb-1`}>
@@ -122,10 +123,10 @@ export default function StandingsTab({ pairs, groups, matches }: StandingsTabPro
             </div>
           </div>
         ))}
-      </div>
+      </Card>
 
       {/* Full ranking */}
-      <div className="bg-surface border border-border-subtle rounded-xl overflow-hidden shadow-xs">
+      <Card variant="flush" radius="xl" className="shadow-xs">
         <div className="px-4 py-2.5 border-b border-border-subtle text-xs text-fg-dim font-semibold flex items-center justify-between">
           <span>Full standings</span>
         </div>
@@ -159,7 +160,7 @@ export default function StandingsTab({ pairs, groups, matches }: StandingsTabPro
             )
           })}
         </ol>
-      </div>
+      </Card>
     </div>
   )
 }
