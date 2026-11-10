@@ -115,6 +115,22 @@ proc dateChangeBlocked(db: Db, communityId, sessionId: string,
   row.isSome and isRated(row.get.getOpt("approved_at"), row.get.get("status")) and
     row.get.get("session_date") != date.get
 
+proc create*(db: Db, communityId, title, date, startTime: string,
+             slotMinutes: int, presetId, rulesJson: string): Option[Row] =
+  ## The insert a create runs inside the caller's transaction, so the audit row
+  ## commits with it. `rulesJson` is the frozen format resolved from `presetId`,
+  ## and the two are written together so they cannot disagree.
+  db.queryOne(
+    """insert into session.sessions
+       (community_id, title, session_date, start_time, slot_minutes, status,
+        source, scoring_preset, scoring_rules)
+       values ($1, $2, $3::date, $4::time, $5, 'draft', 'manual', $6,
+               $7::jsonb)
+       returning id, title, session_date::text as session_date, status""",
+    @[textParam(communityId), textParam(title), textParam(date),
+      textParam(startTime), intParam(slotMinutes.int64), textParam(presetId),
+      textParam(rulesJson)])
+
 proc patch*(db: Db, communityId, sessionId: string, expectedVersion: int,
             patch: SessionPatch): WriteResult =
   ## One UPDATE with the version in the predicate: no read-modify-write window

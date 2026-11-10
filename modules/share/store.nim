@@ -165,6 +165,25 @@ proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
     status: value.get("status"),
   ))
 
+proc sessionStatus*(db: Db, communityId, sessionId: string): Option[string] =
+  ## A code hands the session to anyone holding it, so minting reads the status
+  ## first: a draft must not publish an unfinished schedule for the whole TTL.
+  let row = db.queryOne(
+    """select status from session.sessions
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(communityId), textParam(sessionId)])
+  if row.isSome: some(row.get.get("status")) else: none(string)
+
+proc unrevokedLinks*(db: Db, communityId, sessionId: string): seq[string] =
+  ## Every link the next mint is about to revoke, including an expired row:
+  ## `issue` revokes those too, so their watchers have to be closed.
+  for row in db.query(
+    """select id from session.links
+       where community_id = $1::uuid and session_id = $2::uuid
+         and revoked_at is null""",
+    @[textParam(communityId), textParam(sessionId)]):
+    result.add(row.get("id"))
+
 proc liveLinks*(db: Db, communityId, sessionId: string): seq[string] =
   ## Ids of the links a delete is about to take with it, so their watchers can be
   ## closed without revoking anything first. Expired rows are not live, so they

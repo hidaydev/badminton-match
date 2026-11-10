@@ -286,6 +286,14 @@ proc loadTeam(db: Db, communityId, id: string, header: Row): JsonNode =
      "name": header.get("name"), "date": header.get("date"),
      "teams": teams, "matches": matches}
 
+proc exists*(db: Db, communityId, id: string): bool =
+  ## A route that asks to undo a rating needs to tell "no such tournament" from
+  ## "nothing to undo" before it reaches the rebuild.
+  db.queryOne(
+    """select 1 as ok from tournament.tournaments
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(communityId), textParam(id)]).isSome
+
 proc load*(db: Db, communityId, id: string): Option[JsonNode] =
   let header = db.queryOne(
     """select format, name, event_date::text as date, version

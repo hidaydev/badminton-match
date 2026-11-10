@@ -31,6 +31,7 @@ modules/share/store.nim:retireLegacy
 # A share code (or a pre-code session id) is the credential; the link row that
 # carries it names the community, so there is no context to scope by yet.
 modules/share/store.nim:resolve
+modules/session/application/detail.nim:inCommunitySlug
 
 # An invite token or email hash is presented before any community context
 # exists; the row is read first and the community it carries is the result.
@@ -50,7 +51,6 @@ apps/api/src/community_context.nim:loadCommunity
 # in the request is what names the community they answer for.
 apps/api/src/app.nim:listCommunities
 apps/api/src/app.nim:requestJoin
-apps/api/src/app.nim:handleWebSocket
 modules/community/infrastructure/community_store.nim:directory
 
 # The badge catalogue is platform-wide: `achievement.definitions` has no

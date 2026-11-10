@@ -1,7 +1,7 @@
 import std/[json, locks, sets, tables]
 import mummy
 import db/db
-import ws_ticket
+import platform/ws_ticket
 
 type
   WatcherCaps* = object
