@@ -3581,18 +3581,59 @@ proc dispatchShare(request: Request, parts: seq[string], verb: string,
   else:
     routeNotFound(request)
 
+proc dispatchProbe(request: Request, path: string): bool =
+  ## The probes answer before any database or config read and outside the
+  ## quota. A liveness check that needs a database is a database probe, and a
+  ## burst must never answer 429 to the probe that decides a deploy is healthy.
+  if path != "/healthz" and path != "/readyz":
+    return false
+  if request.httpMethod != "GET":
+    methodNotAllowed(request)
+  elif path == "/healthz":
+    send(request, 200, """{"status":"ok"}""")
+  else:
+    readyz(request)
+  true
+
+proc dispatchPlatform(request: Request, path, verb: string): bool =
+  ## `/ops/*` and `/version` are process-level: no community context, and an
+  ## unknown `/ops` sub-path is still a 404 rather than a shape.
+  if path.startsWith("/ops/"):
+    if path == "/ops/ping" and verb == "GET":
+      opsPing(request)
+    else:
+      routeNotFound(request)
+    return true
+  if path != "/version":
+    return false
+  if verb == "GET":
+    jsonResponse(request, 200, %*{"version": appVersion, "commit": appCommit})
+  else:
+    methodNotAllowed(request)
+  true
+
+proc dispatchInviteAccept(request: Request, parts: seq[string], verb: string,
+                          snapshot: Snapshot): bool =
+  ## `/invites/{token}/accept` is a fixed shape with no community prefix: the
+  ## token names the invite, so the caller does not need the slug first.
+  if parts.len != 4 or parts[1] != "invites" or parts[3] != "accept":
+    return false
+  if verb == "POST": acceptInvite(request, parts[2], snapshot)
+  else: methodNotAllowed(request)
+  true
+
+proc dispatchSocket(request: Request, parts: seq[string],
+                    snapshot: Snapshot): bool =
+  ## `/ws/c/{slug}/sessions/{id}` and `/ws/share/{code}`: the handshake has its
+  ## own origin check and authenticates by ticket, so it leaves the HTTP chain.
+  if parts.len < 3 or parts[1] != "ws":
+    return false
+  handleWebSocket(request, snapshot, parts)
+  true
+
 proc dispatch(request: Request) =
   let path = request.path
-  # The probes answer before any database or config read and outside the
-  # quota. A liveness check that needs a database is a database probe, and a
-  # burst must never answer 429 to the probe that decides a deploy is healthy.
-  if path == "/healthz" or path == "/readyz":
-    if request.httpMethod != "GET":
-      methodNotAllowed(request)
-    elif path == "/healthz":
-      send(request, 200, """{"status":"ok"}""")
-    else:
-      readyz(request)
+  if dispatchProbe(request, path):
     return
   let parts = path.split('/')
   let verb = request.httpMethod
@@ -3621,17 +3662,7 @@ proc dispatch(request: Request) =
     return
   if rejectShareScrape(request, snapshot, identity):
     return
-  if path.startsWith("/ops/"):
-    if path == "/ops/ping" and verb == "GET":
-      opsPing(request)
-    else:
-      routeNotFound(request)
-    return
-  if path == "/version":
-    if verb == "GET":
-      jsonResponse(request, 200, %*{"version": appVersion, "commit": appCommit})
-    else:
-      methodNotAllowed(request)
+  if dispatchPlatform(request, path, verb):
     return
   if outdatedClient(request):
     problem(request, 410, "CLIENT_OUTDATED",
@@ -3639,9 +3670,7 @@ proc dispatch(request: Request) =
     return
   if dispatchFixedRoute(request, path, verb, snapshot):
     return
-  # /ws/c/{slug}/sessions/{id} and /ws/share/{code}
-  if parts.len >= 3 and parts[1] == "ws":
-    handleWebSocket(request, snapshot, parts)
+  if dispatchSocket(request, parts, snapshot):
     return
   # /c/{slug}/{family}/...
   if parts.len >= 4 and parts[1] == "c":
@@ -3663,10 +3692,7 @@ proc dispatch(request: Request) =
     else:
       routeNotFound(request)
     return
-  # /invites/{token}/accept
-  if parts.len == 4 and parts[1] == "invites" and parts[3] == "accept":
-    if verb == "POST": acceptInvite(request, parts[2], snapshot)
-    else: methodNotAllowed(request)
+  if dispatchInviteAccept(request, parts, verb, snapshot):
     return
   # /s/{code} and /s/{code}/rankings
   if parts.len >= 3 and parts[1] == "s":
