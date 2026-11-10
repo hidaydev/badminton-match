@@ -25,7 +25,9 @@ describe('useScoreDraft retry guard', () => {
 
     act(() => result.current.setDraftScores({ '0-0': [{ a: '21', b: '15' }] }))
     act(() => result.current.handleScoreSave('0-0'))
-    await waitFor(() => expect(result.current.scoreFailures['0-0']).toBeDefined())
+    await waitFor(() =>
+      expect(result.current.scoreFailures['0-0'].message).toBe('That change was not saved.'),
+    )
 
     act(() => {
       result.current.retryScore('0-0')

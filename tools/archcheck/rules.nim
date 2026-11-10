@@ -1221,3 +1221,82 @@ proc honestTestViolations*(path, source: string,
         elif alwaysTrueLength(expression):
           result.add(file & ":" & $line & ": `" & expression &
             "` is true for every value (R-02)")
+
+proc tsAssertionArgument(line: string, call: string): string =
+  ## The text inside `expect(...)` for one matcher call. `""` when the line does
+  ## not contain that matcher. The scan is textual on purpose: a TypeScript
+  ## parser in Nim is a dependency this guard does not need.
+  let at = line.find(call)
+  if at < 0:
+    return ""
+  let open = line.rfind("expect(", 0, at)
+  if open < 0:
+    return ""
+  var depth = 0
+  var index = open + "expect".len
+  let start = index + 1
+  # `at` is the index of the `)` that closes `expect(...)`, so the walk has to
+  # include it: that is the character that brings the depth back to zero.
+  while index <= at:
+    case line[index]
+    of '(':
+      inc depth
+    of ')':
+      dec depth
+      if depth == 0:
+        break
+    else:
+      discard
+    inc index
+  if depth != 0:
+    return ""
+  line[start ..< index].strip()
+
+proc weakReason(line: string): string =
+  ## `// weak: <reason>` is the documented escape hatch. The reason is required:
+  ## an empty marker is not a judgement, it is a silence.
+  let at = line.find("// weak:")
+  if at < 0:
+    return ""
+  line[at + "// weak:".len .. ^1].strip()
+
+proc typescriptTestViolations*(path, source: string): seq[string] =
+  ## SQ-25, the TypeScript half of R-01/R-02. `.test.ts(x)` files are scanned
+  ## for the four forms the Nim scan rejects, spelled the way a Vitest test
+  ## writes them, plus `toBeTruthy`/`toBeDefined`, which pass for any present
+  ## value. A line may opt out with `// weak: <reason>`.
+  ##
+  ## The caller decides the scope; this proc assumes one test file.
+  let file = normalize(path)
+  var number = 0
+  for line in source.splitLines():
+    inc number
+    if line.strip().startsWith("//"):
+      continue
+    let reason = weakReason(line)
+    if reason.len > 0:
+      continue
+    if line.contains("toBeTruthy()") or line.contains("toBeDefined()"):
+      result.add(file & ":" & $number &
+        ": `toBeTruthy`/`toBeDefined` cannot fail for a wrong value (SQ-25)")
+      continue
+    if line.contains("expect(true).toBe(true)"):
+      result.add(file & ":" & $number &
+        ": `expect(true).toBe(true)` cannot fail (SQ-25)")
+      continue
+    let same = tsAssertionArgument(line, ").toBe(")
+    if same.len > 0:
+      let left = tsAssertionArgument(line, ").toBe(")
+      let rightAt = line.find(").toBe(")
+      if rightAt >= 0:
+        var right = line[rightAt + ").toBe(".len .. ^1]
+        let close = right.rfind(")")
+        if close >= 0:
+          right = right[0 ..< close]
+        if right.strip().replace(" ", "") == left.replace(" ", ""):
+          result.add(file & ":" & $number & ": `" & left &
+            "` is compared with itself (SQ-25)")
+          continue
+    if line.contains(".length).toBeGreaterThanOrEqual(0)"):
+      result.add(file & ":" & $number &
+        ": a length is never below zero (SQ-25)")

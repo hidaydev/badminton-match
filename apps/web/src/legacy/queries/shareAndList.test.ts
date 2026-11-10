@@ -147,7 +147,7 @@ describe('session share link', () => {
     const sequence = calls(fetchMock)
     expect(sequence.map((call) => call.method)).toEqual(['GET', 'POST'])
     expect(sequence[1].url).toContain('/api/c/plan/sessions/s1/share')
-    expect(sequence[1].headers['Idempotency-Key']).toBeTruthy()
+    expect(sequence[1].headers['Idempotency-Key']).toMatch(/\S/)
   })
 
   it('deletes the link and resolves undefined on 204', async () => {

@@ -48,9 +48,8 @@ describe('App auth gate', () => {
     expect(redirectTo).toHaveBeenCalledWith('https://accounts.example/authorize?state=1')
 
     const startCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/auth/start'))
-    expect(startCall).toBeDefined()
-    const [startUrl, startInit] = startCall as [string, RequestInit]
-    expect(startUrl).toBe('/api/auth/start')
+    expect(startCall?.[0]).toBe('/api/auth/start')
+    const [, startInit] = startCall as [string, RequestInit]
     expect(startInit.method).toBe('POST')
     expect(startInit.credentials).toBe('include')
     expect(jsonBody(startInit)).toEqual({ returnTo: '/c/acme/sessions?tab=next' })
@@ -100,9 +99,8 @@ describe('App auth gate', () => {
     expect(screen.queryByRole('heading', { name: t('home.empty') })).not.toBeInTheDocument()
 
     const logoutCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/auth/logout'))
-    expect(logoutCall).toBeDefined()
-    const [logoutUrl, logoutInit] = logoutCall as [string, RequestInit]
-    expect(logoutUrl).toBe('/api/auth/logout')
+    expect(logoutCall?.[0]).toBe('/api/auth/logout')
+    const [, logoutInit] = logoutCall as [string, RequestInit]
     expect(logoutInit.method).toBe('POST')
     expect(logoutInit.credentials).toBe('include')
   })

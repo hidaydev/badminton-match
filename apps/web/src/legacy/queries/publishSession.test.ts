@@ -188,7 +188,7 @@ describe('publishSession', () => {
     expect(gamePatch.body).toEqual({ scoreA: 21, scoreB: 19 })
 
     // Only the record write is an idempotent create-style request.
-    expect(recordPatch.headers['Idempotency-Key']).toBeTruthy()
+    expect(recordPatch.headers['Idempotency-Key']).toMatch(/\S/)
     expect(schedulePut.headers).not.toHaveProperty('Idempotency-Key')
     expect(gamePatch.headers).not.toHaveProperty('Idempotency-Key')
 
@@ -331,7 +331,7 @@ describe('publishSession', () => {
     )
     expect(created).toHaveLength(1)
     expect(created[0].body).toEqual({ name: 'Zaki Baru', gender: 'M' })
-    expect(created[0].headers['Idempotency-Key']).toBeTruthy()
+    expect(created[0].headers['Idempotency-Key']).toMatch(/\S/)
 
     const lookups = sequence(fetchMock).filter((call) => call.includes('q=Zaki'))
     expect(lookups).toHaveLength(1)
@@ -433,8 +433,8 @@ describe('swapMembers idempotency', () => {
     expect(swaps).toHaveLength(2)
     expect(swaps[0].headers['If-Match']).toBe('"5"')
     expect(swaps[1].headers['If-Match']).toBe('"5"')
-    expect(swaps[0].headers['Idempotency-Key']).toBeTruthy()
-    expect(swaps[1].headers['Idempotency-Key']).toBeTruthy()
+    expect(swaps[0].headers['Idempotency-Key']).toMatch(/\S/)
+    expect(swaps[1].headers['Idempotency-Key']).toMatch(/\S/)
     expect(swaps[0].headers['Idempotency-Key']).not.toBe(swaps[1].headers['Idempotency-Key'])
   })
 })

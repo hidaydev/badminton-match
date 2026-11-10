@@ -62,7 +62,7 @@ describe('players', () => {
           String(url) === '/api/c/acme/players/p1/claims' &&
           (init as RequestInit | undefined)?.method === 'POST',
       )
-      expect(call).toBeDefined()
+      expect(call?.[0]).toBe('/api/c/acme/players/p1/claims')
     })
     // A member never gets the roster form.
     expect(screen.queryByRole('button', { name: t('players.add.submit') })).toBeNull()
@@ -126,7 +126,7 @@ describe('players', () => {
           String(url) === '/api/c/acme/players' &&
           (init as RequestInit | undefined)?.method === 'POST',
       )
-      expect(call).toBeDefined()
+      expect(call?.[0]).toBe('/api/c/acme/players')
       expect(jsonBody((call as [string, RequestInit])[1])).toEqual({
         name: 'Dewi',
         gender: 'M',
@@ -189,7 +189,7 @@ describe('players', () => {
           String(url) === '/api/c/acme/players/p1/claims/c1' &&
           (init as RequestInit | undefined)?.method === 'PATCH',
       )
-      expect(call).toBeDefined()
+      expect(call?.[0]).toBe('/api/c/acme/players/p1/claims/c1')
       expect(jsonBody((call as [string, RequestInit])[1])).toEqual({ decision: 'approve' })
     })
   })
