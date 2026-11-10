@@ -438,8 +438,21 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('deps.lock') }}
       - name: "E2E: install"
         run: pnpm install --frozen-lockfile
+      # The suite runs two engines, so firefox is never downloaded. The system
+      # libraries a browser needs come from apt, and on 2026-11-10 that apt run
+      # spent ten of this job's fifteen minutes against a slow mirror while the
+      # browser binaries were already cached, so the job timed out mid-suite.
+      # The engines are now installed from the cache and started once; only a
+      # launch that fails pays for `--with-deps`, which keeps the guarantee and
+      # makes the common path a few seconds.
       - name: "E2E: install browsers"
-        run: pnpm exec playwright install --with-deps
+        run: |
+          pnpm exec playwright install chromium webkit
+          if ! pnpm --filter badminton-pair-tmp exec node -e \
+            "const {chromium,webkit}=require('playwright');(async()=>{for(const engine of [chromium,webkit]){const browser=await engine.launch();await browser.close()}})()"; then
+            echo "a cached browser could not start; installing the system dependencies"
+            pnpm exec playwright install --with-deps chromium webkit
+          fi
       # deps.lock also pins the coverage tools, and `./task deps-check` compares
       # the versions they report exactly. apt on the runner ships lcov 2.0 and
       # gcovr 7.0 against the locked 2.6 and 8.8, so both come from upstream.
