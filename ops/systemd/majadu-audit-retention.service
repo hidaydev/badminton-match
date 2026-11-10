@@ -3,9 +3,10 @@
 # Pruning account.audit runs as bm2_audit_prune, not bm2_owner: the role has
 # SELECT and DELETE on that table and nothing else, so a compromised timer
 # cannot change the schema. This unit reads MAJADU_AUDIT_DSN from the tool env;
-# the application DSN would fail the DELETE privilege check. The API unit does
-# not load that file, so the running API never sees the prune credential. The variable is commented out in ops/env/prod-tools.env.example
-# until the timer is enabled, and the tool refuses to run without it.
+# the application DSN would fail the DELETE privilege check. It loads that file
+# alone, so the running API's request secrets are not in this container's
+# environment either. The variable is active in ops/env/prod-tools.env.example
+# and the tool refuses to run without it.
 [Unit]
 Description=Majadu audit retention (prune role)
 Wants=network-online.target
@@ -16,7 +17,6 @@ OnFailure=majadu-alert@%N.service
 Type=oneshot
 # --entrypoint selects the tool: the image ENTRYPOINT is the API.
 ExecStart=/usr/bin/podman run --rm --pull=never --network=qouver \
-  --env-file=/srv/qouver/apps/majadu/env/majadu-prod.env \
   --env-file=/srv/qouver/apps/majadu/env/majadu-tools.env \
   --entrypoint /usr/local/bin/auditretention \
   localhost/majadu-api:local

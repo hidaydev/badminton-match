@@ -41,7 +41,7 @@ on this host; the host-binary path remains for a host that already has them.
 │   ├── majadu-prod.env        # API unit env, symlink to .v1 or .v2 (mode 600)
 │   ├── majadu-prod.env.v1     # MAJADU_PG_DSN → bm; no owner or ETL DSN
 │   ├── majadu-prod.env.v2     # MAJADU_PG_DSN → bm2; no owner or ETL DSN
-│   ├── majadu-tools.env       # OWNER/ETL/SOURCE/RESTORE DSNs (mode 600)
+│   ├── majadu-tools.env       # job units + deploy/cutover DSNs (mode 600)
 │   ├── ghcr-token             # mode 600; optional if podman is already logged in
 │   └── alert.env              # mode 600; optional, MAJADU_ALERT_WEBHOOK
 ├── caddy/
@@ -76,9 +76,10 @@ handler is imported with no matcher at all.
       window ≤ 10 minutes, `--from` proven).
 - [ ] `majadu-prod.env.v1` and `.v2` exist, mode 600, and `bm2` does not contain
       production data yet.
-- [ ] `majadu-tools.env` exists, mode 600, owned by the deploy user, and names
-      the owner, ETL, source-read and staging-restore roles. The API unit never
-      loads it.
+- [ ] `majadu-tools.env` exists, mode 600, owned by the deploy user, in an `env`
+      directory that is mode 700, and names the application, owner, ETL,
+      source-read and staging-restore roles. It is the only env file the four
+      job units load; the API unit never loads it.
 - [ ] `ghcr-token` (if used) is mode 600 and can `podman pull` the release digest.
 - [ ] `alert.env` contains a webhook, or there is a deliberate decision that
       alerts only land in the journal.

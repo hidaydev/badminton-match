@@ -137,6 +137,12 @@ proc privateFile(path, body: string) =
   touch(path, body)
   setFilePermissions(path, {fpUserRead, fpUserWrite})
 
+# The tool env is the only env file the one-shot job units load, so every
+# fixture that reaches past the split gate has to carry the application DSN.
+const toolsEnvBody =
+  "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n" &
+  "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n"
+
 proc simFakes(fixture: Fixture) =
   ## The process edges a simulated deploy needs: no lock contention, a green
   ## health endpoint, a podman that answers `image exists` and a psql that logs.
@@ -159,8 +165,7 @@ proc runDeployForEnvGate(fixture: Fixture, apiBody: string,
   createDir(fixture.root / "monorepo")
   touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
   privateFile(fixture.root / "env" / "majadu-prod.env", apiBody)
-  privateFile(fixture.root / "env" / "majadu-tools.env",
-    "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+  privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
   # A non-empty token file keeps bash 3.2 from tripping on an empty AUTH array
   # when the commented-line case reaches the release lookup.
   privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
@@ -261,8 +266,7 @@ suite "deploy-vps.sh":
     createDir(mono / "ops" / "scripts")
     privateFile(fixture.root / "env" / "majadu-prod.env",
       "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
-    privateFile(fixture.root / "env" / "majadu-tools.env",
-      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
     # A token file keeps AUTH non-empty (bash 3.2 treats "${AUTH[@]}" on an
     # empty array as unbound under set -u) and the podman fake answers login.
     privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
@@ -320,8 +324,7 @@ suite "deploy-vps.sh":
     createDir(mono / "ops" / "scripts")
     privateFile(fixture.root / "env" / "majadu-prod.env",
       "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
-    privateFile(fixture.root / "env" / "majadu-tools.env",
-      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
     privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
     let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
       @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
@@ -352,8 +355,7 @@ suite "deploy-vps.sh":
     privateFile(fixture.root / "env" / "majadu-prod.env",
       "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n" &
       "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
-    privateFile(fixture.root / "env" / "majadu-tools.env",
-      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
     let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
       @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
         ("MAJADU_SKIP_GIT_SYNC", "1"),
@@ -366,8 +368,80 @@ suite "deploy-vps.sh":
     check readFile(fixture.root / "deploy" / "last-attempt.json")
       .contains("\"step\":\"env-split\"")
 
-  # OPS-18: a log created by `tee` used to be world-readable until the next
-  # hourly rotation, and a share code in a request path is a credential.
+  # OPS-05: the job units load majadu-tools.env as their only env file, so the
+  # deploy has to prove the file can actually run them before installing units
+  # that would fail on every tick.
+  test "a tool env without the application DSN stops the deploy":
+    let fixture = newFixture("deploy-tool-env-no-app-dsn")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    check result.exitCode == 1
+    check result.stdout.contains(
+      (fixture.root / "env" / "majadu-tools.env") &
+      " must define MAJADU_PG_DSN for the job units")
+    check readFile(fixture.root / "deploy" / "last-attempt.json")
+      .contains("\"step\":\"env-split\"")
+
+  test "a share-code keyring in the tool env stops the deploy":
+    let fixture = newFixture("deploy-tool-env-keyring")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      toolsEnvBody & "SHARE_CODE_KEYS={\"1\":\"secret\"}\n")
+    privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    check result.exitCode == 1
+    check result.stdout.contains(
+      (fixture.root / "env" / "majadu-tools.env") &
+      ":3 must not contain SHARE_CODE_KEYS")
+
+  # OPS-05: a 0755 env directory leaks the credential file names even when every
+  # file inside it is 600, so the deploy fixes the directory and refuses to run
+  # one owned by someone else.
+  test "the env directory is mode 700 after the split gate":
+    let fixture = newFixture("deploy-env-dir-mode")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
+    privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+    setFilePermissions(fixture.root / "env",
+      {fpUserRead, fpUserWrite, fpUserExec, fpGroupRead, fpGroupExec,
+       fpOthersRead, fpOthersExec})
+    discard fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    let envPerms = getFilePermissions(fixture.root / "env")
+    check fpUserExec in envPerms
+    check fpGroupRead notin envPerms
+    check fpGroupExec notin envPerms
+    check fpOthersRead notin envPerms
+    check fpOthersExec notin envPerms
   test "the deploy log and state files are private from the first byte":
     let fixture = newFixture("deploy-log-mode")
     defer: removeDir(fixture.root)
@@ -414,8 +488,7 @@ exit 0
     touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
     privateFile(fixture.root / "env" / "majadu-prod.env",
       "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
-    privateFile(fixture.root / "env" / "majadu-tools.env",
-      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
     touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
     let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
       @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
@@ -440,8 +513,7 @@ exit 0
     touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
     privateFile(fixture.root / "env" / "majadu-prod.env",
       "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
-    privateFile(fixture.root / "env" / "majadu-tools.env",
-      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
     touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
     let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
       @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
@@ -465,8 +537,7 @@ exit 0
     touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
     privateFile(fixture.root / "env" / "majadu-prod.env",
       "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
-    privateFile(fixture.root / "env" / "majadu-tools.env",
-      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
     touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
     let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
       @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
@@ -492,8 +563,7 @@ exit 0
     touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
     privateFile(fixture.root / "env" / "majadu-prod.env",
       "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
-    privateFile(fixture.root / "env" / "majadu-tools.env",
-      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
     touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
     let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
       @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
@@ -525,8 +595,7 @@ exit 0
     touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
     privateFile(fixture.root / "env" / "majadu-prod.env",
       "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
-    privateFile(fixture.root / "env" / "majadu-tools.env",
-      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
     privateFile(fixture.root / "env" / "ghcr-token", "secret-token\n")
     let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
       @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
@@ -548,8 +617,7 @@ exit 0
     touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
     privateFile(fixture.root / "env" / "majadu-prod.env",
       "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
-    privateFile(fixture.root / "env" / "majadu-tools.env",
-      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
     privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
     touch(fixture.root / "env" / "alert.env", "MAJADU_ALERT_WEBHOOK=x\n")
     setFilePermissions(fixture.root / "env" / "alert.env",
@@ -639,8 +707,7 @@ exit 0
     touch(mono / "VERSION", "2.0.0\n")
     privateFile(fixture.root / "env" / "majadu-prod.env",
       "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
-    privateFile(fixture.root / "env" / "majadu-tools.env",
-      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
     privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
     let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
       @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
@@ -1783,6 +1850,24 @@ suite "systemd units":
                 "MAJADU_AUDIT_DSN"]:
       check not activeAssignment(apiEnv, key)
       check activeAssignment(toolsEnv, key)
+    # OPS-05: the job units load the tool file as their only env, so it carries
+    # the application DSN too, and it never carries a request-path secret.
+    check activeAssignment(toolsEnv, "MAJADU_PG_DSN")
+    for key in ["SHARE_CODE_KEYS", "OIDC_CLIENT_SECRET"]:
+      check not activeAssignment(toolsEnv, key)
+      check activeAssignment(apiEnv, key)
+
+  # OPS-05: the four one-shot units read the tool env, not the API env. This is
+  # the half the templates alone cannot prove; the host-side check is
+  # `systemd-analyze verify` plus `podman inspect` after a deploy.
+  test "the job units load the tool env, never the API env":
+    for unit in ["majadu-ingest.service", "majadu-janitor.service",
+                 "majadu-snapshot.service", "majadu-audit-retention.service"]:
+      let text = readFile(unitsDir / unit)
+      check text.contains(
+        "--env-file=/srv/qouver/apps/majadu/env/majadu-tools.env")
+      check not text.contains(
+        "--env-file=/srv/qouver/apps/majadu/env/majadu-prod.env")
 
   test "the RC API unit loads an env file without any tool DSN":
     var envPath = ""

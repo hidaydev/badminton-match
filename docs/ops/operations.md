@@ -24,10 +24,15 @@ Rules that bind this list:
   password means the whole list above leaks with it.
 - Credentials never enter the repository. The repo only contains examples:
   `ops/env/prod.env.example` for the API unit and
-  `ops/env/prod-tools.env.example` for the deploy and cutover tools. On the VPS
-  they are two files, both mode 600 and owned by the deploy user;
-  `majadu-tools.env` holds the owner and ETL roles and is never an
-  `EnvironmentFile` of the API unit.
+  `ops/env/prod-tools.env.example` for the deploy, cutover and one-shot job
+  units. On the VPS they are two files, both mode 600, in a directory that is
+  mode 700 and owned by the deploy user. `majadu-prod.env` is the only
+  `EnvironmentFile` of the API unit; `majadu-tools.env` is the only env file for
+  `majadu-ingest`, `majadu-janitor`, `majadu-snapshot` and
+  `majadu-audit-retention`, and for the deploy and cutover scripts. `deploy-vps.sh`
+  refuses an API file that carries an owner or tool DSN, a tool file that omits
+  `MAJADU_PG_DSN` or carries the OIDC client secret or the share-code keyring,
+  and an `env` directory owned by anyone but the deploy user.
 - Accounts no longer in use are revoked in all three places: GitHub, the VPS
   panel, and `platform_owner` (through `./task opstoken`/the CLI, not manual SQL).
 - Database roles are separated: the app has no right to delete `account.audit`,
@@ -44,7 +49,7 @@ rotation is a file replace plus the restart or re-login in the table.
 | GHCR read token | `env/ghcr-token` | issue a new `read:packages` token, replace the file, mode 600 | `podman login ghcr.io -u <user> --password-stdin < env/ghcr-token` | not recorded | not recorded |
 | GitHub CI token (RC) | `env/github-token` | new fine-grained token, `actions: read`, replace the file, mode 600 | `env/github-token` is read by the RC CI gate on the next push | not recorded | not recorded |
 | Vercel token | `env/vercel-token` | new token in the Vercel account, replace the file, mode 600 | `VERCEL_TOKEN=$(cat env/vercel-token) vercel whoami` | not recorded | not recorded |
-| Database passwords | `env/majadu-prod.env`, `env/majadu-tools.env`, `env/majadu-rc*.env` | `alter role ... password` for each role, then update both files | `./task ci` against the DSN, or `curl /readyz` after `systemctl --user restart majadu-api` | not recorded | not recorded |
+| Database passwords | `env/majadu-prod.env`, `env/majadu-tools.env`, `env/majadu-rc*.env` | `alter role ... password` for each role, then update every file that names it (`MAJADU_PG_DSN` is in both prod files) | `./task ci` against the DSN, or `curl /readyz` after `systemctl --user restart majadu-api` | not recorded | not recorded |
 | Alert webhook | `env/alert.env` | new webhook URL in the provider, replace the file, mode 600 | `systemctl --user start majadu-alert@rotation-test.service` and look for the delivery | not recorded | not recorded |
 | Cosign public key | `env/cosign.pub` | follows the signing key, not a secret | `cosign verify --key env/cosign.pub <image>` | not recorded | not recorded |
 
@@ -140,7 +145,8 @@ Filling rules:
 `deploy-vps.sh` runs `dbtools migrate` then `dbtools verify` from the newly
 pulled image, using `MAJADU_OWNER_DSN` from `majadu-tools.env`, before the unit
 is restarted. The API unit loads only `majadu-prod.env`; it never sees the owner
-or ETL credential. A failure
+or ETL credential, and the one-shot job units load only `majadu-tools.env`, so
+neither side sees the other's secrets. A failure
 there aborts the deploy and leaves the old release running; `:local` and `:prev`
 are not touched.
 

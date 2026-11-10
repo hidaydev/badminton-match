@@ -53,8 +53,9 @@ HEALTH_URL="${MAJADU_HEALTH_URL:-http://127.0.0.1:8080}"
 # container needs the same network the API unit declares.
 NETWORK="${MAJADU_CUTOVER_NETWORK:-qouver}"
 MONO_DIR="$APP_DIR/monorepo"
-ENV_FILE="$APP_DIR/env/majadu-prod.env"
-TOOLS_ENV="$APP_DIR/env/majadu-tools.env"
+ENV_DIR="$APP_DIR/env"
+ENV_FILE="$ENV_DIR/majadu-prod.env"
+TOOLS_ENV="$ENV_DIR/majadu-tools.env"
 STATE_DIR="$APP_DIR/deploy"
 LOG="$APP_DIR/logs/deploy.log"
 LOCK_FILE="$APP_DIR/.deploy.lock"
@@ -86,6 +87,12 @@ require_private_file() {
     600|400) ;;
     *) fail "$path must be mode 600 (found $mode)" ;;
   esac
+}
+
+# GNU stat and BSD stat disagree on the flag, and both forms are already used
+# for the mode above; the owner is checked the same way.
+file_owner() {
+  stat -c '%U' "$1" 2>/dev/null || stat -f '%Su' "$1" 2>/dev/null || echo "?"
 }
 
 # Every credential file, not only the two the deploy reads by name: a 0644
@@ -257,6 +264,32 @@ for key in MAJADU_OWNER_DSN MAJADU_ETL_DSN MAJADU_ETL_SOURCE_DSN MAJADU_BACKUP_D
   MAJADU_CUTOVER_RESTORE_DSN MAJADU_AUDIT_DSN; do
   if hit=$(grep -Ein "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=" "$ENV_FILE"); then
     fail "$ENV_FILE:${hit%%:*} must not contain $key; move it to $TOOLS_ENV"
+  fi
+done
+
+# The directory is the first half of the promise: a 700 directory hides the
+# credential file names from every other host user, while a 755 one leaks the
+# inventory and still passes a per-file mode check. Only the deploy user writes
+# here, so a file copied in with sudo is fixed by hand, not chmod-ed from the
+# deploy.
+OWNER=$(file_owner "$ENV_DIR")
+[ "$OWNER" = "$(id -un)" ] ||
+  fail "$ENV_DIR is owned by $OWNER, not the deploy user $(id -un)"
+chmod 700 "$ENV_DIR"
+
+# The one-shot job units (ingest, janitor, snapshot) load this file as their
+# only --env-file, so the application DSN has to live in it. A tools file with
+# just the owner role installs timers that fail on every tick.
+if ! grep -Eq "^[[:space:]]*(export[[:space:]]+)?MAJADU_PG_DSN[[:space:]]*=" "$TOOLS_ENV"; then
+  fail "$TOOLS_ENV must define MAJADU_PG_DSN for the job units (ingest, janitor, snapshot)"
+fi
+
+# The split is symmetric: a tool container serves no request, so a share-code
+# keyring or the OIDC client secret in this file would hand the crown jewels to
+# the process with the widest runtime rights.
+for key in SHARE_CODE_KEYS OIDC_CLIENT_SECRET; do
+  if hit=$(grep -Ein "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=" "$TOOLS_ENV"); then
+    fail "$TOOLS_ENV:${hit%%:*} must not contain $key; it belongs in $ENV_FILE"
   fi
 done
 
