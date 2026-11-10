@@ -179,7 +179,10 @@ suite "task target guards":
   test "every workflow that runs the Nim toolchain installs libpcre":
     ## Nim's `re` binds the system PCRE 1 library at run time. A workflow that
     ## installs the pinned Nim packages without installing the library dies with
-    ## "could not load: libpcre.so" on the pinned runner image.
+    ## "could not load: libpcre.so" on the pinned runner image. The install is
+    ## conditional on `dpkg -s` so a warm runner skips a slow mirror, so the
+    ## guard looks for the package and the install command rather than for one
+    ## exact line.
     let workflows = repoDir / ".github" / "workflows"
     var checked = 0
     for kind, path in walkDir(workflows):
@@ -189,7 +192,9 @@ suite "task target guards":
       if "./task deps-install" notin text:
         continue
       inc checked
-      let installed = text.contains("apt-get install -y libpcre3")
+      let installed = text.contains("libpcre3") and
+        text.contains("apt-get install") and
+        text.contains("dpkg -s libpcre3")
       check installed
       if not installed:
         checkpoint(path.extractFilename & " runs Nim without libpcre3")
