@@ -207,6 +207,39 @@ resolve() {
         return 1
       fi
       ;;
+    release:*)
+      # A tool that only CI runs, installed by downloading a release asset. The
+      # workflow cannot carry a content digest of its own, so the entry's fourth
+      # field is the sha256 the workflow must verify, and the workflows that
+      # name the URL are read back here. A re-pin therefore needs the lock and
+      # the workflow in one change, and two workflows may not disagree.
+      url=${source#release:}
+      digest=""
+      found=0
+      # `set -f` above disables globbing, so the workflow list comes from find.
+      for _workflow in $(find "$REPO_ROOT/.github/workflows" -maxdepth 1 -type f \
+        \( -name '*.yml' -o -name '*.yaml' \) 2>/dev/null | LC_ALL=C sort); do
+        grep -qF -- "$url" "$_workflow" || continue
+        found=1
+        _digest=$(grep -A5 -F -- "$url" "$_workflow" |
+          grep -oE '[0-9a-f]{64}' | head -1)
+        _where=${_workflow#"$REPO_ROOT"/}
+        if [ -z "$_digest" ]; then
+          report "$name: $_where downloads $url with no 64-hex sha256"
+          return 1
+        fi
+        if [ -n "$digest" ] && [ "$_digest" != "$digest" ]; then
+          report "$name: workflows disagree on the sha256 for $url ($_where)"
+          return 1
+        fi
+        digest=$_digest
+      done
+      if [ "$found" -eq 0 ]; then
+        report "$name: no workflow downloads $url"
+        return 1
+      fi
+      computed=$digest
+      ;;
     *)
       report "$name: unknown source scheme in '$source'"
       return 1

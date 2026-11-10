@@ -29,12 +29,14 @@ explicit `--nimcache` does not add a suffix.
 | `verify <module>` | build and test one module | when it has integration tests |
 | `contract-gen` | regenerate routes, client and fingerprint | no |
 | `contract-check` | fail when specs and generated files drift | no |
+| `contract-keys` | fail when a contract operation has no access-table key or no explicit rule | no |
 | `docs-check` | fail when README or current-status quotes a stale migration or operation count | no |
 | `loadtest` | committed HTTP/watcher load test for the capacity statement; needs a live API | no |
 | `ci` | check + build + test + contract check | same as `test` |
 | `coverage` | line coverage per module, ratcheted against `coverage-baseline-<platform>.json`; `--update` rewrites the baseline | no |
 | `deps-check` | compare the installed toolchain and Nim packages with `deps.lock` | no |
 | `ci-guards` | reject mutable or malformed action pins; `--release` also rejects an SPA rewrite to the RC API | no |
+| `osv-scan` | scan the lockfiles against the OSV advisory database and fail on HIGH or CRITICAL; needs the pinned `osv-scanner` on `PATH` (CI installs it) | no |
 | `deps-install` | install the Nim packages pinned in `deps.lock` into `~/.nimble` | no |
 | `bootstrap` | migrate, seed L1 config, create the first owner and a default community | yes |
 | `dev-db` | create the roles, databases and dev schema through `ops/dev/pg-up.sh` | no |

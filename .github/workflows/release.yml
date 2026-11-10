@@ -494,14 +494,26 @@ jobs:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-      # The SBOM is generated from the published digest, so the bill of
-      # materials describes the bytes production pulls, not the working tree.
-      - name: "Release: generate the SBOM"
+      # SEC-05: the SBOM is CycloneDX, the format the consumer tools read, and it
+      # is generated from the published digest so the bill of materials describes
+      # the bytes production pulls, not the working tree.
+      - name: "Release: generate the image SBOM"
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           image: ghcr.io/${{ github.repository }}@${{ needs.image.outputs.digest }}
-          format: spdx-json
-          output-file: majadu.sbom.spdx.json
+          format: cyclonedx-json
+          output-file: majadu.image.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      # The image holds the OS packages and the binary; the dependency universe
+      # the lockfiles pin is only visible from the checkout. Both documents are
+      # CycloneDX so one consumer can read them.
+      - name: "Release: generate the lockfile SBOM"
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: majadu.deps.cdx.json
           upload-artifact: false
           upload-release-assets: false
       - name: "Release: create or update"
@@ -539,4 +551,4 @@ jobs:
           else
             gh release create "$TAG" --title "$TAG" --notes-file "$notes" --verify-tag
           fi
-          gh release upload "$TAG" majadu.sbom.spdx.json --clobber
+          gh release upload "$TAG" majadu.image.cdx.json majadu.deps.cdx.json --clobber

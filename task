@@ -31,10 +31,12 @@ Targets:
   audit-retention  prune audit rows with the owner role (MAJADU_AUDIT_DSN)
   contract-gen generate Nim routes and the TypeScript client
   contract-check verify the contract fingerprint and generated files
+  contract-keys  verify every contract operation has an access-table key and rule
   docs-check   compare quoted migration and operation counts with the artefacts
   loadtest     run the committed load test against a live endpoint
   deps-check   verify installed dependencies against deps.lock
   ci-guards    reject unpinned or malformed GitHub Actions refs
+  osv-scan     fail when OSV reports a HIGH or CRITICAL advisory in a lockfile
   deps-install install the pinned dependencies from deps.lock
   mock-api     serve the contract as a mock API
   r0-demo      boot the walking skeleton against the local database

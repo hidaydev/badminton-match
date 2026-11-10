@@ -139,6 +139,22 @@ suite "authorization matrix":
     check "createSession" in found
     check found.len == impostors(loadMatrix()).len + 2
 
+  test "the access table has an explicit rule for every contract route":
+    # SEC-10: the fallback used to be `readAccess()`, so a contract route the
+    # table never learned looked like a deliberate member route. The matrix row
+    # would agree with the fallback and every test stayed green.
+    for route in routes:
+      checkpoint(route.operationId)
+      check operationKnown(route.httpMethod, concrete(route.path))
+
+  test "a shape no rule matches is reported as unknown":
+    check not operationKnown("GET", "/zzz")
+    check not operationKnown("GET", "/c/x/unknown-shape")
+    # The known shapes around it stay known, so the flag is the rule and not
+    # the default.
+    check operationKnown("GET", "/c/x/sessions")
+    check operationKnown("GET", "/c/x/players")
+
   test "only the exact create shape is the anonymous join-request door":
     # The dispatch reaches the family block for any length >= 4; a public class
     # there would skip the membership check and the handler would read a
