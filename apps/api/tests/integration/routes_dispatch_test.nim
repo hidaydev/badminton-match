@@ -112,7 +112,11 @@ suite "generated route dispatch":
       if isPublic:
         # The three public doors and the share URLs may answer 4xx because the
         # placeholder code names no row; a 5xx is a fault the matrix does not
-        # declare.
+        # declare. A 405 here is the shape being in the contract while the
+        # dispatcher does not serve it: since SQ-05 the fallthrough answers 405
+        # for a known shape, so this arm is what keeps a missing handler from
+        # looking like a normal refusal.
+        check response.status != 405
         check response.status in 200 .. 499
       else:
         check sessionAnswer(spec.operationId, response.status)
