@@ -197,15 +197,16 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('deps.lock') }}
       - name: "E2E: install"
         run: pnpm install --frozen-lockfile
-      # Same rule as ci.yml: the suite uses chromium and webkit only, the
-      # binaries come from the cache, and apt is paid only when a launch fails.
+      # Same rule as ci.yml: every pinned browser is downloaded, because
+      # `./task deps-check` requires firefox to be present too, and apt is paid
+      # only when one of the two engines the suite drives cannot start.
       - name: "E2E: install browsers"
         run: |
-          pnpm exec playwright install chromium webkit
+          pnpm exec playwright install
           if ! pnpm --filter badminton-pair-tmp exec node -e \
             "const {chromium,webkit}=require('playwright');(async()=>{for(const engine of [chromium,webkit]){const browser=await engine.launch();await browser.close()}})()"; then
             echo "a cached browser could not start; installing the system dependencies"
-            pnpm exec playwright install --with-deps chromium webkit
+            pnpm exec playwright install --with-deps
           fi
       - name: "Database: provision"
         env:
