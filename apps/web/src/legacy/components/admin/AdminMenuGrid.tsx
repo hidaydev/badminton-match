@@ -4,6 +4,7 @@
 import { useNavigate } from '../../router'
 import { useAdmin } from '../../context/AdminContext'
 import Icon, { type IconName } from '../Icon'
+import { Card } from '../../../components/Card'
 
 type Item = { icon: IconName; label: string; desc: string; to: string; adminOnly?: boolean }
 
@@ -22,11 +23,7 @@ export default function AdminMenuGrid() {
   return (
     <div className="grid grid-cols-2 gap-2.5">
       {items.map((it) => (
-        <button
-          key={it.to}
-          onClick={() => navigate(it.to)}
-          className="flex items-start gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-[border-color,transform] text-left shadow-xs hit44"
-        >
+        <Card as="button" variant="interactive" padding="sm" radius="xl" className="flex items-start gap-3 hover:border-border active:scale-[0.98] transition-[border-color,transform] text-left shadow-xs hit44" key={it.to} onClick={() => navigate(it.to)}>
           <div className="w-8 h-8 rounded-lg bg-elevated border border-border-subtle flex items-center justify-center shrink-0 text-accent">
             <Icon name={it.icon} size={18} />
           </div>
@@ -34,7 +31,7 @@ export default function AdminMenuGrid() {
             <span className="text-sm font-semibold text-fg leading-tight">{it.label}</span>
             <span className="text-[11px] text-fg-dim leading-snug">{it.desc}</span>
           </div>
-        </button>
+        </Card>
       ))}
     </div>
   )

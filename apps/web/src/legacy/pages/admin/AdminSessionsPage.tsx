@@ -7,6 +7,7 @@ import { t } from '@/i18n'
 import AdminPageShell from '../../components/admin/AdminPageShell'
 import ActionButton from '../../components/admin/ActionButton'
 import Pager from '../../components/admin/Pager'
+import { Card } from '../../../components/Card'
 
 const PAGE = 10
 
@@ -34,7 +35,7 @@ export default function AdminSessionsPage() {
               </span>
             </div>
 
-            <div className="bg-surface border border-border-subtle rounded-xl divide-y divide-border-subtle overflow-hidden shadow-xs">
+            <Card variant="flush" radius="xl" className="divide-y divide-border-subtle shadow-xs">
               {!isPlaceholderData && slice.length === 0 && (
                 <p className="text-fg-dim text-xs font-sans text-center py-6">{t('admin.noSessions')}</p>
               )}
@@ -103,7 +104,7 @@ export default function AdminSessionsPage() {
                   </div>
                 </div>
               ))}
-            </div>
+            </Card>
 
             <Pager page={page} total={total} onPage={setPage} />
           </section>

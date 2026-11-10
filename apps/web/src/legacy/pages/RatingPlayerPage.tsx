@@ -16,6 +16,8 @@ import AnnotatedPlayerName from '../components/AnnotatedPlayerName'
 import { collectAmbiguousBaseNames } from '../utils/nameParser'
 import { AmbiguousNamesProvider, combineAmbiguous, useAmbiguousNames } from '../context/AmbiguousNamesContext'
 import { t } from '../../i18n'
+import { Card } from '../../components/Card'
+import { EmptyState } from '../../components/EmptyState'
 
 const MATCHES_PER_PAGE = 5
 
@@ -53,7 +55,7 @@ export default function RatingPlayerPage() {
 
   if (isError) {
     return (
-      <div className="bg-surface border border-border-subtle rounded-xl p-6 text-center my-6">
+      <Card padding="lg" radius="xl" className="text-center my-6">
         <p className="text-error text-sm font-medium">{t('player.loadFailed')}</p>
         <button
           onClick={() => navigate(-1)}
@@ -61,7 +63,7 @@ export default function RatingPlayerPage() {
         >
           {t('common.prev')}
         </button>
-      </div>
+      </Card>
     )
   }
 
@@ -100,7 +102,7 @@ export default function RatingPlayerPage() {
     <AmbiguousNamesProvider value={ambiguousNames}>
       <div className="flex flex-col gap-4 pb-12">
         {/* Athlete Hero Card */}
-        <div className="bg-surface border border-border-subtle rounded-2xl p-4 sm:p-5 relative overflow-hidden shadow-sm">
+        <Card padding="lg" className="relative overflow-hidden shadow-sm">
           {/* Subtle gold ambient glow */}
           <div className="pointer-events-none absolute -top-14 -right-14 w-44 h-44 rounded-full bg-accent/[0.08] blur-3xl" />
 
@@ -173,20 +175,20 @@ export default function RatingPlayerPage() {
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
         {/* 3-Column Core Stats Grid */}
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
           {/* Matches */}
-          <div className="bg-surface border border-border-subtle rounded-xl p-3 text-center flex flex-col justify-center">
+          <Card padding="sm" radius="xl" className="text-center flex flex-col justify-center">
             <span className="text-xl sm:text-2xl font-bold font-mono text-fg leading-none">{games}</span>
             <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1.5 font-medium">
               {t('player.matches')}
             </span>
-          </div>
+          </Card>
 
           {/* W - L */}
-          <div className="bg-surface border border-border-subtle rounded-xl p-3 text-center flex flex-col justify-center">
+          <Card padding="sm" radius="xl" className="text-center flex flex-col justify-center">
             <div className="text-xl sm:text-2xl font-bold font-mono leading-none flex items-center justify-center gap-1">
               <span className="text-emerald-400">{wins}W</span>
               <span className="text-fg-dim text-sm font-light">/</span>
@@ -195,10 +197,10 @@ export default function RatingPlayerPage() {
             <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1.5 font-medium">
               {t('player.record')}
             </span>
-          </div>
+          </Card>
 
           {/* Win Rate */}
-          <div className="bg-surface border border-border-subtle rounded-xl p-3 text-center flex flex-col justify-center">
+          <Card padding="sm" radius="xl" className="text-center flex flex-col justify-center">
             <span className="text-xl sm:text-2xl font-bold font-mono text-fg leading-none">
               {games > 0 ? `${winRate}%` : '—'}
             </span>
@@ -213,7 +215,7 @@ export default function RatingPlayerPage() {
             <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1 font-medium">
               {t('player.winRate')}
             </span>
-          </div>
+          </Card>
         </div>
 
         {/* Section: Recent Matches */}
@@ -230,9 +232,9 @@ export default function RatingPlayerPage() {
           </div>
 
           {safeHistory.length === 0 ? (
-            <div className="bg-surface border border-border-subtle rounded-xl p-6 text-center">
-              <p className="text-fg-dim text-xs font-sans">{t('player.noMatches')}</p>
-            </div>
+            <Card radius="xl">
+              <EmptyState title={t('player.noMatches')} />
+            </Card>
           ) : (
             <div className="flex flex-col gap-2">
               {safeHistory.slice(matchesPage * MATCHES_PER_PAGE, (matchesPage + 1) * MATCHES_PER_PAGE).map((h, i) => {
@@ -240,10 +242,7 @@ export default function RatingPlayerPage() {
                 const teammates = h.teammates ?? []
                 const opponents = h.opponents ?? []
                 return (
-                  <div
-                    key={i}
-                    className="bg-surface border border-border-subtle rounded-xl p-3 flex items-center gap-3 transition-colors hover:border-border"
-                  >
+                  <Card padding="sm" radius="xl" className="flex items-center gap-3 transition-colors hover:border-border" key={i}>
                     {/* W/L Badge */}
                     <div
                       className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
@@ -302,7 +301,7 @@ export default function RatingPlayerPage() {
                         {h.date ? h.date.split('-').reverse().join('-') : ''}
                       </span>
                     </div>
-                  </div>
+                  </Card>
                 )
               })}
             </div>
@@ -342,9 +341,9 @@ export default function RatingPlayerPage() {
           {stats ? (
             <CareerStats stats={stats} countedPoints={countedPoints} />
           ) : (
-            <div className="bg-surface border border-border-subtle rounded-xl p-6 text-center">
-              <p className="text-fg-dim text-xs font-sans">{t('player.noCareer')}</p>
-            </div>
+            <Card radius="xl">
+              <EmptyState title={t('player.noCareer')} />
+            </Card>
           )}
         </section>
 
@@ -356,24 +355,22 @@ export default function RatingPlayerPage() {
             </h3>
           </div>
           {achLoading && (
-            <div className="bg-surface border border-border-subtle rounded-xl p-6 text-center">
+            <Card padding="lg" radius="xl" className="text-center">
               <p className="text-fg-dim text-xs font-sans animate-pulse">{t('player.loadingMedals')}</p>
-            </div>
+            </Card>
           )}
           {achError && (
-            <div className="bg-surface border border-border-subtle rounded-xl p-6 text-center">
+            <Card padding="lg" radius="xl" className="text-center">
               <p className="text-error text-xs font-sans">{t('player.medalsFailed')}</p>
-            </div>
+            </Card>
           )}
           {!achLoading && !achError && (achievements?.length ?? 0) === 0 && (
-            <div className="bg-surface border border-border-subtle rounded-xl p-6 text-center">
-              <p className="text-fg-dim text-xs font-sans">
-                {t('player.noMedals')}
-              </p>
-            </div>
+            <Card radius="xl">
+              <EmptyState title={t('player.noMedals')} />
+            </Card>
           )}
           {!achLoading && !achError && (achievements?.length ?? 0) > 0 && (
-            <div className="bg-surface border border-border-subtle rounded-2xl p-4 sm:p-5 flex flex-col gap-4">
+            <Card padding="md" className="flex flex-col gap-4">
               {medalSections.map(({ label, rows }) =>
                 rows.length === 0 ? null : (
                   <div key={label} className="flex flex-col gap-2 border-t border-border-subtle pt-3 first:border-t-0 first:pt-0">
@@ -393,7 +390,7 @@ export default function RatingPlayerPage() {
                   </div>
                 ),
               )}
-            </div>
+            </Card>
           )}
         </section>
 

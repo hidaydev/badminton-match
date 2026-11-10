@@ -8,6 +8,7 @@ import { ALL_RATING_TIERS } from '../config/ratingTiers'
 import { collectAmbiguousBaseNames } from '../utils/nameParser'
 import { AmbiguousNamesProvider } from '../context/AmbiguousNamesContext'
 import { t } from '../../i18n'
+import { Card } from '../../components/Card'
 
 const LIMIT = 200
 
@@ -165,7 +166,7 @@ export default function RankingsPage() {
         )}
 
         {!isError && !isLoading && filtered.length > 0 && (
-          <ol className="bg-surface border border-border-subtle rounded-lg overflow-hidden divide-y divide-border-subtle">
+          <Card variant="flush" as="ol" radius="lg" className="divide-y divide-border-subtle">
             {filtered.map((r) => {
               const isFirst = r.displayRank === 1
               const rankColor = isFirst ? 'text-accent font-bold' : 'text-fg-dim'
@@ -231,7 +232,7 @@ export default function RankingsPage() {
                 </li>
               )
             })}
-          </ol>
+          </Card>
         )}
 
         {!isError && !isLoading && filtered.length === 0 && (

@@ -78,19 +78,13 @@ export default function HomePage() {
 
       {/* Continue Session Card — the newest draft that still needs work. */}
       {draftQuery.isPending && current && (
-        <div
-          role="status"
-          className="w-full flex items-center gap-3.5 p-3.5 sm:p-4 rounded-xl bg-surface border border-border-subtle"
-        >
+        <Card padding="md" radius="xl" className="w-full flex items-center gap-3.5" role="status">
           <div className="w-11 h-11 rounded-lg bg-accent/10 shrink-0" />
           <span className="text-sm text-fg-dim">{t('home.continue.loading')}</span>
-        </div>
+        </Card>
       )}
       {draftQuery.isError && current && (
-        <div
-          role="alert"
-          className="w-full flex items-center gap-3 p-3.5 sm:p-4 rounded-xl bg-surface border border-border-subtle"
-        >
+        <Card padding="md" radius="xl" className="w-full flex items-center gap-3" role="alert">
           <span className="text-sm text-fg flex-1 min-w-0">{t('home.continue.error')}</span>
           <Button
             variant="secondary"
@@ -100,7 +94,7 @@ export default function HomePage() {
           >
             {t('home.continue.retry')}
           </Button>
-        </div>
+        </Card>
       )}
       {draftSession && current && (
         <Card

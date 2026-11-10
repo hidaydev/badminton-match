@@ -5,6 +5,8 @@ import { useListTournaments } from '../queries'
 import { useAdmin } from '../context/AdminContext'
 import { t } from '../../i18n'
 import Icon from '../components/Icon'
+import { Card } from '../../components/Card'
+import { EmptyState } from '../../components/EmptyState'
 
 const MONTH_NAMES = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
@@ -84,13 +86,13 @@ export default function TournamentListPage() {
       )}
 
       {!isError && !isLoading && filtered.length === 0 && (
-        <div className="bg-surface border border-border-subtle rounded-xl p-8 text-center">
-          <p className="text-fg-dim text-xs font-sans">{t('tournaments.noTournamentsYet')}</p>
-        </div>
+        <Card radius="xl">
+          <EmptyState title={t('tournaments.noTournamentsYet')} />
+        </Card>
       )}
 
       {!isError && !isLoading && filtered.length > 0 && (
-        <div className="bg-surface border border-border-subtle rounded-xl divide-y divide-border-subtle overflow-hidden shadow-sm">
+        <Card variant="flush" radius="xl" className="divide-y divide-border-subtle shadow-sm">
           {filtered.map((tItem) => {
             const isTeam = tItem.format === 'team'
             const dateParts = tItem.date ? tItem.date.split('-') : []
@@ -141,7 +143,7 @@ export default function TournamentListPage() {
               </button>
             )
           })}
-        </div>
+        </Card>
       )}
     </div>
   )

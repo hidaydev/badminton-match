@@ -27,6 +27,7 @@ import Icon from '../components/Icon'
 import { Button, IconButton } from '../../components/Button'
 import { Chip } from '../../components/Chip'
 import { EmptyState } from '../../components/EmptyState'
+import { Card } from '../../components/Card'
 
 // Convert canonical tier string (D..A+) to numeric (1..8)
 function tierStringToNumber(tier: string): Tier {
@@ -94,7 +95,7 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 bg-surface border border-border-subtle hover:border-slate-700 rounded-xl px-2.5 py-2 group transition-colors">
+      <Card padding="sm" radius="xl" className="flex flex-wrap items-center gap-1.5 sm:gap-2 group transition-colors">
         {/* Avatar */}
         <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
           {player.name[0].toUpperCase()}
@@ -145,7 +146,7 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
         >
           ✕
         </IconButton>
-      </div>
+      </Card>
 
       {ambiguousMatches && ambiguousMatches.length > 0 && (
         <div className="bg-amber-950/70 border border-amber-600/70 rounded-xl p-2.5 flex flex-col gap-1.5 text-xs ml-1 mr-1">

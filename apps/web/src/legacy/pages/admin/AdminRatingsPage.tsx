@@ -11,6 +11,7 @@ import ActionButton from '../../components/admin/ActionButton'
 import Pager from '../../components/admin/Pager'
 import { Spinner } from '../../../components/Spinner'
 import Icon from '../../../components/Icon'
+import { Card } from '../../../components/Card'
 
 const PAGE = 10
 
@@ -55,7 +56,7 @@ export default function AdminRatingsPage() {
               <span className="text-xs font-mono text-fg-dim">{(sources ?? []).length} sources</span>
             </div>
 
-            <div className="bg-surface border border-border-subtle rounded-xl divide-y divide-border-subtle overflow-hidden shadow-xs">
+            <Card variant="flush" radius="xl" className="divide-y divide-border-subtle shadow-xs">
               {slice.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-6">{t('admin.noSources')}</p>}
               {slice.map((src) => {
                 const isT = src.source_kind.startsWith('tournament')
@@ -144,7 +145,7 @@ export default function AdminRatingsPage() {
                   </div>
                 )
               })}
-            </div>
+            </Card>
 
             <Pager page={page} total={(sources ?? []).length} onPage={setPage} />
 

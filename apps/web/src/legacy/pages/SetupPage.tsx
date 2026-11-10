@@ -11,6 +11,7 @@ import { fetchCommunityConfigBundle } from '../../community/api'
 import type { ScoringPreset } from '../../community/api'
 import { Radio } from '../../components/Radio'
 import { t } from '../../i18n'
+import { Card } from '../../components/Card'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -293,7 +294,7 @@ export default function SetupPage() {
         <p className="text-slate-400 text-sm">Configure courts and time slots. Settings lock once session starts.</p>
       </div>
 
-      <div className="bg-surface border border-border-subtle rounded-lg p-4 flex flex-col gap-5">
+      <Card padding="md" radius="lg" className="flex flex-col gap-5">
 
         {/* Block 0: Session identity */}
         <div className="flex flex-wrap gap-4">
@@ -481,7 +482,7 @@ export default function SetupPage() {
             Start Session →
           </button>
         )}
-      </div>
+      </Card>
 
       <div className="text-xs text-slate-400 leading-relaxed">
         <p>

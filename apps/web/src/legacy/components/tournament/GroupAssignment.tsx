@@ -3,6 +3,7 @@ import type { GroupId, TournamentPair } from '../../utils/tournament'
 import { hit44 } from '../hitTarget'
 import { Spinner } from '../../../components/Spinner'
 import { t } from '../../../i18n'
+import { Card } from '../../../components/Card'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 
@@ -76,7 +77,7 @@ export default function GroupAssignment({
       {/* 2×2 group grid */}
       <div className="grid grid-cols-2 gap-3">
         {GROUP_IDS.map((g) => (
-          <div key={g} className="bg-surface border border-border-subtle rounded-xl overflow-hidden shadow-xs">
+          <Card variant="flush" radius="xl" className="shadow-xs" key={g}>
             <div className={`px-3 py-1.5 flex justify-between items-center ${GROUP_HEAD_CLASS[g]}`}>
               <span className="text-xs font-bold">GROUP {g}</span>
               <span className="text-xs opacity-70">{groups[g].filter(Boolean).length}/4</span>
@@ -134,7 +135,7 @@ export default function GroupAssignment({
                 )
               })}
             </div>
-          </div>
+          </Card>
         ))}
       </div>
 

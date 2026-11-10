@@ -2,6 +2,7 @@ import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { Player, ScheduleSlot } from '../../types'
 import { computePlayerStats } from '../../utils/playerStats'
 import { HIGHLIGHTED_PLAYERS, TEAM_HIGHLIGHTS, TEAM_HIGHLIGHT_ENABLED } from '../../config/teamHighlights'
+import { Card } from '../../../components/Card'
 
 interface GeneratedPlayerStatsProps {
   schedule: ScheduleSlot[]
@@ -19,7 +20,7 @@ export function GeneratedPlayerStats({ schedule, playerMap }: GeneratedPlayerSta
   const idealPlays = (schedule.length * 4) / players.length
 
   return (
-    <div className="mt-6 bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
+    <Card padding="sm" radius="lg" className="mt-6 flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-white">Player Stats</span>
         <span className="text-xs text-slate-400">target ~{idealPlays.toFixed(1)} plays</span>
@@ -48,7 +49,7 @@ export function GeneratedPlayerStats({ schedule, playerMap }: GeneratedPlayerSta
           })}
       </div>
       <p className="text-[10px] text-slate-400">P = unique partners · O = unique opponents faced</p>
-    </div>
+    </Card>
   )
 }
 
@@ -94,7 +95,7 @@ export default function PlayerStatsPanel({
     })
 
     return (
-      <div className="mt-6 bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
+      <Card padding="sm" radius="lg" className="mt-6 flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-white">Player Stats</span>
           <span className="text-[10px] text-slate-400">tap a name to highlight matches</span>
@@ -135,7 +136,7 @@ export default function PlayerStatsPanel({
             )
           })}
         </div>
-      </div>
+      </Card>
     )
   }
 

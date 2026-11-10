@@ -5,6 +5,7 @@ import { useNavigate } from '../../router'
 import { useAdmin } from '../../context/AdminContext'
 import { getSaveErrorMessage } from '../../queries/errors'
 import { t } from '@/i18n'
+import { Card } from '../../../components/Card'
 
 interface AdminPageShellProps {
   /** Settings and the rating ledger belong to the community admin alone. */
@@ -63,7 +64,7 @@ export default function AdminPageShell({ adminOnly = false, children }: AdminPag
   return (
     <div className="flex flex-col gap-4 pb-20">
       {/* Header */}
-      <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-surface border border-border-subtle shadow-xs">
+      <Card padding="sm" radius="xl" className="flex items-center justify-between shadow-xs">
         <span className="text-sm font-bold text-fg leading-tight">{t('nav.admin')}</span>
         <button
           onClick={() => navigate('/')}
@@ -71,7 +72,7 @@ export default function AdminPageShell({ adminOnly = false, children }: AdminPag
         >
           {t('legacy.home')}
         </button>
-      </div>
+      </Card>
 
       {error && <p className="text-error text-xs bg-error/10 border border-error/30 rounded-lg px-3 py-2 font-medium">{error}</p>}
       {okMsg && <p className="text-success text-xs bg-success/10 border border-success/30 rounded-lg px-3 py-2 font-medium">{okMsg}</p>}

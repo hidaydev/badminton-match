@@ -3,6 +3,7 @@ import { useState } from 'react'
 import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { PlayerStats } from '../../queries/types'
 import { t } from '@/i18n'
+import { Card } from '../../../components/Card'
 
 const SESSIONS_PER_PAGE = 5
 
@@ -36,7 +37,7 @@ export default function CareerStats({ stats, countedPoints }: {
     <div className="flex flex-col gap-3">
       {/* Sessions History */}
       {stats.sessions.length > 0 && (
-        <div className="bg-surface border border-border-subtle rounded-xl p-3.5 sm:p-4 flex flex-col gap-2">
+        <Card padding="md" radius="xl" className="flex flex-col gap-2">
           <div className="flex items-center justify-between pb-0.5">
             <p className="text-[10px] font-sans text-fg-dim label-meta font-semibold">
               {t('career.sessions')} ({stats.sessions.length})
@@ -93,7 +94,7 @@ export default function CareerStats({ stats, countedPoints }: {
               </button>
             </div>
           )}
-        </div>
+        </Card>
       )}
 
       {/* Top partners & opponents — 2 columns */}
@@ -106,25 +107,25 @@ export default function CareerStats({ stats, countedPoints }: {
           }
         >
           {stats.topPartners.length > 0 && (
-            <div className="bg-surface border border-border-subtle rounded-xl p-3 flex flex-col gap-1.5">
+            <Card padding="sm" radius="xl" className="flex flex-col gap-1.5">
               <p className="text-[10px] font-sans text-fg-dim label-meta font-semibold">
                 {t('career.topPartners')}
               </p>
               {stats.topPartners.map((p) => (
                 <PairRow key={p.name} name={p.name} wins={p.wins} losses={p.losses} count={p.count} />
               ))}
-            </div>
+            </Card>
           )}
 
           {stats.topOpponents.length > 0 && (
-            <div className="bg-surface border border-border-subtle rounded-xl p-3 flex flex-col gap-1.5">
+            <Card padding="sm" radius="xl" className="flex flex-col gap-1.5">
               <p className="text-[10px] font-sans text-fg-dim label-meta font-semibold">
                 {t('career.topOpponents')}
               </p>
               {stats.topOpponents.map((p) => (
                 <PairRow key={p.name} name={p.name} wins={p.wins} losses={p.losses} count={p.count} />
               ))}
-            </div>
+            </Card>
           )}
         </div>
       )}
@@ -134,17 +135,17 @@ export default function CareerStats({ stats, countedPoints }: {
         <div className="flex flex-col gap-3">
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
             {/* Tourn Games */}
-            <div className="bg-surface border border-border-subtle rounded-xl p-3 text-center flex flex-col justify-center">
+            <Card padding="sm" radius="xl" className="text-center flex flex-col justify-center">
               <span className="text-xl sm:text-2xl font-bold font-mono text-fg leading-none tabular-nums">
                 {stats.tournamentStats.gamesPlayed}
               </span>
               <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1.5 font-medium">
                 {t('career.tournGames')}
               </span>
-            </div>
+            </Card>
 
             {/* Tourn W - L */}
-            <div className="bg-surface border border-border-subtle rounded-xl p-3 text-center flex flex-col justify-center">
+            <Card padding="sm" radius="xl" className="text-center flex flex-col justify-center">
               <div className="text-xl sm:text-2xl font-bold font-mono leading-none flex items-center justify-center gap-1 tabular-nums">
                 <span className="text-emerald-400">{stats.tournamentStats.wins}W</span>
                 <span className="text-fg-dim text-sm font-light">/</span>
@@ -153,10 +154,10 @@ export default function CareerStats({ stats, countedPoints }: {
               <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1.5 font-medium">
                 {t('career.tournWl')}
               </span>
-            </div>
+            </Card>
 
             {/* Tourn Win Rate */}
-            <div className="bg-surface border border-border-subtle rounded-xl p-3 text-center flex flex-col justify-center">
+            <Card padding="sm" radius="xl" className="text-center flex flex-col justify-center">
               <span className="text-xl sm:text-2xl font-bold font-mono text-fg leading-none tabular-nums">
                 {tWinRate}%
               </span>
@@ -171,11 +172,11 @@ export default function CareerStats({ stats, countedPoints }: {
               <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1 font-medium">
                 {t('career.tournWinRate')}
               </span>
-            </div>
+            </Card>
           </div>
 
           {stats.tournamentStats.tournaments.length > 0 && (
-            <div className="bg-surface border border-border-subtle rounded-xl p-3.5 sm:p-4 flex flex-col gap-2">
+            <Card padding="md" radius="xl" className="flex flex-col gap-2">
               <p className="text-[10px] font-sans text-fg-dim label-meta font-semibold pb-0.5">
                 {t('career.tournaments')} ({stats.tournamentStats.tournaments.length})
               </p>
@@ -207,7 +208,7 @@ export default function CareerStats({ stats, countedPoints }: {
                   )
                 })}
               </div>
-            </div>
+            </Card>
           )}
 
           {(stats.tournamentStats.topPartners.length > 0 || stats.tournamentStats.topOpponents.length > 0) && (
@@ -219,25 +220,25 @@ export default function CareerStats({ stats, countedPoints }: {
               }
             >
               {stats.tournamentStats.topPartners.length > 0 && (
-                <div className="bg-surface border border-border-subtle rounded-xl p-3 flex flex-col gap-1.5">
+                <Card padding="sm" radius="xl" className="flex flex-col gap-1.5">
                   <p className="text-[10px] font-sans text-fg-dim label-meta font-semibold">
                     {t('career.tournamentPartners')}
                   </p>
                   {stats.tournamentStats.topPartners.map((p) => (
                     <PairRow key={p.name} name={p.name} wins={p.wins} losses={0} count={p.count} />
                   ))}
-                </div>
+                </Card>
               )}
 
               {stats.tournamentStats.topOpponents.length > 0 && (
-                <div className="bg-surface border border-border-subtle rounded-xl p-3 flex flex-col gap-1.5">
+                <Card padding="sm" radius="xl" className="flex flex-col gap-1.5">
                   <p className="text-[10px] font-sans text-fg-dim label-meta font-semibold">
                     {t('career.tournamentOpponents')}
                   </p>
                   {stats.tournamentStats.topOpponents.map((p) => (
                     <PairRow key={p.name} name={p.name} wins={p.wins} losses={0} count={p.count} />
                   ))}
-                </div>
+                </Card>
               )}
             </div>
           )}
