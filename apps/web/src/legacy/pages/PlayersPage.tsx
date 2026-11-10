@@ -23,6 +23,7 @@ function parsePlayerList(raw: string): string[] {
 }
 
 import { TIER_LABELS, TIER_BADGE_COLORS, TIER_ACTIVE, TIER_NAMES, TIERS } from '../config/tiers'
+import Icon from '../components/Icon'
 
 // Convert canonical tier string (D..A+) to numeric (1..8)
 function tierStringToNumber(tier: string): Tier {
@@ -445,14 +446,14 @@ export default function PlayersPage() {
             className="py-2.5 px-4 border-2 border-dashed border-slate-700 hover:border-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors hit44"
             title={t('players.bulkHint')}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg> Bulk
+            <Icon name="list" size={14} /> Bulk
           </button>
         </div>
       )}
 
       {players.length === 0 && !showForm && !showBulk && (
         <div className="text-center py-12 text-slate-400">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-3 text-slate-400"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>
+          <Icon name="history" size={40} className="mx-auto mb-3 text-slate-400" />
           <p>No players yet. Add {required} players to continue.</p>
         </div>
       )}

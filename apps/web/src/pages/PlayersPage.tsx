@@ -87,7 +87,7 @@ export default function PlayersPage() {
   }
 
   return (
-    <section className="mx-auto max-w-3xl p-4">
+    <section className="mx-auto w-full max-w-3xl">
       <PageHeader title={t('players.title')} subtitle={t('players.subtitle')} />
 
       <form

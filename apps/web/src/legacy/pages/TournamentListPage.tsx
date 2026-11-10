@@ -4,6 +4,7 @@ import { useNavigate } from '../router'
 import { useListTournaments } from '../queries'
 import { useAdmin } from '../context/AdminContext'
 import { t } from '../../i18n'
+import Icon from '../components/Icon'
 
 const MONTH_NAMES = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
@@ -32,7 +33,7 @@ export default function TournamentListPage() {
         {isAdmin && (
           <button
             onClick={() => navigate('/tournaments/new')}
-            className="px-3.5 py-1.5 rounded-lg bg-accent text-slate-950 text-xs font-bold hover:brightness-110 active:scale-[0.98] transition-all shadow-sm hit44"
+            className="px-3.5 py-1.5 rounded-lg bg-accent text-slate-950 text-xs font-bold hover:brightness-110 active:scale-[0.98] transition-[filter,transform] shadow-sm hit44"
           >
             {t('tournaments.newButton')}
           </button>
@@ -135,20 +136,7 @@ export default function TournamentListPage() {
 
                 {/* Arrow */}
                 <div className="shrink-0 flex items-center">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-fg-dim/40 shrink-0"
-                  >
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
+                  <Icon name="chevron-right" size={16} className="text-fg-dim/40" />
                 </div>
               </button>
             )

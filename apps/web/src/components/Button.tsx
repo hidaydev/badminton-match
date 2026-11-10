@@ -1,5 +1,6 @@
 import type { ComponentPropsWithoutRef } from 'react'
 import { Link } from 'react-router-dom'
+import { Spinner } from './Spinner'
 
 /**
  * The shipped V2 button, derived from the call sites rather than from the
@@ -52,12 +53,7 @@ export function Button({
       aria-busy={loading ? true : undefined}
       className={join(BASE, VARIANT[variant], SIZE[size], 'hit44', className)}
     >
-      {loading && (
-        <span
-          aria-hidden="true"
-          className="mr-2 inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent align-[-0.125em]"
-        />
-      )}
+      {loading && <Spinner size={14} className="mr-2" />}
       {children}
     </button>
   )

@@ -15,6 +15,7 @@ import type { PlayerChipMode } from './PlayerChipRenderer'
 import PlayerChipRenderer from './PlayerChipRenderer'
 import { hit44 } from '../hitTarget'
 import SlotGameCard from './SlotGameCard'
+import { Spinner } from '@/components/Spinner'
 import { t } from '@/i18n'
 
 interface ScheduleGridProps {
@@ -394,7 +395,7 @@ export default function ScheduleGrid({
                               disabled={saving}
                               className="px-6 py-1.5 min-h-6 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 hit44"
                             >
-                              {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                              {saving && <Spinner size={12} />}
                               {saving ? 'Saving…' : '✓ Save'}
                             </button>
                           </div>

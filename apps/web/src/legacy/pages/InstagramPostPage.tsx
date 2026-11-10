@@ -12,6 +12,8 @@ import { drawPostCanvas } from '../utils/canvas-templates'
 import { loadOverlayImages } from '../utils/overlays'
 import { todayLocal } from '../utils/time'
 import { Overlay } from '../../components/Overlay'
+import { Spinner } from '../../components/Spinner'
+import Icon from '../../components/Icon'
 import { t } from '../../i18n'
 
 const TEMPLATE = instagramTemplates[ACTIVE_TEMPLATE - 1]
@@ -463,23 +465,14 @@ export default function InstagramPostPage() {
               aria-label={t('instagram.replacePhoto')}
               className="h-11 w-11 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 2v6h-6"/>
-                <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
-                <path d="M3 22v-6h6"/>
-                <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
-              </svg>
+            <Icon name="rotate" size={17} stroke="white" />
             </button>
             <button
               onClick={() => setShowDownloadSheet(true)}
               aria-label={t('instagram.download')}
               className="h-11 w-11 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
+            <Icon name="download-tray" size={17} stroke="black" />
             </button>
           </div>
         )}
@@ -538,7 +531,7 @@ export default function InstagramPostPage() {
                   className="bg-slate-800 active:bg-slate-700 rounded-lg p-4 flex flex-col items-center gap-3 border border-slate-700 hit44"
                 >
                   <div className="w-12 h-15 rounded-lg bg-slate-700 border border-slate-600 flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H3v2a3 3 0 0 0 4 2.8M17 6h4v2a3 3 0 0 1-4 2.8"/></svg>
+                    <Icon name="tournament" size={20} />
                   </div>
                   <div className="text-center">
                     <p className="text-sm font-bold text-white">Leaderboard Post</p>
@@ -552,7 +545,7 @@ export default function InstagramPostPage() {
                   className="bg-yellow-400 active:bg-yellow-300 rounded-lg p-4 flex flex-col items-center gap-3 hit44"
                 >
                   <div className="w-12 h-15 rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H3v2a3 3 0 0 0 4 2.8M17 6h4v2a3 3 0 0 1-4 2.8"/></svg>
+                    <Icon name="tournament" size={20} />
                   </div>
                   <div className="text-center">
                     <p className="text-sm font-bold text-black">Leaderboard Story</p>
@@ -588,7 +581,7 @@ export default function InstagramPostPage() {
 
               {isGenerating && (
                 <div className="flex items-center justify-center py-8 gap-3">
-                  <div className="w-5 h-5 rounded-full border-2 border-yellow-400 border-t-transparent animate-spin" />
+                  <Spinner size={20} className="text-yellow-400" />
                   <span className="text-sm text-slate-400">Generating…</span>
                 </div>
               )}

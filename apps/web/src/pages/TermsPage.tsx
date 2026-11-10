@@ -30,7 +30,7 @@ function Section({
 export default function TermsPage() {
   return (
     <main className="min-h-screen bg-ground text-fg">
-      <article className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
+      <article className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
         <Link
           to="/"
           className="inline-flex min-h-11 items-center rounded-lg text-sm text-fg-dim hover:text-fg focus-visible:ring-2 focus-visible:ring-accent"

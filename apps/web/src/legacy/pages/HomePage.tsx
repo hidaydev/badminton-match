@@ -67,7 +67,7 @@ export default function HomePage() {
       {isAdmin && (
         <button
           onClick={() => navigate('/session/new')}
-          className="w-full flex items-center justify-center gap-2 py-4 rounded-xl bg-accent text-slate-950 font-bold text-[1rem] transition-all active:scale-[0.98] hover:brightness-110 shadow-sm hit44"
+          className="w-full flex items-center justify-center gap-2 py-4 rounded-xl bg-accent text-slate-950 font-bold text-[1rem] transition-[filter,transform] active:scale-[0.98] hover:brightness-110 shadow-sm hit44"
         >
           <Icon name="plus" size={20} />
           {t('home.newSession')}
@@ -106,7 +106,7 @@ export default function HomePage() {
               communityHref(current.slug, `/s/${encodeURIComponent(draftSession.id)}`),
             )
           }
-          className="w-full flex items-center gap-3.5 p-3.5 sm:p-4 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.99] transition-all text-left shadow-sm hit44"
+          className="w-full flex items-center gap-3.5 p-3.5 sm:p-4 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.99] transition-[border-color,transform] text-left shadow-sm hit44"
         >
           <div className="w-11 h-11 rounded-lg bg-accent/15 border border-accent/30 text-accent flex items-center justify-center shrink-0">
             <Icon name="play" size={20} />
@@ -128,20 +128,7 @@ export default function HomePage() {
               </span>
             </div>
           </div>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-fg-dim/40 shrink-0"
-          >
-            <path d="M9 18l6-6-6-6" />
-          </svg>
+          <Icon name="chevron-right" size={16} className="text-fg-dim/40" />
         </button>
       )}
 
@@ -158,7 +145,7 @@ export default function HomePage() {
                 if (item.to === '/scoreboard') void openScoreboard((path) => { void navigate(path) })
                 else void navigate(item.to)
               }}
-              className="flex items-start gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-all text-left hit44"
+              className="flex items-start gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-[border-color,transform] text-left hit44"
             >
               <div className="w-8 h-8 rounded-lg bg-elevated border border-border-subtle flex items-center justify-center shrink-0 text-accent">
                 <Icon name={item.icon} size={18} />
@@ -173,7 +160,7 @@ export default function HomePage() {
           {myPlayer !== null && (
             <button
               onClick={() => navigate(`/rankings/${encodeURIComponent(myPlayer.id)}`)}
-              className="flex items-start gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-all text-left hit44"
+              className="flex items-start gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-[border-color,transform] text-left hit44"
             >
               <div className="w-8 h-8 rounded-lg bg-elevated border border-border-subtle flex items-center justify-center shrink-0 text-accent">
                 <Icon name="ratings" size={18} />
@@ -190,7 +177,7 @@ export default function HomePage() {
           {isInstallable && (
             <button
               onClick={() => setManualInstallOpen(true)}
-              className="flex items-start gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-all text-left hit44"
+              className="flex items-start gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-[border-color,transform] text-left hit44"
             >
               <div className="w-8 h-8 rounded-lg bg-elevated border border-border-subtle flex items-center justify-center shrink-0 text-accent">
                 <Icon name="download" size={18} />

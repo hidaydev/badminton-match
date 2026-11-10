@@ -26,6 +26,8 @@ import { useSummaryEditModes } from './summary/useSummaryEditModes'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { Tabs } from '../../components/Tabs'
+import { Spinner } from '../../components/Spinner'
+import Icon from '../../components/Icon'
 
 /** Read-only data props for SummaryModal */
 interface SummaryModalBaseProps {
@@ -356,9 +358,7 @@ export default function SummaryModal({
               aria-label={t('summary.delete')}
               title={t('summary.delete')}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-              </svg>
+              <Icon name="trash" size={14} />
             </button>
           )}
           {onDelete && deleteConfirm && (
@@ -367,7 +367,7 @@ export default function SummaryModal({
               disabled={deleteLoading}
               className="text-xs font-bold px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5 hit44"
             >
-              {deleteLoading && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+              {deleteLoading && <Spinner size={12} />}
               {deleteLoading ? t('summary.deleting') : t('summary.deleteConfirm')}
             </button>
           )}
@@ -410,31 +410,18 @@ export default function SummaryModal({
             <button
               onClick={onRefetch}
               disabled={isRefetching}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 active:scale-90 transition-all disabled:opacity-40 shrink-0 hit44"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 active:scale-90 transition-[color,transform] disabled:opacity-40 shrink-0 hit44"
               aria-label={t('summary.reload')}
+              aria-busy={isRefetching}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className={isRefetching ? 'animate-spin' : ''}
-              >
-                <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
-                <path d="M21 3v5h-5"/>
-              </svg>
+              {isRefetching ? <Spinner size={16} /> : <Icon name="refresh" size={16} />}
             </button>
           )}
         </div>
       )}
 
       {/* Content */}
-      <div id={panelId} role="tabpanel" aria-labelledby={activeTab === 'standings' ? standingsTabId : scheduleTabId} className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || skipChanged || pendingTeamSwap || pendingChange ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
+      <div id={panelId} role="tabpanel" aria-labelledby={activeTab === 'standings' ? standingsTabId : scheduleTabId} className={`flex-1 overflow-auto px-4 py-4 max-w-panel mx-auto w-full ${pendingSwap || absentChanged || skipChanged || pendingTeamSwap || pendingChange ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
         {mode === 'swap' && !pendingSwap && (
           <div className="mb-3 rounded-lg bg-indigo-950/50 border border-indigo-800/40 px-3 py-2 flex flex-col gap-1">
             <span className="text-xs text-indigo-300 font-medium">
@@ -530,7 +517,7 @@ export default function SummaryModal({
                     disabled={!replaceName.trim() || saving}
                     className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-1.5 hit44"
                   >
-                    {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                    {saving && <Spinner size={12} />}
                     {saving ? 'Saving…' : '✓ Save'}
                   </button>
                 </div>

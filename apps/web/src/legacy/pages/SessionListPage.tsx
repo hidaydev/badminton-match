@@ -7,6 +7,7 @@ import { getSaveErrorMessage } from '../queries/errors'
 import { PENDING_OVERWRITE_WINDOW_MS, recordPendingPublish, useStore } from '../store'
 import { useAdmin } from '../context/AdminContext'
 import { t } from '../../i18n'
+import Icon from '../components/Icon'
 
 const MONTH_NAMES = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
@@ -333,20 +334,7 @@ export default function SessionListPage() {
                       {s.totalGames} <span className="text-[11px] font-sans">{t('sessions.games')}</span>
                     </span>
                   </div>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-fg-dim/40 shrink-0 ml-1"
-                  >
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
+                  <Icon name="chevron-right" size={16} className="text-fg-dim/40 ml-1" />
                 </div>
               </button>
             )

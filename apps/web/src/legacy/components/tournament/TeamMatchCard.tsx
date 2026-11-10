@@ -160,11 +160,7 @@ export default function TeamMatchCard({
               className="w-10 h-10 rounded-lg bg-accent text-slate-950 flex items-center justify-center hover:brightness-110 active:scale-[0.98] disabled:opacity-40 shrink-0 hit44"
               aria-label={t('tournament.downloadPosts')}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
+              <Icon name="download-tray" size={14} stroke="black" />
             </button>
           )}
         </div>
