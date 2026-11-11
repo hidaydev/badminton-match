@@ -34,6 +34,11 @@ jobs:
     name: "Release: verify tag"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # QA-15: the coverage number is only evidence when the run that produced it
+    # exists and is green for this commit, so the URL travels to the release
+    # body instead of being quoted from memory.
+    outputs:
+      coverage_url: ${{ steps.coverage.outputs.coverage_url }}
     # The gate is `./task ci`, not `./task check`: a release must also pass the
     # integration suites and the contract fingerprint, and those need a
     # database. The same service and provisioning steps as `ci.yml`. The web,
@@ -63,37 +68,42 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # SEC-03: the signature is only worth what the key list behind it is
+      # worth. `.github/allowed_signers` is that list, and it is committed, so
+      # the signer is a reviewed decision rather than "any key on the
+      # maintainer account". The step fails closed instead of falling back to
+      # the GitHub API: a release whose trust anchor is missing is not a release
+      # this repository can vouch for.
       - name: "Release: tag is SSH-signed"
         env:
           TAG: ${{ github.ref_name }}
-          REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -f .github/allowed_signers ]; then
-            git config gpg.format ssh
-            git config gpg.ssh.allowedSignersFile "$PWD/.github/allowed_signers"
-            git verify-tag "$TAG"
-            echo "signature verified with .github/allowed_signers"
-            exit 0
-          fi
-          # No committed allowed_signers yet: GitHub verifies the SSH signature
-          # against the signing keys registered on the account.
-          sha=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')
-          verified=$(gh api "repos/$REPO/git/tags/$sha" --jq '.verification.verified')
-          reason=$(gh api "repos/$REPO/git/tags/$sha" --jq '.verification.reason')
-          signature=$(gh api "repos/$REPO/git/tags/$sha" --jq '.verification.signature // ""')
-          case "$signature" in
-            "-----BEGIN SSH SIGNATURE-----"*) ;;
-            *)
-              echo "::error::tag $TAG is not SSH-signed; create it with git tag -s"
-              exit 1
-              ;;
-          esac
-          if [ "$verified" != "true" ]; then
-            echo "::error::GitHub did not verify the tag signature (reason: $reason)"
-            echo "::error::register the signing key as an SSH signing key on the account"
+          signers="$PWD/.github/allowed_signers"
+          if [ ! -f "$signers" ]; then
+            echo "::error::.github/allowed_signers is missing; the release has no committed trust anchor"
+            echo "::error::commit the release signing public key (one '<email> ssh-ed25519 AAAA...' line) and tag again with git tag -s"
             exit 1
           fi
+          if ! grep -qvE '^[[:space:]]*(#|$)' "$signers"; then
+            echo "::error::.github/allowed_signers has no key line; the signature cannot be verified against it"
+            exit 1
+          fi
+          git config gpg.format ssh
+          git config gpg.ssh.allowedSignersFile "$signers"
+          git verify-tag "$TAG"
+          echo "signature verified with .github/allowed_signers"
+      # QA-04: the tag must be a commit the gate actually ran on. A release
+      # branch that diverged from main carries a merge at tag time that no CI
+      # run covered, so the tag refuses a tree that does not contain main.
+      - name: "Release: the tag contains main"
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor origin/main HEAD; then
+            echo "::error::the tagged commit does not contain origin/main"
+            echo "::error::merge main into the release branch, run the full gate on the merge and tag that commit"
+            exit 1
+          fi
+          echo "tag contains $(git rev-parse --short origin/main)"
       - name: "Release: tag matches VERSION"
         env:
           TAG: ${{ github.ref_name }}
@@ -104,6 +114,49 @@ jobs:
             echo "::error::VERSION is '$version' but the tag says '$expected'"
             exit 1
           fi
+      # QA-15: the coverage workflow once failed at setup on this branch, so a
+      # number quoted from a laptop is not a gate result. The tag requires a
+      # completed Coverage run for its own commit and records the URL; a red,
+      # cancelled or missing run fails the release instead of shipping the
+      # number without the run behind it.
+      - name: "Release: the tagged commit has a green Coverage run"
+        id: coverage
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          deadline=$((SECONDS + 300))
+          while :; do
+            # Several runs can exist for one sha: a push run and a pull-request
+            # run, and the latter may have been cancelled by concurrency. One
+            # completed success is the evidence, so the query reads a page and
+            # picks the success rather than trusting the newest entry.
+            body=$(gh api \
+              "repos/$REPO/actions/workflows/coverage.yml/runs?head_sha=$SHA&per_page=20" \
+              2>/dev/null || true)
+            url=$(printf '%s' "$body" | jq -r '
+              [.workflow_runs[] | select(.status == "completed" and .conclusion == "success")][0].html_url // ""')
+            pending=$(printf '%s' "$body" | jq -r '
+              [.workflow_runs[] | select(.status != "completed")] | length')
+            last=$(printf '%s' "$body" | jq -r '
+              [.workflow_runs[] | select(.status == "completed")][0].conclusion // ""')
+            if [ -n "$url" ]; then
+              echo "coverage_url=$url" >>"$GITHUB_OUTPUT"
+              echo "coverage: $url"
+              exit 0
+            fi
+            if [ "$pending" = "0" ] && [ -n "$last" ]; then
+              echo "::error::the Coverage runs for $SHA ended as '$last'; a cancelled run is not a pass"
+              exit 1
+            fi
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::no successful Coverage run for $SHA within 5 minutes"
+              echo "::error::push the tagged commit to main or the release branch and wait for its Coverage run"
+              exit 1
+            fi
+            sleep 15
+          done
       # Nim's `re` binds to the system PCRE 1 library at run time, and the
       # runner image does not ship it.
       - name: "Dependencies: install the runtime C libraries"
@@ -561,6 +614,8 @@ jobs:
           TAG: ${{ github.ref_name }}
           IMAGE: ghcr.io/${{ github.repository }}
           DIGEST: ${{ needs.image.outputs.digest }}
+          COVERAGE_URL: ${{ needs.verify.outputs.coverage_url }}
+          BASE_SHA: ${{ github.sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           notes=$(mktemp)
@@ -573,6 +628,12 @@ jobs:
             exit 1
           fi
           {
+            echo
+            echo "## Verification"
+            echo
+            echo "- tagged commit: \`$BASE_SHA\`"
+            echo "- coverage run: $COVERAGE_URL"
+            echo "- tag contains main: yes (checked in \`Release: verify tag\`)"
             echo
             echo "## Container image"
             echo

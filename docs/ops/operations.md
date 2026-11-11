@@ -211,6 +211,21 @@ the T-074 soak test on the host above, using the committed load test:
   --requests 100000 --concurrency 50 --pid "$(pgrep -f majadu-api | head -1)"
 ```
 
+The same harness has a self-contained form that needs no host and no shared
+database: `--local` creates `bm2_load_test`, migrates and seeds it, builds and
+boots the API on it, runs the load with the process id so the report carries
+RSS, and drops the database on the way out.
+
+```sh
+./task loadtest --local --requests 20000 --concurrency 50 --out load.json
+```
+
+That is the repeatable baseline: it answers "did this commit make the read path
+slower or the process bigger" without a VPS, and it is the run to quote when the
+question is a regression rather than the host's ceiling. The `--local` numbers
+are a laptop, so they do not replace the host run: the 512 MB ceiling and the
+500-watcher fan-out are only exercised on the host.
+
 The report is one JSON object: p50/p95/p99 and the failure count for the HTTP
 half, the WebSocket opened/error counts, and, when `--pid` names the API
 process, the resident set size before, after and at its peak. Record the whole

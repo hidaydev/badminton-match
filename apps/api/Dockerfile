@@ -34,8 +34,10 @@ COPY task.d ./task.d
 # `release:` entries are CI-only downloads: the image never installs one, and the
 # cross-check that binds an entry to the workflow that fetches it cannot run
 # without `.github`, which the build context does not carry. The full check runs
-# in `API: check`, where both exist.
-RUN sh task deps-check --skip npm,playwright-browser,repo,toolchain,release
+# in `API: check`, where both exist. `advisory` is the SEC-05 OSV query over the
+# Nim commit pins: it needs network and curl at build time, and the same block
+# runs on the installed tree in the e2e job, so the image build stays hermetic.
+RUN sh task deps-check --skip npm,playwright-browser,repo,toolchain,release,advisory
 # `appVersion` is read from the VERSION file at compile time; the commit only
 # exists in the build arguments, which is what `/version` reports back and what
 # makes a running container traceable to a revision.

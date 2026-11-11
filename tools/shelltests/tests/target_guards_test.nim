@@ -199,3 +199,23 @@ suite "task target guards":
       if not installed:
         checkpoint(path.extractFilename & " runs Nim without libpcre3")
     check checked >= 4
+
+  # QA-17: `--local` creates and drops its own database, so a typo in the name
+  # is a database this harness can no longer drop. Both refusals happen before
+  # psql is touched, which is what makes them cheap to assert here.
+  test "loadtest --local refuses a database name it cannot drop":
+    let fixture = newFixture("loadtest-bad-db")
+    defer: removeDir(fixture.root)
+    fixture.installFake("node", "#!/bin/sh\nexit 0\n")
+    let result = fixture.runTask(@["loadtest", "--local", "--db", "Load-Test"])
+    check result.exitCode == 1
+    check result.stderr.contains("is not a lowercase database name")
+
+  test "loadtest refuses a flag that lost its value":
+    let fixture = newFixture("loadtest-missing-value")
+    defer: removeDir(fixture.root)
+    fixture.installFake("node", "#!/bin/sh\nexit 0\n")
+    let result = fixture.runTask(@["loadtest", "--db"])
+    check result.exitCode == 1
+    check result.stderr.contains("--db needs a database name")
+
