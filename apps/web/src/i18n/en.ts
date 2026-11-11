@@ -51,6 +51,7 @@ export const en = {
   'login.legalNav': 'Legal',
   'login.privacy': 'Privacy Policy',
   'login.terms': 'Terms of Service',
+  'login.build': 'Version {version}, commit {commit}',
 
   'invite.title': 'Community invitation',
   'invite.signedOutHint':

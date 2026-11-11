@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import { Button } from '../components/Button'
 import { ErrorText } from '../components/ErrorText'
 import { t } from '../i18n'
+import { BUILD } from '../build'
 
 /** The Google mark, drawn once so the button needs no network request. */
 function GoogleMark() {
@@ -110,6 +111,17 @@ export default function LoginPage() {
           >
             {t('login.terms')}
           </Link>
+          {/* Which tree this bundle came from: the owner reads it to tell a
+              fresh deploy from a stale one. The visible stamp is a commit hash,
+              so the screen-reader name comes from the dictionary. */}
+          <span className="ml-auto text-[11px] tabular-nums text-fg-dim">
+            <span className="sr-only">
+              {t('login.build', { version: BUILD.version, commit: BUILD.commit })}
+            </span>
+            <span aria-hidden="true">
+              {BUILD.version} · {BUILD.commit}
+            </span>
+          </span>
         </footer>
       </section>
     </main>
