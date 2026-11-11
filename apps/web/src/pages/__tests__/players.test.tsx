@@ -1,9 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import App from '../../App'
+import App, { queryClient } from '../../App'
 import type { Membership } from '../../auth/api'
 import { t } from '../../i18n'
 import { jsonBody, mockFetch } from '../../test/fetchMock'
+
+// One client serves the whole app, so a case has to start from an empty cache.
+beforeEach(() => {
+  queryClient.clear()
+})
 
 const sessionUser = { id: 'u1', displayName: 'Ada', platformOwner: false }
 
@@ -97,6 +102,31 @@ describe('players', () => {
         String(url).includes('/players?cursor=p50&limit=50'),
       ),
     ).toBe(true)
+  })
+
+  it('reads the roster once when a detail page mounts it beside the list', async () => {
+    const fetchMock = mockFetch({
+      'GET /api/auth/me': () => ({ body: sessionUser }),
+      'GET /api/communities': () => ({ body: { items: [membership('admin')] } }),
+      'GET /api/c/acme/players?limit=50': () => ({ body: { items: [ani] } }),
+      'GET /api/c/acme/players/p1': () => ({ body: ani }),
+      'GET /api/c/acme/players/p1/claims': () => ({ body: { items: [] } }),
+    })
+
+    // The admin's merge picker on the detail screen reads the same list the
+    // roster shows. Both screens mount against the app's one client, so the
+    // second mount joins the read the first one started instead of issuing a
+    // second request.
+    renderAt('/c/acme/players')
+    renderAt('/c/acme/players/p1')
+
+    expect(await screen.findAllByRole('link', { name: /Ani/ })).not.toHaveLength(0)
+    await waitFor(() => {
+      const listCalls = fetchMock.mock.calls.filter(([url]) =>
+        String(url).includes('/players?limit=50'),
+      )
+      expect(listCalls).toHaveLength(1)
+    })
   })
 
   it('a host adds a player with its grade and aliases', async () => {

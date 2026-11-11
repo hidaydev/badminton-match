@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../auth/redirect', () => ({ redirectTo: vi.fn() }))
 import { render, screen, waitFor } from '@testing-library/react'
-import App from '../App'
+import App, { queryClient } from '../App'
 import { t } from '../i18n'
 import { mockFetch } from '../test/fetchMock'
 
@@ -26,6 +26,8 @@ describe('legacy routes', () => {
   beforeEach(() => {
     window.localStorage.clear()
     window.sessionStorage.clear()
+    // One client serves the whole app, so a case has to start from an empty cache.
+    queryClient.clear()
   })
 
   it('mounts the session list from its community URL', async () => {

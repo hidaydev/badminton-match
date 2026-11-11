@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { ApiError } from '../auth/api'
-import { useAsyncEffect } from '../hooks/useAsyncEffect'
 import type { CommunityConfig, ScoringPreset } from './api'
 import { fetchCommunityConfigBundle } from './api'
 import { DEFAULT_TIME_ZONE, setActiveTimeZone } from '../utils/day'
@@ -15,15 +15,6 @@ export type CommunityConfigState = {
   error: CommunityConfigError | null
 }
 
-type Settled = {
-  slug: string | null
-  config: CommunityConfig | null
-  presets: ScoringPreset[]
-  error: CommunityConfigError | null
-}
-
-const UNRESOLVED: Settled = { slug: null, config: null, presets: [], error: null }
-
 /**
  * The community's timezone from an effective config, falling back to the
  * platform default. Every instant on a community screen is rendered in this
@@ -36,41 +27,39 @@ export function communityTimeZone(config: CommunityConfig | null): string {
 }
 
 /**
- * Loads the effective config for `slug`. State carries the slug it belongs to,
- * so switching communities never shows the previous community's rows while the
- * new request is in flight.
+ * Loads the effective config for `slug`. The slug is part of the query key, so
+ * switching communities never shows the previous community's rows while the new
+ * request is in flight.
  *
  * The endpoint answers with the settings and the format list together, so this
  * is the one read for both. A second hook asking for the presets would double
  * the request and split one failure into two.
  */
 export function useCommunityConfig(slug: string | null): CommunityConfigState {
-  const [settled, setSettled] = useState<Settled>(UNRESOLVED)
+  const query = useQuery({
+    // The slug is the whole key: switching communities starts a new read
+    // instead of showing the previous community's rows while it is in flight.
+    queryKey: ['communityConfig', slug ?? ''],
+    queryFn: () => fetchCommunityConfigBundle(slug ?? ''),
+    enabled: slug !== null,
+  })
 
-  useAsyncEffect((scope) => {
-    if (slug === null) return
+  const bundle = query.data
+  // Screens that compute a default date before they read the config see the
+  // community's zone from here on instead of assuming Jakarta. The effect runs
+  // on a cached answer too, which a fetch-time side effect would miss.
+  useEffect(() => {
+    if (bundle !== undefined) setActiveTimeZone(communityTimeZone(bundle.config))
+  }, [bundle])
 
-    fetchCommunityConfigBundle(slug)
-      .then(({ config, presets }) => {
-        if (!scope.live) return
-        // Screens that compute a default date before they read the config see
-        // the community's zone from here on instead of assuming Jakarta.
-        setActiveTimeZone(communityTimeZone(config))
-        setSettled({ slug, config, presets, error: null })
-      })
-      .catch((error: unknown) => {
-        if (!scope.live) return
-        const errorKind: CommunityConfigError =
-          error instanceof ApiError && error.status === 404 ? 'notFound' : 'failed'
-        setSettled({ slug, config: null, presets: [], error: errorKind })
-      })
-  }, [slug])
-
-  const current = slug !== null && settled.slug === slug
   return {
-    config: current ? settled.config : null,
-    presets: current ? settled.presets : [],
-    loading: slug !== null && !current,
-    error: current ? settled.error : null,
+    config: bundle?.config ?? null,
+    presets: bundle?.presets ?? [],
+    loading: slug !== null && query.isPending,
+    error: query.error === null ? null : settleError(query.error),
   }
+}
+
+function settleError(error: unknown): CommunityConfigError {
+  return error instanceof ApiError && error.status === 404 ? 'notFound' : 'failed'
 }

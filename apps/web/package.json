@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "check:types": "node scripts/check-contract-types.mjs && tsc -b --pretty false",
-    "check:lint": "eslint .",
+    "check:lint": "eslint . && node scripts/check-lint-rule.mjs",
     "check:tailwind": "node scripts/check-tailwind-arbitrary.mjs",
     "check": "pnpm run check:types && pnpm run check:lint && pnpm run check:tailwind && pnpm run check:touch && pnpm run check:docpaths && pnpm test",
     "test": "vitest run --coverage",

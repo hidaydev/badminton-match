@@ -18,6 +18,7 @@ import type { AuthContextValue } from './AuthContext'
 import { redirectTo } from './redirect'
 import { clearStoreDraft } from '../legacy/store'
 import { setCommunitySlug } from '../legacy/queries/endpoints'
+import { settled } from '../api/settled'
 import { purgePrivateImageCaches } from '../pwa/cache'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -36,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Clears the adapter's module caches (player names) as well as the slug.
     setCommunitySlug('')
     // Cache Storage is shared by every account on this origin.
-    void purgePrivateImageCaches()
+    settled(purgePrivateImageCaches(), 'image cache purge failed')
   }, [queryClient])
 
   // The cookie can expire or be revoked while a tab stays open. Any request
@@ -94,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           timer = setTimeout(() => {
             timer = null
             awaitingNetwork = false
-            void load(attempt + 1)
+            startLoad(attempt + 1)
           }, BOOT_RETRY_MS[attempt])
           return
         }
@@ -105,18 +106,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    // `load` reports its own failures; this catch is the guard for a throw
+    // that would otherwise escape the effect or a timer.
+    const startLoad = (attempt: number) => {
+      settled(load(attempt), 'auth bootstrap failed')
+    }
+
     // A browser that comes back online should re-decide immediately instead of
     // waiting for the next backoff step.
     const onOnline = () => {
       if (!awaitingNetwork) return
       clearTimer()
       awaitingNetwork = false
-      void load(0)
+      startLoad(0)
     }
     window.addEventListener('online', onOnline)
     scope.onCleanup(() => window.removeEventListener('online', onOnline))
 
-    void load(0)
+    startLoad(0)
   }, [])
 
   const login = useCallback(async () => {

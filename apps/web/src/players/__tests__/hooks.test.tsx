@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Player, PlayerClaim } from '../api'
@@ -76,6 +78,31 @@ async function drain(): Promise<void> {
   for (let turn = 0; turn < 8; turn += 1) await Promise.resolve()
 }
 
+/**
+ * A client per case, so no answer outlives the test that asked for it. The retry
+ * policy belongs to the app's client and is proven there; here a retry would
+ * only double every count this suite asserts.
+ */
+function testClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 0, gcTime: 0 } },
+  })
+}
+
+function provider(client: QueryClient) {
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  )
+}
+
+function renderWithClient<T>(hook: () => T) {
+  return renderHook(hook, { wrapper: provider(testClient()) })
+}
+
+function renderWithProps<T, P>(hook: (props: P) => T, initialProps: P) {
+  return renderHook(hook, { initialProps, wrapper: provider(testClient()) })
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
 })
@@ -83,7 +110,7 @@ afterEach(() => {
 describe('usePlayers', () => {
   it('appends the next page to the list it keeps while the page loads, then stops asking after a short page', async () => {
     const server = stubFetch()
-    const { result } = renderHook(() => usePlayers('acme', ''))
+    const { result } = renderWithClient(() => usePlayers('acme', ''))
 
     expect(server.calls[0].url).toBe('/api/c/acme/players?limit=50')
     await server.deliver(0, { body: { items: makePlayers(50) } })
@@ -94,7 +121,8 @@ describe('usePlayers', () => {
     act(() => result.current.loadMore())
 
     expect(server.calls[1].url).toBe('/api/c/acme/players?cursor=p50&limit=50')
-    expect(result.current.loadingMore).toBe(true)
+    // The in-flight flag reaches the hook on the next render, not in the click.
+    await waitFor(() => expect(result.current.loadingMore).toBe(true))
     expect(result.current.items).toHaveLength(50)
     expect(result.current.items?.map((row) => row.id)).toContain('p1')
 
@@ -113,7 +141,7 @@ describe('usePlayers', () => {
 
   it('reads a page once when loadMore is called twice before the answer lands', async () => {
     const server = stubFetch()
-    const { result } = renderHook(() => usePlayers('acme', ''))
+    const { result } = renderWithClient(() => usePlayers('acme', ''))
 
     await server.deliver(0, { body: { items: makePlayers(50) } })
     await waitFor(() => expect(result.current.items).toHaveLength(50))
@@ -135,7 +163,7 @@ describe('usePlayers', () => {
 
   it('drops a follow-up page failure that belongs to a list the user already reloaded', async () => {
     const server = stubFetch()
-    const { result } = renderHook(() => usePlayers('acme', ''))
+    const { result } = renderWithClient(() => usePlayers('acme', ''))
 
     await server.deliver(0, { body: { items: makePlayers(50) } })
     await waitFor(() => expect(result.current.items).toHaveLength(50))
@@ -156,9 +184,10 @@ describe('usePlayers', () => {
 
   it('replaces the accumulated list when the search term changes', async () => {
     const server = stubFetch()
-    const { result, rerender } = renderHook(({ query }) => usePlayers('acme', query), {
-      initialProps: { query: '' },
-    })
+    const { result, rerender } = renderWithProps(
+      ({ query }) => usePlayers('acme', query),
+      { query: '' },
+    )
 
     await server.deliver(0, { body: { items: makePlayers(50) } })
     await waitFor(() => expect(result.current.items).toHaveLength(50))
@@ -178,9 +207,10 @@ describe('usePlayers', () => {
 
   it('drops an answer that arrives for the previous search term', async () => {
     const server = stubFetch()
-    const { result, rerender } = renderHook(({ query }) => usePlayers('acme', query), {
-      initialProps: { query: 'an' },
-    })
+    const { result, rerender } = renderWithProps(
+      ({ query }) => usePlayers('acme', query),
+      { query: 'an' },
+    )
 
     rerender({ query: 'bo' })
     expect(server.calls).toHaveLength(2)
@@ -195,7 +225,7 @@ describe('usePlayers', () => {
 
   it('reports a 404 on the list read as notFound', async () => {
     const server = stubFetch()
-    const { result } = renderHook(() => usePlayers('acme', ''))
+    const { result } = renderWithClient(() => usePlayers('acme', ''))
 
     await server.deliver(0, { status: 404, body: { code: 'NOT_FOUND' } })
 
@@ -206,7 +236,7 @@ describe('usePlayers', () => {
 
   it('reports a 500 on the list read as failed', async () => {
     const server = stubFetch()
-    const { result } = renderHook(() => usePlayers('acme', ''))
+    const { result } = renderWithClient(() => usePlayers('acme', ''))
 
     await server.deliver(0, { status: 500, body: {} })
 
@@ -216,7 +246,7 @@ describe('usePlayers', () => {
 
   it('keeps the loaded page and marks failed when a follow-up page request fails', async () => {
     const server = stubFetch()
-    const { result } = renderHook(() => usePlayers('acme', ''))
+    const { result } = renderWithClient(() => usePlayers('acme', ''))
 
     await server.deliver(0, { body: { items: makePlayers(50) } })
     await waitFor(() => expect(result.current.items).toHaveLength(50))
@@ -231,7 +261,7 @@ describe('usePlayers', () => {
 
   it('makes no request while the slug is null', () => {
     const server = stubFetch()
-    const { result } = renderHook(() => usePlayers(null, ''))
+    const { result } = renderWithClient(() => usePlayers(null, ''))
 
     expect(server.calls).toHaveLength(0)
     expect(result.current.items).toBeNull()
@@ -242,7 +272,7 @@ describe('usePlayers', () => {
 describe('useMyPlayer', () => {
   it('returns the player the account owns once the read resolves', async () => {
     const server = stubFetch()
-    const { result } = renderHook(() => useMyPlayer('acme'))
+    const { result } = renderWithClient(() => useMyPlayer('acme'))
 
     expect(server.calls[0].url).toBe('/api/c/acme/players?mine=1')
     expect(result.current).toBeNull()
@@ -254,7 +284,7 @@ describe('useMyPlayer', () => {
 
   it('returns null on a 404 and does not throw', async () => {
     const server = stubFetch()
-    const { result } = renderHook(() => useMyPlayer('acme'))
+    const { result } = renderWithClient(() => useMyPlayer('acme'))
 
     await server.deliver(0, { status: 404, body: { code: 'NOT_FOUND' } })
 
@@ -264,7 +294,7 @@ describe('useMyPlayer', () => {
 
   it('returns null when the read fails with a 500', async () => {
     const server = stubFetch()
-    const { result } = renderHook(() => useMyPlayer('acme'))
+    const { result } = renderWithClient(() => useMyPlayer('acme'))
 
     await server.deliver(0, { status: 500, body: {} })
 
@@ -274,7 +304,7 @@ describe('useMyPlayer', () => {
 
   it('makes no request while the slug is null', () => {
     const server = stubFetch()
-    const { result } = renderHook(() => useMyPlayer(null))
+    const { result } = renderWithClient(() => useMyPlayer(null))
 
     expect(server.calls).toHaveLength(0)
     expect(result.current).toBeNull()
@@ -284,7 +314,7 @@ describe('useMyPlayer', () => {
 describe('usePlayerDetail', () => {
   it('loads the player and their claims and reports neither while the read is open', async () => {
     const server = stubFetch()
-    const { result } = renderHook(() => usePlayerDetail('acme', 'p1'))
+    const { result } = renderWithClient(() => usePlayerDetail('acme', 'p1'))
 
     expect(server.calls.map((call) => call.url)).toEqual([
       '/api/c/acme/players/p1',
@@ -305,7 +335,7 @@ describe('usePlayerDetail', () => {
 
   it('reports a failed player read and keeps the claims failure to itself', async () => {
     const server = stubFetch()
-    const { result } = renderHook(() => usePlayerDetail('acme', 'p1'))
+    const { result } = renderWithClient(() => usePlayerDetail('acme', 'p1'))
 
     await server.deliver(0, { status: 404, body: { code: 'NOT_FOUND' } })
     await server.deliver(1, { status: 500, body: {} })
@@ -316,11 +346,42 @@ describe('usePlayerDetail', () => {
     expect(result.current.loading).toBe(false)
   })
 
+  it('makes no request while the slug or the id is missing', async () => {
+    const server = stubFetch()
+    const { result } = renderWithClient(() => usePlayerDetail(null, 'p1'))
+
+    expect(server.calls).toHaveLength(0)
+    expect(result.current.loading).toBe(false)
+    expect(result.current.player).toBeNull()
+
+    const withoutId = renderWithClient(() => usePlayerDetail('acme', null))
+    expect(server.calls).toHaveLength(0)
+    expect(withoutId.result.current.claims).toBeNull()
+  })
+
+  it('re-reads the player and the claims when the page asks for a reload', async () => {
+    const server = stubFetch()
+    const { result } = renderWithClient(() => usePlayerDetail('acme', 'p1'))
+
+    await server.deliver(0, { body: makePlayer('p1', 'Ani') })
+    await server.deliver(1, { body: { items: [makeClaim('c1')] } })
+    await waitFor(() => expect(result.current.player?.name).toBe('Ani'))
+
+    act(() => result.current.reload())
+
+    await waitFor(() => expect(server.calls).toHaveLength(4))
+    await server.deliver(2, { body: makePlayer('p1', 'Ani B') })
+    await server.deliver(3, { body: { items: [makeClaim('c1'), makeClaim('c2')] } })
+
+    await waitFor(() => expect(result.current.player?.name).toBe('Ani B'))
+    expect(result.current.claims).toHaveLength(2)
+  })
+
   it('ignores a player answer that arrives after the requested id changed', async () => {
     const server = stubFetch()
-    const { result, rerender } = renderHook(
+    const { result, rerender } = renderWithProps(
       ({ id }) => usePlayerDetail('acme', id),
-      { initialProps: { id: 'p1' } },
+      { id: 'p1' },
     )
 
     rerender({ id: 'p2' })

@@ -110,9 +110,9 @@ export default function SetupPage() {
       {user?.platformOwner === true && (
         <CollapsiblePanel className="mt-8" title={t('setup.create')}>
           <form
-            onSubmit={(event) => {
+            onSubmit={async (event) => {
               event.preventDefault()
-              void submit()
+              await submit()
             }}
           >
             {error !== null && (

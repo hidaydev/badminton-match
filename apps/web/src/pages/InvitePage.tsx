@@ -1,3 +1,4 @@
+import { settled } from '../api/settled'
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
@@ -86,7 +87,14 @@ export default function InvitePage() {
         <Card className="w-full max-w-sm p-6">
           <h1 className="text-xl font-bold text-fg">{t('invite.title')}</h1>
           <p className="mt-2 text-sm text-fg-dim">{t('invite.signedOutHint')}</p>
-          <Button className="mt-6 w-full py-3" onClick={() => void login()} disabled={loggingIn}>
+          <Button
+            className="mt-6 w-full py-3"
+            onClick={() => {
+              // Starting the sign-in redirect can fail before the browser leaves.
+              settled(login(), 'sign-in failed to start')
+            }}
+            disabled={loggingIn}
+          >
             {loggingIn ? t('login.pending') : t('invite.signIn')}
           </Button>
         </Card>
@@ -104,7 +112,7 @@ export default function InvitePage() {
         </p>
 
         {accepted === null ? (
-          <Button className="mt-6 w-full py-3" onClick={() => void accept()} disabled={accepting}>
+          <Button className="mt-6 w-full py-3" onClick={() => accept()} disabled={accepting}>
             {accepting ? t('invite.accepting') : t('invite.accept')}
           </Button>
         ) : (

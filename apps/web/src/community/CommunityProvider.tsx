@@ -1,3 +1,4 @@
+import { settled } from '../api/settled'
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -32,7 +33,12 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       writeStoredSlug(slug)
       const target = communityPath(location.pathname, slug)
       if (target === location.pathname) return
-      void navigate({ pathname: target, search: location.search, hash: location.hash })
+      // React Router returns `void | Promise<void>`, so the wrapper is what a
+      // rejection can be reported on.
+      settled(
+        Promise.resolve(navigate({ pathname: target, search: location.search, hash: location.hash })),
+        'community navigation failed',
+      )
     },
     [location.pathname, location.search, location.hash, navigate],
   )

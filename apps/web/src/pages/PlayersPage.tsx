@@ -201,9 +201,9 @@ export default function PlayersPage() {
           title={t('players.add')}
         >
           <form
-            onSubmit={(event) => {
+            onSubmit={async (event) => {
               event.preventDefault()
-              void add()
+              await add()
             }}
           >
             {formError !== null && (

@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import type { Membership } from '../auth/api'
@@ -19,6 +21,21 @@ const member = (id: string, slug: string, name: string): Membership => ({
 
 const acme = member('c1', 'acme', 'Acme')
 const beta = member('c2', 'beta', 'Beta')
+
+/**
+ * A client per case with the retry off: the shipped policy retries once with a
+ * backoff, which would only make every failure here two calls and a second long.
+ */
+function renderConfig<P>(hook: (props: P) => ReturnType<typeof useCommunityConfig>,
+  initialProps: P) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 0, gcTime: 0 } },
+  })
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  )
+  return renderHook(hook, { initialProps, wrapper })
+}
 
 describe('community selection', () => {
   beforeEach(() => {
@@ -92,9 +109,9 @@ describe('useCommunityConfig', () => {
       }),
     })
 
-    const { result, rerender } = renderHook(
+    const { result, rerender } = renderConfig(
       ({ slug }: { slug: string }) => useCommunityConfig(slug),
-      { initialProps: { slug: 'acme' } },
+      { slug: 'acme' },
     )
 
     expect(result.current.loading).toBe(true)
@@ -122,16 +139,16 @@ describe('useCommunityConfig', () => {
       'GET /api/c/broken/config': () => ({ status: 500, body: { code: 'UNKNOWN' } }),
     })
 
-    const missing = renderHook(() => useCommunityConfig('ghost'))
+    const missing = renderConfig((slug: string) => useCommunityConfig(slug), 'ghost')
     await waitFor(() => expect(missing.result.current.error).toBe('notFound'))
 
-    const broken = renderHook(() => useCommunityConfig('broken'))
+    const broken = renderConfig((slug: string) => useCommunityConfig(slug), 'broken')
     await waitFor(() => expect(broken.result.current.error).toBe('failed'))
   })
 
   it('does not request anything without a slug', () => {
     const fetchMock = mockFetch({})
-    const { result } = renderHook(() => useCommunityConfig(null))
+    const { result } = renderConfig((slug: string | null) => useCommunityConfig(slug), null)
 
     expect(fetchMock).not.toHaveBeenCalled()
     expect(result.current.loading).toBe(false)

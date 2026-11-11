@@ -82,7 +82,7 @@ export default function LoginPage() {
 
           <Button
             className="mt-8 flex w-full min-h-12 items-center justify-center gap-3 py-3"
-            onClick={() => void onLogin()}
+            onClick={() => onLogin()}
             disabled={loggingIn}
           >
             <GoogleMark />
