@@ -515,6 +515,14 @@ the policies can be enabled table by table, starting with `player.players`,
 `session.sessions` and `rating.player_state`, and the existing scan becomes the
 guard that the policy exists on every tenant table.
 
+**Reopener (release rule, 2026-11-11):** the first release that serves a second
+community from one production database. RLS option (a) in
+`docs/db/rls-tenancy-options.md` is then a condition of that release, not work
+scheduled after it: the policies ship with the two-community isolation test as a
+gate before the second community exists. `docs/ops/release.md` §4 repeats this as
+a release exit criterion. Nothing in the pipeline enforces it; the operator
+checks it, because the community count lives in the database, not in the tree.
+
 ## ADR-019 · The deploy must run `dbtools seed`, and the config seed stays insert-only
 
 **Date:** 2026-11-10

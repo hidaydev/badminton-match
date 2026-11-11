@@ -100,7 +100,7 @@ That file stays the rollback input.
 
 ## 4. Exit criteria
 
-A release is not done until all seven are true:
+A release is not done until all eight are true:
 
 1. **Digest matches.** `deploy/last-release.json` records the digest used;
    its value must equal the digest in the GitHub Release body, and
@@ -134,6 +134,13 @@ A release is not done until all seven are true:
    p50/p95/p99, failure count and RSS peak archived in the release evidence
    (T-074). A release without it has no measured capacity, only a configured
    ceiling.
+8. **One community per production database, or RLS has already shipped.** The
+   first release that serves a second community from one production database
+   does not ship until option (a) of `docs/db/rls-tenancy-options.md` is enabled
+   on the tenant tables and the two-community isolation test is a gate (ADR-018,
+   second Reopener). Nothing in the pipeline checks this: the community count
+   lives in the database, so the operator confirms it against the database the
+   release will run on.
 
 If any of them fails, use §5, do not patch on the server.
 
