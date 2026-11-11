@@ -1,7 +1,7 @@
 # deps.lock — pinned toolchain, Nim packages, and gate tools.
 # Format: docs/handbook/deps-format.md. Verify with ./task deps-check.
 # tree = sha256 over the sorted entry lines below (comments excluded).
-tree 230502ddebc48b791c847363ae0b5f341e6ad7d0fcfb2afa0e8c520530993be1
+tree 85de4818787e0cf792d9cf21bc334c7dd28bfe4d13fe27f86682b472b551e4c2
 
 # Nim toolchain
 nim 2.4.0 toolchain:nim -
@@ -51,6 +51,11 @@ playwright 1.64.1 npm:playwright -
 # the fourth field with sha256sum, so the lock is the pin and the workflow is the
 # installer. Update both together: docs/handbook/deps-format.md section 2.
 osv-scanner 2.7.0 release:https://github.com/google/osv-scanner/releases/download/v2.7.0/osv-scanner_linux_amd64 160c6253e2922e9e0a6a9771c5c4c40a4b3c6090b34a3cdd5e80c96cc2e4218b
+# GITLEAKS: the full-history scan needs the CLI, not the action, which only reads
+# the range a push or a pull request names. Same rule as osv-scanner: the
+# workflow that downloads it must carry this digest, and `./task deps-check`
+# reads it back out.
+gitleaks 8.30.1 release:https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
 
 # Playwright browser builds (revision directory names under the browser cache)
 chromium 1248 playwright-browser:chromium -
