@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ApiError } from '../auth/api'
+import { useAsyncEffect } from '../hooks/useAsyncEffect'
 import type { CommunityConfig, ScoringPreset } from './api'
 import { fetchCommunityConfigBundle } from './api'
 import { DEFAULT_TIME_ZONE, setActiveTimeZone } from '../utils/day'
@@ -46,28 +47,23 @@ export function communityTimeZone(config: CommunityConfig | null): string {
 export function useCommunityConfig(slug: string | null): CommunityConfigState {
   const [settled, setSettled] = useState<Settled>(UNRESOLVED)
 
-  useEffect(() => {
+  useAsyncEffect((scope) => {
     if (slug === null) return
-    let active = true
 
     fetchCommunityConfigBundle(slug)
       .then(({ config, presets }) => {
-        if (!active) return
+        if (!scope.live) return
         // Screens that compute a default date before they read the config see
         // the community's zone from here on instead of assuming Jakarta.
         setActiveTimeZone(communityTimeZone(config))
         setSettled({ slug, config, presets, error: null })
       })
       .catch((error: unknown) => {
-        if (!active) return
+        if (!scope.live) return
         const errorKind: CommunityConfigError =
           error instanceof ApiError && error.status === 404 ? 'notFound' : 'failed'
         setSettled({ slug, config: null, presets: [], error: errorKind })
       })
-
-    return () => {
-      active = false
-    }
   }, [slug])
 
   const current = slug !== null && settled.slug === slug

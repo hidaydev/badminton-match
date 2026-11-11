@@ -10,14 +10,13 @@ import {
   reportSessionExpired,
 } from './errors'
 import { parseRetryAfter, shouldRetry } from '../legacy/queries/retry'
+import { RETRY_BASE_DELAY_MS, retryDelayMs } from './retryPolicy'
 
 /** Same-origin `/api` path; the dev proxy and the production rewrite both strip it. */
 export const API_BASE: string = import.meta.env.VITE_API_BASE || '/api'
 
 const API_VERSION = '2'
 const API_TIMEOUT_MS = 30_000
-const RETRY_BASE_DELAY_MS = 1_000
-const RETRY_MAX_DELAY_MS = 4_000
 
 export type RequestOptions = {
   /** Keep the response headers for the legacy conditional-request callers. */
@@ -28,10 +27,6 @@ export type RequestOptions = {
 }
 
 export type RequestResult<T> = T | { data: T; headers: Headers }
-
-function backoffDelayMs(attempt: number, base: number): number {
-  return Math.min(base * 2 ** attempt, RETRY_MAX_DELAY_MS)
-}
 
 function headerRecord(init: HeadersInit | undefined): Record<string, string> {
   if (init instanceof Headers) {
@@ -82,11 +77,11 @@ export async function request<T>(
   const timeoutMs = options.timeoutMs ?? API_TIMEOUT_MS
   const retryBaseDelayMs = options.retryBaseDelayMs ?? RETRY_BASE_DELAY_MS
   let lastError: unknown
-  let retryDelayMs = 0
+  let delayMs = 0
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (attempt > 0) {
-      await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
     }
 
     const timeout = new AbortController()
@@ -124,7 +119,7 @@ export async function request<T>(
         if (shouldRetry(method, error, attempt, maxRetries)) {
           lastError = error
           const retryAfter = parseRetryAfter(response.headers.get('Retry-After'))
-          retryDelayMs = retryAfter !== null ? retryAfter * 1_000 : backoffDelayMs(attempt, retryBaseDelayMs)
+          delayMs = retryAfter !== null ? retryAfter * 1_000 : retryDelayMs(attempt, retryBaseDelayMs)
           continue
         }
         throw error
@@ -140,7 +135,7 @@ export async function request<T>(
       if (callerSignal?.aborted) throw error
       if (shouldRetry(method, error, attempt, maxRetries)) {
         lastError = error
-        retryDelayMs = backoffDelayMs(attempt, retryBaseDelayMs)
+        delayMs = retryDelayMs(attempt, retryBaseDelayMs)
         continue
       }
       throw error

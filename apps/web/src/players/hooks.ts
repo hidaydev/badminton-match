@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { ApiError } from '../auth/api'
+import { useAsyncEffect } from '../hooks/useAsyncEffect'
 import { getPlayer, getMyPlayer, listClaims, listPlayers, PLAYER_PAGE } from './api'
 import type { Player, PlayerClaim } from './api'
 
@@ -12,19 +13,15 @@ export type PlayersError = 'notFound' | 'failed'
 export function useMyPlayer(slug: string | null): Player | null {
   const [player, setPlayer] = useState<Player | null>(null)
 
-  useEffect(() => {
+  useAsyncEffect((scope) => {
     if (slug === null) return
-    let active = true
     getMyPlayer(slug)
       .then((row) => {
-        if (active) setPlayer(row)
+        if (scope.live) setPlayer(row)
       })
       .catch(() => {
-        if (active) setPlayer(null)
+        if (scope.live) setPlayer(null)
       })
-    return () => {
-      active = false
-    }
   }, [slug])
 
   return player
@@ -67,9 +64,8 @@ export function usePlayers(slug: string | null, query: string): {
   const pageReadInFlight = useRef<number | null>(null)
   const generation = useRef(0)
 
-  useEffect(() => {
+  useAsyncEffect((scope) => {
     if (slug === null || key === null) return
-    let active = true
     const readGeneration = generation.current + 1
     generation.current = readGeneration
     // A page read started against the old list is abandoned: its answer is
@@ -78,7 +74,7 @@ export function usePlayers(slug: string | null, query: string): {
 
     listPlayers(slug, { q: query, limit: PLAYER_PAGE })
       .then((items) => {
-        if (!active || generation.current !== readGeneration) return
+        if (!scope.live || generation.current !== readGeneration) return
         setFailure(null)
         setLoadingMore(false)
         setPage({
@@ -88,15 +84,11 @@ export function usePlayers(slug: string | null, query: string): {
         })
       })
       .catch((problem: unknown) => {
-        if (!active || generation.current !== readGeneration) return
+        if (!scope.live || generation.current !== readGeneration) return
         setFailure({ key, error: settleError(problem) })
         setLoadingMore(false)
         setPage(null)
       })
-
-    return () => {
-      active = false
-    }
   }, [slug, query, key, attempt])
 
   const current = key !== null && page !== null && page.key === key ? page : null
@@ -165,29 +157,24 @@ export function usePlayerDetail(
   const [claims, setClaims] = useState<Settled<PlayerClaim[]>>(unresolved)
   const [attempt, setAttempt] = useState(0)
 
-  useEffect(() => {
+  useAsyncEffect((scope) => {
     if (slug === null || id === null || requestKey === null) return
-    let active = true
 
     getPlayer(slug, id)
       .then((value) => {
-        if (active) setPlayer({ requestKey, value, error: null })
+        if (scope.live) setPlayer({ requestKey, value, error: null })
       })
       .catch((problem: unknown) => {
-        if (active) setPlayer({ requestKey, value: null, error: settleError(problem) })
+        if (scope.live) setPlayer({ requestKey, value: null, error: settleError(problem) })
       })
 
     listClaims(slug, id)
       .then((value) => {
-        if (active) setClaims({ requestKey, value, error: null })
+        if (scope.live) setClaims({ requestKey, value, error: null })
       })
       .catch((problem: unknown) => {
-        if (active) setClaims({ requestKey, value: null, error: settleError(problem) })
+        if (scope.live) setClaims({ requestKey, value: null, error: settleError(problem) })
       })
-
-    return () => {
-      active = false
-    }
   }, [slug, id, requestKey, attempt])
 
   const playerCurrent = requestKey !== null && player.requestKey === requestKey

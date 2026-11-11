@@ -4,6 +4,7 @@ import type { Player, GameScore, ScheduleSlot } from '../../types'
 import { computeStandings } from '../../utils/standings'
 import { isPlaceholderName } from '../../utils/placeholders'
 import { ordinal } from '../../utils/ordinal'
+import { StandingsTable } from '../../../components/StandingsTable'
 import PlayerMatchDetailSheet from './PlayerMatchDetailSheet'
 
 // A stable object so the useMemo below stays valid on every render when the
@@ -90,58 +91,19 @@ export default function StandingsTab({
         <span>›</span>
         <span className="font-semibold">A-Z</span>
       </div>
-      {/* Header */}
-      <div className="flex items-center gap-2 pl-2 pr-2 mb-1">
-        <span className="w-8 text-[10px] font-bold text-slate-400 text-center shrink-0 tabular-nums">#</span>
-        <span className="flex-1 text-[10px] font-bold text-slate-400">Name</span>
-        <span className="w-11 text-[10px] font-bold text-slate-400 text-center shrink-0 tabular-nums">W-L</span>
-        <span className="w-9 text-[10px] font-bold text-slate-400 text-center shrink-0 tabular-nums">Diff</span>
-        <span className="w-9 text-[10px] font-bold text-slate-400 text-center shrink-0 tabular-nums">Pts</span>
-      </div>
-
-      {/* Leaderboard rows */}
-      <ol role="list" className="flex flex-col gap-1.5">
-        {standings.map((s, i) => {
-          const rank = i + 1
-          const isFirst = rank === 1
-          const isSecond = rank === 2
-          const isThird = rank === 3
-          const isPodium = isFirst || isSecond || isThird
-          const wlColor = s.wins > s.losses ? 'text-emerald-400' : s.losses > s.wins ? 'text-red-400' : 'text-slate-400'
-          const diffColor = s.diff > 0 ? 'text-emerald-400' : s.diff < 0 ? 'text-red-400' : 'text-slate-400'
-          const diffLabel = s.diff > 0 ? `+${s.diff}` : String(s.diff)
-
-          const medal = isFirst ? 'gold' : isSecond ? 'silver' : isThird ? 'bronze' : null
-
-          const rowBg = isPodium
-            ? 'bg-emerald-950/45 border-emerald-800/35'
-            : 'bg-slate-800/30 border-slate-700/20'
-
-          const rankCls =
-            medal === 'gold' ? 'text-accent' : medal === 'silver' ? 'text-slate-200' : medal === 'bronze' ? 'text-slate-400' : 'text-slate-400'
-
-          return (
-            <li
-              key={s.player.id}
-              className={`flex items-center gap-2 pl-2 pr-2 py-2.5 rounded-xl border ${rowBg}`}
-            >
-              <div className="w-8 flex justify-center shrink-0">
-                <span className={`text-[11px] font-bold font-sans tabular-nums ${rankCls}`}>{ordinal(rank)}</span>
-              </div>
-              <button
-                type="button"
-                className={`hit44 flex-1 min-w-0 truncate text-left cursor-pointer active:opacity-70 ${isFirst ? 'text-sm font-bold text-emerald-300' : isPodium ? 'text-sm font-semibold text-emerald-100/80' : 'text-sm font-medium text-slate-400'}`}
-                onClick={() => setSelectedPlayer({ standing: s, rank })}
-              >
-                <AnnotatedPlayerName name={s.player.name} />
-              </button>
-              <span className={`w-11 text-[11px] font-semibold text-center shrink-0 tabular-nums ${wlColor}`}>{s.wins}-{s.losses}</span>
-              <span className={`w-9 text-[11px] font-semibold text-center shrink-0 tabular-nums ${diffColor}`}>{diffLabel}</span>
-              <span className="w-9 text-[11px] font-semibold text-center shrink-0 tabular-nums text-slate-400">{s.pointsFor}</span>
-            </li>
-          )
-        })}
-      </ol>
+      <StandingsTable
+        rows={standings.map((s, i) => ({
+          key: s.player.id,
+          rank: ordinal(i + 1),
+          name: <AnnotatedPlayerName name={s.player.name} />,
+          wins: s.wins,
+          losses: s.losses,
+          diff: s.diff,
+          pointsFor: s.pointsFor,
+          onSelect: () => setSelectedPlayer({ standing: s, rank: i + 1 }),
+        }))}
+        labels={{ name: 'Name', winsLosses: 'W-L', diff: 'Diff', points: 'Pts' }}
+      />
       {(absentList.length > 0 || placeholderList.length > 0) && (
         <>
           <div className="h-px bg-slate-800 my-1" />

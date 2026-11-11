@@ -1,6 +1,7 @@
-import { useEffect, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
+import { POLL_INTERVAL_MS, pollDelayMs } from '../api/retryPolicy'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { formatCompactDate } from '../utils/day'
@@ -9,7 +10,9 @@ import { describeSets } from '../legacy/utils/scoring'
 import { computeDiff, initTallyRow, standardStandingSort, tallyMatch } from '../legacy/utils/tally'
 import { getSharedSession } from '../share/api'
 import type { SharedGame, SharedSession, SharedStanding } from '../share/api'
+import { useAsyncEffect } from '../hooks/useAsyncEffect'
 import { LoadingState } from '../components/LoadingState'
+import { StandingsTable } from '../components/StandingsTable'
 import { EmptyState } from '../components/EmptyState'
 import { Tabs } from '../components/Tabs'
 
@@ -65,11 +68,6 @@ function standingsFromGames(games: SharedGame[]): SharedStanding[] {
   )
 }
 
-/** Spectators poll, but gently: the share limiter allows 120 reads/minute per code. */
-const REFRESH_MS = 10_000
-/** Backoff cap after a failure or a `429`. */
-const MAX_REFRESH_MS = 60_000
-
 /**
  * The spectator screen. It renders outside the auth gate, so it must not assume
  * a user, a community or a board: everything it shows comes from the code.
@@ -82,9 +80,8 @@ export default function SharedSessionPage() {
   const [tab, setTab] = useState<Tab>('games')
   const panelId = useId()
 
-  useEffect(() => {
+  useAsyncEffect((scope) => {
     if (code === '') return
-    let active = true
     let timer: ReturnType<typeof setTimeout> | null = null
     let failures = 0
     let inFlight = false
@@ -95,26 +92,27 @@ export default function SharedSessionPage() {
         timer = null
       }
     }
+    scope.onCleanup(stop)
 
     // A hidden tab costs nothing; the next focus refetches anyway.
     const schedule = (delay: number) => {
       stop()
-      if (!active || document.hidden) return
+      if (!scope.live || document.hidden) return
       timer = setTimeout(() => { void load() }, delay)
     }
 
     async function load(): Promise<void> {
       // One read at a time: a focus event during a poll joins that read.
-      if (!active || inFlight) return
+      if (!scope.live || inFlight) return
       inFlight = true
       try {
         const value = await getSharedSession(code)
-        if (!active) return
+        if (!scope.live) return
         failures = 0
         setSettled({ code, value, error: null })
-        schedule(REFRESH_MS)
+        schedule(POLL_INTERVAL_MS)
       } catch (problem) {
-        if (!active) return
+        if (!scope.live) return
         const missing = problem instanceof ApiError && problem.status === 404
         if (missing) {
           // A rotated or deleted link never comes back — stop polling.
@@ -129,7 +127,7 @@ export default function SharedSessionPage() {
             : { code, value: null, error: 'failed' },
         )
         failures += 1
-        schedule(Math.min(MAX_REFRESH_MS, REFRESH_MS * 2 ** failures))
+        schedule(pollDelayMs(failures))
       } finally {
         inFlight = false
       }
@@ -152,12 +150,10 @@ export default function SharedSessionPage() {
     void load()
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('focus', refreshNow)
-    return () => {
-      active = false
-      stop()
+    scope.onCleanup(() => {
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('focus', refreshNow)
-    }
+    })
   }, [code])
 
   const current = settled !== null && settled.code === code ? settled : null
@@ -328,69 +324,23 @@ export default function SharedSessionPage() {
               (standings.length === 0 ? (
                 <EmptyState title={t('session.standings.empty')} />
               ) : (
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2 pl-2 pr-2 mb-1">
-                    <span className="w-8 shrink-0 text-center text-[10px] font-bold text-slate-400">
-                      {t('session.column.rank')}
-                    </span>
-                    <span className="flex-1 text-[10px] font-bold text-slate-400">
-                      {t('session.column.player')}
-                    </span>
-                    <span className="w-11 shrink-0 text-center text-[10px] font-bold text-slate-400">
-                      {t('session.column.wins')}-{t('session.column.losses')}
-                    </span>
-                    <span className="w-9 shrink-0 text-center text-[10px] font-bold text-slate-400">
-                      {t('session.column.diff')}
-                    </span>
-                    <span className="w-9 shrink-0 text-center text-[10px] font-bold text-slate-400">
-                      {t('session.column.points')}
-                    </span>
-                  </div>
-                  <ol role="list" className="flex flex-col gap-1.5">
-                    {standings.map((row, index) => {
-                      const rank = index + 1
-                      const podium = rank <= 3
-                      const wlColor =
-                        row.wins > row.losses
-                          ? 'text-emerald-400'
-                          : row.losses > row.wins
-                            ? 'text-red-400'
-                            : 'text-slate-400'
-                      const diffColor =
-                        row.diff > 0
-                          ? 'text-emerald-400'
-                          : row.diff < 0
-                            ? 'text-red-400'
-                            : 'text-slate-400'
-                      return (
-                        <li
-                          key={row.name}
-                          className={`flex items-center gap-2 pl-2 pr-2 py-2.5 rounded-xl border ${podium ? 'bg-emerald-950/45 border-emerald-800/35' : 'bg-slate-800/30 border-slate-700/20'}`}
-                        >
-                          <span
-                            className={`w-8 shrink-0 text-center text-[11px] font-bold ${rank === 1 ? 'text-accent' : rank === 2 ? 'text-slate-200' : 'text-slate-400'}`}
-                          >
-                            {ordinal(rank)}
-                          </span>
-                          <span
-                            className={`flex-1 min-w-0 truncate ${rank === 1 ? 'text-sm font-bold text-emerald-300' : podium ? 'text-sm font-semibold text-emerald-100/80' : 'text-sm font-medium text-slate-400'}`}
-                          >
-                            {row.name}
-                          </span>
-                          <span className={`w-11 shrink-0 text-center text-[11px] font-semibold ${wlColor}`}>
-                            {row.wins}-{row.losses}
-                          </span>
-                          <span className={`w-9 shrink-0 text-center text-[11px] font-semibold ${diffColor}`}>
-                            {row.diff > 0 ? `+${row.diff}` : String(row.diff)}
-                          </span>
-                          <span className="w-9 shrink-0 text-center text-[11px] font-semibold text-slate-400">
-                            {row.pointsFor}
-                          </span>
-                        </li>
-                      )
-                    })}
-                  </ol>
-                </div>
+                <StandingsTable
+                  rows={standings.map((row, index) => ({
+                    key: row.name,
+                    rank: ordinal(index + 1),
+                    name: row.name,
+                    wins: row.wins,
+                    losses: row.losses,
+                    diff: row.diff,
+                    pointsFor: row.pointsFor,
+                  }))}
+                  labels={{
+                    name: t('session.column.player'),
+                    winsLosses: `${t('session.column.wins')}-${t('session.column.losses')}`,
+                    diff: t('session.column.diff'),
+                    points: t('session.column.points'),
+                  }}
+                />
               ))}
           </div>
         </>

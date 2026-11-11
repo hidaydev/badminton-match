@@ -11,15 +11,14 @@ import {
 } from './api'
 import type { Membership, SessionUser } from './api'
 import { SESSION_EXPIRED_EVENT } from '../api/errors'
+import { BOOT_RETRY_MS } from '../api/retryPolicy'
+import { useAsyncEffect } from '../hooks/useAsyncEffect'
 import { AuthContext } from './AuthContext'
 import type { AuthContextValue } from './AuthContext'
 import { redirectTo } from './redirect'
 import { clearStoreDraft } from '../legacy/store'
 import { setCommunitySlug } from '../legacy/queries/endpoints'
 import { purgePrivateImageCaches } from '../pwa/cache'
-
-/** Boot backoff before a transport failure is allowed to look like "signed out". */
-const BOOT_RETRY_MS = [1_000, 3_000, 8_000]
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
@@ -53,8 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired)
   }, [endLocalSession])
 
-  useEffect(() => {
-    let active = true
+  useAsyncEffect((scope) => {
     let timer: ReturnType<typeof setTimeout> | null = null
     let awaitingNetwork = false
 
@@ -64,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         timer = null
       }
     }
+    scope.onCleanup(clearTimer)
 
     // A dropped connection is not "signed out": the cookie may still be valid
     // and the installed app cannot sign in offline. Only a definitive answer
@@ -84,12 +83,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         membershipsPromise.catch(() => {})
         const session = await fetchMe()
         const joined = await membershipsPromise
-        if (!active) return
+        if (!scope.live) return
         setUser(session)
         setMemberships(joined)
         setLoading(false)
       } catch (error) {
-        if (!active) return
+        if (!scope.live) return
         if (shouldRetry(error) && attempt < BOOT_RETRY_MS.length) {
           awaitingNetwork = true
           timer = setTimeout(() => {
@@ -115,13 +114,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       void load(0)
     }
     window.addEventListener('online', onOnline)
+    scope.onCleanup(() => window.removeEventListener('online', onOnline))
 
     void load(0)
-    return () => {
-      active = false
-      clearTimer()
-      window.removeEventListener('online', onOnline)
-    }
   }, [])
 
   const login = useCallback(async () => {

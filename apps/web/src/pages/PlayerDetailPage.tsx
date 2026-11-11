@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { listMembers } from '../community/adminApi'
 import { communityTimeZone, useCommunityConfig } from '../community/useCommunityConfig'
 import { useMembership } from '../community/membership'
+import { useAsyncEffect } from '../hooks/useAsyncEffect'
 import { t } from '../i18n'
 import { TIERS } from '../players/api'
 import {
@@ -62,21 +63,17 @@ export default function PlayerDetailPage() {
   const claimsNeedingNames = (claims ?? []).some(
     (claim) => claim.userId !== '' && claim.userId !== user?.id,
   )
-  useEffect(() => {
+  useAsyncEffect((scope) => {
     if (!canEdit || slug === '' || !claimsNeedingNames) return
-    let active = true
     listMembers(slug)
       .then((members) => {
-        if (!active) return
+        if (!scope.live) return
         setMemberNames(
           Object.fromEntries(members.map((member) => [member.userId, member.displayName])),
         )
       })
       // A failed lookup leaves the name unknown; it must not block the page.
       .catch(() => undefined)
-    return () => {
-      active = false
-    }
   }, [canEdit, slug, claimsNeedingNames])
   // Merge needs somewhere to merge from; only an admin can ask for the list.
   const candidates = usePlayers(isAdmin ? slug : null, '')

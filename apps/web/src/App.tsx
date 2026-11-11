@@ -1,6 +1,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
+import { QUERY_RETRY_COUNT } from './api/retryPolicy'
 import { AuthProvider } from './auth/AuthProvider'
 import { useAuth } from './auth/AuthContext'
 import { Button } from './components/Button'
@@ -76,7 +77,7 @@ const DEV_PREVIEWS = import.meta.env.DEV
 // hooks, so one provider at the root serves both.
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, refetchOnWindowFocus: false },
+    queries: { retry: QUERY_RETRY_COUNT, refetchOnWindowFocus: false },
   },
 })
 
