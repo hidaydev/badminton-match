@@ -90,20 +90,10 @@ proc bootstrap() =
     sessionDate = "2026-11-08", status = "locked", approved = true)
   for player in players:
     newParticipant(database, communityId, sessionId, player)
-  newGame(database, communityId, sessionId, 0, 0, [players[0], players[1]],
-    [players[2], players[3]], status = "played")
-  discard database.execUpdate(
-    """insert into session.game_sets
-         (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
-       values ($1::uuid, $2::uuid, 0, 0, 1, 30, 15)""",
-    @[textParam(communityId), textParam(sessionId)])
-  newGame(database, communityId, sessionId, 1, 0, [players[0], players[2]],
-    [players[1], players[3]], status = "played")
-  discard database.execUpdate(
-    """insert into session.game_sets
-         (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
-       values ($1::uuid, $2::uuid, 1, 0, 1, 30, 18)""",
-    @[textParam(communityId), textParam(sessionId)])
+  newPlayedGame(database, communityId, sessionId, 0, 0,
+    [players[0], players[1]], [players[2], players[3]], 30, 15)
+  newPlayedGame(database, communityId, sessionId, 1, 0,
+    [players[0], players[2]], [players[1], players[3]], 30, 18)
   discard ingestSession(database, communityId, sessionId,
     loadRatingParams(loadSnapshot(database), newJObject()))
 

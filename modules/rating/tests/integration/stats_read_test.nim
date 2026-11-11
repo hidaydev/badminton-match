@@ -43,16 +43,26 @@ proc bootstrap() =
   for player in players:
     newParticipant(database, communityId, sessionId, player)
   # Ten singles games: every player scores, so every player is on the ladder.
+  # 0055 defers "played needs a set" to commit, so the game and its set are one
+  # transaction, the order the import uses.
   for index in 0 ..< playerCount div 2:
     let round = index + 1
-    newGame(database, communityId, sessionId, round, 1, [players[index * 2]],
-      [players[index * 2 + 1]], status = "played", scoreA = 21, scoreB = 15)
-    discard database.execUpdate(
-      """insert into session.game_sets
-           (community_id, session_id, round_no, court_no, set_no, score_a,
-            score_b)
-         values ($1::uuid, $2::uuid, $3, 1, 1, 21, 15)""",
-      @[textParam(communityId), textParam(sessionId), intParam(round.int64)])
+    database.tx(proc(conn: DbConn) =
+      discard conn.execUpdate(
+        """insert into session.games
+             (community_id, session_id, round_no, court_no, score_a, score_b,
+              status, side_a1, side_b1)
+           values ($1::uuid, $2::uuid, $3, 1, 21, 15, 'played', $4::uuid,
+                   $5::uuid)""",
+        @[textParam(communityId), textParam(sessionId), intParam(round.int64),
+          textParam(players[index * 2]), textParam(players[index * 2 + 1])])
+      discard conn.execUpdate(
+        """insert into session.game_sets
+             (community_id, session_id, round_no, court_no, set_no, score_a,
+              score_b)
+           values ($1::uuid, $2::uuid, $3, 1, 1, 21, 15)""",
+        @[textParam(communityId), textParam(sessionId),
+          intParam(round.int64)]))
   discard ingestSession(database, communityId, sessionId,
     loadRatingParams(loadSnapshot(database), newJObject()))
 

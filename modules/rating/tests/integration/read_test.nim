@@ -87,27 +87,30 @@ proc addSession(age: int, roster: seq[string]) {.discardable.} =
          values ($1::uuid, $2::uuid, $3::uuid, false)
          on conflict do nothing""",
       @[textParam(communityId), textParam(sessionId), textParam(player)])
-  for game in 0 ..< 2:
-    let a1 = roster[0]
-    let a2 = roster[1]
-    let b1 = roster[2]
-    let b2 = roster[3]
-    discard database.execUpdate(
-      """insert into session.games
-           (community_id, session_id, round_no, court_no, score_a, score_b,
-            status, side_a1, side_a2, side_b1, side_b2)
-         values ($1::uuid, $2::uuid, $3::int, 0, $4::int, 20, 'played',
-                 $5::uuid, $6::uuid, $7::uuid, $8::uuid)""",
-      @[textParam(communityId), textParam(sessionId), intParam(game.int64),
-        textParam($(30 - game)),
-        textParam(a1), textParam(a2), textParam(b1), textParam(b2)])
-    # v2 reads the result from the sets; the fixture's one game is one set.
-    discard database.execUpdate(
-      """insert into session.game_sets
-           (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
-         values ($1::uuid, $2::uuid, $3::int, 0, 1, $4::int, 20)""",
-      @[textParam(communityId), textParam(sessionId), intParam(game.int64),
-        textParam($(30 - game))])
+  # 0055 defers "played needs a set" to commit, so the game and its set are
+  # written in one transaction, the order the import and `setSets` use.
+  database.tx(proc(conn: DbConn) =
+    for game in 0 ..< 2:
+      let a1 = roster[0]
+      let a2 = roster[1]
+      let b1 = roster[2]
+      let b2 = roster[3]
+      discard conn.execUpdate(
+        """insert into session.games
+             (community_id, session_id, round_no, court_no, score_a, score_b,
+              status, side_a1, side_a2, side_b1, side_b2)
+           values ($1::uuid, $2::uuid, $3::int, 0, $4::int, 20, 'played',
+                   $5::uuid, $6::uuid, $7::uuid, $8::uuid)""",
+        @[textParam(communityId), textParam(sessionId), intParam(game.int64),
+          textParam($(30 - game)),
+          textParam(a1), textParam(a2), textParam(b1), textParam(b2)])
+      # v2 reads the result from the sets; the fixture's one game is one set.
+      discard conn.execUpdate(
+        """insert into session.game_sets
+             (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+           values ($1::uuid, $2::uuid, $3::int, 0, 1, $4::int, 20)""",
+        @[textParam(communityId), textParam(sessionId), intParam(game.int64),
+          textParam($(30 - game))]))
 
 proc seed() =
   communityId = database.queryOne(

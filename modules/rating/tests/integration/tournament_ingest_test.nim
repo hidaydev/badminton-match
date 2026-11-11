@@ -131,20 +131,22 @@ proc newSession(sessionPlayers: seq[string]): string =
       """insert into session.participants (community_id, session_id, player_id)
          values ($1::uuid, $2::uuid, $3::uuid)""",
       @[textParam(communityId), textParam(id), textParam(player)])
-  discard database.execUpdate(
-    """insert into session.games
-         (community_id, session_id, round_no, court_no, score_a, score_b,
-          status, side_a1, side_a2, side_b1, side_b2)
-       values ($1::uuid, $2::uuid, 0, 0, 21, 15, 'played',
-               $3::uuid, $4::uuid, $5::uuid, $6::uuid)""",
-    @[textParam(communityId), textParam(id), textParam(sessionPlayers[0]),
-      textParam(sessionPlayers[1]), textParam(sessionPlayers[2]),
-      textParam(sessionPlayers[3])])
-  discard database.execUpdate(
-    """insert into session.game_sets
-         (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
-       values ($1::uuid, $2::uuid, 0, 0, 1, 21, 15)""",
-    @[textParam(communityId), textParam(id)])
+  # 0055 defers "played needs a set" to commit: one transaction for both rows.
+  database.tx(proc(conn: DbConn) =
+    discard conn.execUpdate(
+      """insert into session.games
+           (community_id, session_id, round_no, court_no, score_a, score_b,
+            status, side_a1, side_a2, side_b1, side_b2)
+         values ($1::uuid, $2::uuid, 0, 0, 21, 15, 'played',
+                 $3::uuid, $4::uuid, $5::uuid, $6::uuid)""",
+      @[textParam(communityId), textParam(id), textParam(sessionPlayers[0]),
+        textParam(sessionPlayers[1]), textParam(sessionPlayers[2]),
+        textParam(sessionPlayers[3])])
+    discard conn.execUpdate(
+      """insert into session.game_sets
+           (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+         values ($1::uuid, $2::uuid, 0, 0, 1, 21, 15)""",
+      @[textParam(communityId), textParam(id)]))
   id
 
 proc bootstrap() =

@@ -58,27 +58,30 @@ suite "session standings":
 
   proc addGame(roundNo, courtNo: int, scoreA, scoreB: int, status: string,
                sideA1, sideA2, sideB1, sideB2: string) =
-    discard db.execUpdate(
-      """insert into session.games
-           (community_id, session_id, round_no, court_no, score_a, score_b,
-            status, side_a1, side_a2, side_b1, side_b2)
-         values ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::uuid, $9::uuid,
-                 $10::uuid, $11::uuid)""",
-      @[textParam(communityId), textParam(sessionId), intParam(roundNo.int64),
-        intParam(courtNo.int64), intParam(scoreA.int64), intParam(scoreB.int64),
-        textParam(status),
-        (if sideA1.len > 0: textParam(sideA1) else: nullParam()),
-        (if sideA2.len > 0: textParam(sideA2) else: nullParam()),
-        (if sideB1.len > 0: textParam(sideB1) else: nullParam()),
-        (if sideB2.len > 0: textParam(sideB2) else: nullParam())])
-    # The board reads the result from the sets; a played game needs its one set.
-    if status == "played":
-      discard db.execUpdate(
-        """insert into session.game_sets
-             (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
-           values ($1::uuid, $2::uuid, $3, $4, 1, $5, $6)""",
+    # 0055 defers "played needs a set" to commit, so the game and its set are
+    # written in one transaction, the order the import and `setSets` use.
+    db.tx(proc(conn: DbConn) =
+      discard conn.execUpdate(
+        """insert into session.games
+             (community_id, session_id, round_no, court_no, score_a, score_b,
+              status, side_a1, side_a2, side_b1, side_b2)
+           values ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::uuid, $9::uuid,
+                   $10::uuid, $11::uuid)""",
         @[textParam(communityId), textParam(sessionId), intParam(roundNo.int64),
-          intParam(courtNo.int64), intParam(scoreA.int64), intParam(scoreB.int64)])
+          intParam(courtNo.int64), intParam(scoreA.int64), intParam(scoreB.int64),
+          textParam(status),
+          (if sideA1.len > 0: textParam(sideA1) else: nullParam()),
+          (if sideA2.len > 0: textParam(sideA2) else: nullParam()),
+          (if sideB1.len > 0: textParam(sideB1) else: nullParam()),
+          (if sideB2.len > 0: textParam(sideB2) else: nullParam())])
+      # The board reads the result from the sets; a played game needs its one set.
+      if status == "played":
+        discard conn.execUpdate(
+          """insert into session.game_sets
+               (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+             values ($1::uuid, $2::uuid, $3, $4, 1, $5, $6)""",
+          @[textParam(communityId), textParam(sessionId), intParam(roundNo.int64),
+            intParam(courtNo.int64), intParam(scoreA.int64), intParam(scoreB.int64)]))
 
   test "tallies played games, drops absent-only sides and orders like v1":
     addGame(0, 0, 21, 18, "played", players[0], players[1], players[2], players[3])

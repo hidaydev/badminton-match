@@ -99,6 +99,40 @@ proc newGame*(db: Db, communityId, sessionId: string, roundNo, courtNo: int;
       intParam(courtNo.int64), scoredA, scoredB, textParam(status),
       textParam(a1), textParam(a2), textParam(b1), textParam(b2)])
 
+proc newPlayedGame*(db: Db, communityId, sessionId: string, roundNo, courtNo: int;
+                    sideA, sideB: openArray[string]; setScoreA, setScoreB: int;
+                    scoreA = -1, scoreB = -1) =
+  ## A played game and its one set, committed together. 0055 defers "played
+  ## needs a set" to the commit, so a suite that writes the game and then the
+  ## set as two statements leaves a transaction no set reaches; this is the pair
+  ## in the order the import writes it. The game row itself is `newGame`'s, with
+  ## the one set the readers join on.
+  let a1 = if sideA.len > 0: sideA[0] else: ""
+  let a2 = if sideA.len > 1: sideA[1] else: ""
+  let b1 = if sideB.len > 0: sideB[0] else: ""
+  let b2 = if sideB.len > 1: sideB[1] else: ""
+  let scoredA = if scoreA < 0: nullParam() else: intParam(scoreA.int64)
+  let scoredB = if scoreB < 0: nullParam() else: intParam(scoreB.int64)
+  db.tx(proc(conn: DbConn) =
+    discard conn.execUpdate(
+      """insert into session.games
+           (community_id, session_id, round_no, court_no, score_a, score_b,
+            status, side_a1, side_a2, side_b1, side_b2)
+         values ($1::uuid, $2::uuid, $3::int, $4::int, $5, $6, 'played',
+                 nullif($7, '')::uuid, nullif($8, '')::uuid,
+                 nullif($9, '')::uuid, nullif($10, '')::uuid)""",
+      @[textParam(communityId), textParam(sessionId), intParam(roundNo.int64),
+        intParam(courtNo.int64), scoredA, scoredB, textParam(a1),
+        textParam(a2), textParam(b1), textParam(b2)])
+    discard conn.execUpdate(
+      """insert into session.game_sets
+           (community_id, session_id, round_no, court_no, set_no, score_a,
+            score_b)
+         values ($1::uuid, $2::uuid, $3::int, $4::int, 1, $5::int, $6::int)""",
+      @[textParam(communityId), textParam(sessionId), intParam(roundNo.int64),
+        intParam(courtNo.int64), intParam(setScoreA.int64),
+        intParam(setScoreB.int64)]))
+
 proc newParticipant*(db: Db, communityId, sessionId, playerId: string;
                      absent = false) =
   ## A game can name a player without a participant row, but the standings and

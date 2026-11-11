@@ -323,12 +323,14 @@ proc importCourts(source, target: Db, communityId: string,
       discard conn.execUpdate(
         """insert into session.courts
              (id, community_id, session_id, court_index, court_name,
-              start_time, end_time)
-           values ($1::uuid, $2::uuid, $3::uuid, $4::int, $5, $6::time, $7::time)
+              start_time, end_time, declared)
+           values ($1::uuid, $2::uuid, $3::uuid, $4::int, $5, $6::time, $7::time,
+                   true)
            on conflict (session_id, court_index) do update
              set court_name = excluded.court_name,
                  start_time = excluded.start_time,
-                 end_time = excluded.end_time""",
+                 end_time = excluded.end_time,
+                 declared = true""",
         @[textParam(newId), textParam(communityId), textParam(session.get),
           textParam(row.get("court_index")), textParam(row.get("court_name")),
           textParam(row.get("start_time")), textParam(row.get("end_time"))])

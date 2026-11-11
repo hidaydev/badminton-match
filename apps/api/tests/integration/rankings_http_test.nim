@@ -49,21 +49,10 @@ proc bootstrap() =
       @[textParam(communityId), textParam(sessionId), textParam(player)])
   # A singles win and a doubles loss for Ani, so history and social tallies
   # have more than one shape to report.
-  newGame(database, communityId, sessionId, 1, 1, [players[0]],
-    [players[1]], status = "played", scoreA = 21, scoreB = 15)
-  discard database.execUpdate(
-    """insert into session.game_sets
-         (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
-       values ($1::uuid, $2::uuid, 1, 1, 1, 21, 15)""",
-    @[textParam(communityId), textParam(sessionId)])
-  newGame(database, communityId, sessionId, 1, 2,
-    [players[0], players[1]], [players[2]], status = "played",
-    scoreA = 18, scoreB = 21)
-  discard database.execUpdate(
-    """insert into session.game_sets
-         (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
-       values ($1::uuid, $2::uuid, 1, 2, 1, 18, 21)""",
-    @[textParam(communityId), textParam(sessionId)])
+  newPlayedGame(database, communityId, sessionId, 1, 1, [players[0]],
+    [players[1]], 21, 15, scoreA = 21, scoreB = 15)
+  newPlayedGame(database, communityId, sessionId, 1, 2,
+    [players[0], players[1]], [players[2]], 18, 21, scoreA = 18, scoreB = 21)
   # The event and the deltas come from the ingest the API itself runs. The
   # counters then add the two games the exposed history does not show, because
   # the stats fixture covers four games even though only two are on display.
@@ -126,13 +115,8 @@ proc bootstrap() =
     status = "locked", approved = true)
   for player in be05Players:
     newParticipant(database, be05CommunityId, be05SessionId, player)
-  newGame(database, be05CommunityId, be05SessionId, 1, 1, [be05Players[0]],
-    [be05Players[1]], status = "played", scoreA = 21, scoreB = 15)
-  discard database.execUpdate(
-    """insert into session.game_sets
-         (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
-       values ($1::uuid, $2::uuid, 1, 1, 1, 21, 15)""",
-    @[textParam(be05CommunityId), textParam(be05SessionId)])
+  newPlayedGame(database, be05CommunityId, be05SessionId, 1, 1,
+    [be05Players[0]], [be05Players[1]], 21, 15, scoreA = 21, scoreB = 15)
   let be05Ingest = ingestSession(database, be05CommunityId, be05SessionId,
     loadRatingParams(loadSnapshot(database), newJObject()))
   doAssert be05Ingest.deltas == 2, "the be05 singles game records two deltas"
@@ -532,13 +516,8 @@ suite "rankings HTTP":
              (community_id, session_id, player_id)
            values ($1::uuid, $2::uuid, $3::uuid)""",
         @[textParam(communityId), textParam(otherSession), textParam(player)])
-    newGame(database, communityId, otherSession, 1, 1, [outsider],
-      [players[1]], status = "played", scoreA = 21, scoreB = 10)
-    discard database.execUpdate(
-      """insert into session.game_sets
-           (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
-         values ($1::uuid, $2::uuid, 1, 1, 1, 21, 10)""",
-      @[textParam(communityId), textParam(otherSession)])
+    newPlayedGame(database, communityId, otherSession, 1, 1, [outsider],
+      [players[1]], 21, 10, scoreA = 21, scoreB = 10)
     discard ingestSession(database, communityId, otherSession,
       loadRatingParams(loadSnapshot(database), newJObject()))
     let memberStatus = call(baseUrl, HttpGet, "/c/rank-club/rankings", memberCookie)

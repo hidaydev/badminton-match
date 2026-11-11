@@ -308,6 +308,45 @@ static guard is green and can be cited as a gate. That is the smallest artefact
 that proves the claim (c) rests on: that the isolation holds today and that a
 removed predicate is caught.
 
+**Mechanism (implemented 2026-11-11):** the condition is no longer prose. The
+guard is `modules/community/tenancy.nim`:
+
+| Part | What it does |
+|---|---|
+| `communityCount(db)` | `select count(*) from platform.community` |
+| `singleCommunityViolation(communities, environment)` | returns the refusal message, or `""`; only `environment = "prod"` is constrained |
+| `assertSingleCommunity(db, environment)` | raises `ValueError` with that message |
+
+`bootHandler` (`apps/api/src/main.nim`) calls `assertSingleCommunity(database,
+getEnv("MAJADU_ENV"))` after the pool opens and before the handler is installed,
+so a production process refuses to serve a database that holds more than one
+community, and `main` turns the `ValueError` into `refuseStartup` with the
+reason on stderr. The message names the count, ADR-018 and this document, so the
+operator sees what to do rather than a bare assertion.
+
+Why production only: a development or test database holds many communities by
+design (34 on the development cluster when this was written), and a guard that
+ran there would refuse the work it is meant to protect. Why the boot rather than
+a migration: the community count is data, not schema, and a migration cannot
+refuse a row added later; the boot is the last point that can refuse before
+requests are served.
+
+What it does not do, stated so nobody reads it as more than it is:
+
+- It guards the API process. A tool or a `psql` session running as `bm2_owner`
+  can still insert the second community; the next API restart refuses to start
+  until it is moved, which is the loud failure the condition asks for.
+- It does not protect a running process: a second community inserted while the
+  API is up is served until the next restart. RLS is the control for that, and
+  this is why the assertion is a backstop and not a substitute.
+- It is not evaluated by `./task check` as a database fact; the rule half is
+  unit-tested (`modules/community/tests/tenancy_test.nim`) and the door half is
+  integration-tested with two communities in one database
+  (`apps/api/tests/integration/community_context_test.nim`).
+
+Lifting it: the assertion is deleted in the release that ships RLS and the
+two-community isolation test as a gate, which is the same release ADR-018 names.
+
 **If the decision flips to RLS**, the first step there proves it without
 committing: a spike branch (not merged) that sets the GUC from `scoped()`, enables
 RLS on **`player.players` and `session.sessions` only**, runs the whole
