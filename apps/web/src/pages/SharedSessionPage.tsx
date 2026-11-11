@@ -1,6 +1,7 @@
-import { useEffect, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
+import { POLL_INTERVAL_MS, pollDelayMs } from '../api/retryPolicy'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { formatCompactDate } from '../utils/day'
@@ -9,6 +10,7 @@ import { describeSets } from '../legacy/utils/scoring'
 import { computeDiff, initTallyRow, standardStandingSort, tallyMatch } from '../legacy/utils/tally'
 import { getSharedSession } from '../share/api'
 import type { SharedGame, SharedSession, SharedStanding } from '../share/api'
+import { useAsyncEffect } from '../hooks/useAsyncEffect'
 import { LoadingState } from '../components/LoadingState'
 import { EmptyState } from '../components/EmptyState'
 import { Tabs } from '../components/Tabs'
@@ -65,11 +67,6 @@ function standingsFromGames(games: SharedGame[]): SharedStanding[] {
   )
 }
 
-/** Spectators poll, but gently: the share limiter allows 120 reads/minute per code. */
-const REFRESH_MS = 10_000
-/** Backoff cap after a failure or a `429`. */
-const MAX_REFRESH_MS = 60_000
-
 /**
  * The spectator screen. It renders outside the auth gate, so it must not assume
  * a user, a community or a board: everything it shows comes from the code.
@@ -82,9 +79,8 @@ export default function SharedSessionPage() {
   const [tab, setTab] = useState<Tab>('games')
   const panelId = useId()
 
-  useEffect(() => {
+  useAsyncEffect((scope) => {
     if (code === '') return
-    let active = true
     let timer: ReturnType<typeof setTimeout> | null = null
     let failures = 0
     let inFlight = false
@@ -95,26 +91,27 @@ export default function SharedSessionPage() {
         timer = null
       }
     }
+    scope.onCleanup(stop)
 
     // A hidden tab costs nothing; the next focus refetches anyway.
     const schedule = (delay: number) => {
       stop()
-      if (!active || document.hidden) return
+      if (!scope.live || document.hidden) return
       timer = setTimeout(() => { void load() }, delay)
     }
 
     async function load(): Promise<void> {
       // One read at a time: a focus event during a poll joins that read.
-      if (!active || inFlight) return
+      if (!scope.live || inFlight) return
       inFlight = true
       try {
         const value = await getSharedSession(code)
-        if (!active) return
+        if (!scope.live) return
         failures = 0
         setSettled({ code, value, error: null })
-        schedule(REFRESH_MS)
+        schedule(POLL_INTERVAL_MS)
       } catch (problem) {
-        if (!active) return
+        if (!scope.live) return
         const missing = problem instanceof ApiError && problem.status === 404
         if (missing) {
           // A rotated or deleted link never comes back — stop polling.
@@ -129,7 +126,7 @@ export default function SharedSessionPage() {
             : { code, value: null, error: 'failed' },
         )
         failures += 1
-        schedule(Math.min(MAX_REFRESH_MS, REFRESH_MS * 2 ** failures))
+        schedule(pollDelayMs(failures))
       } finally {
         inFlight = false
       }
@@ -152,12 +149,10 @@ export default function SharedSessionPage() {
     void load()
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('focus', refreshNow)
-    return () => {
-      active = false
-      stop()
+    scope.onCleanup(() => {
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('focus', refreshNow)
-    }
+    })
   }, [code])
 
   const current = settled !== null && settled.code === code ? settled : null

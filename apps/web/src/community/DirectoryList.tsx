@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { t } from '../i18n'
 import { Card } from '../components/Card'
+import { useAsyncEffect } from '../hooks/useAsyncEffect'
 import { listDirectory } from './api'
 import type { DirectoryEntry } from './api'
 
@@ -12,19 +13,15 @@ import type { DirectoryEntry } from './api'
 export function DirectoryList({ onPick }: { onPick: (slug: string) => void }) {
   const [items, setItems] = useState<DirectoryEntry[]>([])
 
-  useEffect(() => {
-    let active = true
+  useAsyncEffect((scope) => {
     listDirectory()
       .then((rows) => {
-        if (active) setItems(rows)
+        if (scope.live) setItems(rows)
       })
       .catch(() => {
         // The directory is a convenience; the slug field below still works.
-        if (active) setItems([])
+        if (scope.live) setItems([])
       })
-    return () => {
-      active = false
-    }
   }, [])
 
   if (items.length === 0) return null

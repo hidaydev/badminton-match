@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
 import type { CommunityRole } from '../auth/api'
@@ -16,6 +16,7 @@ import {
 } from '../community/adminApi'
 import type { Invite, JoinRequest, Member, PendingClaim } from '../community/adminApi'
 import { useMembership } from '../community/membership'
+import { useAsyncEffect } from '../hooks/useAsyncEffect'
 import { decideClaim } from '../players/api'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
@@ -69,21 +70,17 @@ export default function SettingsPage() {
   const [attempt, setAttempt] = useState(0)
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
+  useAsyncEffect((scope) => {
     if (slug === '') return
-    let active = true
     Promise.all([listMembers(slug), listJoinRequests(slug), listPendingClaims(slug)])
       .then(([members, requests, claims]) => {
-        if (!active) return
+        if (!scope.live) return
         setFailure(null)
         setData({ slug, members, requests, claims })
       })
       .catch((problem: unknown) => {
-        if (active) setFailure({ key: slug, message: describe(problem) })
+        if (scope.live) setFailure({ key: slug, message: describe(problem) })
       })
-    return () => {
-      active = false
-    }
   }, [slug, attempt])
 
   const reload = useCallback(() => setAttempt((count) => count + 1), [])
