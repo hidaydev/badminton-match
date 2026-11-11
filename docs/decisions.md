@@ -452,7 +452,7 @@ duplicate budget and no missed broadcast.
 
 **Date:** 2026-11-10
 **Audit finding:** DB-11
-**Status:** Applied for `session.game_skips`; Deferred for the court key
+**Status:** Applied (`0051` for the skip's game key, `0056` for both court keys); the court ceiling stays deferred
 
 **Decision:** `0051_game_skips_game_fk.sql` adds
 `game_skips_game_fk` from `session.game_skips (community_id, session_id, round_no, court_no)`
@@ -484,6 +484,36 @@ one `session.courts` row, and a court row still used by a game cannot be deleted
 or renumbered. A session with no court rows, which is every v2 session, behaves
 exactly as before, so the reason for the deferral still holds. The foreign key
 remains deferred, with this guard as the interim control.
+
+**Update 2026-11-11 (release 2.0.0-rc.1):** `0056_court_foreign_keys.sql` adds
+`games_court_fk` and `game_skips_court_fk`, both
+`(community_id, session_id, court_no)` → `session.courts (community_id, session_id, court_index)`,
+`deferrable initially deferred`. The reopener above is met in the migration
+itself rather than by a writer: the session now owns its court rows at the
+database.
+
+`session.courts.declared` separates the two kinds of row. A **declared** row is
+a register the session ships with; the v1 import writes those, and the backfill
+marks every pre-existing row declared, because the import was the only writer.
+A **materialised** row is derived from a game whose session has no register: the
+`games_court_materialise` trigger writes it from the session's own `start_time`
+and `slot_minutes`, so the coordinate is present by construction. `0053`'s
+coordinate guard now reads `declared` rather than "has any court row", so an
+imported session still refuses a coordinate outside its register and a v2
+session accepts any coordinate.
+
+The backfill gives every game and skip that names a coordinate with no court row
+its own before the keys are added, so the upgrade does not fail on its own data.
+`no action` rather than `restrict`: a restriction is checked immediately even on
+a deferrable key, and a session delete has to remove its courts and its games in
+one statement.
+
+**What is still deferred, and needs a product decision:** how many courts a
+session has, what they are called, and whether a coordinate is valid rather than
+merely present. With materialisation every coordinate exists, so a ceiling (or a
+court set declared at session creation) is the only remaining way to say a game
+points at a court the session does not have. That is a product answer, and
+`docs/db/court-reference.md` records it as the open half of the finding.
 
 ## ADR-018 · Tenancy is guarded at build time, not by row level security
 

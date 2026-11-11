@@ -299,8 +299,8 @@ try:
       discard scratch.execUpdate(
         """insert into session.courts
              (community_id, session_id, court_index, court_name, start_time,
-              end_time)
-           values ($1::uuid, $2::uuid, 0, 'Court 1', '08:00', '09:00')""",
+              end_time, declared)
+           values ($1::uuid, $2::uuid, 0, 'Court 1', '08:00', '09:00', true)""",
         @[textParam(communityId), textParam(registeredSession)])
       var state = ""
       try:
@@ -328,6 +328,120 @@ try:
       except DbError as error:
         state = error.sqlState
       check state == "23503"
+
+    test "the court keys are deferred and name the register":
+      # DB-11: ADR-017 deferred `games_court_fk` and `game_skips_court_fk`
+      # because no writer created a court row. 0056 materialises the row, so the
+      # keys are real, and they are deferred because a session delete removes
+      # its courts and its games in one statement.
+      migrate(scratch, migrationsDir)
+      for name in ["games_court_fk", "game_skips_court_fk"]:
+        let row = scratch.queryOne(
+          """select condeferrable::text as deferrable,
+                    condeferred::text as initially_deferred,
+                    confrelid::regclass::text as target
+               from pg_constraint where conname = $1""", @[textParam(name)])
+        check row.isSome
+        check row.get.get("deferrable") == "true"
+        check row.get.get("initially_deferred") == "true"
+        check row.get.get("target") == "session.courts"
+
+    test "the court backfill leaves no game or skip without its court":
+      # The upgrade path: a database at 0055 has games and skips and no court
+      # rows, which is every v2 session. 0056 has to give each coordinate a row
+      # before the key exists, or the migration fails on its own data.
+      const courtMigration = "0056_court_foreign_keys.sql"
+      let courtName = checkedName("bm2_mig_court_" & $getCurrentProcessId())
+      let staging = getTempDir() / ("majadu-court-" & $getCurrentProcessId())
+      removeDir(staging)
+      createDir(staging)
+      for name in sqlFiles(migrationsDir):
+        if name < courtMigration:
+          copyFile(migrationsDir / name, staging / name)
+
+      discard admin.execUpdate("drop database if exists " & courtName &
+        " with (force)")
+      discard admin.execUpdate("create database " & courtName)
+      let up = openDb(databaseDsn(getEnv("MAJADU_PG_DSN"), courtName), 1)
+      try:
+        migrate(up, staging)
+        const
+          communityId = "44444444-4444-4444-8444-444444444444"
+          sessionId = "55555555-5555-4555-8555-555555555555"
+          playerId = "66666666-6666-4666-8666-666666666666"
+        discard up.execUpdate(
+          """insert into platform.community (id, slug, name, timezone)
+             values ($1::uuid, 'court-backfill', 'Court Backfill', 'UTC')""",
+          @[textParam(communityId)])
+        discard up.execUpdate(
+          """insert into session.sessions
+               (id, community_id, session_date, start_time, slot_minutes,
+                status, source)
+             values ($1::uuid, $2::uuid, '2026-11-06', '18:00', 30, 'draft',
+                     'manual')""",
+          @[textParam(sessionId), textParam(communityId)])
+        discard up.execUpdate(
+          """insert into player.players (id, community_id, canonical_name, gender)
+             values ($1::uuid, $2::uuid, 'Court Probe', 'M')""",
+          @[textParam(playerId), textParam(communityId)])
+        for round in 0 .. 1:
+          discard up.execUpdate(
+            """insert into session.games
+                 (community_id, session_id, round_no, court_no, status)
+               values ($1::uuid, $2::uuid, $3::int, $4::int, 'scheduled')""",
+            @[textParam(communityId), textParam(sessionId),
+              intParam(round.int64), intParam((round * 3).int64)])
+        discard up.execUpdate(
+          """insert into session.game_skips
+               (community_id, session_id, round_no, court_no, player_id)
+             values ($1::uuid, $2::uuid, 0, 0, $3::uuid)""",
+          @[textParam(communityId), textParam(sessionId), textParam(playerId)])
+
+        # 0055 is the head of what the staging directory holds; one more file.
+        copyFile(migrationsDir / courtMigration, staging / courtMigration)
+        migrate(up, staging)
+
+        check up.queryOne(
+          """select count(*)::int as total from session.games g
+              where not exists (
+                      select 1 from session.courts c
+                       where c.community_id = g.community_id
+                         and c.session_id = g.session_id
+                         and c.court_index = g.court_no)""")
+          .get.get("total") == "0"
+        check up.queryOne(
+          """select count(*)::int as total from session.game_skips k
+              where not exists (
+                      select 1 from session.courts c
+                       where c.community_id = k.community_id
+                         and c.session_id = k.session_id
+                         and c.court_index = k.court_no)""")
+          .get.get("total") == "0"
+        # The row is derived from the session's own schedule, and it is not a
+        # declared register, so the next coordinate does not have to be in it.
+        let court = up.queryOne(
+          """select court_index::text as idx, start_time::text as start_at,
+                    end_time::text as end_at, declared::text as declared
+               from session.courts
+              where community_id = $1::uuid and session_id = $2::uuid
+                and court_index = 3""",
+          @[textParam(communityId), textParam(sessionId)]).get
+        check court.get("start_at") == "18:00:00"
+        check court.get("end_at") == "18:30:00"
+        check court.get("declared") == "false"
+        discard up.execUpdate(
+          """insert into session.games
+               (community_id, session_id, round_no, court_no, status)
+             values ($1::uuid, $2::uuid, 2, 7, 'scheduled')""",
+          @[textParam(communityId), textParam(sessionId)])
+        check up.queryOne(
+          """select count(*)::int as total from session.courts
+              where community_id = $1::uuid and session_id = $2::uuid""",
+          @[textParam(communityId), textParam(sessionId)]).get.get("total") == "3"
+      finally:
+        up.close()
+        discard admin.execUpdate("drop database if exists " & courtName &
+          " with (force)")
 
     test "a played game with no set cannot move into a rated session":
       # DB-08: marking a game played before its score is the host flag and is
