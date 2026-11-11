@@ -78,7 +78,7 @@ export default function CareerStats({ stats, countedPoints }: {
               <button
                 onClick={() => setSessionsPage((p) => Math.max(0, p - 1))}
                 disabled={sessionsPage === 0}
-                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-[color,border-color,transform] hit44"
+                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled-dim-ghost disabled:pointer-events-none active:scale-95 transition-[color,border-color,transform] hit44"
               >
                 {t('common.prev')}
               </button>
@@ -88,7 +88,7 @@ export default function CareerStats({ stats, countedPoints }: {
               <button
                 onClick={() => setSessionsPage((p) => Math.min(sessionsTotal - 1, p + 1))}
                 disabled={sessionsPage >= sessionsTotal - 1}
-                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-[color,border-color,transform] hit44"
+                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled-dim-ghost disabled:pointer-events-none active:scale-95 transition-[color,border-color,transform] hit44"
               >
                 {t('common.next')}
               </button>

@@ -28,7 +28,7 @@ describe('Chip', () => {
     expect(chip.className).toContain('hover:bg-elevated')
     expect(chip.className).toContain('focus-ring')
     expect(chip.className).toContain('active:scale-[0.99]')
-    expect(chip.className).toContain('disabled:opacity-50')
+    expect(chip.className).toContain('disabled-dim')
   })
 
   it('blocks a second press while disabled or loading and keeps the label', () => {

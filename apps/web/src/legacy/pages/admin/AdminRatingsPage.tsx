@@ -153,7 +153,7 @@ export default function AdminRatingsPage() {
               <button
                 onClick={() => runRebuild()}
                 disabled={rebuilding}
-                className="w-full py-2.5 rounded-xl border border-border-subtle bg-surface hover:bg-elevated text-sm font-semibold text-fg hover:text-accent disabled:opacity-40 transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-2 hit44"
+                className="w-full py-2.5 rounded-xl border border-border-subtle bg-surface hover:bg-elevated text-sm font-semibold text-fg hover:text-accent disabled-dim-faint transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-2 hit44"
               >
                 {rebuilding ? (
                   <Spinner size={16} className="text-accent" />

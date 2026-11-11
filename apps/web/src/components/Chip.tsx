@@ -9,7 +9,7 @@ import { Spinner } from './Spinner'
 type Size = 'md' | 'sm'
 
 const BASE =
-  'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-border font-semibold text-fg-dim transition-[color,background-color,transform] duration-150 hover:bg-elevated hover:text-fg active:scale-[0.99] focus-ring aria-pressed:border-accent aria-pressed:text-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100'
+  'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-border font-semibold text-fg-dim transition-[color,background-color,transform] duration-150 hover:bg-elevated hover:text-fg active:scale-[0.99] focus-ring aria-pressed:border-accent aria-pressed:text-accent disabled:cursor-not-allowed disabled-dim disabled:active:scale-100'
 
 const SIZE = {
   md: 'px-3 text-xs',

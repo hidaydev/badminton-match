@@ -10,7 +10,7 @@ import { ErrorText } from './ErrorText'
  * invalid border and ring already declared on the shared control class.
  */
 const CONTROL =
-  'mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-ring disabled:cursor-not-allowed disabled:opacity-60 read-only:opacity-60 aria-invalid:border-error aria-invalid:ring-1 aria-invalid:ring-error'
+  'mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-ring disabled:cursor-not-allowed disabled-dim-soft read-only:opacity-60 aria-invalid:border-error aria-invalid:ring-1 aria-invalid:ring-error'
 
 function join(...parts: (string | undefined)[]): string {
   return parts.filter((part) => part !== undefined && part !== '').join(' ')

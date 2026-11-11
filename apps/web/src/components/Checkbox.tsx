@@ -6,7 +6,7 @@ import type { ComponentProps } from 'react'
  * on a native input.
  */
 const STYLE =
-  'h-5 w-5 shrink-0 accent-accent focus-ring disabled:cursor-not-allowed disabled:opacity-60'
+  'h-5 w-5 shrink-0 accent-accent focus-ring disabled:cursor-not-allowed disabled-dim-soft'
 
 export function Checkbox({ className, ...props }: ComponentProps<'input'>) {
   return (

@@ -3,6 +3,7 @@ import type { TournamentMatch } from '../../utils/tournament'
 import { validateScore } from '../../utils/scoreValidation'
 import ScoreboardOverlay from './ScoreboardOverlay'
 import { Overlay } from '@/components/Overlay'
+import { Button } from '@/components/Button'
 import { t } from '@/i18n'
 
 interface ScoreModalProps {
@@ -89,13 +90,13 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
           >
             {t('legacy.cancel')}
           </button>
-          <button
+          <Button
+            className="flex-1"
             onClick={() => valid && onConfirm(a, b)}
             disabled={!valid}
-            className="flex-1 py-3 rounded-xl bg-accent text-slate-950 text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-accent/90 active:scale-98 transition-[background-color,transform] hit44"
           >
             {t('legacy.confirm')}
-          </button>
+          </Button>
         </div>
       }
     >

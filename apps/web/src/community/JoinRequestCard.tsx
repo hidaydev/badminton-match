@@ -63,7 +63,7 @@ export function JoinRequestCard({
               onSlugChange(event.target.value)
               setSent(false)
             }}
-            className="disabled:opacity-60"
+            className="disabled-dim-soft"
           />
         </Field>
         <Button type="submit" disabled={sending}>

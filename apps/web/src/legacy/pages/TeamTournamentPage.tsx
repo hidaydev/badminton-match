@@ -28,6 +28,7 @@ import { drawPositionPost, loadImage } from '../utils/canvasPost'
 import { canvasToBlob, shareOrDownload } from '../utils/share'
 import { loadOverlayImages } from '../utils/overlays'
 import { t } from '../../i18n'
+import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 
 type Tab = 'klasemen' | 'jadwal' | 'final'
@@ -366,25 +367,17 @@ export default function TeamTournamentPage() {
                 })}
                 {canEdit && (
                   <div className="p-3">
-                    <button
-                      onClick={handleUndian}
-                      disabled={publish.isPending}
-                      className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 hit44"
-                    >
+                    <Button className="w-full" onClick={handleUndian} disabled={publish.isPending}>
                       Group Draw (match day)
-                    </button>
+                    </Button>
                   </div>
                 )}
               </Card>
             )}
             {canEdit && groupComplete && !hasFinal && (
-              <button
-                onClick={handleBuatFinal}
-                disabled={publish.isPending}
-                className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 hit44"
-              >
+              <Button className="w-full" onClick={handleBuatFinal} disabled={publish.isPending}>
                 Create Final (top 2)
-              </button>
+              </Button>
             )}
             {!groupComplete && groupMatches.length > 0 && (
               <p className="text-xs text-fg-dim text-center">Finish all 9 group matches to determine the final.</p>
