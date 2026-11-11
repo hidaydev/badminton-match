@@ -520,8 +520,12 @@ community from one production database. RLS option (a) in
 `docs/db/rls-tenancy-options.md` is then a condition of that release, not work
 scheduled after it: the policies ship with the two-community isolation test as a
 gate before the second community exists. `docs/ops/release.md` §4 repeats this as
-a release exit criterion. Nothing in the pipeline enforces it; the operator
-checks it, because the community count lives in the database, not in the tree.
+a release exit criterion. Since 2026-11-11 the API boot enforces the count instead
+of leaving it to the operator: `modules/community/tenancy.nim` refuses to start
+when `MAJADU_ENV=prod` and the database holds more than one community, and the
+refusal names this ADR and `docs/db/rls-tenancy-options.md`. The assertion is a
+backstop, not RLS: it guards a starting process, not a running one, and tools
+that connect as `bm2_owner` are not constrained by it.
 
 ## ADR-019 · The deploy must run `dbtools seed`, and the config seed stays insert-only
 
