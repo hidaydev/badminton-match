@@ -15,6 +15,7 @@ do not consider them tested.
 | `VERSION` | the version under development | `deploy-vps.sh` (deploy gate), `apps/api/src/app.nim` (`appVersion`) |
 | `CHANGELOG.md` | per-version sections from Conventional Commits | the GitHub release |
 | tag `v<version>` | SSH-signed, created by the operator | `.github/workflows/release.yml` |
+| `.github/allowed_signers` | the public half of the release signing key, one key line; **owned by the owner**, committed by the owner | `git verify-tag` in `release.yml`, `./task ci-guards --release` |
 | image `ghcr.io/hidaydev/badminton-match:v<version>` | one build per tag | `deploy-vps.sh` (pull by digest) |
 | `digest: sha256:…` line in the GitHub Release body | the only digest the deploy accepts, signed by `cosign` | `deploy-vps.sh`, `cutover.sh` |
 | `cosign.pub` in `env/` | verifies the image signature before the pull | `deploy-vps.sh`, `cutover.sh` |
@@ -24,6 +25,14 @@ accepts exactly one `digest: sha256:…` line and refuses the release when any
 other digest-shaped string appears in the body (for example in the tag message).
 The signature is checked with `cosign verify --key env/cosign.pub` before
 `podman pull`.
+
+The tag is `v<version>` and nothing else. `VERSION` on this tree is `2.0.0`, so
+the tag is `v2.0.0`. The candidate branch carries a pre-release name of its own;
+the tag never does, and this repository has no release-candidate tag.
+`release.yml` refuses a tag whose name does not match `VERSION` (it fails with
+`VERSION is '<VERSION>' but the tag says '<tag>'`), and that is the intended
+behaviour: the version that was tested and the version that is released are the
+same string.
 
 `deploy-vps.sh` decides to deploy from `VERSION`, not from the tag: a commit that
 bumps `VERSION` is a release, a documentation commit is not. A matching
@@ -36,11 +45,35 @@ pushed.
 ## 2. Release sequence
 
 1. `./task release`: dry run. It prints the bump, the changelog section, and the
-   following commands; it writes or tags nothing. It refuses a tree that does
-   not contain `main` (or `origin/main`): merge `main` into the release branch,
-   run the full gate on the merge commit, and tag that commit. Record its SHA in
-   the release notes next to the coverage baseline date, so the number and the
-   tree it describes travel together.
+   following commands; it writes or tags nothing. Two refusals come first.
+
+   **The tree must contain `main` (or `origin/main`)**, which is QA-04:
+
+   ```text
+   release: HEAD does not contain origin/main; merge origin/main, run the full gate on the merge and tag that commit (QA-04)
+   ```
+
+   This is not a routine merge and must not be treated as one: v1 is superseded
+   wholesale by v2, so the cutover commit is `git merge -s ours origin/main`.
+   Its tree stays exactly the v2 tree and its parents record both histories. A
+   real merge is not available for this pair: `git merge origin/main` into the
+   release candidate produced 139 conflicts, 116 of them under `apps/` (76
+   delete/update against the v1 tree that `main` still carries, 45
+   both-modified, 18 both-added). That is why the resolution is the documented
+   path rather than an exception. The full gate runs on the merged tree, not on
+   either parent, and the tag goes on that commit. Record its SHA in the release
+   notes next to the coverage baseline date, so the number and the tree it
+   describes travel together.
+
+   **The first release needs a baseline.** With no earlier tag, pass
+   `--baseline`; without it the tool stops at
+
+   ```text
+   release: no baseline tag: create v2.0.0 first (git tag -s v2.0.0), or pass --baseline to cut 2.0.0 as the first release
+   ```
+
+   That message is the reference behaviour, and the runbook keeps it rather than
+   adding a second path around it.
 2. `./task release --apply`: writes `VERSION`, `CHANGELOG.md`, and
    `.cache/release/v<version>.md` (tag message source). It only runs if the
    working tree is clean and the last tag matches `VERSION`.
@@ -91,9 +124,18 @@ refuses to pull a digest it cannot verify.
 
 The one input the repository cannot supply is the signing key itself:
 `.github/allowed_signers` holds the public half, and the private key stays with
-the owner. Until that file is committed, `./task ci-guards --release` fails and
-so does every tag, which is the intended state: a release with an unverifiable
-signature is not a release this repository can vouch for.
+the owner. That file is the owner's to commit; nobody else can produce it, and
+it is not something the pipeline can generate or fake. Until it is committed,
+`./task ci-guards --release` fails and so does every tag, which is the intended
+state: a release with an unverifiable signature is not a release this
+repository can vouch for.
+
+`ops/scripts/release-preflight.sh` still prints
+`warn: .github/allowed_signers is not committed; release.yml will verify the tag
+through the GitHub API`. That sentence describes the tree before the anchor
+lands, when `release.yml` had that fallback. It is true there and false here,
+where the workflow refuses the tag outright: read the line as "the anchor is
+missing", not as a fallback this pipeline still has.
 
 ## 3. What the deploy does
 
@@ -244,8 +286,9 @@ release. `ops/scripts/release-preflight.sh <tag>` walks the same inputs the
 workflow and the deploy read and names the missing one; run it before the tag
 and again after the image is published. It creates nothing.
 
-The rehearsal is the release itself, cut from the integration branch against the
-RC database, in this order:
+The rehearsal is the release itself, cut from a commit that contains
+`origin/main` (§2 step 1, QA-04) with the full gate run on that merged tree,
+then rehearsed against the RC database, in this order:
 
 1. `./task release` and `./task release --apply`, then commit
    `chore(release): v<version>`.
