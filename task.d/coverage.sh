@@ -1033,6 +1033,40 @@ if [ "$phantom" -gt 0 ]; then
     "$phantom"
 fi
 
+# A `DA` row does not prove the line holds code: geninfo fills one for every line
+# inside a function extent, including a comment block in a `var` section
+# (`shared/platform-lib/db/db.nim:116`). Which extents a binary produces is a
+# compiler detail, so gcc filled one comment row that llvm-gcov left out and the
+# file fell 0.15 points while its code was byte-identical to the recorded
+# baseline. A blank or comment line is not executable, so it is dropped before
+# any total is derived. Only zero-hit rows are dropped: a hit is evidence the
+# compiler mapped code to that line, whatever the text looks like.
+awk -F'\t' -v root="$REPO_ROOT" -v dropfile="$COV/noncode.txt" '
+  {
+    path = $1
+    if (!(path in loaded)) {
+      loaded[path] = 1
+      n = 0
+      name = root "/" path
+      while ((getline src < name) > 0) {
+        n++
+        if (src ~ /^[[:space:]]*(#|$)/) noncode[path, n] = 1
+      }
+      close(name)
+    }
+    if ($3 + 0 == 0 && ((path SUBSEP $2) in noncode)) { dropped++; next }
+    print
+  }
+  END { print dropped + 0 > dropfile }
+' "$COV/lines.tsv" >"$COV/lines.tsv.tmp"
+mv "$COV/lines.tsv.tmp" "$COV/lines.tsv"
+
+noncode=$(cat "$COV/noncode.txt" 2>/dev/null || echo 0)
+if [ "$noncode" -gt 0 ]; then
+  printf 'coverage: ignored %s line(s) that carry no code but gcov filled as uncovered\n' \
+    "$noncode"
+fi
+
 # Per-file totals with the reviewed exclusions. Tests are structural, not
 # product code; everything else is a literal path from the manifest (R-12), so a
 # file stops being excluded the moment its entry is reviewed away.
