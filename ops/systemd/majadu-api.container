@@ -50,7 +50,7 @@ PodmanArgs=--log-opt=max-size=10m
 # an operator sees `unhealthy` instead of a process that accepts TCP and fails
 # every request. Debian ships bash, and /dev/tcp is the only HTTP client the
 # runtime image has.
-HealthCmd=/bin/bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /readyz HTTP/1.0\r\n\r\n" >&3 && read -r line <&3 && case "$line" in *" 200 "*) exit 0;; esac; exit 1'
+HealthCmd=/bin/bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /readyz HTTP/1.0\r\n\r\n" >&3 && read -r line <&3 && case "$line" in *" 200"*) exit 0;; esac; exit 1'
 HealthInterval=30s
 HealthTimeout=5s
 HealthRetries=3

@@ -1772,6 +1772,10 @@ suite "systemd units":
         check text.contains(key)
       check not text.contains("DevicePolicy=")
       check not text.contains("LogSizeMax=")
+      # The reason phrase is optional in HTTP, so requiring the trailing space
+      # after the status code flags a healthy app as unhealthy.
+      check text.contains("*\" 200\"*")
+      check not text.contains("*\" 200 \"*")
 
   # 2026-11-11, measured on the RC host: `podman build --cpus` does not exist in
   # podman 5.8.2, and `--cpu-quota` fails because only the memory and pids
