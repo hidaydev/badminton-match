@@ -34,7 +34,7 @@ Targets:
   contract-check verify the contract fingerprint and generated files
   contract-keys  verify every contract operation has an access-table key and rule
   docs-check   compare quoted migration and operation counts with the artefacts, and the design system version and review date
-  loadtest     run the committed load test against a live endpoint
+  loadtest     run the committed load test against a live endpoint or a disposable local one
   deps-check   verify installed dependencies against deps.lock
   ci-guards    reject unpinned or malformed GitHub Actions refs
   osv-scan     fail when OSV reports a HIGH or CRITICAL advisory in a lockfile

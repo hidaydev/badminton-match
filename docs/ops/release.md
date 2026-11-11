@@ -133,7 +133,10 @@ A release is not done until all eight are true:
    against the release candidate with `--pid` on the API process, with its
    p50/p95/p99, failure count and RSS peak archived in the release evidence
    (T-074). A release without it has no measured capacity, only a configured
-   ceiling.
+   ceiling. `./task loadtest --local` runs the same harness against a database
+   it creates and drops, so the report can be produced before the tag instead of
+   waiting for a host window; the host run is still the one that exercises the
+   512 MB ceiling and the watcher fan-out.
 8. **One community per production database, or RLS has already shipped.** The
    first release that serves a second community from one production database
    does not ship until option (a) of `docs/db/rls-tenancy-options.md` is enabled
