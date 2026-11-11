@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Check every prerequisite of a release before the first real one runs.
 #
-#   ops/scripts/release-preflight.sh v2.0.0-rc.1
+#   ops/scripts/release-preflight.sh v2.0.0
 #
 # The release pipeline has never completed end to end: no tag, no release body,
 # no digest and no deploy has happened. This script walks the same inputs the

@@ -917,7 +917,8 @@ suite "release-preflight.sh":
       fixture.installOpsScript("release-preflight.sh"), @[],
       @[("MAJADU_REPO_DIR", fixture.root)])
     check result.exitCode == 2
-    check result.stderr.contains("release-preflight.sh v2.0.0-rc.1")
+    check result.stderr.contains("release-preflight.sh v2.0.0")
+    check not result.stderr.contains("-rc.")
 
   test "a missing tag is reported with the other missing inputs":
     let fixture = newFixture("preflight-no-tag")
