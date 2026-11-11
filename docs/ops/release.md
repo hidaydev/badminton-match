@@ -66,10 +66,34 @@ pushed.
    URL is recorded. `./task deps-check` now fails on a pin GitHub cannot resolve;
    `./task ci-guards` proves the pin shape.
 
+### What the tag now refuses
+
+`Release: verify tag` runs four checks before any build. Each one fails closed,
+and each one is reproducible on a laptop:
+
+| Check | Refuses | Reproduce locally |
+|---|---|---|
+| `.github/allowed_signers` exists and has a key line | a tag whose signature has no committed trust anchor (SEC-03) | `./task ci-guards --release` |
+| `git verify-tag` against that file | a tag signed by a key this repository did not review | `git verify-tag -v v<version>` |
+| `git merge-base --is-ancestor origin/main HEAD` | a tag on a tree the gate never ran on (QA-04) | `git merge-base --is-ancestor origin/main HEAD` |
+| a completed, successful Coverage run for the commit | a coverage number quoted without its run (QA-15) | the commit's Coverage run on GitHub |
+
+The Coverage run URL that satisfied the last check is written into the release
+body under `## Verification`, next to the tagged commit, so the number and the
+run travel together. The `deploy-vps.sh` digest scrape is unaffected: the body
+still carries exactly one `digest: sha256:…` line and the workflow rejects a tag
+message that adds a second digest-shaped string.
+
 Before the first signed release, install `cosign` on the VPS, put the public key
 in `/srv/qouver/apps/majadu/env/cosign.pub` (mode 600), and set
 `COSIGN_PRIVATE_KEY` and `COSIGN_PASSWORD` as GitHub Actions secrets. The deploy
 refuses to pull a digest it cannot verify.
+
+The one input the repository cannot supply is the signing key itself:
+`.github/allowed_signers` holds the public half, and the private key stays with
+the owner. Until that file is committed, `./task ci-guards --release` fails and
+so does every tag, which is the intended state: a release with an unverifiable
+signature is not a release this repository can vouch for.
 
 ## 3. What the deploy does
 

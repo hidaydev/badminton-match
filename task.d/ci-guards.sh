@@ -90,9 +90,22 @@ fi
 # That line must be reverted before a tag: a tag built with it ships production
 # against the RC API and the RC database. Only a release run enforces this; a
 # normal pull request against the RC branch is expected to carry it.
+#
+# SEC-03: the tag signature needs a committed trust anchor. Without one the
+# release workflow falls back to asking GitHub whether any key registered on the
+# maintainer account signed the tag, which answers "whoever can add a signing
+# key to that account". The file is the only thing that makes the signer a
+# decision the repository reviewed, and it is key material the owner holds, so
+# this guard names it instead of letting the release discover it at tag time.
 if [ "$release" -eq 1 ]; then
   if grep -q 'majadu-rc' "$REPO_ROOT/apps/web/vercel.json" 2>/dev/null; then
     report "apps/web/vercel.json still rewrites /api to the RC backend; revert it to /majadu/* before tagging"
+  fi
+  signers="$REPO_ROOT/.github/allowed_signers"
+  if [ ! -f "$signers" ]; then
+    report "missing .github/allowed_signers; the tag signature has no committed trust anchor (SEC-03)"
+  elif ! grep -qvE '^[[:space:]]*(#|$)' "$signers"; then
+    report ".github/allowed_signers has no key line; the tag signature cannot be verified against it"
   fi
 fi
 
