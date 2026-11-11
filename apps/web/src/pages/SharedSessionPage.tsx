@@ -12,6 +12,7 @@ import { getSharedSession } from '../share/api'
 import type { SharedGame, SharedSession, SharedStanding } from '../share/api'
 import { useAsyncEffect } from '../hooks/useAsyncEffect'
 import { LoadingState } from '../components/LoadingState'
+import { StandingsTable } from '../components/StandingsTable'
 import { EmptyState } from '../components/EmptyState'
 import { Tabs } from '../components/Tabs'
 
@@ -323,69 +324,23 @@ export default function SharedSessionPage() {
               (standings.length === 0 ? (
                 <EmptyState title={t('session.standings.empty')} />
               ) : (
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2 pl-2 pr-2 mb-1">
-                    <span className="w-8 shrink-0 text-center text-[10px] font-bold text-slate-400">
-                      {t('session.column.rank')}
-                    </span>
-                    <span className="flex-1 text-[10px] font-bold text-slate-400">
-                      {t('session.column.player')}
-                    </span>
-                    <span className="w-11 shrink-0 text-center text-[10px] font-bold text-slate-400">
-                      {t('session.column.wins')}-{t('session.column.losses')}
-                    </span>
-                    <span className="w-9 shrink-0 text-center text-[10px] font-bold text-slate-400">
-                      {t('session.column.diff')}
-                    </span>
-                    <span className="w-9 shrink-0 text-center text-[10px] font-bold text-slate-400">
-                      {t('session.column.points')}
-                    </span>
-                  </div>
-                  <ol role="list" className="flex flex-col gap-1.5">
-                    {standings.map((row, index) => {
-                      const rank = index + 1
-                      const podium = rank <= 3
-                      const wlColor =
-                        row.wins > row.losses
-                          ? 'text-emerald-400'
-                          : row.losses > row.wins
-                            ? 'text-red-400'
-                            : 'text-slate-400'
-                      const diffColor =
-                        row.diff > 0
-                          ? 'text-emerald-400'
-                          : row.diff < 0
-                            ? 'text-red-400'
-                            : 'text-slate-400'
-                      return (
-                        <li
-                          key={row.name}
-                          className={`flex items-center gap-2 pl-2 pr-2 py-2.5 rounded-xl border ${podium ? 'bg-emerald-950/45 border-emerald-800/35' : 'bg-slate-800/30 border-slate-700/20'}`}
-                        >
-                          <span
-                            className={`w-8 shrink-0 text-center text-[11px] font-bold ${rank === 1 ? 'text-accent' : rank === 2 ? 'text-slate-200' : 'text-slate-400'}`}
-                          >
-                            {ordinal(rank)}
-                          </span>
-                          <span
-                            className={`flex-1 min-w-0 truncate ${rank === 1 ? 'text-sm font-bold text-emerald-300' : podium ? 'text-sm font-semibold text-emerald-100/80' : 'text-sm font-medium text-slate-400'}`}
-                          >
-                            {row.name}
-                          </span>
-                          <span className={`w-11 shrink-0 text-center text-[11px] font-semibold ${wlColor}`}>
-                            {row.wins}-{row.losses}
-                          </span>
-                          <span className={`w-9 shrink-0 text-center text-[11px] font-semibold ${diffColor}`}>
-                            {row.diff > 0 ? `+${row.diff}` : String(row.diff)}
-                          </span>
-                          <span className="w-9 shrink-0 text-center text-[11px] font-semibold text-slate-400">
-                            {row.pointsFor}
-                          </span>
-                        </li>
-                      )
-                    })}
-                  </ol>
-                </div>
+                <StandingsTable
+                  rows={standings.map((row, index) => ({
+                    key: row.name,
+                    rank: ordinal(index + 1),
+                    name: row.name,
+                    wins: row.wins,
+                    losses: row.losses,
+                    diff: row.diff,
+                    pointsFor: row.pointsFor,
+                  }))}
+                  labels={{
+                    name: t('session.column.player'),
+                    winsLosses: `${t('session.column.wins')}-${t('session.column.losses')}`,
+                    diff: t('session.column.diff'),
+                    points: t('session.column.points'),
+                  }}
+                />
               ))}
           </div>
         </>
