@@ -28,8 +28,9 @@ export default function HomeLayout() {
   // hands focus back to the trigger. Tab leaves the menu and closes it, like
   // any other popup that is not a dialog.
   // A hidden item cannot take focus, and focusing it would leave the menu with
-  // no focused row at all. The community switch is `sm:hidden` where the header
-  // picker already shows it, so it is in the DOM but not always in view.
+  // no focused row at all. The community switch is `md:hidden` where the header
+  // picker already shows it, so it is in the DOM but not always in view. That
+  // split is 40rem: the header picker is tablet and desktop only.
   const menuItems = (): HTMLElement[] =>
     [...(accountMenu.current?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]') ?? [])]
       .filter((item) => item.checkVisibility?.() !== false)
@@ -97,7 +98,7 @@ export default function HomeLayout() {
             <img src="/logo-192.png" alt="" className="w-6 h-6 shrink-0 object-contain" />
             <span className="text-sm font-bold text-fg tracking-tight">MAJADU</span>
           </Link>
-          <div className="hidden sm:flex items-center gap-2">
+          <div className="hidden md:flex items-center gap-2">
             <CommunityPicker />
           </div>
           <button
@@ -154,14 +155,14 @@ export default function HomeLayout() {
                       {current !== null ? ` · ${current.name}` : ''}
                     </p>
                   </div>
-                  {/* The header picker is desktop-only; on phones the same
-                      switch lives in this menu so members of several
-                      communities can reach it. */}
+                  {/* The header picker is tablet and desktop only (40rem); on
+                      phones the same switch lives in this menu so members of
+                      several communities can reach it. */}
                   {memberships.length > 1 && (
                     <div
                       role="group"
                       aria-label={t('community.label')}
-                      className="border-b border-border-subtle p-1.5 sm:hidden"
+                      className="border-b border-border-subtle p-1.5 md:hidden"
                     >
                       <p className="px-3 pb-1 pt-1.5 text-[10px] font-semibold label-meta text-fg-dim">
                         {t('community.label')}
