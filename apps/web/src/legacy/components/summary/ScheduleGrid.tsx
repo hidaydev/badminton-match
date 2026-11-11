@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import { HIGHLIGHTED_PLAYERS, TEAM_HIGHLIGHT_ENABLED } from '../../config/teamHighlights'
-import { DndContext, type DragEndEvent } from '@dnd-kit/core'
+import { DndContext } from '@dnd-kit/core'
 import type { GeneratorResult } from '../../generator'
 import type { Player, GameScore, SessionScoring } from '../../types'
 import { toGameKey } from '../../types'
@@ -10,107 +10,111 @@ import { describeSets, setsWon } from '../../utils/scoring'
 import { computeBackToBackRunBySlot } from '../../utils/playerStats'
 import { courtLabel } from '../../utils/courtLabel'
 import { timeToMinutes, minutesToTime } from '../../utils/time'
-import type { SwapTarget, TeamSwapTarget } from '../../utils/swap'
+import type { TeamSwapTarget } from '../../utils/swap'
 import type { PlayerChipMode } from './PlayerChipRenderer'
 import PlayerChipRenderer from './PlayerChipRenderer'
+import type { GridInteraction } from './useGridInteraction'
 import { hit44 } from '../hitTarget'
 import SlotGameCard from './SlotGameCard'
 import { Spinner } from '@/components/Spinner'
 import { t } from '@/i18n'
 
-interface ScheduleGridProps {
+/** Everything the grid draws. Read only: the grid never writes back into it. */
+export interface ScheduleGridData {
   result: GeneratorResult
   slotsPerCourt: number[]
   courtNames: string[]
   sessionStart: string
   slotMinutes: number
-  mode: PlayerChipMode
-  locked: boolean
-  saving: boolean
   playerMap: Map<string, Player>
   playedGames: string[]
   gameScores: Record<string, GameScore>
   scoring?: SessionScoring
   effectiveAbsent: Set<string>
   effectiveSkipped?: Record<string, Set<string>>
-  expandedScore: string | null
-  draftScores: Record<string, MatchDraft>
-  scoreError: string | null
-  scoreFailures?: Record<string, ScoreFailure>
-  retryScore?: (key: string) => void
-  dismissScoreFailure?: (key: string) => void
-  // Swap state
-  swapSelected: SwapTarget | null
-  pendingSwap: { t1: SwapTarget; t2: SwapTarget } | null
-  // Team swap state
-  teamSwapSelected: TeamSwapTarget | null
-  pendingTeamSwap: { t1: TeamSwapTarget; t2: TeamSwapTarget } | null
-  // Replace state
-  replaceTarget: string | null
-  // Change state
-  changeTarget: SwapTarget | null
-  // DnD
-  sensors: ReturnType<typeof import('@dnd-kit/core').useSensors>
-  // Callbacks
-  handleChipClick: (target: SwapTarget) => void
-  handleTeamClick: (target: TeamSwapTarget) => void
-  handleReplaceToggle: (playerId: string) => void
-  handleChangeSelect: (target: SwapTarget) => void
-  handleDragEnd: (event: DragEndEvent) => void
-  handleScoreSave: (key: string) => void
-  handleClearScore: (key: string) => void
-  onTogglePlayedGame?: (key: string) => void
-  onSkipToggle?: (gameKey: string, playerId: string) => void
-  setExpandedScore: (key: string | null) => void
-  setScoreError: (error: string | null) => void
-  setDraftScores: (fn: (prev: Record<string, MatchDraft>) => Record<string, MatchDraft>) => void
-  updateDraftSet: (key: string, index: number, side: 'a' | 'b', value: string) => void
   highlightedPlayerId?: string | null
 }
 
+/** A score-channel intent; the grid reports it and the owner decides. */
+export type ScheduleGridScoreChange =
+  | { kind: 'expand'; key: string; draft: MatchDraft }
+  | { kind: 'collapse' }
+  | { kind: 'set'; key: string; index: number; side: 'a' | 'b'; value: string }
+  | { kind: 'save'; key: string }
+  | { kind: 'clear'; key: string }
+  | { kind: 'retry'; key: string }
+  | { kind: 'dismiss'; key: string }
+
+/** The inline score editor is controlled: value in, intent out. */
+export interface ScheduleGridScores {
+  value: {
+    expanded: string | null
+    drafts: Record<string, MatchDraft>
+    error: string | null
+    failures: Record<string, ScoreFailure>
+  }
+  onChange: (change: ScheduleGridScoreChange) => void
+}
+
+export interface ScheduleGridProps {
+  data: ScheduleGridData
+  mode: PlayerChipMode
+  locked: boolean
+  saving: boolean
+  scores?: ScheduleGridScores
+  /** Edit-mode channel. Absent means the grid renders read only. */
+  interaction?: GridInteraction
+  onTogglePlayedGame?: (key: string) => void
+  onSkipToggle?: (gameKey: string, playerId: string) => void
+}
+
+// Module scope so a read-only render gets stable, inert values.
+const INERT_SCORES: ScheduleGridScores = {
+  value: { expanded: null, drafts: {}, error: null, failures: {} },
+  onChange: () => {},
+}
+const noop = () => {}
+
 export default function ScheduleGrid({
-  result,
-  slotsPerCourt,
-  courtNames,
-  sessionStart,
-  slotMinutes,
+  data,
   mode,
   locked,
   saving,
-  playerMap,
-  playedGames,
-  gameScores,
-  scoring,
-  effectiveAbsent,
-  effectiveSkipped = {},
-  expandedScore,
-  draftScores,
-  scoreError,
-  scoreFailures = {},
-  retryScore,
-  dismissScoreFailure,
-  swapSelected,
-  pendingSwap,
-  teamSwapSelected,
-  pendingTeamSwap,
-  replaceTarget,
-  changeTarget,
-  sensors,
-  handleChipClick,
-  handleTeamClick,
-  handleReplaceToggle,
-  handleChangeSelect,
-  handleDragEnd,
-  handleScoreSave,
-  handleClearScore,
+  scores = INERT_SCORES,
+  interaction,
   onTogglePlayedGame,
   onSkipToggle,
-  setExpandedScore,
-  setScoreError,
-  setDraftScores,
-  updateDraftSet,
-  highlightedPlayerId,
 }: ScheduleGridProps) {
+  const {
+    result,
+    slotsPerCourt,
+    courtNames,
+    sessionStart,
+    slotMinutes,
+    playerMap,
+    playedGames,
+    gameScores,
+    scoring,
+    effectiveAbsent,
+    effectiveSkipped = {},
+    highlightedPlayerId,
+  } = data
+  const { expanded: expandedScore, drafts: draftScores, error: scoreError, failures: scoreFailures } = scores.value
+  const onScoreChange = scores.onChange
+  const editState = interaction?.state
+  const editActions = interaction?.actions
+  const swapSelected = editState?.swapSelected ?? null
+  const pendingSwap = editState?.pendingSwap ?? null
+  const teamSwapSelected = editState?.teamSwapSelected ?? null
+  const pendingTeamSwap = editState?.pendingTeamSwap ?? null
+  const replaceTarget = editState?.replaceTarget ?? null
+  const changeTarget = editState?.changeTarget ?? null
+  const sensors = editState?.sensors
+  const handleChipClick = editActions?.onChipClick ?? noop
+  const handleTeamClick = editActions?.onTeamClick ?? noop
+  const handleReplaceToggle = editActions?.onReplaceToggle ?? noop
+  const handleChangeSelect = editActions?.onChangeSelect ?? noop
+
   const played = useMemo(() => new Set(playedGames), [playedGames])
 
   const backToBackRunBySlot = useMemo(
@@ -289,7 +293,7 @@ export default function ScheduleGrid({
                       {/* Score toggle / saved score */}
                       {mode === 'idle' && (savedScore && !isOpen ? (
                         <button
-                          onClick={() => { if (!locked) { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: draftFromScore(savedScore, scoring) })) } }}
+                          onClick={() => { if (!locked) { onScoreChange({ kind: 'expand', key, draft: draftFromScore(savedScore, scoring) }) } }}
                           aria-label={`Score: ${teamANames} ${headline}${setLine ? `, sets ${setLine}` : ''}. Edit score`}
                           className={`text-[11px] font-bold shrink-0 whitespace-nowrap min-h-6 px-1 leading-tight tabular-nums ${hit44} ${locked ? 'text-slate-300 cursor-default' : 'text-emerald-300 hover:text-emerald-200'}`}
                         >
@@ -299,8 +303,8 @@ export default function ScheduleGrid({
                       ) : !locked ? (
                         <button
                           onClick={() => {
-                            if (isOpen) { setExpandedScore(null); setScoreError(null) }
-                            else { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: draftFromScore(undefined) })) }
+                            if (isOpen) { onScoreChange({ kind: 'collapse' }) }
+                            else { onScoreChange({ kind: 'expand', key, draft: draftFromScore(undefined) }) }
                           }}
                           className={`text-[10px] text-slate-400 hover:text-slate-400 shrink-0 whitespace-nowrap min-h-6 px-1 transition-colors ${hit44}`}
                         >
@@ -322,7 +326,7 @@ export default function ScheduleGrid({
                         <span className="ml-auto flex items-center gap-1">
                           <button
                             type="button"
-                            onClick={() => retryScore?.(key)}
+                            onClick={() => onScoreChange({ kind: 'retry', key })}
                             disabled={saving}
                             className="min-h-11 rounded-lg border border-red-500/70 px-2 text-xs font-bold text-red-200 transition-colors hover:bg-red-800/40 disabled:opacity-50"
                           >
@@ -330,7 +334,7 @@ export default function ScheduleGrid({
                           </button>
                           <button
                             type="button"
-                            onClick={() => dismissScoreFailure?.(key)}
+                            onClick={() => onScoreChange({ kind: 'dismiss', key })}
                             className="min-h-11 rounded-lg px-2 text-xs text-red-300 underline underline-offset-2 transition-colors hover:text-red-100"
                             aria-label={t('session.score.dismiss', { teams: `${teamANames} vs ${teamBNames}` })}
                           >
@@ -358,7 +362,7 @@ export default function ScheduleGrid({
                                 min={0}
                                 max={99}
                                 value={row.a}
-                                onChange={(e) => updateDraftSet(key, index, 'a', e.target.value)}
+                                onChange={(e) => onScoreChange({ kind: 'set', key, index, side: 'a', value: e.target.value })}
                                 className="w-14 bg-slate-800 border border-indigo-700 rounded-lg px-2 py-1.5 text-white font-bold text-lg text-center tabular-nums focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
                                 aria-label={`Set ${index + 1} score for ${teamANames}`}
                               />
@@ -369,7 +373,7 @@ export default function ScheduleGrid({
                                 min={0}
                                 max={99}
                                 value={row.b}
-                                onChange={(e) => updateDraftSet(key, index, 'b', e.target.value)}
+                                onChange={(e) => onScoreChange({ kind: 'set', key, index, side: 'b', value: e.target.value })}
                                 className="w-14 bg-elevated border border-border rounded-lg px-2 py-1.5 text-slate-300 font-bold text-lg text-center tabular-nums focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
                                 aria-label={`Set ${index + 1} score for ${teamBNames}`}
                               />
@@ -383,7 +387,7 @@ export default function ScheduleGrid({
                           <div className="flex items-center gap-2">
                             {savedScore && (
                               <button
-                                onClick={() => handleClearScore(key)}
+                                onClick={() => onScoreChange({ kind: 'clear', key })}
                                 disabled={saving}
                                 className="px-3 py-1.5 min-h-6 rounded-lg border border-slate-600 text-slate-300 hover:text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed hit44"
                               >
@@ -391,7 +395,7 @@ export default function ScheduleGrid({
                               </button>
                             )}
                             <button
-                              onClick={() => handleScoreSave(key)}
+                              onClick={() => onScoreChange({ kind: 'save', key })}
                               disabled={saving}
                               className="px-6 py-1.5 min-h-6 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 hit44"
                             >
@@ -420,7 +424,7 @@ export default function ScheduleGrid({
   )
 
   return mode === 'slotSwap' ? (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragEnd={editActions?.onDragEnd}>
       {scheduleGrid}
     </DndContext>
   ) : scheduleGrid
