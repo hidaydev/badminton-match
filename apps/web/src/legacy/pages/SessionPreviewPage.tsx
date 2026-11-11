@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useSensors } from '@dnd-kit/core'
 import { useGetSession } from '../queries'
 import { selectSlotsPerCourt } from '../store/selectors'
 import { collectAmbiguousBaseNames } from '../utils/nameParser'
@@ -11,11 +10,8 @@ import { t } from '../../i18n'
 
 const SESSION_ID = '1b6284b1f4b145bf'
 
-const noop = () => {}
-
 export default function SessionPreviewPage() {
   const { data: snapshot, isLoading, isError } = useGetSession(SESSION_ID)
-  const sensors = useSensors()
   const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null)
 
   if (isLoading) {
@@ -55,42 +51,23 @@ export default function SessionPreviewPage() {
           dev / session-preview · {SESSION_ID}
         </div>
         <ScheduleGrid
-          result={result}
-          slotsPerCourt={selectSlotsPerCourt(snapshot.session)}
-          courtNames={snapshot.session.courtNames ?? []}
-          sessionStart={snapshot.session.sessionStart}
-          slotMinutes={snapshot.session.slotMinutes}
+          data={{
+            result,
+            slotsPerCourt: selectSlotsPerCourt(snapshot.session),
+            courtNames: snapshot.session.courtNames ?? [],
+            sessionStart: snapshot.session.sessionStart,
+            slotMinutes: snapshot.session.slotMinutes,
+            playerMap,
+            playedGames: [],
+            gameScores: snapshot.gameScores ?? {},
+            scoring: snapshot.session.scoring,
+            effectiveAbsent: new Set(snapshot.absentPlayers ?? []),
+            effectiveSkipped: {},
+            highlightedPlayerId,
+          }}
           mode="idle"
           locked={true}
           saving={false}
-          playerMap={playerMap}
-          playedGames={[]}
-          gameScores={snapshot.gameScores ?? {}}
-          scoring={snapshot.session.scoring}
-          effectiveAbsent={new Set(snapshot.absentPlayers ?? [])}
-          effectiveSkipped={{}}
-          expandedScore={null}
-          draftScores={{}}
-          scoreError={null}
-          swapSelected={null}
-          pendingSwap={null}
-          teamSwapSelected={null}
-          pendingTeamSwap={null}
-          replaceTarget={null}
-          changeTarget={null}
-          sensors={sensors}
-          handleChipClick={noop}
-          handleTeamClick={noop}
-          handleReplaceToggle={noop}
-          handleChangeSelect={noop}
-          handleDragEnd={noop}
-          handleScoreSave={noop}
-          handleClearScore={noop}
-          setExpandedScore={noop}
-          setScoreError={noop}
-          setDraftScores={noop}
-          updateDraftSet={noop}
-          highlightedPlayerId={highlightedPlayerId}
         />
         <PlayerStatsPanel
           schedule={snapshot.schedule}

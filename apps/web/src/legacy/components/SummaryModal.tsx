@@ -19,7 +19,8 @@ import ConfirmBars from './summary/ConfirmBars'
 import ActionsMenu from './summary/ActionsMenu'
 import ShareLinkPanel from './summary/ShareLinkPanel'
 import PlayerStatsPanel from './summary/PlayerStatsPanel'
-import ScheduleGrid from './summary/ScheduleGrid'
+import ScheduleGrid, { type ScheduleGridScores } from './summary/ScheduleGrid'
+import { useGridInteraction } from './summary/useGridInteraction'
 import StandingsTab from './summary/StandingsTab'
 import { useScoreDraft } from './summary/useScoreDraft'
 import { useSummaryEditModes } from './summary/useSummaryEditModes'
@@ -233,6 +234,59 @@ export default function SummaryModal({
     // Keyboard alternative for slot swapping (drag is not the only way in).
     useSensor(KeyboardSensor),
   )
+
+  // The grid takes its edit-mode channel and its score editor as one prop each.
+  const gridInteraction = useGridInteraction({
+    swapSelected,
+    pendingSwap,
+    teamSwapSelected,
+    pendingTeamSwap,
+    replaceTarget,
+    changeTarget,
+    sensors,
+    onChipClick: handleChipClick,
+    onTeamClick: handleTeamClick,
+    onReplaceToggle: handleReplaceToggle,
+    onChangeSelect: handleChangeSelect,
+    onDragEnd: handleDragEnd,
+  })
+
+  const gridScores: ScheduleGridScores = {
+    value: {
+      expanded: expandedScore,
+      drafts: draftScores,
+      error: scoreError,
+      failures: scoreFailures,
+    },
+    onChange: (change) => {
+      switch (change.kind) {
+        case 'expand':
+          setExpandedScore(change.key)
+          setScoreError(null)
+          setDraftScores((prev) => ({ ...prev, [change.key]: change.draft }))
+          break
+        case 'collapse':
+          setExpandedScore(null)
+          setScoreError(null)
+          break
+        case 'set':
+          updateDraftSet(change.key, change.index, change.side, change.value)
+          break
+        case 'save':
+          handleScoreSave(change.key)
+          break
+        case 'clear':
+          handleClearScore(change.key)
+          break
+        case 'retry':
+          retryScore(change.key)
+          break
+        case 'dismiss':
+          dismissScoreFailure(change.key)
+          break
+      }
+    },
+  }
 
   const totalGames = result.schedule.length
   const playedCount = played.size
@@ -601,47 +655,27 @@ export default function SummaryModal({
           />
         ) : (
           <ScheduleGrid
-            result={result}
-            slotsPerCourt={slotsPerCourt}
-            courtNames={courtNames}
-            sessionStart={sessionStart}
-            slotMinutes={slotMinutes}
+            data={{
+              result,
+              slotsPerCourt,
+              courtNames,
+              sessionStart,
+              slotMinutes,
+              playerMap,
+              playedGames: playedArr,
+              gameScores,
+              scoring,
+              effectiveAbsent,
+              effectiveSkipped,
+              highlightedPlayerId,
+            }}
             mode={mode}
             locked={locked || readOnly}
             saving={saving}
-            playerMap={playerMap}
-            playedGames={playedArr}
-            gameScores={gameScores}
-            scoring={scoring}
-            effectiveAbsent={effectiveAbsent}
-            effectiveSkipped={effectiveSkipped}
-            expandedScore={expandedScore}
-            draftScores={draftScores}
-            scoreError={scoreError}
-            scoreFailures={scoreFailures}
-            retryScore={retryScore}
-            dismissScoreFailure={dismissScoreFailure}
-            swapSelected={swapSelected}
-            pendingSwap={pendingSwap}
-            teamSwapSelected={teamSwapSelected}
-            pendingTeamSwap={pendingTeamSwap}
-            replaceTarget={replaceTarget}
-            changeTarget={changeTarget}
-            sensors={sensors}
-            handleChipClick={handleChipClick}
-            handleTeamClick={handleTeamClick}
-            handleReplaceToggle={handleReplaceToggle}
-            handleChangeSelect={handleChangeSelect}
-            handleDragEnd={handleDragEnd}
-            handleScoreSave={handleScoreSave}
-            handleClearScore={handleClearScore}
+            scores={gridScores}
+            interaction={gridInteraction}
             onTogglePlayedGame={onTogglePlayedGame}
             onSkipToggle={toggleSkipForGame}
-            setExpandedScore={setExpandedScore}
-            setScoreError={setScoreError}
-            setDraftScores={setDraftScores}
-            updateDraftSet={updateDraftSet}
-            highlightedPlayerId={highlightedPlayerId}
           />
         )}
 
