@@ -286,9 +286,9 @@ function CommunitySettings({
     >
       <form
         className="mt-3 space-y-3"
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault()
-          void submit()
+          await submit()
         }}
       >
         {CONFIG_FIELDS.map((field) => {
@@ -448,7 +448,7 @@ function MemberRow({
               value={member.role}
               disabled={busy}
               onChange={(event) =>
-                void onRun(() =>
+                onRun(() =>
                   setMemberRole(slug, member.userId, event.target.value as CommunityRole),
                 )
               }
@@ -482,7 +482,7 @@ function MemberRow({
             variant="danger"
             size="sm"
             disabled={busy}
-            onClick={() => void onRun(() => removeMember(slug, member.userId))}
+            onClick={() => onRun(() => removeMember(slug, member.userId))}
           >
             {t('admin.members.removeConfirmAction')}
           </Button>
@@ -518,10 +518,10 @@ function Invites({
       <p className="mt-1 text-xs text-fg-dim">{t('admin.invites.hint')}</p>
       <form
         className="mt-2 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end"
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault()
           if (email.trim() === '') return
-          void onRun(async () => {
+          await onRun(async () => {
             const created = await createInvite(slug, email.trim(), role)
             setInvite(created)
             setEmail('')
@@ -648,14 +648,14 @@ function JoinRequests({
                 </label>
                 <Button
                   disabled={busy}
-                  onClick={() => void approve(request)}
+                  onClick={() => approve(request)}
                 >
                   {t('admin.requests.approve')}
                 </Button>
                 <Button
                   variant="secondary"
                   disabled={busy}
-                  onClick={() => void reject(request)}
+                  onClick={() => reject(request)}
                 >
                   {t('admin.requests.reject')}
                 </Button>
@@ -737,14 +737,14 @@ function PendingClaims({
                 <span className="flex items-center gap-2">
                   <Button
                     disabled={pendingId !== null}
-                    onClick={() => void decide(claim, 'approve')}
+                    onClick={() => decide(claim, 'approve')}
                   >
                     {t('admin.claims.approve')}
                   </Button>
                   <Button
                     variant="secondary"
                     disabled={pendingId !== null}
-                    onClick={() => void decide(claim, 'reject')}
+                    onClick={() => decide(claim, 'reject')}
                   >
                     {t('admin.claims.reject')}
                   </Button>

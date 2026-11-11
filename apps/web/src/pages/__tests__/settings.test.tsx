@@ -1,8 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import App from '../../App'
+import App, { queryClient } from '../../App'
 import { t } from '../../i18n'
 import { jsonBody, mockFetch } from '../../test/fetchMock'
+
+// One client serves the whole app, so a case has to start from an empty cache.
+beforeEach(() => {
+  queryClient.clear()
+})
 
 const sessionUser = { id: 'u1', displayName: 'Ada', platformOwner: false }
 const admin = { id: 'c1', slug: 'acme', name: 'Acme', role: 'admin' }
@@ -169,7 +174,11 @@ describe('community settings', () => {
 
     renderAt('/c/acme/settings')
 
-    expect(await screen.findByText(t('community.error.load'))).toBeInTheDocument()
+    // The client retries a failed read once, so the error lands after the
+    // backoff and not on the first answer.
+    expect(
+      await screen.findByText(t('community.error.load'), undefined, { timeout: 4000 }),
+    ).toBeInTheDocument()
     expect(screen.getAllByText(t('community.error.load'))).toHaveLength(1)
   })
 

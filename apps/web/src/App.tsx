@@ -1,7 +1,8 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
-import { QUERY_RETRY_COUNT } from './api/retryPolicy'
+import { QUERY_RETRY_COUNT, QUERY_STALE_MS } from './api/retryPolicy'
+import { settled } from './api/settled'
 import { AuthProvider } from './auth/AuthProvider'
 import { useAuth } from './auth/AuthContext'
 import { Button } from './components/Button'
@@ -73,11 +74,21 @@ const LegacySharedSessionPage = safeLazy(() => import('./legacy/pages/SharedSess
 // and medal badges, but a production build must not serve them.
 const DEV_PREVIEWS = import.meta.env.DEV
 
-// The restored v1 screens use TanStack Query; the v2 screens keep their own
-// hooks, so one provider at the root serves both.
-const queryClient = new QueryClient({
+// The restored v1 screens use TanStack Query and so do the v2 player reads, so
+// one provider at the root serves both. Every policy a query can inherit is
+// declared here and nowhere else: a hook that set its own retry or stale window
+// would make that screen disagree with the rest of the app.
+//
+// Exported so a test can start from an empty cache: one client serves the whole
+// app, and an answer left behind by one case would be handed to the next.
+// eslint-disable-next-line react-refresh/only-export-components
+export const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: QUERY_RETRY_COUNT, refetchOnWindowFocus: false },
+    queries: {
+      retry: QUERY_RETRY_COUNT,
+      staleTime: QUERY_STALE_MS,
+      refetchOnWindowFocus: false,
+    },
   },
 })
 
@@ -212,7 +223,7 @@ function AccountRow() {
       <Button
         variant="secondary"
         className="shrink-0"
-        onClick={() => void signOut()}
+        onClick={() => signOut()}
         disabled={signingOut}
       >
         {t('nav.logout')}
@@ -373,7 +384,7 @@ export default function App() {
       <SharedViewContext.Provider value={sharedViewValue}>
         {needRefresh && (
           <UpdateBanner
-            onReload={() => void updateServiceWorker(true)}
+            onReload={() => settled(updateServiceWorker(true), 'service worker update failed')}
             onDismiss={() => setNeedRefresh(false)}
           />
         )}

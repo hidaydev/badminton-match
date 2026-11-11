@@ -45,9 +45,9 @@ export function JoinRequestCard({
       <p className="mt-1 text-xs text-fg-dim">{t('join.hint')}</p>
       <form
         className="mt-3 flex flex-wrap items-end gap-2"
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault()
-          void submit()
+          await submit()
         }}
       >
         <Field label={t('join.slug')} className="min-w-0 flex-1">

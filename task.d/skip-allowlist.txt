@@ -11,3 +11,11 @@
 # exits 77 is therefore a failure, not a visible skip: the previous exception
 # for tools/ratingingest/tests/integration/tick_test.nim was removed on
 # 2026-11-10 with the DSN guarantee in place.
+
+# First entry, and only for a layer the job does not install: `api-test` has no
+# web workspace, so this suite cannot run eslint there. The same proof runs on
+# every push in the `web` job, through `pnpm check:lint`
+# (apps/web/scripts/check-lint-rule.mjs), which asserts the DoD snippet fails
+# and the awaited form passes. Drop this line once `api-test` installs the
+# workspace.
+tools/shelltests/tests/web_lint_rule_test.nim	Gilang	2027-02-11

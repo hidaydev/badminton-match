@@ -1,47 +1,47 @@
-import { useCallback, useRef, useState } from 'react'
+import { skipToken, useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { settled } from '../api/settled'
 import { ApiError } from '../auth/api'
-import { useAsyncEffect } from '../hooks/useAsyncEffect'
 import { getPlayer, getMyPlayer, listClaims, listPlayers, PLAYER_PAGE } from './api'
 import type { Player, PlayerClaim } from './api'
 
 export type PlayersError = 'notFound' | 'failed'
+
+function settleError(error: unknown): PlayersError {
+  return error instanceof ApiError && error.status === 404 ? 'notFound' : 'failed'
+}
+
+/**
+ * The keys the player reads live under. Two screens asking for the same list
+ * share one cache entry, which is what stops the detail page from re-reading a
+ * list the roster already has; a write that changes a player invalidates them.
+ * A missing slug or id is part of the key, so an idle read is never mixed with
+ * a community that does exist.
+ */
+export const playerKeys = {
+  list: (slug: string | null, query: string) => ['players', slug, 'list', query] as const,
+  mine: (slug: string | null) => ['players', slug, 'mine'] as const,
+  detail: (slug: string | null, id: string | null) => ['players', slug, 'detail', id] as const,
+  claims: (slug: string | null, id: string | null) => ['players', slug, 'claims', id] as const,
+}
 
 /**
  * The player this account owns, for the home shortcut. A failed read hides the
  * card instead of blocking the page: the shortcut is a convenience.
  */
 export function useMyPlayer(slug: string | null): Player | null {
-  const [player, setPlayer] = useState<Player | null>(null)
-
-  useAsyncEffect((scope) => {
-    if (slug === null) return
-    getMyPlayer(slug)
-      .then((row) => {
-        if (scope.live) setPlayer(row)
-      })
-      .catch(() => {
-        if (scope.live) setPlayer(null)
-      })
-  }, [slug])
-
-  return player
-}
-
-function settleError(error: unknown): PlayersError {
-  return error instanceof ApiError && error.status === 404 ? 'notFound' : 'failed'
-}
-
-type Page = {
-  key: string
-  items: Player[]
-  /** `null` when the last page was short, so "load more" has nothing to ask for. */
-  cursor: string | null
+  const { data } = useQuery({
+    queryKey: playerKeys.mine(slug),
+    // `skipToken` keeps the key and the function in one place: the read is idle
+    // until there is a community, and the types narrow without a cast.
+    queryFn: slug === null ? skipToken : () => getMyPlayer(slug),
+  })
+  return data ?? null
 }
 
 /**
  * The player list, searched by name and walked with the keyset cursor the API
- * returns implicitly as the last id. A new query is a new key, so an answer for
- * the previous search never lands in the current one.
+ * returns implicitly as the last id. The search term is part of the key, so an
+ * answer for the previous search can never land in the current one.
  */
 export function usePlayers(slug: string | null, query: string): {
   items: Player[] | null
@@ -52,93 +52,42 @@ export function usePlayers(slug: string | null, query: string): {
   loadMore: () => void
   reload: () => void
 } {
-  const key = slug === null ? null : `${slug}\u0000${query}`
-  const [page, setPage] = useState<Page | null>(null)
-  const [failure, setFailure] = useState<{ key: string; error: PlayersError } | null>(null)
-  const [attempt, setAttempt] = useState(0)
-  const [loadingMore, setLoadingMore] = useState(false)
-  // State is not visible to a second click before React re-renders, so the
-  // in-flight flag a guard needs has to be a ref. The generation is bumped by
-  // every fresh read of the list, so a late answer or failure from a previous
-  // read cannot land on the one the user is looking at.
-  const pageReadInFlight = useRef<number | null>(null)
-  const generation = useRef(0)
-
-  useAsyncEffect((scope) => {
-    if (slug === null || key === null) return
-    const readGeneration = generation.current + 1
-    generation.current = readGeneration
-    // A page read started against the old list is abandoned: its answer is
-    // ignored below and it no longer holds the load-more guard.
-    pageReadInFlight.current = null
-
-    listPlayers(slug, { q: query, limit: PLAYER_PAGE })
-      .then((items) => {
-        if (!scope.live || generation.current !== readGeneration) return
-        setFailure(null)
-        setLoadingMore(false)
-        setPage({
-          key,
-          items,
-          cursor: items.length === PLAYER_PAGE ? items[items.length - 1].id : null,
-        })
-      })
-      .catch((problem: unknown) => {
-        if (!scope.live || generation.current !== readGeneration) return
-        setFailure({ key, error: settleError(problem) })
-        setLoadingMore(false)
-        setPage(null)
-      })
-  }, [slug, query, key, attempt])
-
-  const current = key !== null && page !== null && page.key === key ? page : null
-  const error = key !== null && failure !== null && failure.key === key ? failure.error : null
-
-  const loadMore = useCallback(() => {
-    if (slug === null || key === null || current === null) return
-    if (current.cursor === null || pageReadInFlight.current !== null) return
-    const readGeneration = generation.current
-    pageReadInFlight.current = readGeneration
-    setLoadingMore(true)
-    listPlayers(slug, { q: query, limit: PLAYER_PAGE, cursor: current.cursor })
-      .then((items) => {
-        if (generation.current !== readGeneration) return
-        setPage((previous) =>
-          previous === null || previous.key !== key
-            ? previous
-            : {
-                key,
-                items: [...previous.items, ...items],
-                cursor:
-                  items.length === PLAYER_PAGE ? items[items.length - 1].id : null,
-              },
-        )
-      })
-      .catch((problem: unknown) => {
-        if (generation.current !== readGeneration) return
-        setFailure({ key, error: settleError(problem) })
-      })
-      .finally(() => {
-        if (pageReadInFlight.current === readGeneration) pageReadInFlight.current = null
-        if (generation.current === readGeneration) setLoadingMore(false)
-      })
-  }, [slug, query, key, current])
+  const list = useInfiniteQuery({
+    queryKey: playerKeys.list(slug, query),
+    queryFn:
+      slug === null
+        ? skipToken
+        : ({ pageParam }) =>
+            listPlayers(slug, {
+              q: query,
+              limit: PLAYER_PAGE,
+              ...(pageParam === null ? {} : { cursor: pageParam }),
+            }),
+    initialPageParam: null as string | null,
+    // A short page means the cursor ran out, which is the API's own signal for
+    // "nothing more to ask for".
+    getNextPageParam: (lastPage) =>
+      lastPage.length === PLAYER_PAGE ? lastPage[lastPage.length - 1].id : null,
+  })
 
   return {
-    items: current === null ? null : current.items,
-    loading: key !== null && current === null && error === null,
-    loadingMore,
-    error,
-    hasMore: current !== null && current.cursor !== null,
-    loadMore,
-    reload: () => setAttempt((count) => count + 1),
+    items: list.data === undefined ? null : list.data.pages.flat(),
+    loading: slug !== null && list.isPending,
+    loadingMore: list.isFetchingNextPage,
+    error: list.error === null ? null : settleError(list.error),
+    hasMore: list.hasNextPage,
+    loadMore: () => {
+      // `fetchNextPage` reports a failure through the query's error state, so
+      // there is no rejection here to hand to a caller. `cancelRefetch: false`
+      // makes a second click on the same page join the read already in flight
+      // instead of restarting it: state is not visible until React re-renders,
+      // so a guard on state cannot see the first click yet.
+      if (list.hasNextPage) settled(list.fetchNextPage({ cancelRefetch: false }))
+    },
+    reload: () => {
+      settled(list.refetch())
+    },
   }
-}
-
-type Settled<T> = { requestKey: string | null; value: T | null; error: PlayersError | null }
-
-function unresolved<T>(): Settled<T> {
-  return { requestKey: null, value: null, error: null }
 }
 
 /** One player with their claim history; the page re-reads after every write. */
@@ -152,39 +101,26 @@ export function usePlayerDetail(
   error: PlayersError | null
   reload: () => void
 } {
-  const requestKey = slug === null || id === null ? null : `${slug}\u0000${id}`
-  const [player, setPlayer] = useState<Settled<Player>>(unresolved)
-  const [claims, setClaims] = useState<Settled<PlayerClaim[]>>(unresolved)
-  const [attempt, setAttempt] = useState(0)
-
-  useAsyncEffect((scope) => {
-    if (slug === null || id === null || requestKey === null) return
-
-    getPlayer(slug, id)
-      .then((value) => {
-        if (scope.live) setPlayer({ requestKey, value, error: null })
-      })
-      .catch((problem: unknown) => {
-        if (scope.live) setPlayer({ requestKey, value: null, error: settleError(problem) })
-      })
-
-    listClaims(slug, id)
-      .then((value) => {
-        if (scope.live) setClaims({ requestKey, value, error: null })
-      })
-      .catch((problem: unknown) => {
-        if (scope.live) setClaims({ requestKey, value: null, error: settleError(problem) })
-      })
-  }, [slug, id, requestKey, attempt])
-
-  const playerCurrent = requestKey !== null && player.requestKey === requestKey
-  const claimsCurrent = requestKey !== null && claims.requestKey === requestKey
+  const enabled = slug !== null && id !== null
+  const player = useQuery({
+    queryKey: playerKeys.detail(slug, id),
+    queryFn: slug === null || id === null ? skipToken : () => getPlayer(slug, id),
+  })
+  // The claims are a second read with their own failure: a refused claim list
+  // must not hide a player the reader may still see.
+  const claims = useQuery({
+    queryKey: playerKeys.claims(slug, id),
+    queryFn: slug === null || id === null ? skipToken : () => listClaims(slug, id),
+  })
 
   return {
-    player: playerCurrent ? player.value : null,
-    claims: claimsCurrent ? claims.value : null,
-    loading: requestKey !== null && !playerCurrent,
-    error: playerCurrent ? player.error : null,
-    reload: () => setAttempt((count) => count + 1),
+    player: player.data ?? null,
+    claims: claims.data ?? null,
+    loading: enabled && player.isPending,
+    error: player.error === null ? null : settleError(player.error),
+    reload: () => {
+      settled(player.refetch())
+      settled(claims.refetch())
+    },
   }
 }

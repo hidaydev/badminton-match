@@ -1,3 +1,4 @@
+import { settled } from '../api/settled'
 import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
@@ -165,7 +166,7 @@ export default function PlayerDetailPage() {
               player.viewerOwnsPlayer !== true && (
               <Button
                 disabled={busy}
-                onClick={() => void run(() => claimPlayer(slug, player.id))}
+                onClick={() => run(() => claimPlayer(slug, player.id))}
               >
                 {t('playerAdmin.claim')}
               </Button>
@@ -177,7 +178,7 @@ export default function PlayerDetailPage() {
               <Button
                 variant="secondary"
                 disabled={busy}
-                onClick={() => void run(() => releaseOwnClaim(slug, player.id))}
+                onClick={() => run(() => releaseOwnClaim(slug, player.id))}
               >
                 {t('playerAdmin.release')}
               </Button>
@@ -296,7 +297,7 @@ function EditPlayer({ slug, player, busy, onRun }: EditProps) {
         className="mt-3"
         disabled={busy || name.trim() === ''}
         onClick={() =>
-          void onRun(() =>
+          onRun(() =>
             updatePlayer(slug, player.id, {
               name: name.trim(),
               gender,
@@ -354,7 +355,7 @@ function ClaimRow({
           <Button
             disabled={busy}
             onClick={() =>
-              void onRun(() => decideClaim(slug, playerId, claim.id, { decision: 'approve' }))
+              onRun(() => decideClaim(slug, playerId, claim.id, { decision: 'approve' }))
             }
           >
             {t('playerAdmin.decide.approve')}
@@ -363,7 +364,7 @@ function ClaimRow({
             variant="secondary"
             disabled={busy}
             onClick={() =>
-              void onRun(() => decideClaim(slug, playerId, claim.id, { decision: 'reject' }))
+              onRun(() => decideClaim(slug, playerId, claim.id, { decision: 'reject' }))
             }
           >
             {t('playerAdmin.decide.reject')}
@@ -380,7 +381,7 @@ function ClaimRow({
             variant="danger"
             disabled={busy || reason.trim() === ''}
             onClick={() =>
-              void onRun(() =>
+              onRun(() =>
                 decideClaim(slug, playerId, claim.id, {
                   action: 'release',
                   reason: reason.trim(),
@@ -443,7 +444,7 @@ function MergePanel({
             target: playerName,
           })}
           disabled={busy || source === ''}
-          onConfirm={() => void onRun(() => mergePlayers(slug, playerId, source))}
+          onConfirm={() => onRun(() => mergePlayers(slug, playerId, source))}
         >
           {t('playerAdmin.merge.submit')}
         </ConfirmButton>
@@ -502,7 +503,10 @@ export function DeletePanel({
       // The page it would reload is gone, so the list is the way back. The
       // panel deliberately stays pending: the row no longer exists and a
       // second request would only report a 404 for the delete that worked.
-      void navigate(`/c/${encodeURIComponent(slug)}/players`)
+      settled(
+        Promise.resolve(navigate(`/c/${encodeURIComponent(slug)}/players`)),
+        'players list navigation failed',
+      )
     } catch (problem) {
       setError(describePlayerError(problem))
       inFlight.current = false
@@ -521,7 +525,7 @@ export function DeletePanel({
           variant="danger"
           disabled={busy || pending}
           loading={pending}
-          onClick={() => void remove()}
+          onClick={() => remove()}
         >
           {pending ? t('playerAdmin.delete.pending') : t('playerAdmin.delete.confirmAction')}
         </Button>

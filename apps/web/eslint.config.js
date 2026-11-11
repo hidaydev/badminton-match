@@ -63,6 +63,30 @@ export default defineConfig([
     },
   },
   {
+    // SQ-11: `void` on a promise is a statement, not a marker. The rejection
+    // has nowhere to go, and the tree used `void` to say the opposite.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [
+      'src/legacy/**',
+      // Tests fail through the assertion that follows, not through a report.
+      'src/**/__tests__/**',
+      'src/**/*.test.{ts,tsx}',
+      'src/test/**',
+    ],
+    rules: {
+      '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: false }],
+    },
+  },
+  {
+    // The dated reason for the exclusion above: this tree is mid-rewrite by Ayu
+    // and stays on the default setting until that rewrite owns the change
+    // (2026-11-11, SQ-11).
+    files: ['src/legacy/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+    },
+  },
+  {
     // Type aware rules running on tests would only ask for the same assertion
     // in a different spelling: a fixture the case just built is known to be
     // there, and a missing one fails the assertion that follows anyway.

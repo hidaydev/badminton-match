@@ -10,6 +10,13 @@
 /** The query client's default: one automatic retry for a failed read. */
 export const QUERY_RETRY_COUNT = 1
 
+/**
+ * How long an answer stays usable before a mount asks again. Long enough that
+ * two screens mounting the same list share one read, short enough that a write
+ * on another device shows up on the next navigation.
+ */
+export const QUERY_STALE_MS = 30_000
+
 /** Boot backoff before a transport failure is allowed to look like "signed out". */
 export const BOOT_RETRY_MS = [1_000, 3_000, 8_000] as const
 

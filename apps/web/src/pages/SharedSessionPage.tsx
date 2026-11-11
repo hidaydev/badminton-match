@@ -1,3 +1,5 @@
+// Aliased: this page already keeps its poll state in a `settled` binding.
+import { settled as settlePromise } from '../api/settled'
 import { useId, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
@@ -98,7 +100,7 @@ export default function SharedSessionPage() {
     const schedule = (delay: number) => {
       stop()
       if (!scope.live || document.hidden) return
-      timer = setTimeout(() => { void load() }, delay)
+      timer = setTimeout(() => { startLoad() }, delay)
     }
 
     async function load(): Promise<void> {
@@ -133,13 +135,19 @@ export default function SharedSessionPage() {
       }
     }
 
+    // `load` reports its own failures; this catch guards a throw that would
+    // otherwise escape a timer or a focus listener.
+    const startLoad = () => {
+      settlePromise(load(), 'share read failed')
+    }
+
     const refreshNow = () => {
       if (document.hidden) {
         stop()
         return
       }
       failures = 0
-      void load()
+      startLoad()
     }
 
     const onVisibility = () => {
@@ -147,7 +155,7 @@ export default function SharedSessionPage() {
       else refreshNow()
     }
 
-    void load()
+    startLoad()
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('focus', refreshNow)
     scope.onCleanup(() => {
