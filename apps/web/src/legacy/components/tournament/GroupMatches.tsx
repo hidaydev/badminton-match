@@ -10,6 +10,7 @@ import { drawMatchPost, drawGroupSummary } from '../../utils/canvasPost'
 import { canvasToBlob, shareOrDownload } from '../../utils/share'
 import { loadOverlayImages } from '../../utils/overlays'
 import { t } from '../../../i18n'
+import { StandingsTable } from '../../../components/StandingsTable'
 
 interface GroupMatchesProps {
   pairs: TournamentPair[]
@@ -189,28 +190,18 @@ export default function GroupMatches({ pairs, groups, matches, canEdit, onSetMat
 
             {/* Mini standings */}
             <div className="border-t border-border-subtle px-4 py-2">
-              <div className="grid grid-cols-[1.5rem_1fr_1.5rem_1.5rem_2.5rem_0.75rem] text-[10px] text-fg-dim mb-1 px-1 gap-x-2">
-                <span>#</span><span></span>
-                <span className="text-center">W</span>
-                <span className="text-center">L</span>
-                <span className="text-center">+/-</span>
-                <span></span>
-              </div>
-              {standings.map((row, i) => (
-                <div
-                  key={row.pairId}
-                  className={`grid grid-cols-[1.5rem_1fr_1.5rem_1.5rem_2.5rem_0.75rem] items-center py-1 px-1 rounded gap-x-2 text-xs ${i < 2 ? 'bg-accent/5' : ''}`}
-                >
-                  <span className={`font-bold font-mono ${i < 2 ? 'text-accent' : 'text-fg-dim'}`}>{i + 1}</span>
-                  <span className={`truncate font-medium ${i < 2 ? 'text-fg' : 'text-fg-dim'}`}>{getPairName(row.pairId)}</span>
-                  <span className={`text-center font-mono ${i < 2 ? 'text-fg' : 'text-fg-dim'}`}>{row.wins}</span>
-                  <span className={`text-center font-mono ${i < 2 ? 'text-fg' : 'text-fg-dim'}`}>{row.losses}</span>
-                  <span className={`text-center font-mono font-medium ${row.diff > 0 ? 'text-success' : row.diff < 0 ? 'text-error' : 'text-fg-dim'}`}>
-                    {row.diff > 0 ? `+${row.diff}` : row.diff === 0 ? '—' : row.diff}
-                  </span>
-                  <span className={`w-1.5 h-1.5 rounded-full mx-auto ${i < 2 ? 'bg-accent' : ''}`} />
-                </div>
-              ))}
+              <StandingsTable
+                layout="compact"
+                labels={{ wins: 'W', losses: 'L' }}
+                rows={standings.map((row, i) => ({
+                  key: row.pairId,
+                  name: getPairName(row.pairId),
+                  wins: row.wins,
+                  losses: row.losses,
+                  diff: row.diff,
+                  highlighted: i < 2,
+                }))}
+              />
             </div>
           </div>
         )

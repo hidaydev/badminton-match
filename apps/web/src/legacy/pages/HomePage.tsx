@@ -10,8 +10,9 @@ import { useMyPlayer } from '../../players/hooks'
 import InstallModal from '../components/InstallModal'
 import Icon, { type IconName } from '../components/Icon'
 import AdminMenuGrid from '../components/admin/AdminMenuGrid'
-import { Button, ButtonLink } from '../../components/Button'
+import { ButtonLink } from '../../components/Button'
 import { Card } from '../../components/Card'
+import { Toast } from '../../components/Toast'
 import { t } from '../../i18n'
 
 type MessageKey = Parameters<typeof t>[0]
@@ -84,17 +85,7 @@ export default function HomePage() {
         </Card>
       )}
       {draftQuery.isError && current && (
-        <Card padding="md" radius="xl" className="w-full flex items-center gap-3" role="alert">
-          <span className="text-sm text-fg flex-1 min-w-0">{t('home.continue.error')}</span>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => void draftQuery.refetch()}
-            className="shrink-0 font-semibold"
-          >
-            {t('home.continue.retry')}
-          </Button>
-        </Card>
+        <Toast message={t('home.continue.error')} onRetry={() => void draftQuery.refetch()} />
       )}
       {draftSession && current && (
         <Card

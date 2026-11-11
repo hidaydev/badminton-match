@@ -16,7 +16,7 @@ export default function UpdateBanner({ onReload, onDismiss }: UpdateBannerProps)
     // score stays readable until the user acts on it. Nothing is trapped and
     // the page stays usable behind it, so it is a status message, not a dialog.
     <div
-      className="fixed inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none"
+      className="fixed inset-x-0 bottom-0 z-overlay flex justify-center pointer-events-none"
       role="status"
       aria-labelledby={headingId}
     >

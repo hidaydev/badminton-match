@@ -22,6 +22,7 @@ import TeamGroupSchedule from '../components/tournament/TeamGroupSchedule'
 import Icon from '../components/Icon'
 import { useAdmin } from '../context/AdminContext'
 import { Toast } from '../../components/Toast'
+import { StandingsTable } from '../../components/StandingsTable'
 import { useImageUploadMap } from '../hooks/useImageUploadMap'
 import { useAutoDismiss } from '../hooks/useAutoDismiss'
 import { drawPositionPost, loadImage } from '../utils/canvasPost'
@@ -300,43 +301,36 @@ export default function TeamTournamentPage() {
               <div className="px-4 py-2 border-b border-border-subtle text-xs text-fg-dim label-meta">
                 {t('legacy.standings')}
               </div>
-              {standings.map((r, i) => {
-                const isTop = i < 2 && groupComplete
-                const isChampion = championId === r.teamId
-                const team = teams.find((t) => t.id === r.teamId)
-                return (
-                  <div key={r.teamId} className={`border-b border-border-subtle last:border-0 ${isTop ? 'bg-accent/5' : ''}`}>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2.5">
-                      <span className={`w-5 text-sm font-sans shrink-0 ${i === 0 ? 'text-accent' : i === 1 ? 'text-fg' : 'text-fg-dim'}`}>
-                        {i === 0 && isChampion ? '👑' : i + 1}
-                      </span>
-                      {/* Nama tim fixed & terkunci (dipilih saat registrasi) — tidak bisa diedit di sini. */}
-                      <span className="flex-1 text-sm text-fg truncate">{r.teamName}</span>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="bg-elevated px-2 py-0.5 rounded text-xs font-mono font-bold text-accent">
-                          {r.points}pt
-                        </span>
-                        <span className="bg-elevated px-2 py-0.5 rounded text-xs font-mono text-fg font-medium">
-                          {r.teamWins}-{r.teamLosses}
-                        </span>
-                        <span className="bg-elevated px-2 py-0.5 rounded text-xs font-mono text-fg-dim">
-                          {r.pointsFor}-{r.pointsAgainst}
-                        </span>
-                      </div>
-                    </div>
-                    {/* Team members */}
-                    {team && team.players.length > 0 && (
-                      <div className="px-4 pb-2.5 pt-0 flex flex-wrap gap-x-3 gap-y-0.5">
+              <StandingsTable
+                layout="team"
+                labels={{ pointsSuffix: 'pt' }}
+                rows={standings.map((r, i) => {
+                  const team = teams.find((t) => t.id === r.teamId)
+                  const members =
+                    team === undefined || team.players.length === 0 ? undefined : (
+                      <>
                         {team.players.map((p) => (
                           <span key={p.name} className="text-[10px] text-fg-dim">
                             <span className="text-accent">{p.cls}</span> {p.name}
                           </span>
                         ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+                      </>
+                    )
+                  return {
+                    key: r.teamId,
+                    rank: i === 0 && championId === r.teamId ? '👑' : i + 1,
+                    // Nama tim fixed & terkunci (dipilih saat registrasi) — tidak bisa diedit di sini.
+                    name: r.teamName,
+                    points: r.points,
+                    wins: r.teamWins,
+                    losses: r.teamLosses,
+                    pointsFor: r.pointsFor,
+                    pointsAgainst: r.pointsAgainst,
+                    highlighted: i < 2 && groupComplete,
+                    details: members,
+                  }
+                })}
+              />
             </Card>
             {groupMatches.length === 0 && (
               <Card variant="flush" radius="lg">

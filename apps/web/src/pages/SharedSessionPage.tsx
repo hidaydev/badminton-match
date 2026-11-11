@@ -12,6 +12,7 @@ import { getSharedSession } from '../share/api'
 import type { SharedGame, SharedSession, SharedStanding } from '../share/api'
 import { useAsyncEffect } from '../hooks/useAsyncEffect'
 import { LoadingState } from '../components/LoadingState'
+import { ErrorText } from '../components/ErrorText'
 import { StandingsTable } from '../components/StandingsTable'
 import { EmptyState } from '../components/EmptyState'
 import { Tabs } from '../components/Tabs'
@@ -182,14 +183,10 @@ export default function SharedSessionPage() {
 
       {loading && <LoadingState label={t('app.loading')} rows={1} />}
       {current?.error === 'notFound' && (
-        <p role="alert" className="mt-4 text-sm text-error">
-          {t('shared.error.missing')}
-        </p>
+        <ErrorText className="mt-4">{t('shared.error.missing')}</ErrorText>
       )}
       {current?.error === 'failed' && (
-        <p role="alert" className="mt-4 text-sm text-error">
-          {t('shared.error.load')}
-        </p>
+        <ErrorText className="mt-4">{t('shared.error.load')}</ErrorText>
       )}
 
       {session !== null && (

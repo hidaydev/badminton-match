@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CLIENT_OUTDATED_EVENT } from '../auth/api'
 import { Button } from './Button'
+import { ErrorText } from './ErrorText'
 
 /**
  * A tab left open across a deploy keeps the bundle it loaded. When the server
@@ -25,11 +26,8 @@ export function ClientOutdatedBanner({
 
   if (!outdated) return null
   return (
-    <div
-      role="alert"
-      className="flex flex-wrap items-center justify-between gap-3 bg-elevated border-b border-border px-4 py-3"
-    >
-      <p className="text-sm text-fg">{message}</p>
+    <div className="flex flex-wrap items-center justify-between gap-3 bg-elevated border-b border-border px-4 py-3">
+      <ErrorText inherit className="text-sm text-fg">{message}</ErrorText>
       <Button className="py-2" onClick={() => window.location.reload()}>
         {actionLabel}
       </Button>

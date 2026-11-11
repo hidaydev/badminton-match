@@ -1,6 +1,17 @@
+import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { Overlay } from './Overlay'
+import { Toast } from './Toast'
+
+const css = readFileSync('src/index.css', 'utf8')
+
+/** One rung of the z ladder, read from where it is declared. */
+function rung(name: string): number {
+  const match = css.match(new RegExp(`@utility ${name} \\{\\s*z-index:\\s*([0-9]+);`))
+  if (match === null) throw new Error(`@utility ${name} is missing from index.css`)
+  return Number(match[1])
+}
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -130,5 +141,22 @@ describe('Overlay', () => {
       </Overlay>,
     )
     expect(document.activeElement).toBe(dialog)
+  })
+
+  it('keeps the sheet on the overlay rung, with the toast below it', () => {
+    renderOverlay()
+    render(<Toast message="Score not saved" />)
+
+    const scrim = scrimFor(screen.getByRole('dialog', { name: 'Sheet title' }))
+    // The rung is a token, not a bare number, so the ladder is readable in one
+    // file and no layer can drift by accident.
+    expect(scrim.classList.contains('z-overlay')).toBe(true)
+    expect([...scrim.classList].filter((name) => /^z-\d+$/.test(name))).toEqual([])
+
+    // DS-24: an alert painted over a sheet that owns the focus trap cannot be
+    // focused, cannot be dismissed and covers the dialog, so a message raised
+    // while a sheet is open belongs inside it as an ErrorText.
+    expect(screen.getByTestId('toast').classList.contains('z-toast')).toBe(true)
+    expect(rung('z-toast')).toBeLessThan(rung('z-overlay'))
   })
 })
