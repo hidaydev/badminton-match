@@ -25,6 +25,24 @@ webby 0.2.1 nimble:https://github.com/treeform/webby@325d6ade0970562bee7d7d53961
 # Commit pin: this package has no usable release for the v2 binder (TECH-SPEC §2).
 db_connector 0.1.0 nimble:https://github.com/nim-lang/db_connector@29450a2063970712422e1ab857695c12d80112a6 2ce3cc65caea957a2c7bfeedb6949e144ac55a580d162c64f30fafbdfee33692
 
+# Advisory universe (SEC-05). OSV has no Nimble ecosystem, so a Nim package is
+# only matchable by the commit it is pinned to, and that query is the step that
+# verifies the pin beyond its content hash. One line per pinned `nimble:` entry:
+#   advisory nim:<name> <commit> <verdict>
+# The verdict is `none`, or the advisory ids OSV returned, sorted and
+# comma-separated. `./task deps-check` repeats every query and fails when the
+# answer changed, when a pinned package has no line, or when a line names a
+# commit that is not the pin. Refresh with `./task deps-check --print`, whose
+# output carries these lines; the procedure is docs/handbook/deps-format.md §7.
+# Recorded from https://api.osv.dev/v1/query on 2026-11-11.
+advisory nim:crunchy 98eb6526982bb8aae8eec6e8781f4539fa19e049 none
+advisory nim:mummy 77a7563e87a1045e4e407a3a68731e299fa3507e none
+advisory nim:nimcrypto b3dbc9c4d08e58c5b7bfad6dc7ef2ee52f2f4c08 none
+advisory nim:nimsimd 3f6b2668ffb0867d0bf786a658b817763e611350 none
+advisory nim:zippy cd562ba43ae8904a4d1ba55611b8a521ef4a179e none
+advisory nim:webby 325d6ade0970562bee7d7d53961a2c3287f0c4bc none
+advisory nim:db_connector 29450a2063970712422e1ab857695c12d80112a6 none
+
 # Frontend gate tools (T-072)
 playwright 1.64.1 npm:playwright -
 @axe-core/playwright 4.14.0 npm:@axe-core/playwright -

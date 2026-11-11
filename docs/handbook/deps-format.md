@@ -136,9 +136,36 @@ holey output must not be copied silently.
 - `deps-check` does not check packages that are installed but not recorded in
   `deps.lock` (there is no claim of completeness for all of `pkgs2`). What is guarded is
   every recorded entry.
-- No advisory scanner reads this file. `./task osv-scan` covers `pnpm-lock.yaml` through
-  OSV; OSV has no Nimble ecosystem, so a `nimble:` entry cannot be matched against an
-  advisory by package or version, and `https://api.osv.dev/v1/query` with a `commit` answers
-  no finding for the commits pinned here (checked against `mummy` and `nimcrypto` on
-  2026-11-10). The Nim universe is guarded by the commit pin and the content digest in this
-  file, not by an advisory feed.
+- `pnpm-lock.yaml` covers the npm universe: `./task osv-scan` reads it against OSV and
+  fails on HIGH or CRITICAL, so `deps.lock` does not repeat that query for `npm:` entries.
+- The two base images are pinned by manifest digest, and `deps-check` reads each digest back
+  out of `apps/api/Dockerfile`.
+- OSV has no Nimble ecosystem, so a `nimble:` entry cannot be matched by package and
+  version. It is matched by commit instead; §7 is the gate that replaced the earlier
+  "only hash pinning covers Nim".
+
+## 7. The advisory universe (`advisory` lines)
+
+`tree` says the bytes did not change. It does not say whether those bytes are known to be
+safe, so the lock also records what OSV answered for every commit pin:
+
+```text
+advisory nim:<name> <commit> <verdict>
+```
+
+- One line per `nimble:` entry that carries `@<commit>`. A pinned package with no line
+  fails `deps-check`; so does a line whose commit is not the pin (the re-pin guard) and a
+  line for a package the lock no longer pins.
+- `verdict` is `none`, or the advisory ids OSV returned, sorted and comma-separated.
+- `./task deps-check` repeats `POST https://api.osv.dev/v1/query {"commit": …}` for every
+  line and fails when the answer differs. A published advisory on a pinned commit turns
+  the build red instead of going unnoticed, which is the whole point: a digest proves the
+  bytes are unchanged, never that they are safe.
+- The answer depends on a live service, so an unreachable API is a reported skip, the same
+  rule this script applies to a workflow pin it cannot resolve. A skip is never a pass.
+- `--skip advisory` exists for a build with no network and no `.github` (the container
+  image). Skipping `nimble` skips the block too, because nothing is left to match.
+- Refresh: `./task deps-check --print` prints the entry lines and the advisory lines
+  together, so recording one is the same copy-out as every other entry. A new advisory id
+  is a triage decision, not a mechanical update: bump the package, or date the exception
+  under `docs/handbook/`, before the new verdict is recorded.

@@ -24,7 +24,9 @@ Usage: ./task deps-check [--print] [--skip <kinds>]
   --print        print the recomputed tree line and entries; writes nothing
   --skip         do not verify entries of these kinds (comma-separated, for
                  example --skip npm,playwright-browser) and skip the tree hash,
-                 which cannot be recomputed over a partial entry set
+                 which cannot be recomputed over a partial entry set.
+                 `advisory` skips the SEC-05 block: a build that carries no
+                 `.github` (the container image) also carries no curl.
 EOF
       exit 0
       ;;
@@ -295,6 +297,140 @@ audit_action_pins() {
   return 0
 }
 
+# SEC-05: the advisory universe.
+#
+# A content digest proves the bytes did not change; it says nothing about whether
+# those bytes are known to be safe, and OSV has no Nimble ecosystem to match a
+# Nim package by name and version. The only subject OSV can match is the commit
+# the package is pinned to, so that query *is* the verification step: for every
+# `nimble:` entry carrying `@<commit>` the lock records what OSV answered, and
+# this pass asks again. A published advisory on a pinned commit, a re-pin that
+# did not re-query, and a package added without a line all fail here.
+#
+# The npm universe is `pnpm-lock.yaml`, which `./task osv-scan` already reads,
+# and the two base images are pinned by digest in `apps/api/Dockerfile`. This
+# block is deliberately only the half nothing else can reach.
+
+advisory_pins() {
+  # `name commit` for every nimble entry the lock resolves to a commit.
+  LC_ALL=C awk '
+    $1 == "tree" || $1 == "advisory" { next }
+    NF == 4 && $3 ~ /^nimble:/ && $3 ~ /@/ {
+      source = $3
+      sub(/^nimble:/, "", source)
+      sub(/.*@/, "", source)
+      print $1, source
+    }' "$LOCK" | LC_ALL=C sort
+}
+
+advisory_recorded() {
+  # `nim:<name> commit verdict` as written in the lock.
+  LC_ALL=C awk '$1 == "advisory" { print }' "$LOCK" | LC_ALL=C sort
+}
+
+osv_verdict() {
+  # POST one commit to OSV and echo the verdict the lock records: `none`, or the
+  # advisory ids sorted and comma-separated. `skip` means no answer was obtained
+  # and must never be read as clean.
+  _file="$tmp/osv.json"
+  rm -f "$_file"
+  _code=$(curl -sS -m 20 -o "$_file" -w '%{http_code}' -X POST \
+    -H 'Content-Type: application/json' \
+    --data "{\"commit\":\"$1\"}" \
+    https://api.osv.dev/v1/query 2>/dev/null) || _code=000
+  if [ "$_code" != "200" ] || [ ! -f "$_file" ]; then
+    printf 'skip\n'
+    return 0
+  fi
+  _ids=$(grep -oE '"id"[[:space:]]*:[[:space:]]*"[^"]+"' "$_file" 2>/dev/null |
+    sed 's/.*"\([^"]*\)"$/\1/' | LC_ALL=C sort -u | tr '\n' ',')
+  _ids=${_ids%,}
+  printf '%s\n' "${_ids:-none}"
+}
+
+audit_advisory_universe() {
+  case " $skip " in
+    *" advisory "*)
+      report "advisory universe not checked: skipped"
+      return 0
+      ;;
+    *" nimble "*)
+      report "advisory universe not checked: nimble entries were skipped"
+      return 0
+      ;;
+  esac
+  advisory_pins >"$tmp/pins"
+  [ -s "$tmp/pins" ] || return 0
+  advisory_recorded >"$tmp/adv"
+  require_cmd curl
+  while IFS= read -r _pin; do
+    _name=${_pin%% *}
+    _commit=${_pin#* }
+    _line=$(awk -v want="nim:$_name" '$2 == want' "$tmp/adv")
+    _count=$(printf '%s\n' "$_line" | grep -c . || true)
+    if [ "$_count" -eq 0 ]; then
+      mismatch "advisory: $_name is pinned at $_commit with no recorded verdict; query it and add the line"
+      continue
+    fi
+    if [ "$_count" -gt 1 ]; then
+      mismatch "advisory: $_name has $_count recorded verdicts"
+      continue
+    fi
+    set -- $_line
+    _recorded_commit=$3
+    _recorded_verdict=$4
+    if [ "$_recorded_commit" != "$_commit" ]; then
+      mismatch "advisory: $_name is recorded against $_recorded_commit but pinned at $_commit; re-query the new pin"
+      continue
+    fi
+    _live=$(osv_verdict "$_commit")
+    if [ "$_live" = "skip" ]; then
+      report "advisory: $_name $_commit could not be queried (OSV unreachable)"
+      continue
+    fi
+    if [ "$_live" != "$_recorded_verdict" ]; then
+      mismatch "advisory: $_name $_commit recorded '$_recorded_verdict', OSV now answers '$_live'"
+      printf '  lock:     %s\n  computed: advisory nim:%s %s %s\n' \
+        "$_line" "$_name" "$_commit" "$_live" >&2
+    fi
+  done <"$tmp/pins"
+  # A line for a package the lock no longer pins is stale data, and a line under
+  # an ecosystem this pass cannot query would be a claim nobody checks.
+  while IFS= read -r _adv; do
+    [ -n "$_adv" ] || continue
+    set -- $_adv
+    case "$2" in
+      nim:*) ;;
+      *)
+        mismatch "advisory: '$2' is not a subject this check can query"
+        continue
+        ;;
+    esac
+    if ! grep -q "^${2#nim:} " "$tmp/pins"; then
+      mismatch "advisory: '$2' has a recorded verdict but no pinned nimble entry"
+    fi
+  done <"$tmp/adv"
+}
+
+print_advisories() {
+  # The lines `--print` emits for the advisory block, so recording one is a copy
+  # out of a single run like every other entry.
+  advisory_pins >"$tmp/pins"
+  [ -s "$tmp/pins" ] || return 0
+  require_cmd curl
+  while IFS= read -r _pin; do
+    _name=${_pin%% *}
+    _commit=${_pin#* }
+    _live=$(osv_verdict "$_commit")
+    if [ "$_live" = "skip" ]; then
+      report "advisory: $_name $_commit could not be queried; no line printed"
+      unresolved=$((unresolved + 1))
+      continue
+    fi
+    printf 'advisory nim:%s %s %s\n' "$_name" "$_commit" "$_live"
+  done <"$tmp/pins"
+}
+
 seen=
 : >"$tmp/entries"
 
@@ -302,6 +438,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in
     ''|'#'*) continue ;;
     'tree '*) continue ;;
+    'advisory '*) continue ;;
   esac
   # Intentional word splitting: an entry is exactly four space-separated fields.
   # shellcheck disable=SC2086
@@ -344,6 +481,7 @@ actual_tree=$(LC_ALL=C sort <"$tmp/entries" | sha256_stdin)
 if [ "$mode" = print ]; then
   printf 'tree %s\n' "$actual_tree"
   LC_ALL=C sort <"$tmp/entries"
+  print_advisories
   if [ "$unresolved" -ne 0 ]; then
     printf 'deps-check: %d entr(y/ies) could not be resolved and are not printed\n' \
       "$unresolved" >&2
@@ -362,6 +500,7 @@ else
   fi
 
   audit_action_pins
+  audit_advisory_universe
 
   if [ "$errors" -ne 0 ]; then
     printf 'deps-check: %d problem(s); update deps.lock (docs/handbook/deps-format.md)\n' "$errors" >&2
