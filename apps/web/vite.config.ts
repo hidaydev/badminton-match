@@ -60,7 +60,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,svg,webmanifest}', 'logo-*.png', 'fonts/*.woff2', '*.ttf'],
         // The manifest body is injected by vite-plugin-pwa itself; ignoring it
         // here keeps one precache entry instead of two.
-        globIgnores: ['team-winner.png', 'anniv-*.png', 'manifest.webmanifest'],
+        globIgnores: ['anniv-*.png', 'manifest.webmanifest'],
         runtimeCaching: [
           {
             // Public asset paths only. The cache is origin-wide, so a rule that

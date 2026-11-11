@@ -10,6 +10,7 @@ import type { SessionMeta } from '../queries'
 import { context2d, loadImage, drawStandingsCanvas, type OverlayImages } from '../utils/canvasPost'
 import { drawPostCanvas } from '../utils/canvas-templates'
 import { loadOverlayImages } from '../utils/overlays'
+import { LoadingState } from '../../components/LoadingState'
 import { todayLocal } from '../utils/time'
 import { Overlay } from '../../components/Overlay'
 import { Spinner } from '../../components/Spinner'
@@ -35,12 +36,19 @@ export default function InstagramPostPage() {
   const [overlays, setOverlays] = useState<OverlayImages>({})
   const [isDragging, setIsDragging] = useState(false)
   const [fontReady, setFontReady] = useState(false) // true once browser fonts are loaded
+  // FE-21: the poster is drawn twice, once without the template overlays and
+  // again when they arrive. Until both the faces and the overlays are in, the
+  // canvas is a blank box, so the screen shows a loading state instead of
+  // pretending the drawing is finished.
+  const [overlaysReady, setOverlaysReady] = useState(false)
   const [dateValue, setDateValue] = useState(() => todayLocal())
   const [exportError, setExportError] = useState<string | null>(null)
   const [overlayError, setOverlayError] = useState<string | null>(null)
   const dragStart = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)
   const pinchStart = useRef<{ dist: number; zoom: number } | null>(null)
   const rafRef = useRef<number | null>(null)
+
+  const drawing = fontReady && overlaysReady
 
   const parsedDate = useMemo(() => {
     const [year, month, day] = dateValue.split('-')
@@ -74,6 +82,10 @@ export default function InstagramPostPage() {
       } catch (err) {
         console.error('Failed to load overlay images', err)
         setOverlayError(t('instagram.error.overlays'))
+      } finally {
+        // A failed overlay still ends the wait: the poster without its
+        // decorations is better than a skeleton that never resolves.
+        setOverlaysReady(true)
       }
     }
     void loadOverlays()
@@ -437,7 +449,7 @@ export default function InstagramPostPage() {
           ref={canvasRef}
           width={TEMPLATE.width}
           height={TEMPLATE.height}
-          className={`w-full ${userPhoto ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'}`}
+          className={`w-full ${drawing ? '' : 'invisible'} ${userPhoto ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'}`}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
@@ -445,6 +457,14 @@ export default function InstagramPostPage() {
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
         />
+
+        {!drawing && (
+          // Absolute, so the poster keeps its box and the page does not jump
+          // when the drawing lands.
+          <div className="absolute inset-0 flex items-start justify-center pt-6">
+            <LoadingState label={t('app.loading')} rows={2} />
+          </div>
+        )}
 
         {/* Upload prompt overlay when no photo */}
         {!userPhoto && (
