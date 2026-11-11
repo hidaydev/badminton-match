@@ -32,9 +32,9 @@ ReadOnly=true
 Tmpfs=/tmp:size=64m
 Tmpfs=/run:size=8m
 PidsLimit=256
-DevicePolicy=closed
-# Podman rotates the container's own json log past this size.
-LogSizeMax=10m
+# Quadlet 5.8.2 on the deploy host rejects DevicePolicy and LogSizeMax outright
+# and never creates the service, so rotation is a podman argument here too.
+PodmanArgs=--log-opt=max-size=10m
 HealthCmd=/bin/bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /readyz HTTP/1.0\r\n\r\n" >&3 && read -r line <&3 && case "$line" in *" 200 "*) exit 0;; esac; exit 1'
 HealthInterval=30s
 HealthTimeout=5s

@@ -70,7 +70,25 @@ chmod 600 "$LOG" 2>/dev/null || true
 # Shared helpers: log, json_field, alert, file_mode, service, wait_ready. Both
 # deploy paths source the same file (SQ-16); a missing copy is a failed deploy,
 # not a reason to fall back to a second implementation.
+#
+# A fresh host has the checkout before it has the installed copy, and the check
+# below used to run first and exit 1, so nothing ever wrote the file and the
+# first deploy could not start (measured 2026-11-11). Bootstrap it from the
+# checkout instead, but only when that copy parses, and install it atomically so
+# a half-written file is never sourced. A host with no checkout yet still fails
+# closed: there is no trustworthy source to copy from.
 COMMON_LIB="$(cd "$(dirname "$0")" && pwd)/deploy-common.sh"
+if [ ! -f "$COMMON_LIB" ]; then
+  COMMON_SRC="$MONO_DIR/ops/scripts/deploy-common.sh"
+  if [ -f "$COMMON_SRC" ] && bash -n "$COMMON_SRC" 2>/dev/null; then
+    if install -m 755 "$COMMON_SRC" "$COMMON_LIB.new.$$" &&
+      mv -f "$COMMON_LIB.new.$$" "$COMMON_LIB"; then
+      echo "deploy-vps.sh: installed $COMMON_LIB from $COMMON_SRC" >&2
+    else
+      rm -f "$COMMON_LIB.new.$$"
+    fi
+  fi
+fi
 if [ ! -f "$COMMON_LIB" ]; then
   echo "deploy-vps.sh: missing $COMMON_LIB" >&2
   exit 1
@@ -178,6 +196,13 @@ if [ "${MAJADU_SKIP_GIT_SYNC:-0}" != "1" ]; then
     git checkout -B main origin/main >>"$LOG" 2>&1
     NEW_REV=$(git rev-parse HEAD)
   fi
+  # `umask 077` at the top of this script makes every file git just rewrote mode
+  # 600. The image copies db/ with those modes and the container runs as uid
+  # 10001, so the migration runner cannot read the schema it is handed; the RC
+  # deploy died on exactly this at 0037 on 2026-11-11, and production carries the
+  # same latent bug. Restore the read bits before anything reads the checkout.
+  chmod -R a+rX "$MONO_DIR/db" ||
+    fail "cannot make $MONO_DIR/db readable by the container user"
 else
   cd "$MONO_DIR"
   NEW_REV=$(git rev-parse HEAD)
