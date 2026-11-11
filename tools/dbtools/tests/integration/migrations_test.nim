@@ -387,7 +387,6 @@ try:
         state = error.sqlState
       check state == "23514"
 
-
       # `deploy-vps.sh` never passes `--allow-contract`, so a pending marker in
       # the shipped directory would stop every deploy. An applied one is fine
       # (its ledger row records the flag), and the from-empty run below proves
@@ -398,6 +397,69 @@ try:
       let last = scratch.queryOne(
         "select version from dbtools.schema_migrations order by version desc limit 1").get
       check last.get("version") == shipped[^1].changeFileExt("")
+
+    test "a played game inserted outside a draft is refused at commit":
+      # DB-08 closes at the insert as well. 0054 refused the transition; a row
+      # that arrives already `played` was still accepted, which is the shape the
+      # v1 import produced five of. The check is deferred to commit, so the
+      # production order (game row, then its set, in one transaction) still
+      # works, and a draft keeps the host flag `setPlayed` writes.
+      migrate(scratch, migrationsDir)
+      let communityId = scratch.queryOne(
+        """insert into platform.community (slug, name, timezone)
+           values ('played-insert', 'Played Insert', 'Asia/Jakarta') returning id""")
+        .get.get("id")
+      let lockedSession = scratch.queryOne(
+        """insert into session.sessions
+             (community_id, session_date, status, source, approved_at)
+           values ($1::uuid, '2026-11-05', 'locked', 'manual', now())
+           returning id""",
+        @[textParam(communityId)]).get.get("id")
+
+      # The bad shape commits on its own: a rated session, a played game, no set.
+      var state = ""
+      try:
+        discard scratch.execUpdate(
+          """insert into session.games
+               (community_id, session_id, round_no, court_no, status)
+             values ($1::uuid, $2::uuid, 0, 0, 'played')""",
+          @[textParam(communityId), textParam(lockedSession)])
+      except DbError as error:
+        state = error.sqlState
+      check state == "23514"
+
+      # A draft is exempt: marking a game played before the score is the host
+      # flag, and an unapproved session cannot be rated with one (0052).
+      let draftSession = scratch.queryOne(
+        """insert into session.sessions
+             (community_id, session_date, status, source)
+           values ($1::uuid, '2026-11-05', 'draft', 'manual') returning id""",
+        @[textParam(communityId)]).get.get("id")
+      discard scratch.execUpdate(
+        """insert into session.games
+             (community_id, session_id, round_no, court_no, status)
+           values ($1::uuid, $2::uuid, 0, 0, 'played')""",
+        @[textParam(communityId), textParam(draftSession)])
+
+      # The production write order is game first, set second: one transaction,
+      # so the deferred check sees both rows and lets it commit.
+      scratch.tx(proc(conn: DbConn) =
+        discard conn.execUpdate(
+          """insert into session.games
+               (community_id, session_id, round_no, court_no, status)
+             values ($1::uuid, $2::uuid, 0, 0, 'played')""",
+          @[textParam(communityId), textParam(lockedSession)])
+        discard conn.execUpdate(
+          """insert into session.game_sets
+               (community_id, session_id, round_no, court_no, set_no,
+                score_a, score_b)
+             values ($1::uuid, $2::uuid, 0, 0, 1, 21, 15)""",
+          @[textParam(communityId), textParam(lockedSession)]))
+      check scratch.queryOne(
+        """select count(*)::int as total from session.games
+           where community_id = $1::uuid and session_id = $2::uuid""",
+        @[textParam(communityId), textParam(lockedSession)])
+        .get.get("total") == "1"
 
     test "the last migration applies to a populated schema from the previous version":
       # QA-16: every other case here starts from nothing. The upgrade path the

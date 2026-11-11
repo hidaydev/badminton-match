@@ -88,24 +88,27 @@ proc seedState(player: string, wins, losses: int) =
       addState(conn, communityId, @[player], won = false))
 
 proc addGame(sessionId: string, roundNo: int, game: Game) =
-  discard database.execUpdate(
-    """insert into session.games
-         (community_id, session_id, round_no, court_no, score_a, score_b,
-          status, side_a1, side_a2, side_b1, side_b2)
-       values ($1::uuid, $2::uuid, $3, $3, $4, $5, 'played',
-               nullif($6, '')::uuid, nullif($7, '')::uuid,
-               nullif($8, '')::uuid, nullif($9, '')::uuid)""",
-    @[textParam(communityId), textParam(sessionId), intParam(roundNo.int64),
-      intParam(game.scoreA.int64), intParam(game.scoreB.int64),
-      textParam(game.a[0]), textParam(game.a[1]), textParam(game.b[0]),
-      textParam(game.b[1])])
-  # Achievement tallying reads the result from the sets.
-  discard database.execUpdate(
-    """insert into session.game_sets
-         (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
-       values ($1::uuid, $2::uuid, $3, $3, 1, $4, $5)""",
-    @[textParam(communityId), textParam(sessionId), intParam(roundNo.int64),
-      intParam(game.scoreA.int64), intParam(game.scoreB.int64)])
+  # 0055 defers "played needs a set" to commit: the game and its set are one
+  # transaction, as the import writes them.
+  database.tx(proc(conn: DbConn) =
+    discard conn.execUpdate(
+      """insert into session.games
+           (community_id, session_id, round_no, court_no, score_a, score_b,
+            status, side_a1, side_a2, side_b1, side_b2)
+         values ($1::uuid, $2::uuid, $3, $3, $4, $5, 'played',
+                 nullif($6, '')::uuid, nullif($7, '')::uuid,
+                 nullif($8, '')::uuid, nullif($9, '')::uuid)""",
+      @[textParam(communityId), textParam(sessionId), intParam(roundNo.int64),
+        intParam(game.scoreA.int64), intParam(game.scoreB.int64),
+        textParam(game.a[0]), textParam(game.a[1]), textParam(game.b[0]),
+        textParam(game.b[1])])
+    # Achievement tallying reads the result from the sets.
+    discard conn.execUpdate(
+      """insert into session.game_sets
+           (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+         values ($1::uuid, $2::uuid, $3, $3, 1, $4, $5)""",
+      @[textParam(communityId), textParam(sessionId), intParam(roundNo.int64),
+        intParam(game.scoreA.int64), intParam(game.scoreB.int64)]))
 
 proc skipGame(sessionId: string, roundNo: int, playerId: string) =
   discard database.execUpdate(
