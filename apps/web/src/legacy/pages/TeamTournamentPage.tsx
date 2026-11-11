@@ -21,7 +21,7 @@ import TeamMatchCard from '../components/tournament/TeamMatchCard'
 import TeamGroupSchedule from '../components/tournament/TeamGroupSchedule'
 import Icon from '../components/Icon'
 import { useAdmin } from '../context/AdminContext'
-import ErrorBanner from '../components/ErrorBanner'
+import { Toast } from '../../components/Toast'
 import { useImageUploadMap } from '../hooks/useImageUploadMap'
 import { useAutoDismiss } from '../hooks/useAutoDismiss'
 import { drawPositionPost, loadImage } from '../utils/canvasPost'
@@ -268,8 +268,8 @@ export default function TeamTournamentPage() {
 
   return (
     <div className="flex flex-col gap-0 -mx-3 -mt-4">
-      {publishError && <ErrorBanner message={publishError} />}
-      {overlayError && <ErrorBanner message={overlayError} onDismiss={() => setOverlayError(null)} />}
+      {publishError && <Toast message={publishError} />}
+      {overlayError && <Toast message={overlayError} onDismiss={() => setOverlayError(null)} />}
       <div className="bg-surface px-4 pt-3 pb-0 border-b border-border-subtle">
         <div className="flex items-center gap-2">
           <h1 className="text-[1rem] font-bold text-fg leading-tight">{snap.name}</h1>

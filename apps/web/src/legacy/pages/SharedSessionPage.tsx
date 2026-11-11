@@ -24,7 +24,7 @@ import type { GeneratorResult } from '../generator'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import type { TeamSwapTarget, SwapTarget } from '../utils/swap'
 import SummaryModal from '../components/SummaryModal'
-import ErrorBanner from '../components/ErrorBanner'
+import { Toast } from '../../components/Toast'
 import { useAdmin } from '../context/AdminContext'
 import { useLastSession } from '../hooks/useLastSession'
 import { mutationToastHandlers } from '../hooks/useAutoDismiss'
@@ -187,7 +187,7 @@ export default function SharedSessionPage() {
     <AmbiguousNamesProvider value={ambiguousNames}>
     <main className="min-h-screen bg-ground text-fg flex flex-col">
       {header}
-      {saveError && <ErrorBanner message={saveError} onDismiss={() => setSaveError(null)} />}
+      {saveError && <Toast message={saveError} onDismiss={() => setSaveError(null)} />}
       <SummaryModal
         result={result}
         playerMap={playerMap}

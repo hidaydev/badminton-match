@@ -192,6 +192,18 @@
   }
 }
 
+/* The z ladder, one named step per layer, so a component never picks a number:
+   10 a sticky row or badge, 20 a dropdown, 30 the app header, 50 an overlay,
+   60 a toast above every overlay. `z-toast` and `z-overlay` are the two that
+   had a bare number at a call site (DS-24). */
+@utility z-overlay {
+  z-index: 50;
+}
+
+@utility z-toast {
+  z-index: 60;
+}
+
 /* DS-15: the micro label that titles a block. Uppercase and wide tracking are
    the whole recipe; the size and the colour stay at the call site because a
    stat tile, a sheet heading and a table header really do differ there. */

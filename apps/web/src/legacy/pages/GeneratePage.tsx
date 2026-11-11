@@ -20,6 +20,7 @@ import { collectAmbiguousBaseNames } from '../utils/nameParser'
 import { AmbiguousNamesProvider, combineAmbiguous, useAmbiguousNames } from '../context/AmbiguousNamesContext'
 import { t } from '../../i18n'
 import { Button } from '../../components/Button'
+import { Toast } from '../../components/Toast'
 
 export default function GeneratePage() {
   const { isSharedView, snapshot, exitSharedView } = useSharedView()
@@ -284,10 +285,10 @@ export default function GeneratePage() {
         </div>
       )}
       {saveError && (
-        <div className="flex flex-col gap-2 p-3 bg-red-900/30 border border-red-700 rounded-xl text-red-400 text-sm sm:flex-row sm:items-center" role="alert">
-          <span className="min-w-0 flex-1">{saveError.message}</span>
-          <span className="flex shrink-0 items-center gap-2">
-            {saveError.stale ? (
+        <Toast
+          message={saveError.message}
+          action={
+            saveError.stale ? (
               // A stale conditional request cannot succeed by resending it.
               // The safe action is to load the server's current state.
               <Button variant="danger" size="sm" className="font-bold" onClick={() => reloadPage()}>
@@ -302,12 +303,10 @@ export default function GeneratePage() {
               >
                 {t('session.action.retry')}
               </Button>
-            )}
-            <Button variant="secondary" size="sm" onClick={() => setSaveError(null)}>
-              {t('session.action.dismiss')}
-            </Button>
-          </span>
-        </div>
+            )
+          }
+          onDismiss={() => setSaveError(null)}
+        />
       )}
 
       {result && result.unplacedFixMatches.length > 0 && (
