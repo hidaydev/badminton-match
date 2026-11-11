@@ -13,6 +13,7 @@ import community/infrastructure/membership_sql as membershipSql
 import config as edgeConfig
 import config_routes
 import errors as platformErrors
+import flow_budget
 import live
 import logger
 import quota_route
@@ -84,6 +85,7 @@ type
     config*: ConfigCache
     limiter*: Limiter
     identityCache: IdentityCache
+    flowBudget*: FlowBudget
     ratingJobs*: ratingJobs.RatingJobs
     hub*: LiveHub
     cookieSecure*: bool
@@ -393,6 +395,11 @@ const
   ## Hard bound on the table. Reaching it evicts the entry closest to expiry,
   ## so random cookies cannot grow it without limit.
   identityCacheMaxEntries = 2048
+  ## QAE-05: how many pending OIDC flows one address may hold. The rows are
+  ## reclaimed by the janitor eventually, so without this cap one scripted
+  ## minute writes hundreds of rows; 32 leaves room for a shared club network
+  ## and still bounds one address to a few dozen rows per flow lifetime.
+  maxPendingFlowsPerAddress* = 32
   ## The session cookie carries its lifetime in seconds; the registry stores
   ## days. Named so the conversion is not a magic number at the call site
   ## (SQ-20).
@@ -636,20 +643,39 @@ proc startAuth(request: Request, snapshot: Snapshot) =
     return
   let returnTo = optStr(body, "returnTo", "/")
   let safeReturn = safeReturnPath(returnTo)
+  let ttl = snapshot.intValue(%*{}, keyAuthFlowTtlMinutes)
+  let started = utcNow()
+  let now = started.toTime.toUnixFloat
+  let expires = (started + minutes(ttl)).toTime.toUnixFloat
+  # QAE-05: the address budget is charged here, before the row is written, so
+  # an address that already holds the cap cannot add another pending flow. The
+  # slot is reserved once the state exists, and the callback or the expiry
+  # frees it.
+  let address = clientIp(request, trustedProxies())
   let state = randomHex(32)
+  let stateKey = sha256Hex(state)
+  let wait = application.flowBudget.admit(stateKey, address, expires, now,
+    maxPendingFlowsPerAddress)
+  if wait > 0:
+    rateLimited(request, Decision(allowed: false, retryAfter: wait))
+    return
   let nonce = randomHex(32)
   let verifier = randomHex(32)
   let challenge = b64url(sha256Raw(verifier))
   let (keyId, encrypted) = encryptWith(application.keyring, verifier, state)
-  let ttl = snapshot.intValue(%*{}, keyAuthFlowTtlMinutes)
-  discard database().execUpdate(
-    """insert into auth.oauth_flows
-       (state_hash, nonce_hash, code_verifier_enc, key_id, return_to, expires_at)
-       values (decode($1,'hex'), decode($2,'hex'), decode($3,'hex'), $4, $5,
-               now() + make_interval(mins => $6))""",
-    @[textParam(sha256Hex(state)), textParam(sha256Hex(nonce)),
-      textParam(bytesHex(encrypted)), textParam(keyId),
-      textParam(safeReturn), intParam(ttl.int64)])
+  try:
+    discard database().execUpdate(
+      """insert into auth.oauth_flows
+         (state_hash, nonce_hash, code_verifier_enc, key_id, return_to, expires_at)
+         values (decode($1,'hex'), decode($2,'hex'), decode($3,'hex'), $4, $5,
+                 now() + make_interval(mins => $6))""",
+      @[textParam(sha256Hex(state)), textParam(sha256Hex(nonce)),
+        textParam(bytesHex(encrypted)), textParam(keyId),
+        textParam(safeReturn), intParam(ttl.int64)])
+  except DbError:
+    # The row did not land, so the reserved slot must not be held until expiry.
+    application.flowBudget.release(stateKey)
+    raise
   jsonResponse(request, 200, %*{
     "authorizeUrl": authorizeUrl(application.oidc, state, nonce, challenge),
   }, [("Set-Cookie", authFlowCookie(state))])
@@ -660,9 +686,10 @@ proc finishAuth(request: Request, snapshot: Snapshot) =
   if code.len == 0 or state.len == 0:
     problem(request, 400, "INVALID_CALLBACK", "code and state are required")
     return
+  let stateKey = sha256Hex(state)
   # Checked before the flow row is consumed, so a callback posted from a foreign
   # browser cannot burn a flow that belongs to someone else.
-  if cookieValue(request, "majadu_auth_flow") != sha256Hex(state):
+  if cookieValue(request, "majadu_auth_flow") != stateKey:
     authRejected("auth.login.rejected", "flow cookie missing or foreign")
     problem(request, 400, "INVALID_STATE",
       "flow not found, expired or already used")
@@ -678,7 +705,10 @@ proc finishAuth(request: Request, snapshot: Snapshot) =
               encode(code_verifier_enc,'hex') as verifier_enc,
               key_id, return_to
        from deleted""",
-    @[textParam(sha256Hex(state))])
+    @[textParam(stateKey)])
+  # The delete above is one-shot: whether the row was there or not, this state
+  # no longer holds a pending flow, so its address gets the slot back.
+  application.flowBudget.release(stateKey)
   if row.isNone:
     problem(request, 400, "INVALID_STATE", "flow not found, expired or already used")
     return
@@ -3255,7 +3285,11 @@ proc rejectLargeBody(request: Request, snapshot: Snapshot): bool =
   ## that answer for themselves.
   if request.body.len == 0 or not bodyTooLarge(request, snapshot):
     return false
-  problem(request, 413, "BODY_TOO_LARGE", "request body exceeds the limit")
+  # A body the guard refused is not read any further, so the connection ends
+  # with this answer. Without the header a caller keeps the socket open waiting
+  # for a request that will never be read (QAE-02).
+  problem(request, 413, "BODY_TOO_LARGE", "request body exceeds the limit",
+    headers = [("Connection", "close")])
   true
 
 proc rejectCrossSite(request: Request, snapshot: Snapshot): bool =
@@ -3776,6 +3810,7 @@ proc newApp*(db: Db, oidc: OidcConfig, keyring: Keyring,
   result = App(db: db, oidc: oidc, keyring: keyring, config: config,
       limiter: newLimiter(),
       identityCache: newIdentityCache(),
+      flowBudget: newFlowBudget(),
       ratingJobs: jobs,
       hub: newHub(db),
       cookieSecure: secureCookies(oidc),

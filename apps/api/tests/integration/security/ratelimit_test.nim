@@ -1,7 +1,8 @@
-import std/[httpclient, json, strutils, unittest]
+import std/[httpclient, json, options, strutils, unittest]
 import db/db
 import mummy
 import tests/fixtures
+import ../../../src/app
 import ../../http_support
 
 let
@@ -13,6 +14,12 @@ var database: Db
 proc bootstrap() =
   database = openDb(dsn(), 1)
   startServer(newTestApp(database), port, baseUrl)
+
+proc flowRows(): int =
+  ## Pending rows in the one table the cap protects. Read around the burst in
+  ## the cap test: the refused request must not have written a row.
+  database.queryOne("select count(*) as total from auth.oauth_flows").get
+    .getInt("total")
 
 requireDatabase()
 
@@ -81,6 +88,26 @@ suite "security: rate limit":
     let afterChurn = call(baseUrl, HttpPost, "/auth/start", body = "{}",
       extra = [("X-Client-IP", address)])
     expectStatus(afterChurn, 429)
+
+  test "pending auth flows per address are capped before the row is written":
+    # QAE-05: `/auth/start` is unauthenticated and writes one row per request.
+    # The cap is per address, not per cookie, and it is charged before the
+    # insert, so the refused request leaves the table size unchanged.
+    let address = "198.51.100.77"
+    let before = flowRows()
+    for index in 0 ..< maxPendingFlowsPerAddress:
+      let response = call(baseUrl, HttpPost, "/auth/start", body = "{}",
+        extra = [("X-Client-IP", address)])
+      expectStatus(response, 200)
+    let refused = call(baseUrl, HttpPost, "/auth/start", body = "{}",
+      extra = [("X-Client-IP", address)])
+    expectStatus(refused, 429)
+    check refused.json["code"].getStr() == "RATE_LIMITED"
+    check parseInt(refused.header("Retry-After")) >= 1
+    check flowRows() - before == maxPendingFlowsPerAddress
+    # The cap belongs to one address: a different address still gets its slot.
+    expectStatus(call(baseUrl, HttpPost, "/auth/start", body = "{}",
+      extra = [("X-Client-IP", "198.51.100.78")]), 200)
 
   test "two sessions of one user share the join-request bucket":
     # SEC-01 DoD, second half: a per-account budget cannot be multiplied by
