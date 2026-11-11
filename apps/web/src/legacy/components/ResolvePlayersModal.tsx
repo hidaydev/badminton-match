@@ -86,7 +86,7 @@ export default function ResolvePlayersModal({
           <button
             onClick={handleConfirm}
             disabled={!allResolved}
-            className="flex-1 py-2 rounded-xl text-sm font-bold bg-indigo-400 hover:bg-indigo-300 text-slate-950 transition-colors disabled:opacity-40 disabled:cursor-not-allowed hit44"
+            className="flex-1 py-2 rounded-xl text-sm font-bold bg-indigo-400 hover:bg-indigo-300 text-slate-950 transition-colors disabled-dim-faint disabled:cursor-not-allowed hit44"
           >
             {t('legacy.confirm')}
           </button>

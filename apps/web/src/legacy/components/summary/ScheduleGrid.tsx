@@ -328,7 +328,7 @@ export default function ScheduleGrid({
                             type="button"
                             onClick={() => onScoreChange({ kind: 'retry', key })}
                             disabled={saving}
-                            className="min-h-11 rounded-lg border border-red-500/70 px-2 text-xs font-bold text-red-200 transition-colors hover:bg-red-800/40 disabled:opacity-50"
+                            className="min-h-11 rounded-lg border border-red-500/70 px-2 text-xs font-bold text-red-200 transition-colors hover:bg-red-800/40 disabled-dim"
                           >
                             {t('session.action.retry')}
                           </button>
@@ -389,7 +389,7 @@ export default function ScheduleGrid({
                               <button
                                 onClick={() => onScoreChange({ kind: 'clear', key })}
                                 disabled={saving}
-                                className="px-3 py-1.5 min-h-6 rounded-lg border border-slate-600 text-slate-300 hover:text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed hit44"
+                                className="px-3 py-1.5 min-h-6 rounded-lg border border-slate-600 text-slate-300 hover:text-white text-xs font-bold transition-colors disabled-dim disabled:cursor-not-allowed hit44"
                               >
                                 {t('legacy.clear')}
                               </button>
@@ -397,7 +397,7 @@ export default function ScheduleGrid({
                             <button
                               onClick={() => onScoreChange({ kind: 'save', key })}
                               disabled={saving}
-                              className="px-6 py-1.5 min-h-6 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 hit44"
+                              className="px-6 py-1.5 min-h-6 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors disabled-dim disabled:cursor-not-allowed flex items-center gap-1.5 hit44"
                             >
                               {saving && <Spinner size={12} />}
                               {saving ? 'Saving…' : '✓ Save'}

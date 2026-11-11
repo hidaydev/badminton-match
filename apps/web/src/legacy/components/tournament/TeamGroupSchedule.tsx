@@ -8,6 +8,7 @@ import {
 } from '../../utils/teamTournament'
 import { useImageUploadMap } from '../../hooks/useImageUploadMap'
 import TeamMatchCard from './TeamMatchCard'
+import { Button } from '../../../components/Button'
 import { shareOrDownload } from '../../utils/share'
 
 interface TeamGroupScheduleProps {
@@ -78,13 +79,9 @@ export default function TeamGroupSchedule({
   return (
     <div className="flex flex-col gap-4">
       {canEdit && groupMatches.length === 0 && (
-        <button
-          onClick={onDraw}
-          disabled={saving}
-          className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 hit44"
-        >
+        <Button className="w-full" onClick={onDraw} disabled={saving}>
           Group Draw (match day)
-        </button>
+        </Button>
       )}
 
       {groupMatches.map((m) => {

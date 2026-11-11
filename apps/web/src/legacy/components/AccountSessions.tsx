@@ -84,7 +84,7 @@ export default function AccountSessions({ onClose }: Props) {
                   type="button"
                   disabled={busy}
                   onClick={() => { void revoke() }}
-                  className="min-h-11 rounded-xl border border-error px-3 text-sm font-semibold text-error hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+                  className="min-h-11 rounded-xl border border-error px-3 text-sm font-semibold text-error hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled-dim"
                 >
                   {t('sessions.confirmAction')}
                 </button>
@@ -101,7 +101,7 @@ export default function AccountSessions({ onClose }: Props) {
                 type="button"
                 disabled={busy}
                 onClick={() => setConfirm(true)}
-                className="min-h-11 rounded-xl border border-border px-3 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+                className="min-h-11 rounded-xl border border-border px-3 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled-dim"
               >
                 {t('sessions.signOutOthers')}
               </button>

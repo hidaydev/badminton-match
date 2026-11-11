@@ -23,7 +23,7 @@ export default function ActionButton({ onClick, children, tone = 'neutral', disa
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`text-xs font-medium px-3 min-h-11 rounded-lg border transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0 ${tones[tone]}`}
+      className={`text-xs font-medium px-3 min-h-11 rounded-lg border transition-colors disabled-dim-faint disabled:pointer-events-none shrink-0 ${tones[tone]}`}
     >
       {children}
     </button>

@@ -5,6 +5,7 @@ import { useListTournaments } from '../queries'
 import { useAdmin } from '../context/AdminContext'
 import { t } from '../../i18n'
 import Icon from '../components/Icon'
+import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { EmptyState } from '../../components/EmptyState'
 
@@ -33,12 +34,9 @@ export default function TournamentListPage() {
           </span>
         </div>
         {isAdmin && (
-          <button
-            onClick={() => navigate('/tournaments/new')}
-            className="px-3.5 py-1.5 rounded-lg bg-accent text-slate-950 text-xs font-bold hover:brightness-110 active:scale-[0.98] transition-[filter,transform] shadow-sm hit44"
-          >
+          <Button size="sm" onClick={() => navigate('/tournaments/new')}>
             {t('tournaments.newButton')}
-          </button>
+          </Button>
         )}
       </div>
 

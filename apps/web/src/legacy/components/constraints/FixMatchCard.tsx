@@ -131,7 +131,7 @@ export function FixMatchCard({
               value={match.pinnedCourt}
               onChange={(e) => updateFixMatch(match.id, { pinnedCourt: e.target.value ? Number(e.target.value) : 0 } as Partial<MatchConstraint>)}
               disabled={!match.pinnedTime}
-              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent cursor-pointer disabled-dim-faint disabled:cursor-not-allowed"
             >
               <option value="">— Select court —</option>
               {availableCourts.map((c) => (

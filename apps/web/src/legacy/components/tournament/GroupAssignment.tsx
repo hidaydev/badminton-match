@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { GroupId, TournamentPair } from '../../utils/tournament'
 import { hit44 } from '../hitTarget'
-import { Spinner } from '../../../components/Spinner'
+import { Button } from '../../../components/Button'
 import { t } from '../../../i18n'
 import { Card } from '../../../components/Card'
 
@@ -167,14 +167,13 @@ export default function GroupAssignment({
 
       {/* Confirm button */}
       {allFull && (
-        <button
+        <Button
+          className="mt-2 w-full"
           onClick={onConfirmGroups}
-          disabled={isLoading}
-          className="w-full py-3 rounded-xl bg-accent text-slate-950 font-bold text-sm mt-2 disabled:opacity-60 flex items-center justify-center gap-2 hover:bg-accent/90 active:scale-98 transition-[background-color,transform] hit44"
+          loading={isLoading}
         >
-          {isLoading && <Spinner size={16} />}
           {isLoading ? 'Confirming…' : 'Confirm Groups'}
-        </button>
+        </Button>
       )}
     </div>
   )

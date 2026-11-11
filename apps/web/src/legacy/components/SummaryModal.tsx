@@ -333,7 +333,7 @@ export default function SummaryModal({
             <button
               onClick={() => setLockConfirm(true)}
               disabled={lockBusy}
-              className={`hit44 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
+              className={`hit44 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors disabled-dim ${
                 locked
                   ? 'bg-slate-800 border-slate-600 text-slate-300 hover:text-white'
                   : 'bg-emerald-900/40 border-emerald-700 text-emerald-300 hover:bg-emerald-900/60'
@@ -353,7 +353,7 @@ export default function SummaryModal({
                   await onSetLocked(!locked)
                 }}
                 disabled={lockBusy}
-                className={`hit44 text-xs font-bold px-3 py-1.5 rounded-lg text-white transition-colors disabled:opacity-50 ${
+                className={`hit44 text-xs font-bold px-3 py-1.5 rounded-lg text-white transition-colors disabled-dim ${
                   locked ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'
                 }`}
               >
@@ -419,7 +419,7 @@ export default function SummaryModal({
             <button
               onClick={() => { onDelete(); setDeleteConfirm(false) }}
               disabled={deleteLoading}
-              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5 hit44"
+              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors disabled-dim flex items-center gap-1.5 hit44"
             >
               {deleteLoading && <Spinner size={12} />}
               {deleteLoading ? t('summary.deleting') : t('summary.deleteConfirm')}
@@ -464,7 +464,7 @@ export default function SummaryModal({
             <button
               onClick={onRefetch}
               disabled={isRefetching}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 active:scale-90 transition-[color,transform] disabled:opacity-40 shrink-0 hit44"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 active:scale-90 transition-[color,transform] disabled-dim-faint shrink-0 hit44"
               aria-label={t('summary.reload')}
               aria-busy={isRefetching}
             >
@@ -569,7 +569,7 @@ export default function SummaryModal({
                       exitCurrentMode()
                     }}
                     disabled={!replaceName.trim() || saving}
-                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-1.5 hit44"
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white transition-colors disabled-dim disabled:cursor-not-allowed shrink-0 flex items-center gap-1.5 hit44"
                   >
                     {saving && <Spinner size={12} />}
                     {saving ? 'Saving…' : '✓ Save'}
@@ -632,7 +632,7 @@ export default function SummaryModal({
                       setPendingChange({ target: changeTarget, newName: name, b2b: validation.b2b })
                     }}
                     disabled={!changeName.trim() || saving}
-                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 hit44"
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-600 text-white transition-colors disabled-dim disabled:cursor-not-allowed shrink-0 hit44"
                   >
                     {t('summary.next')}
                   </button>

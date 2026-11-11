@@ -14,7 +14,7 @@ import { t } from '../../i18n'
 import { TabBar, tabId, tabPanelId } from '../../components/TabBar'
 import { useAutoDismiss, mutationToastHandlers } from '../hooks/useAutoDismiss'
 import { useAdmin } from '../context/AdminContext'
-import ErrorBanner from '../components/ErrorBanner'
+import { Toast } from '../../components/Toast'
 import GroupAssignment from '../components/tournament/GroupAssignment'
 import GroupMatches from '../components/tournament/GroupMatches'
 import BracketTab from '../components/tournament/BracketTab'
@@ -157,7 +157,7 @@ export default function TournamentPage() {
 
   return (
     <div className="flex flex-col gap-0 -mx-3 -mt-4">
-      {saveError && <ErrorBanner message={saveError} />}
+      {saveError && <Toast message={saveError} />}
       {/* Header */}
       <div className="bg-surface px-4 pt-3 pb-0 border-b border-border">
         <div className="flex items-center gap-2">

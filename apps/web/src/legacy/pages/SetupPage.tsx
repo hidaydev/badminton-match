@@ -65,7 +65,7 @@ function NumInput({
           aria-label={`Decrease ${label.toLowerCase()}`}
           disabled={disabled || value <= min}
           onClick={() => onChange(Math.max(min, value - 1))}
-          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-700 hover:bg-slate-600 disabled-dim-ghost disabled:cursor-not-allowed text-white font-bold transition-colors"
         >
           −
         </button>
@@ -74,7 +74,7 @@ function NumInput({
           aria-label={`Increase ${label.toLowerCase()}`}
           disabled={disabled || value >= max}
           onClick={() => onChange(Math.min(max, value + 1))}
-          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-700 hover:bg-slate-600 disabled-dim-ghost disabled:cursor-not-allowed text-white font-bold transition-colors"
         >
           +
         </button>
@@ -102,7 +102,7 @@ function TimeSelect({
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       aria-label={label}
-      className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-11"
+      className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled-dim-faint disabled:cursor-not-allowed cursor-pointer h-11"
     >
       {options.map((o) => (
         <option key={o} value={o}>{hourLabel(o)}</option>
@@ -308,7 +308,7 @@ export default function SetupPage() {
               maxLength={120}
               placeholder={t('legacy.placeholder.sessionTitle')}
               disabled={session.locked}
-              className="bg-elevated border border-border rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 disabled:cursor-not-allowed h-9"
+              className="bg-elevated border border-border rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled-dim-faint disabled:cursor-not-allowed h-9"
             />
           </div>
           <div className="flex flex-col gap-1 min-w-35">
@@ -319,7 +319,7 @@ export default function SetupPage() {
               value={session.date}
               onChange={(e) => setDate(e.target.value)}
               disabled={session.locked}
-              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-11"
+              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled-dim-faint disabled:cursor-not-allowed cursor-pointer h-11"
             />
           </div>
         </div>
@@ -392,7 +392,7 @@ export default function SetupPage() {
               value={session.slotMinutes}
               disabled={session.locked}
               onChange={(e) => setSlotMinutes(Number(e.target.value))}
-              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-11"
+              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled-dim-faint disabled:cursor-not-allowed cursor-pointer h-11"
             >
               {DURATION_OPTIONS.map((d) => (
                 <option key={d} value={d}>{d} min</option>
@@ -477,7 +477,7 @@ export default function SetupPage() {
           <button
             onClick={handleLock}
             disabled={!canLock}
-            className="w-full min-h-11 py-2.5 bg-indigo-400 hover:bg-indigo-300 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors hit44"
+            className="w-full min-h-11 py-2.5 bg-indigo-400 hover:bg-indigo-300 active:bg-indigo-700 disabled-dim-faint disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors hit44"
           >
             Start Session →
           </button>

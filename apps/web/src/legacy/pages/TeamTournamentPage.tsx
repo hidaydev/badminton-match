@@ -21,13 +21,14 @@ import TeamMatchCard from '../components/tournament/TeamMatchCard'
 import TeamGroupSchedule from '../components/tournament/TeamGroupSchedule'
 import Icon from '../components/Icon'
 import { useAdmin } from '../context/AdminContext'
-import ErrorBanner from '../components/ErrorBanner'
+import { Toast } from '../../components/Toast'
 import { useImageUploadMap } from '../hooks/useImageUploadMap'
 import { useAutoDismiss } from '../hooks/useAutoDismiss'
 import { drawPositionPost, loadImage } from '../utils/canvasPost'
 import { canvasToBlob, shareOrDownload } from '../utils/share'
 import { loadOverlayImages } from '../utils/overlays'
 import { t } from '../../i18n'
+import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 
 type Tab = 'klasemen' | 'jadwal' | 'final'
@@ -267,8 +268,8 @@ export default function TeamTournamentPage() {
 
   return (
     <div className="flex flex-col gap-0 -mx-3 -mt-4">
-      {publishError && <ErrorBanner message={publishError} />}
-      {overlayError && <ErrorBanner message={overlayError} onDismiss={() => setOverlayError(null)} />}
+      {publishError && <Toast message={publishError} />}
+      {overlayError && <Toast message={overlayError} onDismiss={() => setOverlayError(null)} />}
       <div className="bg-surface px-4 pt-3 pb-0 border-b border-border-subtle">
         <div className="flex items-center gap-2">
           <h1 className="text-[1rem] font-bold text-fg leading-tight">{snap.name}</h1>
@@ -366,25 +367,17 @@ export default function TeamTournamentPage() {
                 })}
                 {canEdit && (
                   <div className="p-3">
-                    <button
-                      onClick={handleUndian}
-                      disabled={publish.isPending}
-                      className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 hit44"
-                    >
+                    <Button className="w-full" onClick={handleUndian} disabled={publish.isPending}>
                       Group Draw (match day)
-                    </button>
+                    </Button>
                   </div>
                 )}
               </Card>
             )}
             {canEdit && groupComplete && !hasFinal && (
-              <button
-                onClick={handleBuatFinal}
-                disabled={publish.isPending}
-                className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 hit44"
-              >
+              <Button className="w-full" onClick={handleBuatFinal} disabled={publish.isPending}>
                 Create Final (top 2)
-              </button>
+              </Button>
             )}
             {!groupComplete && groupMatches.length > 0 && (
               <p className="text-xs text-fg-dim text-center">Finish all 9 group matches to determine the final.</p>

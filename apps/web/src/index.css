@@ -160,6 +160,50 @@
   }
 }
 
+/* DS-03: the disabled treatment, in one ladder. A control dims with
+   `disabled-dim`; the weaker steps exist because a 50% chip in a dense table
+   reads as missing rather than unavailable. Nothing opts into a raw opacity
+   utility at a call site any more, so the set of dim levels is closed. */
+@theme {
+  --opacity-disabled: 0.5;
+}
+
+@utility disabled-dim {
+  &:disabled {
+    opacity: var(--opacity-disabled);
+  }
+}
+
+@utility disabled-dim-soft {
+  &:disabled {
+    opacity: 0.6;
+  }
+}
+
+@utility disabled-dim-faint {
+  &:disabled {
+    opacity: 0.4;
+  }
+}
+
+@utility disabled-dim-ghost {
+  &:disabled {
+    opacity: 0.3;
+  }
+}
+
+/* The z ladder, one named step per layer, so a component never picks a number:
+   10 a sticky row or badge, 20 a dropdown, 30 the app header, 50 an overlay,
+   60 a toast above every overlay. `z-toast` and `z-overlay` are the two that
+   had a bare number at a call site (DS-24). */
+@utility z-overlay {
+  z-index: 50;
+}
+
+@utility z-toast {
+  z-index: 60;
+}
+
 /* DS-15: the micro label that titles a block. Uppercase and wide tracking are
    the whole recipe; the size and the colour stay at the call site because a
    stat tile, a sheet heading and a table header really do differ there. */

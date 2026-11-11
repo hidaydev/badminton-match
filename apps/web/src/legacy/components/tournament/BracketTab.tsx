@@ -8,6 +8,7 @@ import { useImageUploadMap } from '../../hooks/useImageUploadMap'
 import Icon from '../Icon'
 import { hit44 } from '../hitTarget'
 import ScoreModal from './ScoreModal'
+import { IconButton } from '../../../components/Button'
 import { Card } from '../../../components/Card'
 
 interface BracketTabProps {
@@ -68,7 +69,7 @@ function MatchCard({
       <button
         onClick={() => canEnter && onSelect(match)}
         disabled={!canEnter}
-        className="w-full text-left disabled:opacity-60 hover:bg-elevated/60 disabled:hover:bg-transparent transition-colors hit44"
+        className="w-full text-left disabled-dim-soft hover:bg-elevated/60 disabled:hover:bg-transparent transition-colors hit44"
       >
         <div className="px-2 pt-2 pb-1">
           <div className="text-xs text-fg font-medium truncate">{getPairName(match.pairAId)}</div>
@@ -251,13 +252,15 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
                 {i > 0 && <span />}
                 <div className="flex items-center justify-center gap-3">
                   <span>{round.title}</span>
-                  <button
-                    aria-label={`Photo mode for ${round.title}`}
+                  <IconButton
+                    size="sm"
+                    variant={postModeRounds[round.id] ? 'primary' : 'secondary'}
+                    label={`Photo mode for ${round.title}`}
+                    aria-pressed={postModeRounds[round.id] === true}
                     onClick={() => setPostModeRounds(prev => ({ ...prev, [round.id]: !prev[round.id] }))}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${hit44} ${postModeRounds[round.id] ? 'bg-accent text-slate-950 active:bg-accent/80' : 'bg-black/50 active:bg-black/70'}`}
                   >
                     <Icon name="camera" size={15} stroke={postModeRounds[round.id] ? 'black' : 'white'} strokeWidth={2.2} />
-                  </button>
+                  </IconButton>
                   {postModeRounds[round.id] && round.matchIds.some(id => bracketPhotos[id]) && (
                     <button
                       aria-label={round.ariaLabel}
@@ -361,12 +364,15 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
                 <div className={`text-[10px] mt-1 font-bold ${isChamp ? 'text-accent' : 'text-fg-dim'}`}>{label}</div>
                 <div className={`text-xs mt-1 font-medium max-w-24 truncate ${isChamp ? 'text-fg text-sm font-semibold' : 'text-fg-dim'}`}>{name}</div>
                 <div className="mt-2 flex items-center justify-center gap-3">
-                  <button
+                  <IconButton
+                    size="sm"
+                    variant={podiumPhotos[pos] ? 'primary' : 'secondary'}
+                    label={`Photo mode for ${label}`}
+                    aria-pressed={podiumPhotos[pos] !== undefined}
                     onClick={() => openPodiumUpload(pos)}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${hit44} ${podiumPhotos[pos] ? 'bg-accent text-slate-950 active:bg-accent/80' : 'bg-black/50 active:bg-black/70'}`}
                   >
                     <Icon name="camera" size={15} stroke={podiumPhotos[pos] ? 'black' : 'white'} strokeWidth={2.2} />
-                  </button>
+                  </IconButton>
                   {podiumPhotos[pos] && (
                     <button
                       onClick={() => handleDownloadPosition(pos, positionLabel, name)}

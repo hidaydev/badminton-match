@@ -64,7 +64,7 @@ function ConfirmActionBar({
             <button
               onClick={onConfirm}
               disabled={saving}
-              className={`hit44 text-xs font-bold px-4 py-1.5 rounded-lg ${c.btn} ${c.btnHover} ${c.btnText} transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5`}
+              className={`hit44 text-xs font-bold px-4 py-1.5 rounded-lg ${c.btn} ${c.btnHover} ${c.btnText} transition-colors disabled-dim shrink-0 flex items-center gap-1.5`}
             >
               {saving && SPINNER}
               {saving ? 'Saving…' : 'Confirm'}

@@ -22,8 +22,8 @@ export default defineConfig({
       reporter: ['text', 'json-summary', 'json'],
       reportsDirectory: './coverage',
       // Ratchet, see task.d/typescript.sh: raise these as coverage lands, never
-      // lower them. Measured on 2026-11-10 at this commit: lines 60.25,
-      // functions 50.95, branches 47.93, statements 57.91. Each floor is the
+      // lower them. Measured on 2026-11-11 at this commit: lines 62.16,
+      // functions 52.23, branches 50.08, statements 59.83. Each floor is the
       // measurement minus the 0.1 point tolerance the gate publishes, so a drop
       // bigger than noise fails here (SQ-13).
       //
@@ -34,10 +34,10 @@ export default defineConfig({
       // entries below. Deleting every test for one page drops that file to 0%
       // and fails its glob.
       thresholds: {
-        lines: 60.15,
-        functions: 50.85,
-        branches: 47.83,
-        statements: 57.81,
+        lines: 62.06,
+        functions: 52.13,
+        branches: 49.98,
+        statements: 59.73,
         perFile: {
           lines: 0,
           functions: 0,

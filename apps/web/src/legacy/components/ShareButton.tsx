@@ -248,7 +248,7 @@ export default function ShareButton() {
         <button
           onClick={() => setConfirming(true)}
           disabled={publishing}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-900/50 hover:bg-indigo-800 border border-indigo-700 text-indigo-300 hover:text-white transition-colors disabled:opacity-50 hit44"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-900/50 hover:bg-indigo-800 border border-indigo-700 text-indigo-300 hover:text-white transition-colors disabled-dim hit44"
         >
           {publishing ? 'Publishing…' : error ? '✕ Save conflict — retry?' : (
             <>
