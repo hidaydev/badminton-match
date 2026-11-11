@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { listAuthSessions, revokeOtherAuthSessions } from '../../auth/api'
 import type { AuthSession } from '../../auth/api'
 import { Overlay } from '../../components/Overlay'
+import { ErrorText } from '../../components/ErrorText'
 import { t } from '../../i18n'
 
 type Props = {
@@ -122,11 +123,7 @@ export default function AccountSessions({ onClose }: Props) {
           {t('common.loading')}
         </p>
       )}
-      {failure !== null && (
-        <p role="alert" className="text-sm text-error">
-          {failure}
-        </p>
-      )}
+      {failure !== null && <ErrorText>{failure}</ErrorText>}
       {sessions !== null && (
         <ul className="space-y-2">
           {sessions.map((session) => (

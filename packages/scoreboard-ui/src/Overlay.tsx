@@ -29,7 +29,7 @@ export type OverlayProps = {
   closeLabel?: string
 }
 
-const SCRIM = 'fixed inset-0 z-50 flex items-end justify-center bg-black/60'
+const SCRIM = 'fixed inset-0 z-overlay flex items-end justify-center bg-black/60'
 const SHEET =
   'relative flex w-full max-w-lg max-h-dvh flex-col overflow-hidden rounded-t-3xl border-t border-border-subtle bg-surface pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-2xl'
 const HANDLE = 'mx-auto mt-3 mb-1 h-1 w-10 shrink-0 rounded-full bg-border'

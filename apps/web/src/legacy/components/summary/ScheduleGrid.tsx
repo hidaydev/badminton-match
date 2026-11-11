@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { ErrorText } from '@/components/ErrorText'
 import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import { HIGHLIGHTED_PLAYERS, TEAM_HIGHLIGHT_ENABLED } from '../../config/teamHighlights'
 import { DndContext } from '@dnd-kit/core'
@@ -316,13 +317,10 @@ export default function ScheduleGrid({
                     {/* A failed score write stays attached to this game until
                         it is retried or dismissed. It is never timed out. */}
                     {scoreFailures[key] && (
-                      <div
-                        role="alert"
-                        className="ml-6 flex flex-wrap items-center gap-2 rounded-lg border border-red-700/60 bg-red-900/20 px-2 py-1.5"
-                      >
-                        <span className="text-xs text-red-300">
+                      <div className="ml-6 flex flex-wrap items-center gap-2 rounded-lg border border-red-700/60 bg-red-900/20 px-2 py-1.5">
+                        <ErrorText as="span" inherit className="text-xs text-red-300">
                           {t('session.score.notSaved')} {scoreFailures[key].message}
-                        </span>
+                        </ErrorText>
                         <span className="ml-auto flex items-center gap-1">
                           <button
                             type="button"
@@ -382,7 +380,7 @@ export default function ScheduleGrid({
                         </div>
                         <div className="flex flex-col items-center gap-1">
                           {scoreError && (
-                            <p role="alert" className="text-[10px] text-red-400 text-center">{scoreError}</p>
+                            <ErrorText inherit className="text-[10px] text-red-400 text-center">{scoreError}</ErrorText>
                           )}
                           <div className="flex items-center gap-2">
                             {savedScore && (

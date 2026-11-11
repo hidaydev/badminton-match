@@ -9,8 +9,39 @@ import { collectAmbiguousBaseNames } from '../utils/nameParser'
 import { AmbiguousNamesProvider } from '../context/AmbiguousNamesContext'
 import { t } from '../../i18n'
 import { Card } from '../../components/Card'
+import { ErrorText } from '../../components/ErrorText'
+import { StandingsTable } from '../../components/StandingsTable'
 
 const LIMIT = 200
+
+/**
+ * The movement cell of one ranking row: one glyph and the sentence a screen
+ * reader gets instead. Up is a climb, so a positive delta is the green arrow.
+ */
+function rankDelta(delta: number | null | undefined) {
+  if (delta == null || delta === 0) {
+    return (
+      <>
+        <span className="text-fg-dim" aria-hidden="true">·</span>
+        <span className="sr-only">{t('rankings.deltaSame')}</span>
+      </>
+    )
+  }
+  if (delta > 0) {
+    return (
+      <>
+        <span className="text-green-400" aria-hidden="true">▲</span>
+        <span className="sr-only">{t('rankings.deltaUp', { n: delta })}</span>
+      </>
+    )
+  }
+  return (
+    <>
+      <span className="text-red-400" aria-hidden="true">▼</span>
+      <span className="sr-only">{t('rankings.deltaDown', { n: -delta })}</span>
+    </>
+  )
+}
 
 export default function RankingsPage() {
   const navigate = useNavigate()
@@ -136,7 +167,7 @@ export default function RankingsPage() {
 
         {isError && (
           <div className="flex items-center gap-3">
-            <p role="alert" className="text-error text-sm">{t('rankings.loadFailed')}</p>
+            <ErrorText>{t('rankings.loadFailed')}</ErrorText>
             <button
               type="button"
               onClick={() => void refetch()}
@@ -167,71 +198,20 @@ export default function RankingsPage() {
 
         {!isError && !isLoading && filtered.length > 0 && (
           <Card variant="flush" as="ol" radius="lg" className="divide-y divide-border-subtle">
-            {filtered.map((r) => {
-              const isFirst = r.displayRank === 1
-              const rankColor = isFirst ? 'text-accent font-bold' : 'text-fg-dim'
-              const rowBg = isFirst ? 'bg-accent/[0.04]' : ''
-              const showDelta = selectedTier === 'all'
-              const isFilteredTier = selectedTier !== 'all'
-
-              return (
-                <li key={r.player_id}>
-                  <button
-                    onClick={() => navigate(`/rankings/${r.player_id}`)}
-                    className={`hit44 w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-elevated transition-colors ${rowBg}`}
-                  >
-                    {/* Rank Number (and Global Rank if filtering by tier) */}
-                    <div className="w-9 shrink-0 flex flex-col items-start justify-center">
-                      <span className={`font-mono text-sm leading-none tabular-nums ${rankColor}`}>
-                        #{r.displayRank}
-                      </span>
-                      {isFilteredTier && (
-                        <span className="text-[11px] font-mono text-fg-dim leading-tight mt-0.5 tabular-nums">
-                          #{r.rank}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Movement Indicator (▲ / ▼ / ·) when viewing All */}
-                    {showDelta && (
-                      <span className="w-3 shrink-0 font-mono text-[10px] leading-none text-center tabular-nums">
-                        {r.rank_delta == null || r.rank_delta === 0 ? (
-                          <>
-                            <span className="text-fg-dim" aria-hidden="true">·</span>
-                            <span className="sr-only">{t('rankings.deltaSame')}</span>
-                          </>
-                        ) : r.rank_delta > 0 ? (
-                          <>
-                            <span className="text-green-400" aria-hidden="true">▲</span>
-                            <span className="sr-only">{t('rankings.deltaUp', { n: r.rank_delta })}</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-red-400" aria-hidden="true">▼</span>
-                            <span className="sr-only">{t('rankings.deltaDown', { n: -r.rank_delta })}</span>
-                          </>
-                        )}
-                      </span>
-                    )}
-
-                    {/* Player Name & Tier Badge */}
-                    <div className="flex-1 min-w-0 flex items-center gap-2">
-                      <span className="text-sm font-medium text-fg truncate">
-                        <AnnotatedPlayerName name={r.name} />
-                      </span>
-                      {r.tier && <RatingTierBadge tier={r.tier} size="sm" />}
-                    </div>
-
-                    {/* Points */}
-                    <div className="shrink-0 flex items-center">
-                      <span className="font-mono text-sm font-bold text-fg leading-none tabular-nums">
-                        {Math.round(r.points).toLocaleString('en-US')}
-                      </span>
-                    </div>
-                  </button>
-                </li>
-              )
-            })}
+            <StandingsTable
+              layout="rank"
+              rows={filtered.map((r) => ({
+                key: r.player_id,
+                rank: r.displayRank,
+                rankDetail: selectedTier === 'all' ? undefined : r.rank,
+                highlighted: r.displayRank === 1,
+                name: <AnnotatedPlayerName name={r.name} />,
+                nameExtra: r.tier ? <RatingTierBadge tier={r.tier} size="sm" /> : undefined,
+                delta: selectedTier === 'all' ? rankDelta(r.rank_delta) : undefined,
+                pointsFor: Math.round(r.points),
+                onSelect: () => navigate(`/rankings/${r.player_id}`),
+              }))}
+            />
           </Card>
         )}
 

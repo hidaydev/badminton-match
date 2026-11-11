@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { computeGroupStandings, GROUP_IDS, QF_IDS, FINAL_ID, THIRD_PLACE_ID } from '../../utils/tournament'
 import type { TournamentMatch, TournamentPair, GroupId } from '../../utils/tournament'
 import { Card } from '../../../components/Card'
+import { StandingsTable } from '../../../components/StandingsTable'
 
 const STAGE_LABEL = ['Champion', 'Runner-up', '3rd Place', '4th Place', 'QF Exit', 'Group Stage']
 
@@ -131,34 +132,20 @@ export default function StandingsTab({ pairs, groups, matches }: StandingsTabPro
           <span>Full standings</span>
         </div>
         <ol role="list">
-          {ranked.map((pair, i) => {
-            const rank = stageRank(pair.id, matches)
-            const rec = totalRecord[pair.id] ?? { wins: 0, losses: 0 }
-            const isTop3 = i < 3
-            return (
-              <li
-                key={pair.id}
-                className="flex items-center gap-3 px-4 py-3 border-b border-border-subtle last:border-0 hover:bg-elevated/40 transition-colors"
-              >
-                <span className={`font-mono font-bold w-5 text-sm shrink-0 ${isTop3 ? (i === 0 ? 'text-accent' : i === 1 ? 'text-slate-200' : 'text-[#e0985c]') : 'text-fg-dim'}`}>
-                  {i + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-fg font-medium truncate">{getPairName(pair.id)}</div>
-                  <div className="text-[10px] text-fg-dim mt-0.5">
-                    {STAGE_LABEL[Math.min(rank, 5)]}
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-elevated border border-border-subtle font-mono text-[11px]">
-                    <span className="text-success font-semibold">{rec.wins}W</span>
-                    <span className="text-border">·</span>
-                    <span className="text-error font-semibold">{rec.losses}L</span>
-                  </span>
-                </div>
-              </li>
-            )
-          })}
+          <StandingsTable
+            layout="record"
+            labels={{ wins: 'W', losses: 'L' }}
+            rows={ranked.map((pair) => {
+              const rec = totalRecord[pair.id] ?? { wins: 0, losses: 0 }
+              return {
+                key: pair.id,
+                name: getPairName(pair.id),
+                sublabel: STAGE_LABEL[Math.min(stageRank(pair.id, matches), 5)],
+                wins: rec.wins,
+                losses: rec.losses,
+              }
+            })}
+          />
         </ol>
       </Card>
     </div>

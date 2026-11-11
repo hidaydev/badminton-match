@@ -21,6 +21,7 @@ import { AmbiguousNamesProvider, combineAmbiguous, useAmbiguousNames } from '../
 import { t } from '../../i18n'
 import { Button } from '../../components/Button'
 import { Toast } from '../../components/Toast'
+import { ErrorText } from '../../components/ErrorText'
 
 export default function GeneratePage() {
   const { isSharedView, snapshot, exitSharedView } = useSharedView()
@@ -280,8 +281,8 @@ export default function GeneratePage() {
       </div>
 
       {error && (
-        <div className="p-3 bg-red-900/30 border border-red-700 rounded-xl text-red-400 text-sm" role="alert" aria-live="polite">
-          {error}
+        <div className="p-3 bg-red-900/30 border border-red-700 rounded-xl text-red-400 text-sm">
+          <ErrorText inherit>{error}</ErrorText>
         </div>
       )}
       {saveError && (

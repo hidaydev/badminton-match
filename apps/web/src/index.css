@@ -193,15 +193,18 @@
 }
 
 /* The z ladder, one named step per layer, so a component never picks a number:
-   10 a sticky row or badge, 20 a dropdown, 30 the app header, 50 an overlay,
-   60 a toast above every overlay. `z-toast` and `z-overlay` are the two that
-   had a bare number at a call site (DS-24). */
+   10 a sticky row or badge, 20 a dropdown, 30 the app header, 40 a toast,
+   50 an overlay. A toast sits *below* an open sheet (DS-24): an alert drawn
+   over a sheet that owns the focus trap cannot be focused or dismissed, and it
+   covers the dialog. An alert raised while a sheet is open belongs inside the
+   sheet as an inline `ErrorText`. `z-toast` and `z-overlay` are the two that had
+   a bare number at a call site. */
 @utility z-overlay {
   z-index: 50;
 }
 
 @utility z-toast {
-  z-index: 60;
+  z-index: 40;
 }
 
 /* DS-15: the micro label that titles a block. Uppercase and wide tracking are

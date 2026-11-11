@@ -9,6 +9,7 @@ import {
 } from '../../queries/endpoints'
 import { communityQueryKey } from '../../queries/keys'
 import { Overlay } from '@/components/Overlay'
+import { ErrorText } from '@/components/ErrorText'
 
 /**
  * Host/admin control for the public link of one session. The panel is the shared
@@ -201,7 +202,7 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
               </>
             )}
             {error && (
-              <span role="alert" className="text-[11px] text-red-300">{error}</span>
+              <ErrorText as="span" inherit className="text-[11px] text-red-300">{error}</ErrorText>
             )}
             <span role="status" className="sr-only">{copied ? t('session.share.copied') : ''}</span>
           </div>

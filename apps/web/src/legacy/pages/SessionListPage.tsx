@@ -11,6 +11,7 @@ import { t } from '../../i18n'
 import Icon from '../components/Icon'
 import { Button, ButtonLink } from '../../components/Button'
 import { Card } from '../../components/Card'
+import { ErrorText } from '../../components/ErrorText'
 import { EmptyState } from '../../components/EmptyState'
 
 const MONTH_NAMES = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
@@ -129,9 +130,9 @@ export default function SessionListPage() {
           copy may only be forced over a collaborator after an explicit
           confirmation, and only while the record is fresh. */}
       {pendingPublish && (
-        <div role="alert" className="flex flex-col gap-3 rounded-xl border border-error/60 bg-error/10 p-3 sm:flex-row sm:items-start">
+        <div className="flex flex-col gap-3 rounded-xl border border-error/60 bg-error/10 p-3 sm:flex-row sm:items-start">
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-fg">{t('sessions.unsaved.title')}</p>
+            <ErrorText className="font-semibold">{t('sessions.unsaved.title')}</ErrorText>
             <p className="text-xs text-fg-dim">
               {pendingPublish.message ?? t('sessions.unsaved.body')}
             </p>
@@ -228,7 +229,7 @@ export default function SessionListPage() {
 
       {isError && (
         <div className="flex items-center gap-3">
-          <p role="alert" className="text-error text-sm">{t('sessions.loadFailed')}</p>
+          <ErrorText>{t('sessions.loadFailed')}</ErrorText>
           <Button variant="ghost" size="sm" onClick={() => void refetch()}>
             {t('legacy.retry')}
           </Button>

@@ -10,6 +10,13 @@
   }
 }
 
+/* The sheet layer, named instead of a bare `z-50`, so the same rung of the
+   ladder is used wherever an overlay is drawn. Mirrors `z-overlay` in the web
+   app; a toast there sits below this rung (DS-24). */
+@utility z-overlay {
+  z-index: 50;
+}
+
 :root {
   color-scheme: dark;
 }
