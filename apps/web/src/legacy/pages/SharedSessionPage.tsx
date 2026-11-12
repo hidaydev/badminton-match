@@ -97,7 +97,7 @@ export default function SharedSessionPage() {
         </IconButton>
         <Link to="/" className="flex items-center gap-2">
           <img src="/logo-192.png" alt="" className="w-6 h-6 shrink-0 object-contain" />
-          <span className="text-sm font-bold text-fg tracking-tight">MAJADU</span>
+          <span className="text-sm font-bold text-fg tracking-tight">{t('app.name')}</span>
         </Link>
         <h1 className="sr-only">{snapshot?.session.title || t('sessions.title')}</h1>
         {/* The logo also resolves to the community; this labelled link makes
@@ -109,7 +109,7 @@ export default function SharedSessionPage() {
           {t('session.backToCommunity')}
         </Link>
         {realtimeReconnecting && (
-          <span className="text-xs text-amber-400 animate-pulse">⟳ Reconnecting…</span>
+          <span className="text-xs text-amber-400 animate-pulse">{t('legacy.sharedSession.reconnecting')}</span>
         )}
       </div>
     </header>
@@ -120,7 +120,7 @@ export default function SharedSessionPage() {
       <div className="min-h-screen bg-ground text-fg flex flex-col">
         {header}
         <div className="flex-1 flex items-center justify-center">
-          <span className="text-slate-400 text-sm">Loading session…</span>
+          <span className="text-slate-400 text-sm">{t('legacy.common.loadingSession')}</span>
         </div>
       </div>
     )

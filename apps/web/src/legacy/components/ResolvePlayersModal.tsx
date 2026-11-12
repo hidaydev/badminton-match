@@ -69,11 +69,7 @@ export default function ResolvePlayersModal({
       title={t('legacy.title.resolvePlayers')}
       description={
         <>
-          {list.length} player{list.length > 1 ? 's' : ''} not found in the database.
-          Choose <span className="text-emerald-400 font-medium">Add new</span> to register
-          them, or <span className="text-indigo-400 font-medium">Merge</span> to link
-          them to an existing player.
-        </>
+          {t('legacy.resolve.intro', { count: list.length, plural: list.length > 1 ? 's' : '' })}{' '}<span className="text-emerald-400 font-medium">{t('legacy.resolve.addNew')}</span> {' '}{t('legacy.resolve.or')}{' '}<span className="text-indigo-400 font-medium">{t('playerAdmin.merge.submit')}</span> {' '}{t('legacy.resolve.toExisting')}</>
       }
       footer={
         <div className="flex gap-2">
@@ -106,8 +102,7 @@ export default function ResolvePlayersModal({
                     : 'bg-slate-700 text-slate-400 border border-slate-600 hover:text-slate-200'
                 }`}
               >
-                + Add new
-              </button>
+                {t('legacy.resolve.addNewButton')}</button>
               <button
                 onClick={() => setMode(entry.player.id, 'merge')}
                 className={`hit44 flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
@@ -116,8 +111,7 @@ export default function ResolvePlayersModal({
                     : 'bg-slate-700 text-slate-400 border border-slate-600 hover:text-slate-200'
                 }`}
               >
-                ⇄ Merge
-              </button>
+                {t('legacy.resolve.mergeButton')}</button>
             </div>
             {entry.mode === 'merge' && (
               <select
@@ -125,18 +119,16 @@ export default function ResolvePlayersModal({
                 onChange={(e) => setMergeTarget(entry.player.id, e.target.value)}
                 className="w-full bg-slate-900 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
               >
-                <option value="">— Select existing player —</option>
+                <option value="">{t('legacy.resolve.selectExisting')}</option>
                 {knownPlayers.map((kp) => (
                   <option key={kp.name} value={kp.name}>
-                    {kp.name} ({kp.gender}, Tier {kp.tier})
-                  </option>
+                    {t('legacy.resolve.playerOption', { name: kp.name, gender: kp.gender, tier: kp.tier })}</option>
                 ))}
               </select>
             )}
             {entry.mode === 'merge' && entry.mergeTarget && (
               <p className="text-[10px] text-slate-400">
-                &quot;{entry.player.name}&quot; will be registered as an alias of{' '}
-                <span className="text-indigo-400 font-medium">{entry.mergeTarget}</span>.
+                {t('legacy.resolve.alias', { name: entry.player.name })}{' '}<span className="text-indigo-400 font-medium">{entry.mergeTarget}</span>.
                 {t('legacy.autoResolveHint')}
               </p>
             )}

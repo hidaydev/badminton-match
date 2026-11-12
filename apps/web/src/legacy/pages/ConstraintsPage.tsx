@@ -2,6 +2,7 @@ import { toPlayerId } from '../types'
 import { useStore } from '../store'
 import { useNavigate } from '../router'
 import { FixMatchCard, ValidationPanel, useValidation } from '../components/constraints'
+import { t } from '../../i18n'
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function ConstraintsPage() {
@@ -15,13 +16,12 @@ export default function ConstraintsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h1 className="text-lg font-bold text-fg mb-0.5">Constraints</h1>
-          <p className="text-slate-400 text-sm">Define fixed matches. Pin to time & court or leave flexible for the generator.</p>
+          <h1 className="text-lg font-bold text-fg mb-0.5">{t('wizard.step.constraints')}</h1>
+          <p className="text-slate-400 text-sm">{t('wizard.constraints.subtitle')}</p>
         </div>
         {fixMatches.length > 0 && (
           <span className={`text-sm font-semibold px-3 py-1 rounded-full border whitespace-nowrap shrink-0 ${hasErrors ? 'text-red-400 border-red-700 bg-red-900/30' : 'text-slate-400 border-slate-700 bg-slate-800'}`}>
-            {fixMatches.length} match{fixMatches.length > 1 ? 'es' : ''}
-          </span>
+            {t('legacy.constraints.count', { count: fixMatches.length, plural: fixMatches.length > 1 ? 'es' : '' })}</span>
         )}
       </div>
 
@@ -44,7 +44,7 @@ export default function ConstraintsPage() {
       {fixMatches.length === 0 && (
         <div className="text-center py-12 text-slate-400">
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto mb-3 text-slate-500"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>
-          <p className="text-sm">No fixed matches yet. Add one to force specific pairings.</p>
+          <p className="text-sm">{t('wizard.constraints.empty')}</p>
         </div>
       )}
 
@@ -53,11 +53,10 @@ export default function ConstraintsPage() {
         disabled={players.length < 2}
         className="w-full py-2.5 border-2 border-dashed border-slate-700 hover:border-indigo-500 disabled-dim-ghost disabled:cursor-not-allowed text-slate-400 hover:text-indigo-400 rounded-xl text-sm font-medium transition-colors hit44"
       >
-        + Add Fixed Match
-      </button>
+        {t('wizard.constraints.add')}</button>
 
       {players.length < 2 && (
-        <p className="text-xs text-center text-slate-400">Add at least 2 players first.</p>
+        <p className="text-xs text-center text-slate-400">{t('wizard.constraints.minPlayers')}</p>
       )}
 
       <button

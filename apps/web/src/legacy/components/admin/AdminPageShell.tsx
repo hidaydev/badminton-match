@@ -56,7 +56,7 @@ export default function AdminPageShell({ adminOnly = false, children }: AdminPag
         <p className="text-fg-dim text-sm">
           {adminOnly ? 'Admin role required.' : 'Admin access required.'}
         </p>
-        <button onClick={() => navigate('/')} className="inline-flex min-h-11 items-center text-accent text-sm text-left">Back to home</button>
+        <button onClick={() => navigate('/')} className="inline-flex min-h-11 items-center text-accent text-sm text-left">{t('scoreboard.home')}</button>
       </div>
     )
   }

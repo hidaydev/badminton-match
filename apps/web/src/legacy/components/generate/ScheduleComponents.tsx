@@ -9,6 +9,7 @@ import { computeBackToBackRunBySlot } from '../../utils/playerStats'
 import { courtLabel } from '../../utils/courtLabel'
 import { computeQuality } from '../../utils/quality'
 import { GeneratedPlayerStats } from '../summary/PlayerStatsPanel'
+import { t } from '../../../i18n'
 
 // ── Tier letters ─────────────────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ function TierBalance({ tiersA, tiersB }: { tiersA: number[]; tiersB: number[] })
   return (
     <div className="flex items-center gap-1.5">
       <span className="text-[10px] text-slate-400">
-        <span>{renderTierLetters(tiersA)}</span> vs <span>{renderTierLetters(tiersB)}</span>
+        <span>{renderTierLetters(tiersA)}</span> {' '}{t('shared.versus')}{' '}<span>{renderTierLetters(tiersB)}</span>
       </span>
       <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${color}`}>{badge}</span>
     </div>
@@ -95,7 +96,7 @@ function GameCard({
             return p ? <PlayerChip key={id} player={p} backToBackRun={runFor(id)} /> : null
           })}
         </div>
-        <span className="text-slate-400 text-xs font-bold shrink-0">vs</span>
+        <span className="text-slate-400 text-xs font-bold shrink-0">{t('shared.versus')}</span>
         <div className="flex gap-1 flex-1 min-w-0 overflow-hidden">
           {teamB.map((id) => {
             const p = getPlayer(id)
@@ -144,13 +145,13 @@ export function ScheduleView({
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-4">
-        {Array.from({ length: maxSlots }, (_, t) => {
-          const games = bySlot.get(t) ?? []
-          const out = sittingOut(t)
+        {Array.from({ length: maxSlots }, (_, slot) => {
+          const games = bySlot.get(slot) ?? []
+          const out = sittingOut(slot)
           return (
-            <div key={t} className="flex flex-col gap-2">
+            <div key={slot} className="flex flex-col gap-2">
               <div className="flex items-center gap-3">
-                <span className="text-xs font-semibold text-slate-400 w-12 shrink-0">Slot {t + 1}</span>
+                <span className="text-xs font-semibold text-slate-400 w-12 shrink-0">{t('legacy.schedule.slot', { slot: slot + 1 })}</span>
                 <div className="flex-1 h-px bg-slate-800" />
               </div>
               <div className="flex flex-col gap-2 pl-2">
@@ -167,7 +168,7 @@ export function ScheduleView({
                 ))}
                 {out.length > 0 && (
                   <div className="flex items-center gap-2 flex-wrap mt-1">
-                    <span className="text-[10px] text-slate-400">sits out:</span>
+                    <span className="text-[10px] text-slate-400">{t('legacy.schedule.sitsOut')}</span>
                     {out.map((p) => (
                       <span key={p.id} className="text-[10px] text-slate-400 bg-slate-800/50 px-1.5 py-0.5 rounded">
                         <AnnotatedPlayerName name={p.name} />
@@ -264,8 +265,7 @@ export function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood,
             onClick={onRetryUntilGood}
             className="text-xs px-2.5 py-1 rounded-lg bg-emerald-900/40 hover:bg-emerald-900/60 border border-emerald-800 text-emerald-400 hover:text-emerald-200 transition-colors hit44"
           >
-            ↺ Retry until good
-          </button>
+            {t('legacy.schedule.retryUntilGood')}</button>
         )}
       </div>
       <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
@@ -290,8 +290,7 @@ export function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood,
       </div>
       {b2bConfigLimited && (
         <p className="text-[11px] text-amber-400/90 leading-snug border-t border-amber-800/50 pt-2">
-          ⚠ This configuration forces players to play back-to-back ({q.backToBackCount} back-to-back) — it is at the mathematical limit, regenerating will not reduce it. Add players or reduce slots to avoid this.
-        </p>
+          {t('legacy.schedule.backToBackLimit', { backToBackCount: q.backToBackCount })}</p>
       )}
     </div>
   )

@@ -96,7 +96,7 @@ export default function HomeLayout() {
           )}
           <Link to="/" className="flex min-h-11 -my-[10px] items-center gap-2 flex-1">
             <img src="/logo-192.png" alt="" className="w-6 h-6 shrink-0 object-contain" />
-            <span className="text-sm font-bold text-fg tracking-tight">MAJADU</span>
+            <span className="text-sm font-bold text-fg tracking-tight">{t('app.name')}</span>
           </Link>
           <div className="hidden md:flex items-center gap-2">
             <CommunityPicker />

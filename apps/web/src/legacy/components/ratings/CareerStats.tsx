@@ -14,8 +14,8 @@ function PairRow({ name, wins, losses, count }: { name: string; wins: number; lo
         <AnnotatedPlayerName name={name} />
       </span>
       <div className="flex items-center gap-1 font-mono text-[10px] shrink-0 tabular-nums">
-        <span className="text-emerald-400 font-semibold">{wins}W</span>
-        {losses > 0 && <span className="text-red-400 font-semibold">{losses}L</span>}
+        <span className="text-emerald-400 font-semibold">{t('legacy.career.winsShort', { wins: wins })}</span>
+        {losses > 0 && <span className="text-red-400 font-semibold">{t('legacy.career.lossesShort', { losses: losses })}</span>}
         <span className="text-fg-dim font-sans">{count}×</span>
       </div>
     </div>
@@ -59,8 +59,7 @@ export default function CareerStats({ stats, countedPoints }: {
                         className="text-[10px] font-mono text-accent bg-accent/10 border border-accent/30 rounded px-1.5 py-0.5 font-bold tabular-nums"
                         title={`Rank points contributed: +${Math.round(pts).toLocaleString('en-US')}`}
                       >
-                        +{Math.round(pts).toLocaleString('en-US')} pts
-                      </span>
+                        {t('legacy.career.rankPoints', { points: Math.round(pts).toLocaleString('en-US') })}</span>
                     )}
                     {s.absent && (
                       <span className="text-[10px] font-sans text-fg-dim bg-elevated px-1.5 py-0.5 rounded border border-border-subtle">
@@ -147,9 +146,9 @@ export default function CareerStats({ stats, countedPoints }: {
             {/* Tourn W - L */}
             <Card padding="sm" radius="xl" className="text-center flex flex-col justify-center">
               <div className="text-xl sm:text-2xl font-bold font-mono leading-none flex items-center justify-center gap-1 tabular-nums">
-                <span className="text-emerald-400">{stats.tournamentStats.wins}W</span>
+                <span className="text-emerald-400">{t('legacy.career.winsShort', { wins: stats.tournamentStats.wins })}</span>
                 <span className="text-fg-dim text-sm font-light">/</span>
-                <span className="text-red-400">{stats.tournamentStats.losses}L</span>
+                <span className="text-red-400">{t('legacy.career.lossesShort', { losses: stats.tournamentStats.losses })}</span>
               </div>
               <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1.5 font-medium">
                 {t('career.tournWl')}
@@ -192,15 +191,12 @@ export default function CareerStats({ stats, countedPoints }: {
                             className="text-accent bg-accent/10 border border-accent/30 rounded px-1.5 py-0.5 font-bold"
                             title={`Rank points contributed: +${Math.round(tPts).toLocaleString('en-US')}`}
                           >
-                            +{Math.round(tPts).toLocaleString('en-US')} pts
-                          </span>
+                            {t('legacy.career.rankPoints', { points: Math.round(tPts).toLocaleString('en-US') })}</span>
                         )}
                         <span className="text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                          {tItem.wins}W
-                        </span>
+                          {t('legacy.career.winsShort', { wins: tItem.wins })}</span>
                         <span className="text-red-400 font-bold bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">
-                          {tItem.losses}L
-                        </span>
+                          {t('legacy.career.lossesShort', { losses: tItem.losses })}</span>
                         <span className="text-fg-dim font-sans">{tItem.games} {t('career.games')}</span>
                         <span className="text-fg-dim">{tItem.date.split('-').reverse().join('-')}</span>
                       </div>

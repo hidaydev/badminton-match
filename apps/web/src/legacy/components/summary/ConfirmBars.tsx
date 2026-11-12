@@ -117,7 +117,7 @@ function SlotSwapConfirmBar({
           </div>
           <div className="flex items-center gap-1.5">
             <div className="h-px flex-1 bg-amber-900/40" />
-            <span className="text-[10px] text-amber-500 font-bold">↕ switch</span>
+            <span className="text-[10px] text-amber-500 font-bold">{t('legacy.confirmBars.switch')}</span>
             <div className="h-px flex-1 bg-amber-900/40" />
           </div>
           <div>
@@ -201,7 +201,7 @@ function ChangeConfirmBar({
           <span className="text-slate-400 line-through">{oldName}</span>
           {' '}→{' '}
           <span className="text-sky-300">{pendingChange.newName}</span>
-          <span className="text-slate-400 ml-1">Slot {pendingChange.target.slot + 1}, {courtLabel(pendingChange.target.court)}</span>
+          <span className="text-slate-400 ml-1">{t('legacy.confirmBars.slotCourt', { slot: pendingChange.target.slot + 1, court: courtLabel(pendingChange.target.court) })}</span>
         </>
       }
       warning="Cannot be undone"

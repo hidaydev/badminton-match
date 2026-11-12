@@ -118,9 +118,9 @@ export default function GroupMatches({ pairs, groups, matches, canEdit, onSetMat
           <div key={g} className="bg-surface rounded-xl overflow-hidden border border-border-subtle shadow-xs">
             {/* Group header */}
             <div className="px-4 py-2 flex justify-between items-center border-b border-border-subtle">
-              <span className="text-accent font-bold text-sm">GROUP {g}</span>
+              <span className="text-accent font-bold text-sm">{t('legacy.group.label', { group: g })}</span>
               <div className="flex items-center gap-3">
-                <span className="text-accent/80 text-xs">Court {GROUP_COURTS[g]}</span>
+                <span className="text-accent/80 text-xs">{t('wizard.generate.court', { court: GROUP_COURTS[g] })}</span>
                 <button
                   aria-label={`Photo mode for group ${g}`}
                   onClick={() => setPostModeGroups(prev => ({ ...prev, [g]: !prev[g] }))}
@@ -176,8 +176,7 @@ export default function GroupMatches({ pairs, groups, matches, canEdit, onSetMat
             {postModeGroups[g] && (
               <div className="px-4 py-2.5 flex items-center justify-between bg-elevated/50 border-t border-border-subtle">
                 <span className="text-xs text-fg-dim">
-                  {Object.keys(matchPhotos).filter(id => groupMatches.some(m => m.id === id)).length} of {groupMatches.length} photos
-                </span>
+                  {t('legacy.group.photoCount', { done: Object.keys(matchPhotos).filter(id => groupMatches.some(m => m.id === id)).length, total: groupMatches.length })}</span>
                 <button
                   aria-label={`Download posts for Group ${g}`}
                   onClick={() => handleDownloadGroup(g, groupMatches, groups[g], matches)}

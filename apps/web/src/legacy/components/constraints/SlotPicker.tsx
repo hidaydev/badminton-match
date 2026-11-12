@@ -1,5 +1,6 @@
 import type { Player } from '../../types'
 import { TIER_LABELS, TIER_COLORS } from '../../config/tiers'
+import { t } from '../../../i18n'
 
 // ── Player selector ───────────────────────────────────────────────────────────
 export function SlotPicker({
@@ -26,7 +27,7 @@ export function SlotPicker({
         onChange={(e) => onChange(e.target.value)}
         className="bg-elevated border border-border rounded-lg px-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent cursor-pointer w-full"
       >
-        <option value="">— Any —</option>
+        <option value="">{t('wizard.constraints.any')}</option>
         {available.map((p) => (
           <option key={p.id} value={p.id}>
             {p.name}
@@ -37,8 +38,7 @@ export function SlotPicker({
         {selected ? (
           <>
             {selected.gender} · <span className={TIER_COLORS[selected.tier] ?? 'text-slate-400'}>
-              Tier {TIER_LABELS[selected.tier] ?? selected.tier}
-            </span>
+              {t('wizard.constraints.tier', { label: TIER_LABELS[selected.tier] ?? selected.tier })}</span>
           </>
         ) : '—'}
       </span>

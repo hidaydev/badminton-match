@@ -24,7 +24,7 @@ export default function AdminTournamentsPage() {
           <section className="flex flex-col gap-3">
             <div className="flex items-center justify-between px-0.5">
               <h3 className="text-xs font-semibold text-fg-dim label-meta">{t('admin.sectionTournament')}</h3>
-              <span className="text-xs font-mono text-fg-dim">{(tournaments ?? []).length} tournaments</span>
+              <span className="text-xs font-mono text-fg-dim">{t('legacy.adminTournaments.count', { count: (tournaments ?? []).length })}</span>
             </div>
 
             <Card variant="flush" radius="xl" className="divide-y divide-border-subtle shadow-xs">

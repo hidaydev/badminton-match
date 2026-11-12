@@ -153,7 +153,7 @@ export default function RatingPlayerPage() {
                   <span className="text-2xl sm:text-3xl font-extrabold font-mono text-accent leading-none">
                     {Math.round(rankRow.points).toLocaleString('en-US')}
                   </span>
-                  <span className="text-xs font-sans text-fg-dim">pts</span>
+                  <span className="text-xs font-sans text-fg-dim">{t('legacy.ratingPlayer.pts')}</span>
                 </div>
               ) : (
                 <p className="text-xs font-sans text-fg-dim mt-0.5">
@@ -190,9 +190,9 @@ export default function RatingPlayerPage() {
           {/* W - L */}
           <Card padding="sm" radius="xl" className="text-center flex flex-col justify-center">
             <div className="text-xl sm:text-2xl font-bold font-mono leading-none flex items-center justify-center gap-1">
-              <span className="text-emerald-400">{wins}W</span>
+              <span className="text-emerald-400">{t('legacy.ratingPlayer.wins', { wins: wins })}</span>
               <span className="text-fg-dim text-sm font-light">/</span>
-              <span className="text-red-400">{losses}L</span>
+              <span className="text-red-400">{t('legacy.ratingPlayer.losses', { losses: losses })}</span>
             </div>
             <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1.5 font-medium">
               {t('player.record')}

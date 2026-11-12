@@ -79,7 +79,7 @@ export default function GroupAssignment({
         {GROUP_IDS.map((g) => (
           <Card variant="flush" radius="xl" className="shadow-xs" key={g}>
             <div className={`px-3 py-1.5 flex justify-between items-center ${GROUP_HEAD_CLASS[g]}`}>
-              <span className="text-xs font-bold">GROUP {g}</span>
+              <span className="text-xs font-bold">{t('legacy.group.label', { group: g })}</span>
               <span className="text-xs opacity-70">{groups[g].filter(Boolean).length}/4</span>
             </div>
             <div className="p-2 flex flex-col gap-1.5">

@@ -213,14 +213,11 @@ export default function ShareButton() {
         >
           <div className="flex flex-col gap-2 text-sm">
             <div className="flex items-center gap-2 text-slate-400">
-              <span className="text-emerald-400">✓</span> Mark games as played
-            </div>
+              <span className="text-emerald-400">✓</span> {' '}{t('legacy.share.playedBullet')}</div>
             <div className="flex items-center gap-2 text-slate-400">
-              <span className="text-emerald-400">✓</span> Enter and update scores
-            </div>
+              <span className="text-emerald-400">✓</span> {' '}{t('legacy.share.scoresBullet')}</div>
             <div className="flex items-center gap-2 text-slate-400">
-              <span className="text-red-400">✕</span> Regenerate the schedule
-            </div>
+              <span className="text-red-400">✕</span> {' '}{t('legacy.share.regenerateBullet')}</div>
           </div>
         </Overlay>
       )}
@@ -234,8 +231,7 @@ export default function ShareButton() {
               onClick={handleNativeShare}
               className="text-xs font-semibold shrink-0 text-indigo-400 hover:text-white transition-colors hit44"
             >
-              Share…
-            </button>
+              {t('legacy.share.shareCta')}</button>
           )}
           <button
             onClick={handleCopy}

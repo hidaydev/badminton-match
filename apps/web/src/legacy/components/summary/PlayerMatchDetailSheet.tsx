@@ -5,6 +5,7 @@ import { toPlayerId, toGameKey } from '../../types'
 import type { PlayerStanding } from '../../utils/standings'
 import { setsWon, describeSetsFor } from '../../utils/scoring'
 import { ordinal } from '../../utils/ordinal'
+import { t } from '../../../i18n'
 
 interface GameRow {
   slot: number
@@ -113,29 +114,28 @@ export default function PlayerMatchDetailSheet({
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-slate-800 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold text-slate-100">{player.wins}</div>
-          <div className="text-xs text-slate-400">Won</div>
+          <div className="text-xs text-slate-400">{t('legacy.matchDetail.won')}</div>
         </div>
         <div className="bg-slate-800 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold text-slate-100">{player.losses}</div>
-          <div className="text-xs text-slate-400">Lost</div>
+          <div className="text-xs text-slate-400">{t('legacy.matchDetail.lost')}</div>
         </div>
         <div className="bg-slate-800 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold text-slate-100">{player.wins + player.losses}</div>
-          <div className="text-xs text-slate-400">Played</div>
+          <div className="text-xs text-slate-400">{t('shared.gameStatus.played')}</div>
         </div>
       </div>
 
-      <h3 className="text-sm font-medium text-slate-300 mb-2">Match History</h3>
+      <h3 className="text-sm font-medium text-slate-300 mb-2">{t('legacy.matchDetail.history')}</h3>
       {games.length === 0 ? (
-        <p className="text-sm text-slate-400">No games played yet.</p>
+        <p className="text-sm text-slate-400">{t('legacy.matchDetail.empty')}</p>
       ) : (
         <div className="space-y-2">
           {games.map((game, i) => (
             <div key={i} className="bg-slate-800 rounded-lg p-3">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs text-slate-400">
-                  Game {game.slot + 1} • Court {game.court + 1}
-                </span>
+                  {t('legacy.matchDetail.gameCourt', { game: game.slot + 1, court: game.court + 1 })}</span>
                 {game.won !== null && (
                   <span className={`text-xs font-medium ${game.won ? 'text-emerald-400' : 'text-red-400'}`}>
                     {game.won ? 'Won' : 'Lost'}
@@ -146,7 +146,7 @@ export default function PlayerMatchDetailSheet({
                 <span className="text-sm text-slate-200 truncate min-w-0">
                   {game.partner?.name ? <AnnotatedPlayerName name={game.partner.name} /> : '?'}
                 </span>
-                <span className="text-xs text-slate-400">vs</span>
+                <span className="text-xs text-slate-400">{t('shared.versus')}</span>
                 <span className="text-sm text-slate-200 truncate min-w-0 flex items-center gap-1">
                   {game.opponents[0]?.name ? <AnnotatedPlayerName name={game.opponents[0].name} /> : '?'}
                   &

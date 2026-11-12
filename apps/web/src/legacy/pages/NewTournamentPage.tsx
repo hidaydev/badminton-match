@@ -2,6 +2,7 @@
 import { useNavigate } from '../router'
 import Icon from '../components/Icon'
 import { Card } from '../../components/Card'
+import { t } from '../../i18n'
 
 export default function NewTournamentPage() {
   const navigate = useNavigate()
@@ -30,8 +31,8 @@ export default function NewTournamentPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h1 className="text-lg font-bold text-fg">New Tournament</h1>
-        <p className="text-xs text-fg-dim">Select the tournament format you want to run</p>
+        <h1 className="text-lg font-bold text-fg">{t('legacy.newTournament.title')}</h1>
+        <p className="text-xs text-fg-dim">{t('legacy.newTournament.subtitle')}</p>
       </div>
 
       <div className="flex flex-col gap-3">

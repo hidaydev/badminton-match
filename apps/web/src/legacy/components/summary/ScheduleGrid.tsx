@@ -288,7 +288,7 @@ export default function ScheduleGrid({
                           {courtLabel(courtNames, g.court)}
                         </span>
                         {teamCell('A')}
-                        <span className="text-slate-300 text-xs font-bold text-center select-none shrink-0">vs</span>
+                        <span className="text-slate-300 text-xs font-bold text-center select-none shrink-0">{t('shared.versus')}</span>
                         {teamCell('B')}
                       </div>
                       {/* Score toggle / saved score */}
@@ -347,13 +347,12 @@ export default function ScheduleGrid({
                       <div className="ml-6 bg-slate-900 border border-indigo-800/60 rounded-lg px-3 py-2.5 flex flex-col gap-2">
                         {scoring && (
                           <p className="text-[10px] text-slate-400 text-center">
-                            {scoring.label} · first to {scoring.gamesToWin} {scoring.gamesToWin === 1 ? 'set' : 'sets'} of {scoring.pointsToWin}
-                          </p>
+                            {t('legacy.scheduleGrid.format', { label: scoring.label, games: scoring.gamesToWin, unit: scoring.gamesToWin === 1 ? 'set' : 'sets', points: scoring.pointsToWin })}</p>
                         )}
                         <div className="flex flex-col gap-1.5">
                           {draft.map((row, index) => (
                             <div key={index} className="flex items-center justify-center gap-2">
-                              <span className="w-10 text-right text-[10px] text-slate-400 tabular-nums">Set {index + 1}</span>
+                              <span className="w-10 text-right text-[10px] text-slate-400 tabular-nums">{t('legacy.scheduleGrid.set', { set: index + 1 })}</span>
                               <input
                                 type="number"
                                 inputMode="numeric"

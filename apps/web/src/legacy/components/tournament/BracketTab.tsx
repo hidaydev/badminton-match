@@ -10,6 +10,7 @@ import { hit44 } from '../hitTarget'
 import ScoreModal from './ScoreModal'
 import { IconButton } from '../../../components/Button'
 import { Card } from '../../../components/Card'
+import { t } from '../../../i18n'
 
 interface BracketTabProps {
   pairs: TournamentPair[]
@@ -76,7 +77,7 @@ function MatchCard({
           {scored ? (
             <div className="text-[10px] font-bold font-mono text-accent text-center my-1">{match.scoreA} – {match.scoreB}</div>
           ) : (
-            <div className="text-[11px] text-fg-dim text-center my-1 font-medium">vs</div>
+            <div className="text-[11px] text-fg-dim text-center my-1 font-medium">{t('shared.versus')}</div>
           )}
           <div className="text-xs text-fg font-medium truncate">{getPairName(match.pairBId)}</div>
         </div>
@@ -152,7 +153,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
         <Icon name="tournament" size={40} className="text-fg-dim" />
-        <p className="text-fg-dim text-sm">Assign groups and confirm to see the bracket.</p>
+        <p className="text-fg-dim text-sm">{t('legacy.bracket.empty')}</p>
       </div>
     )
   }

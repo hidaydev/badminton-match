@@ -274,11 +274,10 @@ export default function TeamTournamentPage() {
       <div className="bg-surface px-4 pt-3 pb-0 border-b border-border-subtle">
         <div className="flex items-center gap-2">
           <h1 className="text-[1rem] font-bold text-fg leading-tight">{snap.name}</h1>
-          {publish.isPending && <span className="text-xs text-fg-dim">saving…</span>}
+          {publish.isPending && <span className="text-xs text-fg-dim">{t('teamTournament.saving')}</span>}
         </div>
         <p className="text-xs text-fg-dim mt-0.5 mb-3">
-          {snap.date} · 6 teams · 3 doubles · rally {teamTarget('group')}/{teamTarget('final')}
-        </p>
+          {t('legacy.teamTournament.meta', { date: snap.date, groupTarget: teamTarget('group'), finalTarget: teamTarget('final') })}</p>
         <div className="flex">
           {tabs.map((t) => (
             <button
@@ -335,8 +334,7 @@ export default function TeamTournamentPage() {
             {groupMatches.length === 0 && (
               <Card variant="flush" radius="lg">
                 <div className="px-4 py-2 border-b border-border-subtle text-xs text-fg-dim label-meta">
-                  Team Draw (match day)
-                </div>
+                  {t('legacy.teamTournament.teamDraw')}</div>
                 {TEAM_NAMES.map((name, k) => {
                   const slot = (slotToNamed ?? teams.map((_, i) => i)).indexOf(k)
                   return (
@@ -350,11 +348,11 @@ export default function TeamTournamentPage() {
                           aria-label={`Slot for ${name}`}
                         >
                           {TEAM_NAMES.map((_, si) => (
-                            <option key={si} value={si}>Team {si + 1}</option>
+                            <option key={si} value={si}>{t('legacy.teamTournament.team', { team: si + 1 })}</option>
                           ))}
                         </select>
                       ) : (
-                        <span className="text-sm text-fg-dim">Team {slot + 1}</span>
+                        <span className="text-sm text-fg-dim">{t('legacy.teamTournament.team', { team: slot + 1 })}</span>
                       )}
                     </div>
                   )
@@ -362,19 +360,17 @@ export default function TeamTournamentPage() {
                 {canEdit && (
                   <div className="p-3">
                     <Button className="w-full" onClick={handleUndian} disabled={publish.isPending}>
-                      Group Draw (match day)
-                    </Button>
+                      {t('legacy.groupDrawTitle')}</Button>
                   </div>
                 )}
               </Card>
             )}
             {canEdit && groupComplete && !hasFinal && (
               <Button className="w-full" onClick={handleBuatFinal} disabled={publish.isPending}>
-                Create Final (top 2)
-              </Button>
+                {t('legacy.teamTournament.createFinal')}</Button>
             )}
             {!groupComplete && groupMatches.length > 0 && (
-              <p className="text-xs text-fg-dim text-center">Finish all 9 group matches to determine the final.</p>
+              <p className="text-xs text-fg-dim text-center">{t('legacy.teamTournament.finalHint')}</p>
             )}
           </>
         )}
@@ -405,7 +401,7 @@ export default function TeamTournamentPage() {
                 {/* Champion banner */}
                 {finalOutcome?.complete && championName && (
                   <div className="bg-linear-to-r from-accent/20 via-accent/10 to-accent/20 border border-accent/30 rounded-lg px-4 py-3 text-center">
-                    <p className="text-[10px] text-accent uppercase tracking-widest mb-1">Champion</p>
+                    <p className="text-[10px] text-accent uppercase tracking-widest mb-1">{t('team.champion')}</p>
                     <p className="text-lg font-bold text-fg">🏆 {championName}</p>
                     <p className="text-xs text-fg-dim mt-0.5">
                       {finalOutcome.aWins} - {finalOutcome.bWins}
@@ -436,11 +432,11 @@ export default function TeamTournamentPage() {
                 {/* Export Posts — champion + runner-up photos + download */}
                 {finalPostMode && (
                 <Card padding="sm" radius="lg" className="flex flex-col gap-2">
-                  <h3 className="text-xs text-fg-dim label-meta">Position Photos</h3>
+                  <h3 className="text-xs text-fg-dim label-meta">{t('legacy.teamTournament.positionPhotos')}</h3>
 
                   {championName && (
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-fg-dim">🏆 Champion photo</span>
+                      <span className="text-xs text-fg-dim">{t('legacy.teamTournament.championPhoto')}</span>
                       <div className="relative">
                         <button
                           onClick={() => openFinalUpload('champion')}
@@ -456,7 +452,7 @@ export default function TeamTournamentPage() {
 
                   {runnerUpName && (
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-fg-dim">🥈 Runner-up photo</span>
+                      <span className="text-xs text-fg-dim">{t('legacy.teamTournament.runnerUpPhoto')}</span>
                       <div className="relative">
                         <button
                           onClick={() => openFinalUpload('runnerup')}
@@ -471,7 +467,7 @@ export default function TeamTournamentPage() {
                   )}
 
                   <div className="flex items-center justify-between pt-1 border-t border-border-subtle mt-1">
-                    <span className="text-xs text-fg-dim">{Object.keys(finalPhotos).filter(k => k === 'champion' || k === 'runnerup').length} of {(championName ? 1 : 0) + (runnerUpName ? 1 : 0)} position photos</span>
+                    <span className="text-xs text-fg-dim">{t('legacy.teamTournament.photoCount', { done: Object.keys(finalPhotos).filter(k => k === 'champion' || k === 'runnerup').length, total: (championName ? 1 : 0) + (runnerUpName ? 1 : 0) })}</span>
                   </div>
                 </Card>
                 )}

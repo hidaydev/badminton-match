@@ -430,7 +430,7 @@ export default function InstagramPostPage() {
           >
             {t('legacy.create')}
           </p>
-          <h1 className="text-lg font-bold text-yellow-400 tracking-tight leading-none">Instagram Post</h1>
+          <h1 className="text-lg font-bold text-yellow-400 tracking-tight leading-none">{t('home.card.post')}</h1>
         </div>
         <input
           type="date"
@@ -475,7 +475,7 @@ export default function InstagramPostPage() {
             <div className="w-16 h-16 rounded-full bg-slate-800 border-2 border-dashed border-slate-600 flex items-center justify-center text-2xl">
               📷
             </div>
-            <span className="text-sm font-semibold text-slate-300">Tap to upload photo</span>
+            <span className="text-sm font-semibold text-slate-300">{t('legacy.instagram.upload')}</span>
           </button>
         )}
 
@@ -531,7 +531,7 @@ export default function InstagramPostPage() {
                 >
                   <div className="w-12 h-15 rounded-lg bg-slate-700 border border-slate-600" />
                   <div className="text-center">
-                    <p className="text-sm font-bold text-white">Post</p>
+                    <p className="text-sm font-bold text-white">{t('legacy.instagram.post')}</p>
                     <p className="text-[11px] text-slate-400">{POST_WIDTH} × {POST_HEIGHT}</p>
                   </div>
                 </Card>
@@ -547,7 +547,7 @@ export default function InstagramPostPage() {
                     <div className="w-7 h-7 rounded bg-yellow-500/40" />
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-bold text-black">Story</p>
+                    <p className="text-sm font-bold text-black">{t('legacy.instagram.story')}</p>
                     <p className="text-[11px] text-yellow-800">{STORY_WIDTH} × {STORY_HEIGHT}</p>
                   </div>
                 </Card>
@@ -563,7 +563,7 @@ export default function InstagramPostPage() {
                     <Icon name="tournament" size={20} />
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-bold text-white">Leaderboard Post</p>
+                    <p className="text-sm font-bold text-white">{t('legacy.instagram.leaderboardPost')}</p>
                     <p className="text-[11px] text-slate-400">{POST_WIDTH} × {POST_HEIGHT}</p>
                   </div>
                 </Card>
@@ -579,7 +579,7 @@ export default function InstagramPostPage() {
                     <Icon name="tournament" size={20} />
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-bold text-black">Leaderboard Story</p>
+                    <p className="text-sm font-bold text-black">{t('legacy.instagram.leaderboardStory')}</p>
                     <p className="text-[11px] text-yellow-800">{STORY_WIDTH} × {STORY_HEIGHT}</p>
                   </div>
                 </Card>
@@ -614,20 +614,20 @@ export default function InstagramPostPage() {
               {isGenerating && (
                 <div className="flex items-center justify-center py-8 gap-3">
                   <Spinner size={20} className="text-yellow-400" />
-                  <span className="text-sm text-slate-400">Generating…</span>
+                  <span className="text-sm text-slate-400">{t('legacy.instagram.generating')}</span>
                 </div>
               )}
 
               {!isGenerating && (
                 <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">
                   {!sessionQuery.trim() && (
-                    <p className="text-sm text-slate-400 text-center py-4">Search session by title to select</p>
+                    <p className="text-sm text-slate-400 text-center py-4">{t('legacy.instagram.searchHint')}</p>
                   )}
                   {sessionQuery.trim() && !sessions && (
-                    <p className="text-sm text-slate-400 text-center py-4">Loading sessions…</p>
+                    <p className="text-sm text-slate-400 text-center py-4">{t('legacy.instagram.loadingSessions')}</p>
                   )}
                   {sessionQuery.trim() && sessions?.length === 0 && (
-                    <p className="text-sm text-slate-400 text-center py-4">No sessions found</p>
+                    <p className="text-sm text-slate-400 text-center py-4">{t('legacy.instagram.noSessions')}</p>
                   )}
                   {sessionQuery.trim() && sessions?.map(s => (
                     <Card
@@ -639,7 +639,7 @@ export default function InstagramPostPage() {
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-white truncate">{s.title}</p>
-                        <p className="text-[11px] text-slate-400">{s.date} · {s.playerCount} players</p>
+                        <p className="text-[11px] text-slate-400">{t('legacy.instagram.sessionMeta', { date: s.date, players: s.playerCount })}</p>
                       </div>
                       <span className="text-slate-400 text-xs">→</span>
                     </Card>

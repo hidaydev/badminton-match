@@ -234,7 +234,7 @@ export default function GeneratePage() {
     <div className="flex flex-col gap-6">
       {isSharedView && (
         <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-indigo-900/30 border border-indigo-800 text-sm">
-          <span className="text-indigo-300">Viewing a shared schedule</span>
+          <span className="text-indigo-300">{t('legacy.generate.sharedBanner')}</span>
           <Button variant="ghost" size="sm" onClick={exitSharedView} className="shrink-0">
             {t('legacy.startOwnSession')}
           </Button>
@@ -244,11 +244,10 @@ export default function GeneratePage() {
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2 mb-0.5">
-            <h1 className="text-lg font-bold text-fg">Generate Schedule</h1>
+            <h1 className="text-lg font-bold text-fg">{t('wizard.generate.title')}</h1>
           </div>
           <p className="text-slate-400 text-xs sm:text-sm">
-            {players.length} players · {selectTotalGames(session)} games · {session.courts} court{session.courts > 1 ? 's' : ''}
-          </p>
+            {t('legacy.generate.meta', { players: players.length, games: selectTotalGames(session), courts: session.courts, plural: session.courts > 1 ? 's' : '' })}</p>
         </div>
         {result && (
           <div className="flex gap-1.5 shrink-0">
@@ -270,8 +269,7 @@ export default function GeneratePage() {
                     onClick={handleRetryUntilGood}
                     className="whitespace-nowrap"
                   >
-                    ↺ Regenerate
-                  </Button>
+                    {t('wizard.generate.regenerate')}</Button>
                 )}
                 <ShareButton />
               </>
@@ -312,7 +310,7 @@ export default function GeneratePage() {
 
       {result && result.unplacedFixMatches.length > 0 && (
         <div className="p-3 bg-amber-900/30 border border-amber-700 rounded-xl text-amber-400 text-sm flex flex-col gap-1.5">
-          <span className="font-medium">⚠ {result.unplacedFixMatches.length} fix match{result.unplacedFixMatches.length > 1 ? 'es' : ''} could not be placed:</span>
+          <span className="font-medium">{t('legacy.generate.unplaced', { count: result.unplacedFixMatches.length, plural: result.unplacedFixMatches.length > 1 ? 'es' : '' })}</span>
           {result.unplacedFixMatches.map((id) => {
             const fm = fixMatches.find((m) => m.id === id)
             if (!fm) return null
@@ -340,8 +338,7 @@ export default function GeneratePage() {
           onClick={handleRetryUntilGood}
           disabled={players.length < 4}
         >
-          ▶ Generate Schedule
-        </Button>
+          {t('wizard.generate.generate')}</Button>
       ) : (
         <ScheduleView
           result={result}

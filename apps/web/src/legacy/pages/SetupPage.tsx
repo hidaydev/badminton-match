@@ -37,7 +37,7 @@ function PlaysPerPlayer({ totalGames, playerCount }: { totalGames: number; playe
   const label = min === max ? `${min}x` : `${min}–${max}x`
   return (
     <span className="text-slate-400">
-      {' '}→ each player plays <strong className="text-white">{label}</strong>
+      {' '}{t('legacy.setup.playsPerPlayer')}{' '}<strong className="text-white">{label}</strong>
     </span>
   )
 }
@@ -142,7 +142,7 @@ function CourtTimeline({
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-xs text-slate-400">Timeline</span>
+      <span className="text-xs text-slate-400">{t('wizard.setup.timeline')}</span>
       <div className="relative">
         {/* tick labels */}
         <div className="flex relative h-5 mb-1">
@@ -173,7 +173,7 @@ function CourtTimeline({
                     className={`absolute h-full rounded ${COURT_COLORS[i % COURT_COLORS.length]} opacity-80 flex items-center justify-center`}
                     style={{ left: `${startPct}%`, width: `${endPct - startPct}%` }}
                   >
-                    <span className="text-[10px] text-white font-semibold">{slots} game{slots !== 1 ? 's' : ''}</span>
+                    <span className="text-[10px] text-white font-semibold">{t('legacy.setup.gameCount', { count: slots, plural: slots !== 1 ? 's' : '' })}</span>
                   </div>
                 </div>
               </div>
@@ -290,8 +290,8 @@ export default function SetupPage() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-lg font-bold text-fg mb-0.5">Session Setup</h1>
-        <p className="text-slate-400 text-sm">Configure courts and time slots. Settings lock once session starts.</p>
+        <h1 className="text-lg font-bold text-fg mb-0.5">{t('wizard.setup.title')}</h1>
+        <p className="text-slate-400 text-sm">{t('legacy.setup.subtitle')}</p>
       </div>
 
       <Card padding="md" radius="lg" className="flex flex-col gap-5">
@@ -299,7 +299,7 @@ export default function SetupPage() {
         {/* Block 0: Session identity */}
         <div className="flex flex-wrap gap-4">
           <div className="flex flex-col gap-1 flex-1 min-w-45">
-            <label htmlFor={titleId} className="text-xs text-slate-400">Session title</label>
+            <label htmlFor={titleId} className="text-xs text-slate-400">{t('wizard.setup.titleLabel')}</label>
             <input
               id={titleId}
               type="text"
@@ -312,7 +312,7 @@ export default function SetupPage() {
             />
           </div>
           <div className="flex flex-col gap-1 min-w-35">
-            <label htmlFor={dateId} className="text-xs text-slate-400">Date</label>
+            <label htmlFor={dateId} className="text-xs text-slate-400">{t('tournaments.column.date')}</label>
             <input
               id={dateId}
               type="date"
@@ -326,7 +326,7 @@ export default function SetupPage() {
 
         {/* Block 0b: Match format */}
         <fieldset className="flex flex-col gap-2" disabled={session.locked}>
-          <legend className="text-xs text-slate-400">Match format</legend>
+          <legend className="text-xs text-slate-400">{t('legacy.setup.format')}</legend>
           <div className="flex flex-wrap gap-2">
             {presets.map((preset) => {
               const selected = session.scoring?.preset === preset.id
@@ -376,7 +376,7 @@ export default function SetupPage() {
             disabled={session.locked}
           />
           <div className="flex flex-col gap-1">
-            <span className="text-xs text-slate-400">Session start</span>
+            <span className="text-xs text-slate-400">{t('wizard.setup.sessionStart')}</span>
             <TimeSelect
               value={session.sessionStart}
               options={startOpts}
@@ -386,7 +386,7 @@ export default function SetupPage() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label htmlFor={durationId} className="text-xs text-slate-400">Game duration</label>
+            <label htmlFor={durationId} className="text-xs text-slate-400">{t('wizard.setup.duration')}</label>
             <select
               id={durationId}
               value={session.slotMinutes}
@@ -395,7 +395,7 @@ export default function SetupPage() {
               className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled-dim-faint disabled:cursor-not-allowed cursor-pointer h-11"
             >
               {DURATION_OPTIONS.map((d) => (
-                <option key={d} value={d}>{d} min</option>
+                <option key={d} value={d}>{t('wizard.setup.minutes', { n: d })}</option>
               ))}
             </select>
           </div>
@@ -403,7 +403,7 @@ export default function SetupPage() {
 
         {/* Block 2: Per-court times */}
         <div className="flex flex-col gap-2">
-          <span className="text-xs text-slate-400">Court hours</span>
+          <span className="text-xs text-slate-400">{t('wizard.setup.courtHours')}</span>
           <div className="flex flex-col gap-2">
             {session.courtTimes.map((ct, i) => {
               const slots = Math.max(0, Math.floor((timeToMinutes(ct.end) - timeToMinutes(ct.start)) / session.slotMinutes))
@@ -434,8 +434,7 @@ export default function SetupPage() {
                     label={`Court ${i + 1} end time`}
                   />
                   <span className="text-xs text-slate-400 ml-auto">
-                    {slots} game{slots !== 1 ? 's' : ''}
-                  </span>
+                    {t('legacy.setup.gameCount', { count: slots, plural: slots !== 1 ? 's' : '' })}</span>
                 </div>
               )
             })}
@@ -447,7 +446,7 @@ export default function SetupPage() {
 
         {/* Block 4: Summary */}
         <div className="flex items-center justify-between bg-slate-800 rounded-xl px-3 py-2">
-          <span className="text-sm text-slate-400">Total Games</span>
+          <span className="text-sm text-slate-400">{t('wizard.setup.totalGames')}</span>
           <span className="text-xl font-bold text-indigo-400">{selectTotalGames(session)}</span>
         </div>
 
@@ -459,13 +458,13 @@ export default function SetupPage() {
         )}
 
         {!session.locked && (!session.title.trim() || !session.date) && !courtError && (
-          <p className="text-xs text-slate-400">Session title and date are required to start.</p>
+          <p className="text-xs text-slate-400">{t('wizard.setup.required')}</p>
         )}
 
         {session.locked ? (
           <div className="flex items-center gap-3 p-3 bg-emerald-900/30 border border-emerald-700 rounded-xl text-emerald-400 text-sm">
             <span>✓</span>
-            <span>Session is active — settings locked</span>
+            <span>{t('wizard.setup.locked')}</span>
             <button
               onClick={resetSession}
               className="ml-auto inline-flex min-h-11 min-w-11 items-center justify-center text-xs text-red-400 hover:text-red-300 transition-colors"
@@ -479,15 +478,13 @@ export default function SetupPage() {
             disabled={!canLock}
             className="w-full min-h-11 py-2.5 bg-indigo-400 hover:bg-indigo-300 active:bg-indigo-700 disabled-dim-faint disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors hit44"
           >
-            Start Session →
-          </button>
+            {t('wizard.setup.start')}</button>
         )}
       </Card>
 
       <div className="text-xs text-slate-400 leading-relaxed">
         <p>
-          {session.courts} court{session.courts > 1 ? 's' : ''} · {selectTotalGames(session)} total games.
-          <PlaysPerPlayer totalGames={selectTotalGames(session)} playerCount={session.playerCount} />
+          {t('legacy.setup.courtSummary', { courts: session.courts, plural: session.courts > 1 ? 's' : '', games: selectTotalGames(session) })}<PlaysPerPlayer totalGames={selectTotalGames(session)} playerCount={session.playerCount} />
         </p>
       </div>
     </div>

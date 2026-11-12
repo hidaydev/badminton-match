@@ -36,8 +36,8 @@ export default function UpdateBanner({ onReload, onDismiss }: UpdateBannerProps)
             🚀
           </div>
           <div className="text-center">
-            <p id={headingId} className="text-white font-bold text-lg leading-tight">Update Available</p>
-            <p className="text-slate-400 text-sm mt-0.5">A new version of MAJADU is ready</p>
+            <p id={headingId} className="text-white font-bold text-lg leading-tight">{t('legacy.update.title')}</p>
+            <p className="text-slate-400 text-sm mt-0.5">{t('legacy.update.body')}</p>
           </div>
         </div>
 
@@ -47,8 +47,8 @@ export default function UpdateBanner({ onReload, onDismiss }: UpdateBannerProps)
         <div className="flex items-start gap-4 px-6 py-5">
           <div className="shrink-0 w-8 h-8 rounded-full bg-elevated flex items-center justify-center text-[1rem]">✨</div>
           <div className="flex flex-col gap-0.5 pt-0.5">
-            <span className="text-sm font-semibold text-white">Improvements & fixes</span>
-            <span className="text-xs text-slate-400">Reload to get the latest version</span>
+            <span className="text-sm font-semibold text-white">{t('legacy.update.changesTitle')}</span>
+            <span className="text-xs text-slate-400">{t('legacy.update.changesBody')}</span>
           </div>
         </div>
 

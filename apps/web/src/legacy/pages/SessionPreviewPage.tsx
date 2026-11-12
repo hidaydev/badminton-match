@@ -17,8 +17,7 @@ export default function SessionPreviewPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-ground flex items-center justify-center text-slate-400 text-sm">
-        Loading session…
-      </div>
+        {t('legacy.common.loadingSession')}</div>
     )
   }
 
@@ -48,8 +47,7 @@ export default function SessionPreviewPage() {
     <AmbiguousNamesProvider value={ambiguousNames}>
       <div className="min-h-screen bg-ground text-fg p-4">
         <div className="mb-4 text-xs text-slate-500 font-mono">
-          dev / session-preview · {SESSION_ID}
-        </div>
+          {t('legacy.sessionPreview.badge', { id: SESSION_ID })}</div>
         <ScheduleGrid
           data={{
             result,

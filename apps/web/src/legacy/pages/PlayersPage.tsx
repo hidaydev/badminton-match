@@ -119,8 +119,7 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
             {player.name}
             {isPlaceholderName(player.name) && (
               <span className="ml-2 text-[11px] font-bold text-amber-400/90 bg-amber-900/40 border border-amber-700/50 rounded px-1 py-0.5 label-meta">
-                tbd
-              </span>
+                {t('wizard.players.tbd')}</span>
             )}
           </span>
         )}
@@ -151,8 +150,7 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
       {ambiguousMatches && ambiguousMatches.length > 0 && (
         <div className="bg-amber-950/70 border border-amber-600/70 rounded-xl p-2.5 flex flex-col gap-1.5 text-xs ml-1 mr-1">
           <span className="text-amber-300 font-semibold flex items-center gap-1">
-            ⚠️ Name &ldquo;{player.name}&rdquo; is ambiguous ({ambiguousMatches.length} registered players found):
-          </span>
+            {t('legacy.players.ambiguous', { name: player.name, count: ambiguousMatches.length })}</span>
           <div className="flex flex-wrap gap-1.5">
             {ambiguousMatches.map((m) => (
               <Button
@@ -262,7 +260,7 @@ function BulkImport({ onClose, existingCount, max, canonicalPlayers }: {
   return (
     <div className="bg-elevated border border-border rounded-xl p-4 flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-white">Paste player list</span>
+        <span className="text-sm font-medium text-white">{t('wizard.players.bulkTitle')}</span>
         <IconButton label={t('players.bulkClose')} size="sm" onClick={onClose}>
           ✕
         </IconButton>
@@ -278,15 +276,13 @@ function BulkImport({ onClose, existingCount, max, canonicalPlayers }: {
       {preview.length > 0 && (
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">
-            {preview.length} player{preview.length > 1 ? 's' : ''} detected
-            {overflow > 0 ? ` (${overflow} skipped — limit reached)` : ''}:
-          </span>
+            {t('legacy.players.detected', { count: preview.length, plural: preview.length > 1 ? 's' : '', extra: overflow > 0 ? ` (${overflow} skipped — limit reached)` : '' })}</span>
           <div className="flex flex-wrap gap-1">
             {preview.map((name) => (
               <span key={name} className="text-xs bg-slate-700 text-slate-200 px-2 py-0.5 rounded-full">{name}</span>
             ))}
           </div>
-          <p className="text-xs text-slate-400 mt-1">Gender defaults to M, Tier to D+ — click to change after import.</p>
+          <p className="text-xs text-slate-400 mt-1">{t('legacy.players.importDefaults')}</p>
         </div>
       )}
       <div className="flex gap-2">
@@ -295,8 +291,7 @@ function BulkImport({ onClose, existingCount, max, canonicalPlayers }: {
           disabled={preview.length === 0}
           onClick={handleImport}
         >
-          Import {preview.length > 0 ? preview.length : ''} Players
-        </Button>
+          {t('wizard.players.import', { count: preview.length > 0 ? preview.length : '' })}</Button>
         <Button variant="secondary" onClick={onClose}>
           {t('legacy.cancel')}
         </Button>
@@ -358,8 +353,8 @@ export default function PlayersPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h1 className="text-lg font-bold text-fg mb-0.5">Players</h1>
-          <p className="text-slate-400 text-sm">Click name to rename · Click badge to toggle gender/tier.</p>
+          <h1 className="text-lg font-bold text-fg mb-0.5">{t('nav.players')}</h1>
+          <p className="text-slate-400 text-sm">{t('legacy.players.listHint')}</p>
         </div>
         <span className={`text-sm font-semibold px-3 py-1 rounded-full border ${
           isComplete
@@ -419,24 +414,21 @@ export default function PlayersPage() {
             disabled={players.length >= required}
             onClick={() => setShowForm(true)}
           >
-            + Add Player
-          </Button>
+            {t('wizard.players.add')}</Button>
           <Button
             variant="dashed"
             disabled={players.length >= required}
             onClick={() => handleAdd('tbd', 'M', 2)}
             title={t('players.tbdHint')}
           >
-            + TBD
-          </Button>
+            {t('legacy.players.addTbd')}</Button>
           <Button
             variant="dashed"
             disabled={players.length >= required}
             onClick={() => setShowBulk((v) => !v)}
             title={t('players.bulkHint')}
           >
-            <Icon name="list" size={14} /> Bulk
-          </Button>
+            <Icon name="list" size={14} /> {' '}{t('legacy.players.bulk')}</Button>
         </div>
       )}
 

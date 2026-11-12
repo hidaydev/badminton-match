@@ -112,7 +112,7 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
             placeholder="0"
           />
         </div>
-        <span className="text-fg-dim font-bold text-lg pt-5">vs</span>
+        <span className="text-fg-dim font-bold text-lg pt-5">{t('shared.versus')}</span>
         <div className="flex-1 flex flex-col items-center gap-1">
           <span className="text-xs text-fg-dim font-medium truncate w-full text-center">{pairBName}</span>
           <input

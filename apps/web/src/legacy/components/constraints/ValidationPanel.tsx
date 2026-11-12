@@ -4,6 +4,7 @@ import { useStore } from '../../store'
 import { selectTotalGames } from '../../store/selectors'
 import { useValidation } from './useValidation'
 import { Card } from '../../../components/Card'
+import { t } from '../../../i18n'
 
 export function ValidationPanel({ players, matches }: { players: Player[]; matches: MatchConstraint[] }) {
   const session = useStore((s) => s.session)
@@ -28,19 +29,17 @@ export function ValidationPanel({ players, matches }: { players: Player[]; match
         <div className="flex items-start gap-2 p-3 bg-red-900/30 border border-red-700 rounded-xl text-red-400 text-sm">
           <span>⚠</span>
           <span>
-            {effectiveSlotsNeeded} game slots needed for fix matches but only {selectTotalGames(session)} available — {effectiveSlotsNeeded - selectTotalGames(session)} can't be placed.
-          </span>
+            {t('legacy.validation.slotsShort', { needed: effectiveSlotsNeeded, available: selectTotalGames(session), missing: effectiveSlotsNeeded - selectTotalGames(session) })}</span>
         </div>
       )}
 
       {/* Per-player overload */}
       {overloadedPlayers.length > 0 && (
         <div className="flex flex-col gap-1 p-3 bg-red-900/30 border border-red-700 rounded-xl">
-          <span className="text-red-400 text-sm font-medium">⚠ Players scheduled in too many fix matches:</span>
+          <span className="text-red-400 text-sm font-medium">{t('wizard.constraints.validation.overloaded')}</span>
           {overloadedPlayers.map(({ player, count, max }) => (
             <span key={player.id} className="text-xs text-red-300 pl-4">
-              {player.name} — {count} fix matches but max {max} slots available
-            </span>
+              {t('wizard.constraints.validation.overloadedLine', { name: player.name, count: count, max: max })}</span>
           ))}
         </div>
       )}
@@ -48,10 +47,10 @@ export function ValidationPanel({ players, matches }: { players: Player[]; match
       {/* Pinned conflicts */}
       {pinnedConflicts.size > 0 && (
         <div className="flex flex-col gap-1 p-3 bg-red-900/30 border border-red-700 rounded-xl">
-          <span className="text-red-400 text-sm font-medium">⚠ Pinned match conflicts:</span>
+          <span className="text-red-400 text-sm font-medium">{t('wizard.constraints.validation.pinned')}</span>
           {[...pinnedConflicts.entries()].map(([idx, msgs]) => (
             <div key={idx} className="flex flex-col gap-0.5 pl-4">
-              <span className="text-xs text-red-300 font-medium">Match #{idx + 1}:</span>
+              <span className="text-xs text-red-300 font-medium">{t('wizard.constraints.validation.match', { n: idx + 1 })}</span>
               {msgs.map((msg, i) => (
                 <span key={i} className="text-xs text-red-300/80 pl-2">· {msg}</span>
               ))}
@@ -63,10 +62,10 @@ export function ValidationPanel({ players, matches }: { players: Player[]; match
       {/* Single-player pair warning */}
       {singlePlayerPairs.length > 0 && (
         <div className="p-3 bg-amber-900/30 border border-amber-700 rounded-xl text-amber-400 text-sm">
-          <p className="font-medium">⚠ {singlePlayerPairs.length} fix match(es) have only 1 player on a side:</p>
+          <p className="font-medium">{t('legacy.validation.singlePlayerHeading', { count: singlePlayerPairs.length })}</p>
           <ul className="mt-1 text-xs">
             {singlePlayerPairs.map(({ match, side }, i) => (
-              <li key={i}>Match #{matches.indexOf(match) + 1}: Side {side} has only 1 player specified</li>
+              <li key={i}>{t('wizard.constraints.validation.singleLine', { n: matches.indexOf(match) + 1, side: side })}</li>
             ))}
           </ul>
         </div>
@@ -75,8 +74,8 @@ export function ValidationPanel({ players, matches }: { players: Player[]; match
       {/* Per-player counts */}
       <Card padding="sm" radius="lg" className="flex flex-col gap-2">
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-semibold text-white">Fix Match Assignments</span>
-          <span className="text-xs text-slate-400">max {expectedPlays}x per player (balanced)</span>
+          <span className="text-sm font-semibold text-white">{t('wizard.constraints.validation.assignments')}</span>
+          <span className="text-xs text-slate-400">{t('wizard.constraints.validation.max', { count: expectedPlays })}</span>
         </div>
         <div className="flex flex-col gap-1.5">
           {players.map((p) => {
