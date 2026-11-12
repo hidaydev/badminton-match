@@ -64,6 +64,25 @@ proc isLocalRedirect(target: string): bool =
   except CatchableError:
     false
 
+proc redirectAllowed(target: string): bool =
+  ## ISO-17: the fallback origin is a real hostname, not loopback, so a suite
+  ## that proves the login still names that origin has to let the stub accept
+  ## it. The allowlist is environment-only and empty by default, which keeps the
+  ## guard in the tests above strict.
+  if isLocalRedirect(target):
+    return true
+  let allowed = getEnv("OIDC_STUB_ALLOWED_REDIRECT_HOSTS", "")
+  if allowed.len == 0:
+    return false
+  try:
+    let host = parseUri(target).hostname
+    for entry in allowed.split(','):
+      if entry.strip().len > 0 and entry.strip() == host:
+        return true
+  except CatchableError:
+    discard
+  false
+
 proc addQuery(target, key, value: string): string =
   let separator = if '?' in target: "&" else: "?"
   target & separator & key & "=" & encodeUrl(value)
@@ -88,7 +107,7 @@ proc handle(request: Request) {.gcsafe.} =
     request.respond(200, @[("Content-Type", "application/json")], readFile("tools/oidc-stub/jwks.json"))
   of "/authorize":
     let redirectUri = request.queryParams["redirect_uri"]
-    if redirectUri.len == 0 or not isLocalRedirect(redirectUri):
+    if redirectUri.len == 0 or not redirectAllowed(redirectUri):
       request.respond(400, @[("Content-Type", "application/json")],
         """{"error":"invalid_redirect_uri"}""")
       return
