@@ -81,3 +81,48 @@ suite "contract keys":
     check found.len == 1
     check found[0].contains("getHealthz")
     check found[0].contains("row is unreadable")
+
+suite "contract request keys":
+  test "the committed tree declares exactly the keys the request path reads":
+    check contractKeys.keyProblems(routes,
+      readFile("apps/api/src/app.nim")).len == 0
+
+  test "a read key no operation declares is named":
+    # The deliberately bad case: the fixture declares one key and the source
+    # reads two, so the gate must fail on the extra one.
+    let declared = [RouteSpec(operationId: "createPlayer",
+      requestKeys: "name")]
+    let found = contractKeys.keyProblems(declared,
+      "let name = optStr(body, \"name\")\n" &
+      "let ghost = optStr(body, \"ghostKey\")")
+    check found.len == 1
+    check found[0].contains("ghostKey")
+    check found[0].contains("no contract operation declares it")
+
+  test "a declared key nothing reads is named":
+    let declared = [RouteSpec(operationId: "createPlayer",
+      requestKeys: "name,unusedKey")]
+    let found = contractKeys.keyProblems(declared,
+      "let name = optStr(body, \"name\")")
+    check found.len == 1
+    check found[0].contains("unusedKey")
+    check found[0].contains("createPlayer")
+    check found[0].contains("nothing in apps/api/src/app.nim reads it")
+
+  test "all three idioms count as a read":
+    let declared = [RouteSpec(operationId: "op",
+      requestKeys: "fromHelper,fromIndex", queryParams: "fromQuery")]
+    check contractKeys.keyProblems(declared,
+      "let a = optStr(body, \"fromHelper\")\n" &
+      "let b = body[\"fromIndex\"].getStr()\n" &
+      "let c = request.queryParams[\"fromQuery\"]").len == 0
+
+  test "writing a response field is not reading a request key":
+    let declared = [RouteSpec(operationId: "op", requestKeys: "points")]
+    # `body["points"] = ...` both on one line and split across a newline is a
+    # write; treating it as a read would invent a request key the caller never
+    # sends.
+    check contractKeys.keyProblems(declared,
+      "body[\"points\"] = %boardPoints(\n").len == 1
+    check contractKeys.keyProblems(declared,
+      "body[\"points\"] =\n  %boardPoints(\n").len == 1
