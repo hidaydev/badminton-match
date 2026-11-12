@@ -41,10 +41,10 @@ Tmpfs=/run:size=8m
 # A fork bomb in the container stops at the pid limit instead of starving the
 # host, and the descriptor limit keeps a leak from exhausting the system table.
 PidsLimit=256
-# Quadlet 5.8.2, the version on the deploy host, has no DevicePolicy and no
-# LogSizeMax key: the generator rejects the whole unit and the service is never
-# created. The log rotation is a podman argument instead, and health plus the
-# capability drop below are what actually bound this container.
+# Quadlet 5.8.2, the version on the deploy host, rejects the device policy and
+# per-container log size keys outright: the generator refuses the whole unit and
+# the service is never created. Rotation is a podman argument instead, and
+# health plus the capability drop below are what actually bound this container.
 PodmanArgs=--log-opt=max-size=10m
 # Health is checked from inside the container against the loopback listener, so
 # an operator sees `unhealthy` instead of a process that accepts TCP and fails

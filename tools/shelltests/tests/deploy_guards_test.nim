@@ -1824,10 +1824,10 @@ suite "systemd units":
   # proof is `podman inspect` after a deploy; these assertions keep a future
   # edit from dropping a line on one unit only.
   #
-  # Quadlet 5.8.2, the version on the deploy host, has no DevicePolicy and no
-  # LogSizeMax key: it rejects the whole unit and never creates the service, so
-  # the rotation is a podman argument now and the absence of both rejected keys
-  # is part of the contract, not an omission.
+  # Quadlet 5.8.2, the version on the deploy host, has no device policy and no
+  # per-container log size key: it rejects the whole unit and never creates the
+  # service, so the rotation is a podman argument now and the absence of both
+  # rejected keys is part of the contract, not an omission.
   test "both API units harden the container":
     for unit in ["majadu-api.container", "majadu-rc-api.container"]:
       let text = readFile(unitsDir / unit)
@@ -1837,8 +1837,11 @@ suite "systemd units":
                   "MemoryHigh=400M", "LimitNOFILE=8192",
                   "HealthCmd=", "OnFailure=majadu-alert@%N.service"]:
         check text.contains(key)
-      check not text.contains("DevicePolicy=")
-      check not text.contains("LogSizeMax=")
+      # Bare words, not `key=`: the rejected keys must not come back in a
+      # comment either, where the generator would ignore them and a reader would
+      # think the container still carries the policy.
+      check not text.contains("DevicePolicy")
+      check not text.contains("LogSizeMax")
       # The reason phrase is optional in HTTP, so requiring the trailing space
       # after the status code flags a healthy app as unhealthy.
       check text.contains("*\" 200\"*")
