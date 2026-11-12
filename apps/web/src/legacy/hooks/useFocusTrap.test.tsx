@@ -53,4 +53,24 @@ describe('useFocusTrap', () => {
     fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })
     expect(document.activeElement).toBe(last)
   })
+
+  // QA-19: the mount focus is the dialog itself, so the first Tab is pressed on
+  // the root. Relying on the document order there walked out of a sheet that is
+  // portalled to the end of <body>.
+  it('enters the first control on Tab from the dialog itself', () => {
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open dialog' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Test dialog' })
+    const first = screen.getByRole('button', { name: 'first' })
+    const last = screen.getByRole('button', { name: 'last' })
+
+    expect(document.activeElement).toBe(dialog)
+    fireEvent.keyDown(dialog, { key: 'Tab' })
+    expect(document.activeElement).toBe(first)
+
+    dialog.focus()
+    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(last)
+  })
 })
