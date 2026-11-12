@@ -26,7 +26,10 @@ export function ClientOutdatedBanner({
 
   if (!outdated) return null
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 bg-elevated border-b border-border px-4 py-3">
+    <div
+      data-testid="client-outdated"
+      className="flex flex-wrap items-center justify-between gap-3 bg-elevated border-b border-border px-4 py-3"
+    >
       <ErrorText inherit className="text-sm text-fg">{message}</ErrorText>
       <Button className="py-2" onClick={() => window.location.reload()}>
         {actionLabel}

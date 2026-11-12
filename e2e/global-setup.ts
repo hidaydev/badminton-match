@@ -153,11 +153,15 @@ export default async function globalSetup() {
          on conflict (google_sub) do update set display_name = excluded.display_name
          returning id
        ), membership as (
-         insert into community.membership (community_id, user_id, role)
-         select c.id, m.id, 'member'
+         -- The settings screen prints this row's created_at, and the pin above
+         -- only reaches the rows that already exist. Carry the date the visual
+         -- baseline was recorded, or the settings shot goes stale at midnight.
+         insert into community.membership (community_id, user_id, role, created_at)
+         select c.id, m.id, 'member', timestamptz '2026-11-11 00:00:00+07'
            from member m, platform.community c
           where c.slug = 'e2e-club'
-         on conflict (community_id, user_id) do update set role = 'member'
+         on conflict (community_id, user_id)
+           do update set role = 'member', created_at = excluded.created_at
        )
        insert into account.sessions (user_id, token_hash, absolute_expires_at)
        select id, decode('${memberHash(memberToken)}', 'hex'), now() + interval '1 day'

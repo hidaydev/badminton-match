@@ -19,7 +19,10 @@ test('an older contract version produces the reload banner', async ({ page }) =>
   })
 
   await page.goto('/')
-  const banner = page.getByRole('alert').filter({ hasText: t('app.outdated') })
-  await expect(banner).toBeVisible()
+  // DS-24 keeps the live region on the message alone (`ErrorText`), so the
+  // reload action is a sibling of the alert inside the banner, not a child of
+  // the role="alert" element. Look for both inside the banner.
+  const banner = page.getByTestId('client-outdated')
+  await expect(banner.getByRole('alert')).toHaveText(t('app.outdated'))
   await expect(banner.getByRole('button', { name: t('app.outdated.action') })).toBeVisible()
 })
