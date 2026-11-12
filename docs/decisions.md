@@ -582,3 +582,34 @@ which the build already refuses.
 is replaced by it). If the seed then runs on every release, decide explicitly
 whether `do update` is wanted, and change the `dbtools seed` comment in the same
 commit.
+
+## ADR-020 · `contract-keys` compares key sets, it does not bind a handler to an operation
+
+**Date:** 2026-11-12
+**Audit finding:** SEC-10
+**Status:** Accepted
+
+**Decision:** `tools/contract-keys` keeps walking `routes_gen` for the authz
+matrix and `route_access.nim` rules, and gains a second, narrower check: the set
+of request keys the specs declare (request-body properties and parameters)
+against the set of keys `apps/api/src/app.nim` actually reads. It matches three
+idioms only — `optStr(body, "x")`, `body["x"]` and
+`request.queryParams["x"]` — and reports a read key no operation declares and a
+declared key nothing reads.
+
+It deliberately does **not** prove that key `x` is read by operation `y`.
+Binding a handler to an operation means mapping 40+ dispatch procs to the
+contract, which no mechanical rule survives: the dispatch tree branches on
+`parts.len`, verb and community shape, so any mapping is hand-maintained
+metadata that rots the first time a route moves. A stale mapping is worse than
+no mapping, because it reports a green gate over a wrong table.
+
+**Reason:** the real defect SEC-10 names is a handler reading a key the contract
+never declared, or a spec declaring a key nothing reads. Both are set
+comparisons and both are decidable from the tree. Handler-to-operation binding
+is not decidable without duplicating the dispatch logic, so the gate states its
+limit in the tool's header comment instead of pretending the gap is closed.
+
+**Reopener:** the dispatch table becomes declarative (each route names its
+operation in one place the request path also reads). Then binding is mechanical
+and this ADR's limit stops applying.

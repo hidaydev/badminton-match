@@ -78,7 +78,10 @@ pushed.
    `.cache/release/v<version>.md` (tag message source). It only runs if the
    working tree is clean and the last tag matches `VERSION`.
 3. Commit `chore(release): v<version>`.
-4. `git tag -s -F .cache/release/v<version>.md v<version>`.
+4. `git -c gpg.format=ssh -c user.signingkey=~/.ssh/id_ed25519.pub
+   tag -s -F .cache/release/v<version>.md v<version>`. The format is stated
+   explicitly because the committer's default is OpenPGP and `release.yml`
+   verifies SSH signatures.
 5. **Push the tag first**, then `main`:
 
    ```sh
@@ -122,20 +125,28 @@ in `/srv/qouver/apps/majadu/env/cosign.pub` (mode 600), and set
 `COSIGN_PRIVATE_KEY` and `COSIGN_PASSWORD` as GitHub Actions secrets. The deploy
 refuses to pull a digest it cannot verify.
 
-The one input the repository cannot supply is the signing key itself:
-`.github/allowed_signers` holds the public half, and the private key stays with
-the owner. That file is the owner's to commit; nobody else can produce it, and
-it is not something the pipeline can generate or fake. Until it is committed,
-`./task ci-guards --release` fails and so does every tag, which is the intended
+`.github/allowed_signers` holds the public half of the release signing key, and
+the private key stays with the owner. The file is committed: it carries
+`fredinix@proton.me ssh-ed25519 AAAA...` and nothing else, so adding a second
+signer is a reviewed change to a one-line file. `./task ci-guards --release`
+fails when the file is missing or holds no key line, which is the intended
 state: a release with an unverifiable signature is not a release this
 repository can vouch for.
 
-`ops/scripts/release-preflight.sh` still prints
-`warn: .github/allowed_signers is not committed; release.yml will verify the tag
-through the GitHub API`. That sentence describes the tree before the anchor
-lands, when `release.yml` had that fallback. It is true there and false here,
-where the workflow refuses the tag outright: read the line as "the anchor is
-missing", not as a fallback this pipeline still has.
+The tag itself must be SSH-signed with the private half of that key. The
+committer's git configuration uses OpenPGP (`gpg.format` unset, a `gpg.program`
+and a GPG signing key), so `git tag -s` as configured produces a signature that
+`release.yml` refuses. Tag with the format stated explicitly:
+
+```sh
+git -c gpg.format=ssh -c user.signingkey=~/.ssh/id_ed25519.pub \
+  tag -s -F .cache/release/v<version>.md v<version>
+```
+
+`ops/scripts/release-preflight.sh` now reports `.github/allowed_signers is
+committed`. Its older `warn:` line described a tree where `release.yml` fell
+back to the GitHub API; that fallback is gone, and a missing anchor fails the
+tag outright.
 
 ## 3. What the deploy does
 
