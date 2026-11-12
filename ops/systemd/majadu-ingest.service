@@ -4,6 +4,10 @@
 # approved session of every community and writes the rating events, which is
 # what moves the board's asOf window. Every mode is idempotent, so a re-run is
 # safe. The image ships the binary because the VPS has no Nim toolchain.
+#
+# The env file is the tool file, not the API's: this job reads MAJADU_PG_DSN and
+# none of the request-serving secrets (OIDC client secret, share-code keyring),
+# so it must not be able to see them.
 [Unit]
 Description=Majadu rating ingest tick
 Wants=network-online.target
@@ -15,6 +19,6 @@ Type=oneshot
 # The image ENTRYPOINT is the API, so the tool is selected with --entrypoint;
 # an argument after the image name would start a second API instance instead.
 ExecStart=/usr/bin/podman run --rm --pull=never --network=qouver \
-  --env-file=/srv/qouver/apps/majadu/env/majadu-prod.env \
+  --env-file=/srv/qouver/apps/majadu/env/majadu-tools.env \
   --entrypoint /usr/local/bin/ratingingest \
   localhost/majadu-api:local tick

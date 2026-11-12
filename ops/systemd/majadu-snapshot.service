@@ -8,6 +8,9 @@
 # The job writes the board anchored on the community's last rated event, so a
 # missed day is repaired by the next run; Persistent=true also runs a missed
 # timer at boot.
+#
+# The env file is the tool file: this job needs MAJADU_PG_DSN and none of the
+# request-serving secrets the API unit loads.
 [Unit]
 Description=Majadu daily rank snapshot
 Wants=network-online.target
@@ -19,6 +22,6 @@ Type=oneshot
 # The image ENTRYPOINT is the API, so the tool is selected with --entrypoint;
 # an argument after the image name would start a second API instance instead.
 ExecStart=/usr/bin/podman run --rm --pull=never --network=qouver \
-  --env-file=/srv/qouver/apps/majadu/env/majadu-prod.env \
+  --env-file=/srv/qouver/apps/majadu/env/majadu-tools.env \
   --entrypoint /usr/local/bin/ranksnapshot \
   localhost/majadu-api:local
