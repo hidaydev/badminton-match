@@ -367,6 +367,7 @@ suite "query parameters":
   test "travel into the Nim route table and the TypeScript client":
     let operation = Operation(operationId: "list", httpMethod: "GET",
       path: "/list", tag: "", queryParams: @["limit", "offset"])
+    check renderNim(@[operation]).contains("path: \"/list\",")
     check renderNim(@[operation]).contains("queryParams: \"limit,offset\",")
     check renderTs(@[operation]).contains("queryParams: [\"limit\", \"offset\"],")
 
@@ -413,6 +414,17 @@ suite "request keys":
         "properties": {"name": {"type": "string"}}}}}}""")
     let operations = collectOperations(doc, "spec")
     check operations[0].requestKeys == @["name"]
+
+  test "a body with no schema declares no key":
+    let doc = parseJson("""{"paths": {"/x": {"post": {"operationId": "createX",
+      "requestBody": {"content": {"application/json": {}}}}}}}""")
+    check collectOperations(doc, "spec")[0].requestKeys.len == 0
+
+  test "a reference that leaves the document declares no key":
+    let doc = parseJson("""{"paths": {"/x": {"post": {"operationId": "createX",
+      "requestBody": {"content": {"application/json": {"schema":
+        {"$ref": "shared.yaml#/components/schemas/CreateX"}}}}}}}}""")
+    check collectOperations(doc, "spec")[0].requestKeys.len == 0
 
   test "a body with no properties declares no key":
     let doc = parseJson("""{"paths": {"/x": {"post": {"operationId": "createX",
