@@ -81,12 +81,37 @@ without these five fields cannot be acted on.
 The level decides who is woken and how fast. Assign it in the first minute; it
 is cheaper to lower it later than to explain a delay.
 
-| Level | Examples | Containment target | Who is woken | User notice |
-|---|---|---|---|---|
-| SEV-1 | production API down or serving 5xx to everyone; data loss or corruption; a personal-data exposure; the database unreachable | 1 hour | repository owner immediately, by the alert webhook and a phone call to self | within 72 hours if personal data was involved |
-| SEV-2 | a core flow broken for one community (scores cannot be saved, login fails for one provider path); a release rollback used | 4 hours | repository owner the same day | if a community lost data or a feature for more than a day |
-| SEV-3 | degraded but working (slow reads, a badge missing, the RC instance down) | next working day | repository owner at the next check | not required |
-| SEV-4 | cosmetic, documentation, a single person's workaround | next release | nobody | not required |
+| Level | Trigger | Examples | Response time | Containment target | Who is told, and by when | User notice |
+|---|---|---|---|---|---|---|
+| SEV-1 | the external uptime checker or `majadu-readyz.timer` reports the public origin down; `/readyz` answers 503; data is lost or corrupted; personal data may be exposed | production API down or serving 5xx to everyone; data loss or corruption; a personal-data exposure; the database unreachable | 15 minutes | 1 hour | repository owner immediately, by the alert webhook and a phone call to self; the community channel within 1 hour of a confirmed user impact | within 72 hours if personal data was involved |
+| SEV-2 | a core flow fails for one community while the origin still answers 200, or a release was rolled back | a core flow broken for one community (scores cannot be saved, login fails for one provider path); a release rollback used | 1 hour | 4 hours | repository owner the same day, by the alert webhook or a phone call to self; the affected community's channel within 4 hours when that community is known | if a community lost data or a feature for more than a day |
+| SEV-3 | a timer or check is red while users are not blocked, or a non-core report | degraded but working (slow reads, a badge missing, the RC instance down) | next working day | next working day | repository owner at the next check, written in the note; no community notice | not required |
+| SEV-4 | cosmetic, documentation, or one person's workaround | cosmetic, documentation, a single person's workaround | next release | next release | nobody; the note is the record | not required |
+
+Response time is the clock to the first action on the note (severity assigned,
+status checked), not to a fix; the containment target is the separate clock. A
+trigger promotes an incident to that level on its own; nothing is lowered until
+the trigger no longer holds, and the lowering is written in the note.
+
+### Notification
+
+The severity decides who hears about it and when. A SEV-1 goes to the community
+channel within one hour of a confirmed user impact, in plain words: what is not
+working, since when, and whether scores already entered are safe. A SEV-2 goes
+to the affected community's channel within four hours once that community is
+known; if it is not known by then, the note says so and the owner decides who to
+ask. SEV-3 and SEV-4 carry no community notice. Personal data changes the answer
+for every level: if it may be involved, the affected people are told within 72
+hours and named data is stated, as the first-hour checklist requires, and that
+timeline is legal, not technical, so it is not shortened to save a day or
+skipped because the cause is already fixed.
+
+The owner is told through the alert webhook and, for SEV-1, a phone call to
+self. What stays in the private note is everything the community does not need:
+the trigger, the times, the commands run, what failed, the accounts and hosts
+involved, the image restored by a rollback, and the prevention. Notes are still
+stored in `.local/incidents/`, never in the public repository; a public
+changelog line says what changed for users, and it points to no note.
 
 ### First hour
 
@@ -110,6 +135,18 @@ and the scenario (for example "the VPS disk is full at 02:00" or "the Vercel
 account is suspended"). It changes behaviour, so it is summarised in
 `CHANGELOG.md`. An exercise that finds the runbook wrong updates the runbook in
 the same change.
+
+| Exercise | Date | Scenario | Participants (role) | Outcome recorded in |
+|---|---|---|---|---|
+| Q4 2026 tabletop, scheduled | 2026-12-11 (Friday), 20:00 Asia/Jakarta | a share link to one community's score history is reported on the public issue tracker by a stranger, at 21:30, ninety minutes after the exercise starts, and the reporter pastes two player names | repository owner as incident commander, operator and scribe, the three roles written separately even though one person fills them; the same owner 48 hours later as reviewer, reading only the note and the runbook, not the shell history | `.local/incidents/2026-12-11-tabletop-share-link.md`, copied to `MAJADU_BACKUP_DIR/incidents/` at close, and a `CHANGELOG.md` line only if the exercise changes behaviour |
+
+The entry above is the schedule, not a record: it is replaced by the note's own
+date and finding once the exercise runs. The scenario is chosen to exercise the
+parts that a solo operator cannot improvise: assigning SEV-1 from a report
+rather than an alert, the 72-hour personal-data decision, and whether the private
+log can be written while the public answer is being prepared. A cancelled
+exercise keeps its row and gets the reason in the Outcome column rather than
+being deleted.
 
 Filling rules:
 
