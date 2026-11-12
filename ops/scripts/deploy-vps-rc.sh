@@ -65,7 +65,24 @@ chmod 600 "$LOG" 2>/dev/null || true
 # Shared helpers: log, json_field, alert, file_mode, service, wait_ready. Both
 # deploy paths source the same file (SQ-16); a missing copy is a failed deploy,
 # not a reason to fall back to a second implementation.
+#
+# On a fresh host the checkout exists before the installed copy does, and the
+# check below used to exit 1 first, so nothing could ever write the file (this is
+# what stopped the first RC deploy on 2026-11-11). Bootstrap it from the
+# checkout, only when that copy parses, and install it atomically so a truncated
+# file is never sourced. A host with no checkout yet still fails closed.
 COMMON_LIB="$(cd "$(dirname "$0")" && pwd)/deploy-common.sh"
+if [ ! -f "$COMMON_LIB" ]; then
+  COMMON_SRC="$MONO_DIR/ops/scripts/deploy-common.sh"
+  if [ -f "$COMMON_SRC" ] && bash -n "$COMMON_SRC" 2>/dev/null; then
+    if install -m 755 "$COMMON_SRC" "$COMMON_LIB.new.$$" &&
+      mv -f "$COMMON_LIB.new.$$" "$COMMON_LIB"; then
+      echo "deploy-vps-rc.sh: installed $COMMON_LIB from $COMMON_SRC" >&2
+    else
+      rm -f "$COMMON_LIB.new.$$"
+    fi
+  fi
+fi
 if [ ! -f "$COMMON_LIB" ]; then
   echo "deploy-vps-rc.sh: missing $COMMON_LIB" >&2
   exit 1
@@ -144,6 +161,12 @@ if [ "${MAJADU_RC_SKIP_GIT_SYNC:-0}" != "1" ]; then
     cd "$MONO_DIR"
     git checkout -B "$BRANCH" "origin/$BRANCH" >>"$LOG" 2>&1
   fi
+  # `umask 077` at the top of this script makes every file git just rewrote mode
+  # 600. The image copies db/ with those modes and the container runs as uid
+  # 10001, so the migration runner cannot read db/migrations/0037 and the deploy
+  # dies at migrate. Restore the read bits on this checkout before the build.
+  chmod -R a+rX "$MONO_DIR/db" ||
+    fail "cannot make $MONO_DIR/db readable by the container user"
 fi
 
 cd "$MONO_DIR"
@@ -410,9 +433,12 @@ if podman image exists "$LOCAL_IMAGE:local"; then
   podman tag "$LOCAL_IMAGE:local" "$LOCAL_IMAGE:prev"
 fi
 # The build runs beside a 512 MB production container, so it is bounded instead
-# of being allowed to take the whole host while it compiles.
+# of being allowed to take the whole host while it compiles. Memory is the only
+# bound that applies on the deploy host: the cpu flag on `podman build` does not
+# exist in 5.8.2, and `--cpu-quota` fails too because only the memory and pids
+# controllers are delegated to the user slice, so a cpu limit cannot be set here.
 podman build -f apps/api/Dockerfile \
-  --memory 3g --cpus 2 \
+  --memory 3g \
   --build-arg APP_VERSION="$VERSION" \
   --build-arg APP_COMMIT="$COMMIT" \
   -t "$LOCAL_IMAGE:local" . >>"$LOG" 2>&1 ||

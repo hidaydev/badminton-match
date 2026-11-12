@@ -1126,7 +1126,9 @@ suite "deploy-vps-rc.sh":
     ])
     check result.exitCode == 1
     let calls = readFile(podmanLog)
-    check calls.contains("--memory 3g --cpus 2")
+    # Memory is the only build bound podman 5.8.2 on the host can apply.
+    check calls.contains("--memory 3g")
+    check not calls.contains("--cpus")
     let migrateAt = calls.find("migrate --dir /app/db/migrations")
     let restoreAt = calls.find("tag localhost/majadu-rc-api:prev localhost/majadu-rc-api:local")
     check migrateAt >= 0
@@ -1754,15 +1756,56 @@ suite "systemd units":
   # OPS-16: both API units carry the same runtime hardening. The host-side
   # proof is `podman inspect` after a deploy; these assertions keep a future
   # edit from dropping a line on one unit only.
+  #
+  # Quadlet 5.8.2, the version on the deploy host, has no device policy and no
+  # per-container log size key: it rejects the whole unit and never creates the
+  # service, so the rotation is a podman argument now and the absence of both
+  # rejected keys is part of the contract, not an omission.
   test "both API units harden the container":
     for unit in ["majadu-api.container", "majadu-rc-api.container"]:
       let text = readFile(unitsDir / unit)
       for key in ["ReadOnly=true", "Tmpfs=/tmp:size=64m",
                   "Tmpfs=/run:size=8m", "PidsLimit=256",
-                  "DevicePolicy=closed", "LogSizeMax=10m",
+                  "PodmanArgs=--log-opt=max-size=10m",
                   "MemoryHigh=400M", "LimitNOFILE=8192",
                   "HealthCmd=", "OnFailure=majadu-alert@%N.service"]:
         check text.contains(key)
+      # Bare words, not `key=`: the rejected keys must not come back in a
+      # comment either, where the generator would ignore them and a reader would
+      # think the container still carries the policy.
+      check not text.contains("DevicePolicy")
+      check not text.contains("LogSizeMax")
+
+  # 2026-11-11, measured on the RC host: `podman build --cpus` does not exist in
+  # podman 5.8.2, and `--cpu-quota` fails because only the memory and pids
+  # controllers are delegated to the user slice. Memory is the only bound that
+  # can be set from a deploy script there, so no script may ask for a cpu one.
+  test "no deploy script asks podman build for a cpu budget":
+    for script in ["deploy-vps.sh", "deploy-vps-rc.sh"]:
+      let text = readFile(opsScriptsDir / script)
+      check not text.contains("--cpus")
+
+  # Same day: `umask 077` at the top of each script makes every file git
+  # rewrites mode 600, the image copies db/ with those modes, and the container
+  # runs as uid 10001, so migrate died reading 0037. Both scripts restore the
+  # read bits on their own checkout after the sync and before the build.
+  test "both deploy scripts make the checkout database readable":
+    for script in ["deploy-vps.sh", "deploy-vps-rc.sh"]:
+      let text = readFile(opsScriptsDir / script)
+      check text.contains("chmod -R a+rX \"$MONO_DIR/db\"")
+
+  # The first deploy on a fresh host failed at the library check, which ran
+  # before anything could install the library, so the install step could never
+  # run. Both scripts bootstrap it from the checkout and still fail closed when
+  # there is no checkout to copy from.
+  test "both deploy scripts bootstrap the shared library":
+    for script in ["deploy-vps.sh", "deploy-vps-rc.sh"]:
+      let text = readFile(opsScriptsDir / script)
+      check text.contains("COMMON_SRC=\"$MONO_DIR/ops/scripts/deploy-common.sh\"")
+      check text.contains("bash -n \"$COMMON_SRC\"")
+      check text.contains(
+        "install -m 755 \"$COMMON_SRC\" \"$COMMON_LIB.new.$$\"")
+      check text.contains("missing $COMMON_LIB")
 
   test "the RC deploy installs the alert template":
     let script = readFile(opsScriptsDir / "deploy-vps-rc.sh")
