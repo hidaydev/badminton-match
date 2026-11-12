@@ -42,7 +42,15 @@ export type SharedStanding = {
 
 /** `GET /s/{code}`: the only read that works without a session. */
 export type SharedSession = {
-  session: { id: string; title: string; date: string; status: string }
+  /** `startTime`/`slotMinutes` are absent from a payload from an older build. */
+  session: {
+    id: string
+    title: string
+    date: string
+    status: string
+    startTime?: string
+    slotMinutes?: number
+  }
   community: { slug: string; name: string }
   games: SharedGame[]
   /** The session's frozen format; absent from an older payload. */

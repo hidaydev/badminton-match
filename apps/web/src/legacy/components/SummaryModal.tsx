@@ -49,6 +49,8 @@ interface SummaryModalBaseProps {
   locked?: boolean
   /** The viewer may read but not edit (e.g. a community member). */
   readOnly?: boolean
+  /** Standings rows open the match sheet; a guest link turns that off. */
+  standingsInteractive?: boolean
   absentPlayers?: string[]
   skippedPlayers?: Record<string, string[]>
   /** Cloud id; renders the share-link panel for a host/admin viewer. */
@@ -120,6 +122,7 @@ export default function SummaryModal({
   deleteLoading = false,
   locked = false,
   readOnly = false,
+  standingsInteractive = true,
 }: SummaryModalProps) {
   const played = new Set(playedArr)
 
@@ -651,6 +654,7 @@ export default function SummaryModal({
             playedGames={playedArr}
             absentPlayerIds={standingsAbsentIds}
             skippedPlayers={standingsSkipped}
+            interactive={standingsInteractive}
           />
         ) : (
           <ScheduleGrid

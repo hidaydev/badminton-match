@@ -19,6 +19,8 @@ interface StandingsTabProps {
   playedGames: string[]
   absentPlayerIds: string[]
   skippedPlayers?: Record<string, string[]>
+  /** A guest reads the board: no row opens the match sheet. */
+  interactive?: boolean
 }
 
 export default function StandingsTab({
@@ -28,6 +30,7 @@ export default function StandingsTab({
   playedGames,
   absentPlayerIds,
   skippedPlayers = EMPTY_SKIPPED,
+  interactive = true,
 }: StandingsTabProps) {
   const { absentList, placeholderList, voidPlayerIds, standings } = useMemo(() => {
     const absentList = players.filter(p => absentPlayerIds.includes(p.id))
@@ -101,7 +104,7 @@ export default function StandingsTab({
           losses: s.losses,
           diff: s.diff,
           pointsFor: s.pointsFor,
-          onSelect: () => setSelectedPlayer({ standing: s, rank: i + 1 }),
+          onSelect: interactive ? () => setSelectedPlayer({ standing: s, rank: i + 1 }) : undefined,
         }))}
         labels={{ name: 'Name', winsLosses: 'W-L', diff: 'Diff', points: 'Pts' }}
       />
@@ -125,16 +128,18 @@ export default function StandingsTab({
           </ul>
         </>
       )}
-      <PlayerMatchDetailSheet
-        player={selectedPlayer?.standing ?? null}
-        rank={selectedPlayer?.rank ?? 1}
-        schedule={schedule}
-        gameScores={gameScores}
-        players={players}
-        voidPlayerIds={voidPlayerIds}
-        skippedPlayers={skippedPlayers}
-        onClose={() => setSelectedPlayer(null)}
-      />
+      {interactive && (
+        <PlayerMatchDetailSheet
+          player={selectedPlayer?.standing ?? null}
+          rank={selectedPlayer?.rank ?? 1}
+          schedule={schedule}
+          gameScores={gameScores}
+          players={players}
+          voidPlayerIds={voidPlayerIds}
+          skippedPlayers={skippedPlayers}
+          onClose={() => setSelectedPlayer(null)}
+        />
+      )}
     </div>
   )
 }
