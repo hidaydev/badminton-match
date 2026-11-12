@@ -114,8 +114,7 @@ export default function HomePage() {
               </span>
               <span className="text-[10px] font-mono text-fg-dim">·</span>
               <span className="text-[10px] font-mono text-fg-dim">
-                {draftSession.playerCount}p · {draftSession.totalGames}g
-              </span>
+                {t('legacy.home.draftMeta', { players: draftSession.playerCount, games: draftSession.totalGames })}</span>
             </div>
           </div>
           <Icon name="chevron-right" size={16} className="text-fg-dim/40" />

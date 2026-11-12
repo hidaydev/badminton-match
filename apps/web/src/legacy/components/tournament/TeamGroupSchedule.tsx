@@ -10,6 +10,7 @@ import { useImageUploadMap } from '../../hooks/useImageUploadMap'
 import TeamMatchCard from './TeamMatchCard'
 import { Button } from '../../../components/Button'
 import { shareOrDownload } from '../../utils/share'
+import { t } from '../../../i18n'
 
 interface TeamGroupScheduleProps {
   teams: TeamInfo[]
@@ -80,8 +81,7 @@ export default function TeamGroupSchedule({
     <div className="flex flex-col gap-4">
       {canEdit && groupMatches.length === 0 && (
         <Button className="w-full" onClick={onDraw} disabled={saving}>
-          Group Draw (match day)
-        </Button>
+          {t('legacy.groupDrawTitle')}</Button>
       )}
 
       {groupMatches.map((m) => {

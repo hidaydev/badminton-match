@@ -72,19 +72,15 @@ export default function AchievementBadgesPreviewPage() {
   return (
     <div className="flex flex-col gap-6 p-1">
       <div className="rounded-xl border border-border-subtle bg-surface px-5 py-4">
-        <h1 className="text-base font-bold text-fg">Medal & Achievement System Preview</h1>
+        <h1 className="text-base font-bold text-fg">{t('legacy.badgesPreview.title')}</h1>
         <p className="mt-1 text-xs leading-relaxed text-fg-dim">
-          Prestigious metallic hexagonal badges (pointy-top ratio 46.8 x 54). Click any medal below
-          to open the tactile Achievement Detail Modal with progress ladders, specular highlights,
-          and dual-ring metallic bevels.
-        </p>
+          {t('legacy.badgesPreview.intro')}</p>
       </div>
 
       {/* ── 1. Milestones by Tier ─────────────────────────────────── */}
       <section className="flex flex-col gap-3">
         <h3 className="px-1 text-[11px] font-semibold label-meta text-fg-dim">
-          1. Milestones by Tier (Bronze..Onyx)
-        </h3>
+          {t('legacy.badgesPreview.milestones')}</h3>
         <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border-subtle bg-surface px-5 py-5">
           {MEDAL_TIER_NAMES.map((name, i) => (
             <div key={name} className="flex flex-col items-center gap-1.5">
@@ -104,8 +100,7 @@ export default function AchievementBadgesPreviewPage() {
       {/* ── 2. All 9 Glyph Icons ───────────────────────────────────── */}
       <section className="flex flex-col gap-3">
         <h3 className="px-1 text-[11px] font-semibold label-meta text-fg-dim">
-          2. Unique Medal Icons (9 Distinct Glyphs)
-        </h3>
+          {t('legacy.badgesPreview.icons')}</h3>
         <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border-subtle bg-surface px-5 py-5">
           {ALL_MEDAL_ICONS.map((icon) => (
             <div key={icon} className="flex flex-col items-center gap-1.5">
@@ -125,8 +120,7 @@ export default function AchievementBadgesPreviewPage() {
       {/* ── 3. Event & Tournament Seals ─────────────────────────────── */}
       <section className="flex flex-col gap-3">
         <h3 className="px-1 text-[11px] font-semibold label-meta text-fg-dim">
-          3. Event & Tournament Medals (Faceted Dimensional Emblems)
-        </h3>
+          {t('legacy.badgesPreview.events')}</h3>
         <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border-subtle bg-surface px-5 py-5">
           {EVENT_SEEDS.map((seed) => (
             <div key={seed} className="flex flex-col items-center gap-1.5">
@@ -146,8 +140,7 @@ export default function AchievementBadgesPreviewPage() {
       {/* ── 4. Locked State ────────────────────────────────────────── */}
       <section className="flex flex-col gap-3">
         <h3 className="px-1 text-[11px] font-semibold label-meta text-fg-dim">
-          4. Locked State (Frosted Dark Obsidian Silhouette)
-        </h3>
+          {t('legacy.badgesPreview.locked')}</h3>
         <div className="flex flex-wrap items-center gap-5 rounded-xl border border-border-subtle bg-surface px-5 py-5">
           <div className="flex flex-col items-center gap-1.5">
             <AchievementBadge
@@ -158,7 +151,7 @@ export default function AchievementBadgesPreviewPage() {
               width={58}
               onSelect={() => openMilestone('trophy', 1, 'Locked Milestone')}
             />
-            <span className="text-[10px] text-fg-dim">Locked Milestone</span>
+            <span className="text-[10px] text-fg-dim">{t('legacy.badgesPreview.lockedMilestone')}</span>
           </div>
           <div className="flex flex-col items-center gap-1.5">
             <AchievementBadge
@@ -169,7 +162,7 @@ export default function AchievementBadgesPreviewPage() {
               width={58}
               onSelect={() => openEvent('locked-tournament')}
             />
-            <span className="text-[10px] text-fg-dim">Locked Event</span>
+            <span className="text-[10px] text-fg-dim">{t('legacy.badgesPreview.lockedEvent')}</span>
           </div>
         </div>
       </section>
@@ -177,8 +170,7 @@ export default function AchievementBadgesPreviewPage() {
       {/* ── 5. Honeycomb Shelf Layout ───────────────────────────────── */}
       <section className="flex flex-col gap-3">
         <h3 className="px-1 text-[11px] font-semibold label-meta text-fg-dim">
-          5. Honeycomb Shelf Layout (Gapless Packing)
-        </h3>
+          {t('legacy.badgesPreview.shelf')}</h3>
         <div className="rounded-xl border border-border-subtle bg-surface px-4 py-6">
           <MedalHoneycomb
             width={60}

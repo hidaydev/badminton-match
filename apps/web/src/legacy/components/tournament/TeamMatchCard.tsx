@@ -57,7 +57,7 @@ export default function TeamMatchCard({
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-xs text-fg-dim label-meta truncate">{label}</span>
           <label className="flex items-center gap-1 shrink-0">
-            <span className="text-[11px] text-fg-dim">Court</span>
+            <span className="text-[11px] text-fg-dim">{t('team.court')}</span>
             <input
               type="text"
               value={courts[0]}

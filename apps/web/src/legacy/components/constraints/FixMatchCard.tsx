@@ -53,7 +53,7 @@ export function FixMatchCard({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {isPinned && <span className="text-xs">📌</span>}
-          <span className="text-xs text-slate-400 font-medium">Match #{index + 1}</span>
+          <span className="text-xs text-slate-400 font-medium">{t('wizard.constraints.match', { n: index + 1 })}</span>
         </div>
         <div className="flex gap-2">
           <button
@@ -92,8 +92,7 @@ export function FixMatchCard({
               : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-indigo-300'
           }`}
         >
-          📌 Pinned
-        </button>
+          {t('wizard.constraints.pinned')}</button>
       </div>
 
       {/* Player selectors */}
@@ -102,7 +101,7 @@ export function FixMatchCard({
           <SlotPicker label="A1" value={A1} onChange={(v) => setSlot(0, v)} players={players} exclude={used.filter((id) => id !== A1)} />
           <SlotPicker label="A2" value={A2} onChange={(v) => setSlot(1, v)} players={players} exclude={used.filter((id) => id !== A2)} />
         </div>
-        <span className="text-slate-400 font-bold text-xs shrink-0">vs</span>
+        <span className="text-slate-400 font-bold text-xs shrink-0">{t('shared.versus')}</span>
         <div className="flex gap-1.5 flex-1 min-w-0">
           <SlotPicker label="B1" value={B1} onChange={(v) => setSlot(2, v)} players={players} exclude={used.filter((id) => id !== B1)} />
           <SlotPicker label="B2" value={B2} onChange={(v) => setSlot(3, v)} players={players} exclude={used.filter((id) => id !== B2)} />
@@ -113,27 +112,27 @@ export function FixMatchCard({
       {match.mode === 'pinned' && (
         <div className="flex gap-2 items-end">
           <div className="flex flex-col gap-1 flex-1">
-            <span className="text-[10px] text-slate-400">⏰ Time</span>
+            <span className="text-[10px] text-slate-400">{t('wizard.constraints.time')}</span>
             <select
               value={match.pinnedTime}
               onChange={(e) => updateFixMatch(match.id, { pinnedTime: e.target.value || toTimeString(''), pinnedCourt: e.target.value ? match.pinnedCourt : 0 } as Partial<MatchConstraint>)}
               className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
             >
-              <option value="">— Select time —</option>
+              <option value="">{t('wizard.constraints.selectTime')}</option>
               {timeSlots.map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
           </div>
           <div className="flex flex-col gap-1 flex-1">
-            <span className="text-[10px] text-slate-400">Court</span>
+            <span className="text-[10px] text-slate-400">{t('team.court')}</span>
             <select
               value={match.pinnedCourt}
               onChange={(e) => updateFixMatch(match.id, { pinnedCourt: e.target.value ? Number(e.target.value) : 0 } as Partial<MatchConstraint>)}
               disabled={!match.pinnedTime}
               className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent cursor-pointer disabled-dim-faint disabled:cursor-not-allowed"
             >
-              <option value="">— Select court —</option>
+              <option value="">{t('wizard.constraints.selectCourt')}</option>
               {availableCourts.map((c) => (
                 <option key={c} value={c}>{courtLabel(session.courtNames, c)}</option>
               ))}

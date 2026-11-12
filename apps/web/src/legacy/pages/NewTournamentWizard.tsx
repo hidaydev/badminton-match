@@ -123,14 +123,14 @@ function TeamWizard() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-fg">Team Tournament</h1>
+        <h1 className="text-lg font-bold text-fg">{t('legacy.wizard.teamTitle')}</h1>
         <span className="text-xs font-sans text-fg-dim">{step} · {['Setup', 'Players', 'Teams'][step - 1]}</span>
       </div>
 
       {step === 1 && (
         <div className="flex flex-col gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-fg-dim">Tournament name</span>
+            <span className="text-xs text-fg-dim">{t('tournament.name')}</span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -139,7 +139,7 @@ function TeamWizard() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-fg-dim">Date</span>
+            <span className="text-xs text-fg-dim">{t('tournaments.column.date')}</span>
             <input
               type="date"
               value={date}
@@ -160,8 +160,7 @@ function TeamWizard() {
       {step === 2 && (
         <div className="flex flex-col gap-2.5">
           <p className="text-xs text-fg-dim">
-            36 participants · kelas: {TEAM_CLASSES.map((c, i) => `${c}=${classCount[i]}`).join(' · ')}
-            <span className={classesBalanced && matrixBalanced ? ' text-success' : ' text-warning'}>
+            {t('legacy.wizard.teamMeta', { classes: TEAM_CLASSES.map((c, i) => `${c}=${classCount[i]}`).join(' · ') })}<span className={classesBalanced && matrixBalanced ? ' text-success' : ' text-warning'}>
               {classesBalanced && matrixBalanced ? ' ✓' : ' (need 6 per class, 1 per team×class)'}
             </span>
           </p>
@@ -209,7 +208,7 @@ function TeamWizard() {
       {step === 3 && (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-fg-dim">Team rosters (1 player per class) · slots (Teams 1–6) drawn on matchday</p>
+            <p className="text-xs text-fg-dim">{t('legacy.wizard.teamRosterHint')}</p>
             <Button
               variant="secondary"
               size="sm"
@@ -325,14 +324,14 @@ function ClassicWizard() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-fg">Classic Tournament</h1>
+        <h1 className="text-lg font-bold text-fg">{t('legacy.wizard.classicTitle')}</h1>
         <span className="text-xs font-sans text-fg-dim">{step} · {['Setup', 'Pairs', 'Draw'][step - 1]}</span>
       </div>
 
       {step === 1 && (
         <div className="flex flex-col gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-fg-dim">Tournament name</span>
+            <span className="text-xs text-fg-dim">{t('tournament.name')}</span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -341,7 +340,7 @@ function ClassicWizard() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-fg-dim">Date</span>
+            <span className="text-xs text-fg-dim">{t('tournaments.column.date')}</span>
             <input
               type="date"
               value={date}
@@ -363,8 +362,7 @@ function ClassicWizard() {
         <div className="flex flex-col gap-2.5">
           <div className="flex items-center justify-between">
             <p className="text-xs text-fg-dim">
-              Add <span className="text-accent">{PAIR_COUNT}</span> pairs
-            </p>
+              {t('legacy.wizard.addPrefix')}{' '}<span className="text-accent">{PAIR_COUNT}</span> {' '}{t('legacy.wizard.addSuffix')}</p>
             <Button
               variant="ghost"
               size="sm"
@@ -406,7 +404,7 @@ function ClassicWizard() {
       {step === 3 && (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-fg-dim">Draw: 4 groups × 4 pairs</p>
+            <p className="text-xs text-fg-dim">{t('legacy.wizard.drawSummary')}</p>
             <Button
               variant="secondary"
               size="sm"
@@ -417,15 +415,13 @@ function ClassicWizard() {
           </div>
           {!groupsFull && (
             <p className="text-xs text-fg-dim">
-              Click <span className="text-accent">Re-draw</span> to split the pairs into groups.
-            </p>
+              {t('legacy.wizard.clickPrefix')}{' '}<span className="text-accent">{t('legacy.reDraw')}</span> {' '}{t('legacy.wizard.redrawHint')}</p>
           )}
           <div className="flex flex-col gap-2.5">
             {GROUP_IDS.map((g) => (
               <Card variant="flush" radius="lg" key={g}>
                 <div className="px-3 py-1.5 border-b border-border-subtle text-xs font-sans text-fg-dim label-meta">
-                  Group {g}
-                </div>
+                  {t('classic.group', { group: g })}</div>
                 {groupNames[g].map((n, i) => (
                   <div key={i} className="px-3 py-2 border-b border-border-subtle/50 last:border-0 text-sm text-fg truncate">
                     {n}

@@ -17,7 +17,7 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
       <div className="flex flex-col items-center gap-2 pt-4 pb-5">
         <img src="/logo-192.png" alt="" className="w-16 h-16 rounded-lg object-contain" />
         <div className="text-center">
-          <h2 id="install-sheet-title" className="text-white font-bold text-lg leading-tight">Install MAJADU App</h2>
+          <h2 id="install-sheet-title" className="text-white font-bold text-lg leading-tight">{t('legacy.install.title')}</h2>
           <p className="text-slate-400 text-sm mt-0.5">
             {isIos ? 'Add to your home screen in a few steps' : 'Get quick access right from your home screen'}
           </p>
@@ -33,16 +33,16 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
           <li className="flex items-start gap-4 py-3">
             <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-[1rem]">⬆️</div>
             <div className="flex flex-col gap-0.5 pt-0.5">
-              <span className="text-sm font-semibold text-white">Tap the Share button</span>
-              <span className="text-xs text-slate-400">In Safari's toolbar at the bottom</span>
+              <span className="text-sm font-semibold text-white">{t('legacy.install.iosShareTitle')}</span>
+              <span className="text-xs text-slate-400">{t('legacy.install.iosShareBody')}</span>
             </div>
           </li>
           <li className="flex flex-col gap-2 py-3">
             <div className="flex items-start gap-4">
               <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-[1rem]">➕</div>
               <div className="flex flex-col gap-0.5 pt-0.5">
-                <span className="text-sm font-semibold text-white">Tap "Add to Home Screen"</span>
-                <span className="text-xs text-slate-400">Scroll down in the share sheet</span>
+                <span className="text-sm font-semibold text-white">{t('legacy.install.iosAddTitle')}</span>
+                <span className="text-xs text-slate-400">{t('legacy.install.iosAddBody')}</span>
               </div>
             </div>
             <img
@@ -54,8 +54,8 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
           <li className="flex items-start gap-4 py-3">
             <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-[1rem]">✅</div>
             <div className="flex flex-col gap-0.5 pt-0.5">
-              <span className="text-sm font-semibold text-white">Tap "Add" to confirm</span>
-              <span className="text-xs text-slate-400">The app will appear on your home screen</span>
+              <span className="text-sm font-semibold text-white">{t('legacy.install.iosConfirmTitle')}</span>
+              <span className="text-xs text-slate-400">{t('legacy.install.iosConfirmBody')}</span>
             </div>
           </li>
         </ol>
@@ -63,8 +63,8 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
         <div className="flex items-start gap-4 py-5">
           <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-fg-dim"><Icon name="download" size={18} /></div>
           <div className="flex flex-col gap-1 pt-0.5">
-            <span className="text-sm font-semibold text-white">One tap to install</span>
-            <span className="text-xs text-slate-400">Opens from your home screen · No app store needed</span>
+            <span className="text-sm font-semibold text-white">{t('legacy.install.desktopTitle')}</span>
+            <span className="text-xs text-slate-400">{t('legacy.install.desktopBody')}</span>
           </div>
         </div>
       )}

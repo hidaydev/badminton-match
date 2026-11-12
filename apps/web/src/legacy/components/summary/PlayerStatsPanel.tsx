@@ -3,6 +3,7 @@ import type { Player, ScheduleSlot } from '../../types'
 import { computePlayerStats } from '../../utils/playerStats'
 import { HIGHLIGHTED_PLAYERS, TEAM_HIGHLIGHTS, TEAM_HIGHLIGHT_ENABLED } from '../../config/teamHighlights'
 import { Card } from '../../../components/Card'
+import { t } from '../../../i18n'
 
 interface GeneratedPlayerStatsProps {
   schedule: ScheduleSlot[]
@@ -22,8 +23,8 @@ export function GeneratedPlayerStats({ schedule, playerMap }: GeneratedPlayerSta
   return (
     <Card padding="sm" radius="lg" className="mt-6 flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-white">Player Stats</span>
-        <span className="text-xs text-slate-400">target ~{idealPlays.toFixed(1)} plays</span>
+        <span className="text-sm font-semibold text-white">{t('legacy.playerStats.title')}</span>
+        <span className="text-xs text-slate-400">{t('legacy.playerStats.targetPlays', { plays: idealPlays.toFixed(1) })}</span>
       </div>
       <div className="grid grid-cols-1 gap-y-2">
         {players
@@ -42,13 +43,12 @@ export function GeneratedPlayerStats({ schedule, playerMap }: GeneratedPlayerSta
                   {plays}×
                 </span>
                 <span className="text-[10px] text-slate-400">
-                  {sits} sit · {partners} P · {opponents} O
-                </span>
+                  {t('legacy.playerStats.counts', { sits: sits, partners: partners, opponents: opponents })}</span>
               </div>
             )
           })}
       </div>
-      <p className="text-[10px] text-slate-400">P = unique partners · O = unique opponents faced</p>
+      <p className="text-[10px] text-slate-400">{t('legacy.playerStats.legend')}</p>
     </Card>
   )
 }
@@ -97,8 +97,8 @@ export default function PlayerStatsPanel({
     return (
       <Card padding="sm" radius="lg" className="mt-6 flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-white">Player Stats</span>
-          <span className="text-[10px] text-slate-400">tap a name to highlight matches</span>
+          <span className="text-sm font-semibold text-white">{t('legacy.playerStats.title')}</span>
+          <span className="text-[10px] text-slate-400">{t('legacy.playerStats.tapHint')}</span>
         </div>
         <div className="grid grid-cols-3 gap-x-2 gap-y-1.5">
           {sorted.map((id) => {
@@ -127,7 +127,7 @@ export default function PlayerStatsPanel({
                   <AnnotatedPlayerName name={name} />
                   {teamTheme && <img src={teamTheme.logo} style={{ width: teamKey === 'Green Grove' ? 18 : 15, height: teamKey === 'Green Grove' ? 18 : 15, objectFit: 'contain', flexShrink: 0 }} />}
                 </span>
-                {isAbsent && <span className="text-[10px] text-slate-300 bg-slate-800 rounded px-1 py-0.5 shrink-0">absent</span>}
+                {isAbsent && <span className="text-[10px] text-slate-300 bg-slate-800 rounded px-1 py-0.5 shrink-0">{t('session.absent')}</span>}
                 <span className={`text-xs font-bold shrink-0 ${isAbsent ? 'text-slate-400' : isSelected && !teamTheme ? 'text-yellow-400' : 'text-white'}`}
                   style={isSelected && teamTheme ? { color: teamTheme.color } : undefined}>
                   {plays}×

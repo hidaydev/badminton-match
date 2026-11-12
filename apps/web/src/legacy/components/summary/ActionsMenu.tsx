@@ -55,7 +55,7 @@ export default function ActionsMenu({
         aria-haspopup="true"
         aria-label={t('summary.actions')}
       >
-        ⋯<span className="hidden sm:inline"> Actions</span>
+        ⋯<span className="hidden sm:inline"> {' '}{t('legacy.actions.label')}</span>
       </button>
       {actionsOpen && (
         <>
@@ -72,8 +72,7 @@ export default function ActionsMenu({
                 className="w-full text-left px-4 py-2.5 text-xs font-medium text-indigo-300 hover:bg-slate-800 transition-colors hit44"
                 role="menuitem"
               >
-                ⇄ Swap players
-              </button>
+                {t('legacy.actions.swapPlayers')}</button>
             )}
             {hasSwapTeams && (
               <button
@@ -81,8 +80,7 @@ export default function ActionsMenu({
                 className="w-full text-left px-4 py-2.5 text-xs font-medium text-sky-400 hover:bg-slate-800 transition-colors border-t border-slate-800 hit44"
                 role="menuitem"
               >
-                ⇄ Swap team
-              </button>
+                {t('legacy.actions.swapTeam')}</button>
             )}
             {hasReplacePlayer && (
               <button
@@ -90,8 +88,7 @@ export default function ActionsMenu({
                 className="w-full text-left px-4 py-2.5 text-xs font-medium text-emerald-400 hover:bg-slate-800 transition-colors border-t border-slate-800 hit44"
                 role="menuitem"
               >
-                ↔ Replace player
-                <span className="block text-[10px] text-slate-400 font-normal">new name for this slot</span>
+                {t('legacy.actions.replacePlayer')}<span className="block text-[10px] text-slate-400 font-normal">{t('legacy.actions.replacePlayerHint')}</span>
               </button>
             )}
             {hasChangePlayer && (
@@ -100,8 +97,7 @@ export default function ActionsMenu({
                 className="w-full text-left px-4 py-2.5 text-xs font-medium text-sky-400 hover:bg-slate-800 transition-colors border-t border-slate-800 hit44"
                 role="menuitem"
               >
-                ⇄ Change player
-                <span className="block text-[10px] text-slate-400 font-normal">swap with a registered player</span>
+                {t('legacy.actions.changePlayer')}<span className="block text-[10px] text-slate-400 font-normal">{t('legacy.actions.changePlayerHint')}</span>
               </button>
             )}
             {hasSwapSlots && (
@@ -110,8 +106,7 @@ export default function ActionsMenu({
                 className="w-full text-left px-4 py-2.5 text-xs font-medium text-amber-400 hover:bg-slate-800 transition-colors border-t border-slate-800 hit44"
                 role="menuitem"
               >
-                ↕ Switch slot
-              </button>
+                {t('legacy.actions.switchSlot')}</button>
             )}
             {hasSetAbsent && (
               <button
@@ -121,7 +116,7 @@ export default function ActionsMenu({
               >
                 <Icon name="user" size={14} className="inline mr-1.5 -mt-0.5" />
                 {t('legacy.markAbsent')}
-                <span className="block text-[10px] text-slate-400 font-normal">whole session</span>
+                <span className="block text-[10px] text-slate-400 font-normal">{t('legacy.actions.wholeSession')}</span>
               </button>
             )}
             {hasSetSkipped && (
@@ -130,8 +125,7 @@ export default function ActionsMenu({
                 className="w-full text-left px-4 py-2.5 text-xs font-medium text-amber-400 hover:bg-slate-800 transition-colors border-t border-slate-800 hit44"
                 role="menuitem"
               >
-                ⊘ Skip in game
-                <span className="block text-[10px] text-slate-400 font-normal">one game only — excludes from rating</span>
+                {t('legacy.actions.skipInGame')}<span className="block text-[10px] text-slate-400 font-normal">{t('legacy.actions.skipInGameHint')}</span>
               </button>
             )}
           </div>

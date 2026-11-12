@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { drawTeamMatchPost, drawMatchPost, drawPositionPost, loadImage, type TeamMatchPartaiRow } from '../utils/canvasPost'
 import { teamLogoPath, teamColor, teamPhotoPath } from '../utils/teamTournament'
+import { t } from '../../i18n'
 
 const MOCK_PARTAI: TeamMatchPartaiRow[] = [
   { tier: 'C+C', nameA: 'Fahmi / Tari',   scoreA: 21, scoreB: 18, nameB: 'Dimas / Sarah' },
@@ -67,7 +68,7 @@ function MatchCanvas({ teamA, teamB, winsA, winsB }: { teamA: string; teamB: str
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <p className="text-slate-400 text-xs tracking-widest uppercase">{teamA} vs {teamB}</p>
+      <p className="text-slate-400 text-xs tracking-widest uppercase">{t('legacy.matchPreview.versus', { teamA: teamA, teamB: teamB })}</p>
       <canvas ref={canvasRef} style={{ width: '480px', maxWidth: '100%', borderRadius: '12px' }} />
     </div>
   )
@@ -107,7 +108,7 @@ function PartaiCanvas() {
   }, [])
   return (
     <div className="flex flex-col items-center gap-2">
-      <p className="text-slate-400 text-xs tracking-widest uppercase">Individual Match Post — Example</p>
+      <p className="text-slate-400 text-xs tracking-widest uppercase">{t('legacy.matchPreview.exampleTitle')}</p>
       <canvas ref={canvasRef} style={{ width: '480px', maxWidth: '100%', borderRadius: '12px' }} />
     </div>
   )
@@ -154,7 +155,7 @@ function PositionCanvas({ positionLabel, teamName }: { positionLabel: string; te
 export default function MatchResultPreview() {
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center py-8 gap-10">
-      <p className="text-slate-500 text-sm tracking-widest uppercase">Match Result Preview — All Teams</p>
+      <p className="text-slate-500 text-sm tracking-widest uppercase">{t('legacy.matchPreview.allTeamsTitle')}</p>
       <PositionCanvas positionLabel="🏆 CHAMPION" teamName="BLUE WAVES" />
       <PositionCanvas positionLabel="🥈 RUNNER-UP" teamName="RED RAPTORS" />
       <PartaiCanvas />

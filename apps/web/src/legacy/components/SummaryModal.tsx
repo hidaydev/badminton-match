@@ -584,7 +584,7 @@ export default function SummaryModal({
             {slotSwapError ? (
               <span className="text-xs text-red-400">{slotSwapError}</span>
             ) : (
-              <span className="text-xs text-amber-300 font-medium">↕ Drag ⠿ to switch a game's slot</span>
+              <span className="text-xs text-amber-300 font-medium">{t('legacy.summaryModal.dragHint')}</span>
             )}
           </div>
         )}
@@ -593,7 +593,7 @@ export default function SummaryModal({
             {teamSwapError ? (
               <span className="text-xs text-red-400">{teamSwapError}</span>
             ) : (
-              <span className="text-xs text-sky-300 font-medium">⇄ Tap a team to select, then tap another team to swap</span>
+              <span className="text-xs text-sky-300 font-medium">{t('legacy.summaryModal.teamSwapHint')}</span>
             )}
           </div>
         )}
@@ -604,8 +604,7 @@ export default function SummaryModal({
             ) : (
               <>
                 <span className="text-xs text-sky-300 font-medium">
-                  Change <strong>{playerMap.get(changeTarget.playerId)?.name ?? '?'}</strong> (Slot {changeTarget.slot + 1}, {courtLabel(courtNames, changeTarget.court)}) to:
-                </span>
+                  {t('legacy.summaryModal.changePrefix')}{' '}<strong>{playerMap.get(changeTarget.playerId)?.name ?? '?'}</strong> {' '}{t('legacy.summaryModal.changeSuffix', { slot: changeTarget.slot + 1, court: courtLabel(courtNames, changeTarget.court) })}</span>
                 <div className="flex gap-2 items-center">
                   <input
                     type="text"
