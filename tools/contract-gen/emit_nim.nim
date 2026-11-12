@@ -8,8 +8,49 @@ type
     tag*: string
     pathParams*: seq[string]
     queryParams*: seq[string]
+    requestKeys*: seq[string]
     hasBody*: bool
     isWebSocket*: bool
+
+proc resolveSchema(doc, schema: JsonNode): JsonNode =
+  ## One level of local `$ref` is all the specs use; a chain is followed until
+  ## it leaves the document, which then yields no keys rather than looping.
+  if schema.isNil:
+    return newJObject()
+  result = schema
+  var seen = 0
+  while result.kind == JObject and result.hasKey("$ref") and seen < 8:
+    let reference = result["$ref"].getStr()
+    if not reference.startsWith("#/"):
+      return newJObject()
+    var node = doc
+    for part in reference[2 .. ^1].split('/'):
+      if node.kind != JObject or not node.hasKey(part):
+        return newJObject()
+      node = node[part]
+    result = node
+    inc seen
+
+proc requestKeysOf(doc, operation: JsonNode): seq[string] =
+  ## The keys a caller may send: the request body's object properties. A body
+  ## with no schema properties declares no key, which is the honest answer for
+  ## an endpoint the contract has not described yet.
+  if not operation.hasKey("requestBody"):
+    return @[]
+  let body = operation["requestBody"]
+  if body.kind != JObject:
+    return @[]
+  let content = body{"content"}
+  if content.isNil or content.kind != JObject or
+      not content.hasKey("application/json"):
+    return @[]
+  let media = content["application/json"]
+  let schema = resolveSchema(doc, media{"schema"})
+  if schema.isNil or schema.kind != JObject or not schema.hasKey("properties"):
+    return @[]
+  for name in schema["properties"].keys:
+    result.add name
+  result.sort()
 
 proc collectOperations*(doc: JsonNode, source: string): seq[Operation] =
   if not doc.hasKey("paths"):
@@ -41,6 +82,7 @@ proc collectOperations*(doc: JsonNode, source: string): seq[Operation] =
         tag: if node.hasKey("tags") and node["tags"].len > 0: node["tags"][0].getStr() else: "",
         pathParams: params,
         queryParams: queries,
+        requestKeys: requestKeysOf(doc, node),
         hasBody: node.hasKey("requestBody"),
         isWebSocket: node.hasKey("x-websocket"),
       ))
@@ -66,6 +108,7 @@ proc renderNim*(operations: seq[Operation]): string =
   result.add("type\n  RouteSpec* = object\n")
   result.add("    operationId*: string\n    httpMethod*: string\n    path*: string\n")
   result.add("    tag*: string\n    pathParams*: string\n    queryParams*: string\n")
+  result.add("    requestKeys*: string\n")
   result.add("    hasBody*: bool\n    isWebSocket*: bool\n\n")
   result.add("const routes* = [\n")
   for operation in operations:
@@ -76,6 +119,7 @@ proc renderNim*(operations: seq[Operation]): string =
     result.add("    tag: " & nimString(operation.tag) & ",\n")
     result.add("    pathParams: " & nimString(operation.pathParams.join(",")) & ",\n")
     result.add("    queryParams: " & nimString(operation.queryParams.join(",")) & ",\n")
+    result.add("    requestKeys: " & nimString(operation.requestKeys.join(",")) & ",\n")
     result.add("    hasBody: " & (if operation.hasBody: "true" else: "false") & ",\n")
     result.add("    isWebSocket: " & (if operation.isWebSocket: "true" else: "false") & ",\n")
     result.add("  ),\n")

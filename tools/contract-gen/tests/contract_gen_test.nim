@@ -376,6 +376,58 @@ suite "query parameters":
     check renderNim(@[operation]).contains("queryParams: \"\",")
     check renderTs(@[operation]).contains("queryParams: [],")
 
+suite "request keys":
+  test "request body properties become the operation's keys, sorted":
+    let doc = parseJson("""{
+      "paths": {
+        "/x": {
+          "post": {
+            "operationId": "createX",
+            "requestBody": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "b": {"type": "string"},
+                      "a": {"type": "integer"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }""")
+    let operations = collectOperations(doc, "spec")
+    check operations.len == 1
+    check operations[0].requestKeys == @["a", "b"]
+
+  test "a body behind a component reference resolves to its properties":
+    let doc = parseJson("""{
+      "paths": {"/x": {"post": {"operationId": "createX",
+        "requestBody": {"content": {"application/json": {"schema":
+          {"$ref": "#/components/schemas/CreateX"}}}}}}},
+      "components": {"schemas": {"CreateX": {"type": "object",
+        "properties": {"name": {"type": "string"}}}}}}""")
+    let operations = collectOperations(doc, "spec")
+    check operations[0].requestKeys == @["name"]
+
+  test "a body with no properties declares no key":
+    let doc = parseJson("""{"paths": {"/x": {"post": {"operationId": "createX",
+      "requestBody": {"content": {"application/json": {"schema":
+        {"type": "object"}}}}}}}}""")
+    check collectOperations(doc, "spec")[0].requestKeys.len == 0
+
+  test "the rendered route carries the keys and an empty body stays empty":
+    let declared = Operation(operationId: "createX", httpMethod: "POST",
+      path: "/x", requestKeys: @["name", "tier"])
+    check renderNim(@[declared]).contains("requestKeys: \"name,tier\",")
+    check renderTs(@[declared]).contains("requestKeys: [\"name\", \"tier\"],")
+    let empty = Operation(operationId: "one", httpMethod: "GET", path: "/one")
+    check renderNim(@[empty]).contains("requestKeys: \"\",")
+
 suite "generated types":
   test "a schema becomes an interface with required and optional fields":
     let schemas = parseJson("""{"Member": {"type": "object",
