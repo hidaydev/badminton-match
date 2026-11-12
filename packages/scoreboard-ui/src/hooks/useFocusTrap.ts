@@ -23,10 +23,14 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, enabled = true)
       if (focusable.length === 0) return
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
+      // The mount focus is the root itself. A sheet portalled to the end of
+      // <body> has nothing focusable after it, so a plain Tab from the root
+      // leaves the dialog and wraps to the page behind; both directions are
+      // handled here instead of trusting document order.
       if (event.shiftKey && (document.activeElement === first || document.activeElement === root)) {
         event.preventDefault()
         last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === root)) {
         event.preventDefault()
         first.focus()
       }

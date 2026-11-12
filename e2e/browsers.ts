@@ -46,7 +46,7 @@ export const projects: Project[] = [
     // baseline, so a desktop layout change is compared, not just audited. The
     // desktop baselines are recorded per platform like the phone ones.
     name: 'desktop',
-    testMatch: /(a11y|visual)\.spec\.ts$/,
+    testMatch: /(a11y|visual|zoom)\.spec\.ts$/,
     use: {
       browserName: 'chromium',
       viewport: { width: 1440, height: 900 },
