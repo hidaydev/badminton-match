@@ -572,16 +572,7 @@ jobs:
       - name: "E2E: run"
         env:
           PGPASSWORD: postgres
-        run: ./task e2e --grep "@visual" --update-snapshots
-      # Throwaway recorder: this branch exists only to rewrite the Linux pixel
-      # baselines on Linux hardware. It is never merged.
-      - name: "E2E: upload the recorded Linux baseline"
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: linux-visual-baseline
-          path: e2e/__screenshots__/linux/
-          if-no-files-found: error
+        run: ./task e2e
       # QA-11: traces, failure screenshots, videos, the JSON report and the
       # HTML report all live under the config directory, which the runner would
       # otherwise delete with the job.
