@@ -428,6 +428,10 @@ suite "authenticated read smoke":
     check payload["games"][0]["round"].getInt() == 0
     check payload["games"][0]["court"].getInt() == 0
     check payload["session"]["title"].getStr() == "Read Smoke Night"
+    # Guest parity: the public page draws the same time rail as the session
+    # screen, so the clock is part of the payload instead of a second read.
+    check payload["session"]["startTime"].getStr() == "18:00"
+    check payload["session"]["slotMinutes"].getInt() == 30
     check payload["community"]["slug"].getStr() == slug
     check payload["games"].len == 2
     check payload["standings"]["items"].len == 4

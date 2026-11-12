@@ -1,4 +1,4 @@
-import std/[options]
+import std/[options, strutils]
 import db/db
 import crypto
 import hex
@@ -15,6 +15,8 @@ type
     timezone*: string
     title*: string
     sessionDate*: string
+    startTime*: string
+    slotMinutes*: int
     status*: string
 
   ShareKeyProblem* = object of CatchableError
@@ -113,8 +115,9 @@ const shareLookupFrom = """
 
 const shareLookupColumns = """select l.id as link_id, l.community_id, l.key_id,
               l.session_id, encode(l.code_enc,'hex') as code_enc,
-              s.title, s.session_date::text as session_date, s.status,
-              c.slug, c.name, c.timezone
+              s.title, s.session_date::text as session_date,
+              to_char(s.start_time, 'HH24:MI') as start_time, s.slot_minutes,
+              s.status, c.slug, c.name, c.timezone
        """
 
 proc looksLikeUuid(value: string): bool =
@@ -162,6 +165,8 @@ proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
     timezone: value.get("timezone"),
     title: value.get("title"),
     sessionDate: value.get("session_date"),
+    startTime: value.get("start_time"),
+    slotMinutes: parseInt(value.get("slot_minutes")),
     status: value.get("status"),
   ))
 
