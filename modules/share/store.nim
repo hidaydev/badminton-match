@@ -115,9 +115,8 @@ const shareLookupFrom = """
 
 const shareLookupColumns = """select l.id as link_id, l.community_id, l.key_id,
               l.session_id, encode(l.code_enc,'hex') as code_enc,
-              s.title, s.session_date::text as session_date,
-              to_char(s.start_time, 'HH24:MI') as start_time, s.slot_minutes,
-              s.status, c.slug, c.name, c.timezone
+              s.title, s.session_date::text as session_date, s.status,
+              c.slug, c.name, c.timezone
        """
 
 proc looksLikeUuid(value: string): bool =
@@ -135,7 +134,7 @@ proc looksLikeUuid(value: string): bool =
 
 proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
   var row = db.queryOne(
-    shareLookupColumns & shareLookupFrom &
+    shareLookupColumns & ", to_char(s.start_time, 'HH24:MI') as start_time, s.slot_minutes" & shareLookupFrom &
     """l.code_hash = decode($1,'hex') and """ & liveLinkSql,
     @[textParam(sha256Hex(code))])
   if row.isNone and looksLikeUuid(code):
@@ -143,7 +142,7 @@ proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
     # answer for an id, so links already in a group chat keep working while a
     # rotated link revokes that shape together with the old code.
     row = db.queryOne(
-      shareLookupColumns & shareLookupFrom &
+      shareLookupColumns & ", to_char(s.start_time, 'HH24:MI') as start_time, s.slot_minutes" & shareLookupFrom &
       """l.session_id = $1::uuid and l.legacy_id_ok and """ & liveLinkSql,
       @[textParam(code)])
   if row.isNone:
