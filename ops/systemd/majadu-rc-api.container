@@ -19,6 +19,11 @@ OnFailure=majadu-alert@%N.service
 Image=localhost/majadu-rc-api:local
 ContainerName=majadu-rc-api
 Network=qouver
+# Rootless port forwarding presents the container's own address as the peer of
+# every proxied request, and netavark hands out a new address on each recreate.
+# The API trusts one exact edge address (MAJADU_TRUSTED_PROXIES), so the RC
+# address is pinned here and the env file names this value.
+IP=10.89.0.250
 PublishPort=127.0.0.1:8081:8080
 Pull=never
 EnvironmentFile=/srv/qouver/apps/majadu-rc/env/majadu-rc.env
