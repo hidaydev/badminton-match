@@ -343,6 +343,28 @@ suite "community HTTP":
       "delete from community.settings where community_id = $1::uuid",
       @[textParam(be05ClubId)])
 
+  test "a foreign slug answers exactly like a slug that does not exist":
+    # The refusal of a community the caller is not in must not differ from the
+    # refusal of a community that was never created. Status alone is not enough:
+    # any extra member, different sentence or different code in the envelope
+    # tells a caller that the community exists and that they are outside it.
+    # The envelope is fixed (type, title, status, code, i18nKey, detail) and
+    # carries no per-request value, so the bodies are compared as they arrived.
+    const absentSlug = "be05-does-not-exist"
+    # One read from each family that shares the `/c/{slug}` gate, so the promise
+    # is not one route's: config, settings and members.
+    for suffix in ["/config", "/settings", "/members"]:
+      let foreign = call(baseUrl, HttpGet, "/c/be05-other" & suffix,
+        be05MemberCookie)
+      let foreignBody = foreign.body
+      let absent = call(baseUrl, HttpGet, "/c/" & absentSlug & suffix,
+        be05MemberCookie)
+      let absentBody = absent.body
+      expectProblem(foreign, 404)
+      expectProblem(absent, 404)
+      check foreign.status == absent.status
+      check foreignBody == absentBody
+
   test "the community list is the caller's own memberships":
     let status = call(baseUrl, HttpGet, "/communities", be05MemberCookie)
     let body = status.body
