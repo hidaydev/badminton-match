@@ -35,8 +35,8 @@ export function findHardcodedStrings(source: string, fileName = 'example.tsx'): 
   return found
 }
 
-// `src/legacy` is the restored pre-rewrite tree. It predates the i18n rule and
-// is intentionally not rewritten, so it is not scanned here.
+// Nothing is skipped: the restored `src/legacy` tree is scanned too, so its
+// strings go through `t()` like the rest of the app.
 const SKIP_DIRS = new Set<string>()
 
 function sourceFiles(dir: string): string[] {
