@@ -9,7 +9,12 @@ import { signIn } from './session'
  * The contract generation is what an older bundle would send, so rewriting the
  * header is the part of "old bundle, new API" that this repository can produce
  * today; a bundle from the previous release needs a release to exist first.
+ *
+ * The service worker is blocked for the same reason as session-occ: once it
+ * controls the tab it answers the app's fetches on its own stack, where the
+ * page route never sees them, and this spec depends on rewriting their headers.
  */
+test.use({ serviceWorkers: 'block' })
 test('an older contract version produces the reload banner', async ({ page }) => {
   await signIn(page)
 

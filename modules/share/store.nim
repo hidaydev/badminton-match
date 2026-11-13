@@ -1,4 +1,4 @@
-import std/[options]
+import std/[options, strutils]
 import db/db
 import crypto
 import hex
@@ -15,6 +15,8 @@ type
     timezone*: string
     title*: string
     sessionDate*: string
+    startTime*: string
+    slotMinutes*: int
     status*: string
 
   ShareKeyProblem* = object of CatchableError
@@ -132,7 +134,7 @@ proc looksLikeUuid(value: string): bool =
 
 proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
   var row = db.queryOne(
-    shareLookupColumns & shareLookupFrom &
+    shareLookupColumns & ", to_char(s.start_time, 'HH24:MI') as start_time, s.slot_minutes" & shareLookupFrom &
     """l.code_hash = decode($1,'hex') and """ & liveLinkSql,
     @[textParam(sha256Hex(code))])
   if row.isNone and looksLikeUuid(code):
@@ -140,7 +142,7 @@ proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
     # answer for an id, so links already in a group chat keep working while a
     # rotated link revokes that shape together with the old code.
     row = db.queryOne(
-      shareLookupColumns & shareLookupFrom &
+      shareLookupColumns & ", to_char(s.start_time, 'HH24:MI') as start_time, s.slot_minutes" & shareLookupFrom &
       """l.session_id = $1::uuid and l.legacy_id_ok and """ & liveLinkSql,
       @[textParam(code)])
   if row.isNone:
@@ -162,6 +164,8 @@ proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
     timezone: value.get("timezone"),
     title: value.get("title"),
     sessionDate: value.get("session_date"),
+    startTime: value.get("start_time"),
+    slotMinutes: parseInt(value.get("slot_minutes")),
     status: value.get("status"),
   ))
 

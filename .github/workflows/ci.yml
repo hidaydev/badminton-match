@@ -710,7 +710,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          SHA: ${{ github.sha }}
+          # A pull request's `github.sha` is the merge commit GitHub builds for
+          # the run, and no Coverage run ever carries that sha: the runs API
+          # reports the branch head for a PR. Asking for the merge commit found
+          # nothing and the gate failed every PR on a timeout while Coverage was
+          # green (2026-11-12, run 43201635487). The head sha is the commit both
+          # workflows actually tested.
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           deadline=$((SECONDS + 720))
           while :; do

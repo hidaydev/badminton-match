@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import App from '../../App'
 import { t } from '../../i18n'
+import { formatLongDate } from '../../utils/day'
 import { mockFetch } from '../../test/fetchMock'
 
 const shared = {
@@ -40,14 +41,15 @@ describe('shared session', () => {
 
     renderAt('/s/abc123')
 
-    expect(await screen.findByRole('heading', { name: 'Tuesday Night' })).toBeInTheDocument()
-    expect(screen.getByText('Ani & Budi')).toBeInTheDocument()
+    // The body is the in-app session screen: title in its header, the grid with
+    // the four names, and the saved score on the played game.
+    expect(await screen.findByText('Tuesday Night')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Played: Ani & Budi vs Candra & Dewi' })).toBeDisabled()
     expect(screen.getByText('30–24')).toBeInTheDocument()
     expect(screen.getByText('Acme')).toBeInTheDocument()
-    // A phone-width day, not the long form that wraps next to the community.
-    expect(screen.getByText('Tue, 3 Nov 2026')).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: t('session.games') })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: t('session.standings') })).toBeInTheDocument()
+    expect(screen.getByText(formatLongDate('2026-11-03'))).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: t('summary.tab.schedule') })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: t('summary.tab.standings') })).toBeInTheDocument()
     expect(screen.queryByRole('textbox')).toBeNull()
   })
 
@@ -86,8 +88,8 @@ describe('shared session', () => {
 
     renderAt('/s/abc123')
 
-    await screen.findByRole('heading', { name: 'Tuesday Night' })
-    fireEvent.click(screen.getByRole('tab', { name: t('session.standings') }))
+    await screen.findByText('Tuesday Night')
+    fireEvent.click(screen.getByRole('tab', { name: t('summary.tab.standings') }))
 
     const rows = screen.getAllByRole('listitem').map((row) => row.textContent ?? '')
     // One win and one loss from the two played games; the cancelled one is not a result.
@@ -97,7 +99,7 @@ describe('shared session', () => {
     expect(rows[0]).toContain('Ani')
   })
 
-  it('renders the standings the server sent instead of recomputing them', async () => {
+  it('tallies the board from the games, the way the in-app screen does', async () => {
     mockFetch({
       'GET /api/auth/me': () => ({ status: 401, body: {} }),
       'GET /api/s/abc123': () => ({
@@ -129,16 +131,15 @@ describe('shared session', () => {
 
     renderAt('/s/abc123')
 
-    await screen.findByRole('heading', { name: 'Tuesday Night' })
-    fireEvent.click(screen.getByRole('tab', { name: t('session.standings') }))
+    await screen.findByText('Tuesday Night')
+    fireEvent.click(screen.getByRole('tab', { name: t('summary.tab.standings') }))
 
     const list = screen.getByRole('list')
     const rows = within(list).getAllByRole('listitem')
-    // The server order is final: the export and this screen share one tally.
-    expect(rows.map((row) => row.textContent)).toEqual([
-      expect.stringContaining('Dewi'),
-      expect.stringContaining('Ani'),
-    ])
+    // Same body as the session screen, so the same tally: the winner is first
+    // whatever order the payload's frozen standings happen to carry.
+    expect(rows[0].textContent).toContain('Ani')
+    expect(rows[rows.length - 1].textContent).toContain('Dewi')
   })
 
   it('says the link is gone instead of showing an empty session', async () => {

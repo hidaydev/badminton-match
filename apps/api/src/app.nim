@@ -2767,7 +2767,9 @@ proc resolveShare(code: string): Option[JsonNode] =
     # No session id: the code is the only public key of this read, and the
     # legacy `/s/<id>` alias would make the published uuid a second one.
     "session": {"title": value.title,
-                "date": value.sessionDate, "status": value.status},
+                "date": value.sessionDate, "status": value.status,
+                "startTime": value.startTime,
+                "slotMinutes": value.slotMinutes},
     "community": {"slug": value.slug, "name": value.communityName},
     "games": games,
     "standings": publicStandings(sessionStandings.compute(database(),

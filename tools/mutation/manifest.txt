@@ -20,7 +20,7 @@ share.version-byte-is-checked | modules/share/crypto.nim | modules/share/tests/c
 parity.empty-path-segment | tools/parity/main.nim | tools/parity/tests/cli_test.nim |       if got[index].len == 0: |       if false:
 parity.route-requires-a-verb | tools/parity/main.nim | tools/parity/tests/cli_test.nim |       if route[0 ..< space].toUpperAscii() == verbName: |       if true:
 parity.divergence-needs-a-reason | tools/parity/main.nim | tools/parity/tests/cli_test.nim |         problems.add(name & ": expectedDivergence.reason is empty") |         discard
-api.route-access-join-request-shape | apps/api/src/route_access.nim | modules/account/tests/authz_matrix_test.nim | return if verb == "POST" and parts.len == 4: publicAccess() | return if verb == "POST" and parts.len == 3: publicAccess()
+api.route-access-join-request-shape | apps/api/src/route_access.nim | modules/account/tests/authz_matrix_test.nim | if verb == "POST" and parts.len == 4: | if verb == "POST" and parts.len == 3:
 api.sqlstate-format-is-client-error | apps/api/src/app.nim | apps/api/tests/sqlstate_test.nim |   elif state in schemaSqlStates or state in formatSqlStates: |   elif state in schemaSqlStates or state in busySqlStates:
 api.security-headers-depth-boundary | apps/api/src/security_headers.nim | apps/api/tests/security_headers_test.nim |       if depth > limit: |       if depth >= limit:
 account.rank-admin-is-three | modules/account/domain/roles.nim | modules/account/tests/roles_test.nim |   of rAdmin: 3 |   of rAdmin: 2
