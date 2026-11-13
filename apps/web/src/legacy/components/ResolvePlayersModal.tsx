@@ -69,7 +69,7 @@ export default function ResolvePlayersModal({
       title={t('legacy.title.resolvePlayers')}
       description={
         <>
-          {t('legacy.resolve.intro', { count: list.length, plural: list.length > 1 ? 's' : '' })}{' '}<span className="text-emerald-400 font-medium">{t('legacy.resolve.addNew')}</span> {' '}{t('legacy.resolve.or')}{' '}<span className="text-indigo-400 font-medium">{t('playerAdmin.merge.submit')}</span> {' '}{t('legacy.resolve.toExisting')}</>
+          {t('legacy.resolve.intro', { count: list.length, plural: list.length > 1 ? 's' : '' })}{' '}<span className="text-emerald-400 font-medium">{t('legacy.resolve.addNew')}</span>{' '}{t('legacy.resolve.or')}{' '}<span className="text-indigo-400 font-medium">{t('playerAdmin.merge.submit')}</span>{' '}{t('legacy.resolve.toExisting')}</>
       }
       footer={
         <div className="flex gap-2">

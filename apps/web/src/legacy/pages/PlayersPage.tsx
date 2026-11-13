@@ -428,7 +428,7 @@ export default function PlayersPage() {
             onClick={() => setShowBulk((v) => !v)}
             title={t('players.bulkHint')}
           >
-            <Icon name="list" size={14} /> {' '}{t('legacy.players.bulk')}</Button>
+            <Icon name="list" size={14} />{' '}{t('legacy.players.bulk')}</Button>
         </div>
       )}
 

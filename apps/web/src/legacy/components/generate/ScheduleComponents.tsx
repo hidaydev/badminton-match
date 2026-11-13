@@ -54,7 +54,7 @@ function TierBalance({ tiersA, tiersB }: { tiersA: number[]; tiersB: number[] })
   return (
     <div className="flex items-center gap-1.5">
       <span className="text-[10px] text-slate-400">
-        <span>{renderTierLetters(tiersA)}</span> {' '}{t('shared.versus')}{' '}<span>{renderTierLetters(tiersB)}</span>
+        <span>{renderTierLetters(tiersA)}</span>{' '}{t('shared.versus')}{' '}<span>{renderTierLetters(tiersB)}</span>
       </span>
       <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${color}`}>{badge}</span>
     </div>

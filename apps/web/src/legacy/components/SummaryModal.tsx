@@ -604,7 +604,7 @@ export default function SummaryModal({
             ) : (
               <>
                 <span className="text-xs text-sky-300 font-medium">
-                  {t('legacy.summaryModal.changePrefix')}{' '}<strong>{playerMap.get(changeTarget.playerId)?.name ?? '?'}</strong> {' '}{t('legacy.summaryModal.changeSuffix', { slot: changeTarget.slot + 1, court: courtLabel(courtNames, changeTarget.court) })}</span>
+                  {t('legacy.summaryModal.changePrefix')}{' '}<strong>{playerMap.get(changeTarget.playerId)?.name ?? '?'}</strong>{' '}{t('legacy.summaryModal.changeSuffix', { slot: changeTarget.slot + 1, court: courtLabel(courtNames, changeTarget.court) })}</span>
                 <div className="flex gap-2 items-center">
                   <input
                     type="text"

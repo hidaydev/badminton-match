@@ -362,7 +362,7 @@ function ClassicWizard() {
         <div className="flex flex-col gap-2.5">
           <div className="flex items-center justify-between">
             <p className="text-xs text-fg-dim">
-              {t('legacy.wizard.addPrefix')}{' '}<span className="text-accent">{PAIR_COUNT}</span> {' '}{t('legacy.wizard.addSuffix')}</p>
+              {t('legacy.wizard.addPrefix')}{' '}<span className="text-accent">{PAIR_COUNT}</span>{' '}{t('legacy.wizard.addSuffix')}</p>
             <Button
               variant="ghost"
               size="sm"
@@ -415,7 +415,7 @@ function ClassicWizard() {
           </div>
           {!groupsFull && (
             <p className="text-xs text-fg-dim">
-              {t('legacy.wizard.clickPrefix')}{' '}<span className="text-accent">{t('legacy.reDraw')}</span> {' '}{t('legacy.wizard.redrawHint')}</p>
+              {t('legacy.wizard.clickPrefix')}{' '}<span className="text-accent">{t('legacy.reDraw')}</span>{' '}{t('legacy.wizard.redrawHint')}</p>
           )}
           <div className="flex flex-col gap-2.5">
             {GROUP_IDS.map((g) => (

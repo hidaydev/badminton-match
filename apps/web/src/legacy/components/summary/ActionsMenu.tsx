@@ -55,7 +55,7 @@ export default function ActionsMenu({
         aria-haspopup="true"
         aria-label={t('summary.actions')}
       >
-        ⋯<span className="hidden sm:inline"> {' '}{t('legacy.actions.label')}</span>
+        ⋯<span className="hidden sm:inline">{' '}{t('legacy.actions.label')}</span>
       </button>
       {actionsOpen && (
         <>

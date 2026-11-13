@@ -213,11 +213,11 @@ export default function ShareButton() {
         >
           <div className="flex flex-col gap-2 text-sm">
             <div className="flex items-center gap-2 text-slate-400">
-              <span className="text-emerald-400">✓</span> {' '}{t('legacy.share.playedBullet')}</div>
+              <span className="text-emerald-400">✓</span>{' '}{t('legacy.share.playedBullet')}</div>
             <div className="flex items-center gap-2 text-slate-400">
-              <span className="text-emerald-400">✓</span> {' '}{t('legacy.share.scoresBullet')}</div>
+              <span className="text-emerald-400">✓</span>{' '}{t('legacy.share.scoresBullet')}</div>
             <div className="flex items-center gap-2 text-slate-400">
-              <span className="text-red-400">✕</span> {' '}{t('legacy.share.regenerateBullet')}</div>
+              <span className="text-red-400">✕</span>{' '}{t('legacy.share.regenerateBullet')}</div>
           </div>
         </Overlay>
       )}
