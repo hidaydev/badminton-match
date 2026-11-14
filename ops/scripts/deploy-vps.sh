@@ -72,7 +72,7 @@ if echo "$CHANGED" | grep -q "^apps/api/"; then
   if podman image exists localhost/majadu-api:local; then
     podman tag localhost/majadu-api:local localhost/majadu-api:prev 2>/dev/null || true
   fi
-  podman build -t localhost/majadu-api:local . 2>&1 | tail -20 | tee -a "$LOG"
+  /srv/qouver/bin/qouver-build-lock majadu -- podman build -t localhost/majadu-api:local . 2>&1 | tail -20 | tee -a "$LOG"
   switch_local_image
   systemctl --user restart majadu-api 2>&1 | tee -a "$LOG"
 
