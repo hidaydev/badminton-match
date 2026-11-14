@@ -253,7 +253,7 @@ suite "problemsFor":
     check problems[2].contains("row 2 sha256=")
     check problems[2].contains("\"name\": \"beta\"")
 
-  test "digestProblems names the row that moved":
+  test "the CLI entry point names the row that moved":
     # The ratchet reads an unexercised path as dead code, so the drift is
     # driven through the exported entry point the CLI uses: snapshot, add one
     # row, then ask for evidence, which must name the added row.
@@ -263,7 +263,7 @@ suite "problemsFor":
       database.tx(proc(conn: DbConn) =
         discard conn.execUpdate("insert into " & scratchSchema &
           ".items (id, name) values (3, 'gamma')"))
-      let problems = parityState.digestProblems(database, state,
+      let problems = parityState.problemsFor(database, state.projections,
         evidence = true)
       check problems.len == 4
       check problems[0].contains("state drifted (rows=3)")

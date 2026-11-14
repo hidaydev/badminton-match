@@ -87,8 +87,7 @@ proc compute*(db: Db, projection: Projection): (int, string) =
     raise newException(ValueError, "projection returned no row: " & projection.table)
   (parseInt(row.get.get("row_count")), sha256Hex(row.get.get("body")))
 
-proc problemsFor*(db: Db, projections: seq[Projection],
-                  evidence = false): seq[string] =
+proc problemsFor*(db: Db, projections: seq[Projection], evidence = false): seq[string] =
   ## With `evidence`, a drifted projection also prints every row it hashed,
   ## each with its own digest: the array digest can only say that something
   ## moved, while these lines name the row and the values. The row read lives
@@ -189,6 +188,3 @@ proc selftest*(db: Db, state: StateFile): seq[string] =
   if problemsFor(db, @[empty]).len == 0:
     result.add("zero-row projection was not reported")
 
-proc digestProblems*(db: Db, state: StateFile,
-                     evidence = false): seq[string] =
-  problemsFor(db, state.projections, evidence)
