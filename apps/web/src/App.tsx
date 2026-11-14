@@ -71,9 +71,7 @@ export default function App() {
   const [sharedSnapshot] = useState<SharedSnapshot | null>(() =>
     decodeSnapshot(window.location.hash)
   )
-  const [showCelebration, setShowCelebration] = useState(
-    () => !sessionStorage.getItem('celebration-shown')
-  )
+  const [showCelebration, setShowCelebration] = useState(false)
 
   const exitSharedView = useCallback(() => {
     window.location.href = window.location.origin + '/'
