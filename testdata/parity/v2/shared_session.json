@@ -69,6 +69,8 @@
       },
       "session": {
         "date": "2026-11-03",
+        "slotMinutes": 30,
+        "startTime": "19:00",
         "status": "locked",
         "title": "Tuesday Night"
       },

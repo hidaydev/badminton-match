@@ -14,7 +14,7 @@ player.gender-is-case-insensitive | modules/player/domain/player.nim | modules/p
 player.tier-plus-is-kept | modules/player/domain/player.nim | modules/player/tests/player_test.nim |   of "B+": tBPlus |   of "B+": tB
 rating.clamp-low-slot | modules/rating/infrastructure/params.nim | modules/rating/tests/params_test.nim |   result.opponentClampLow = clamp[0].getFloat() |   result.opponentClampLow = clamp[1].getFloat()
 rating.runner-up-ratio | modules/rating/projection.nim | modules/rating/tests/projection_rules_test.nim |   of "runner_up": 0.85 |   of "runner_up": 1.0
-session.sets-won-tie | modules/session/scoring.nim | modules/session/tests/scoring_test.nim |     if s.a > s.b: inc result[0] else: inc result[1] |     if s.a >= s.b: inc result[0] else: inc result[1]
+session.sets-won-tie | modules/session/scoring.nim | modules/session/tests/scoring_test.nim |     elif s.b > s.a: inc result[1] |     elif s.b >= s.a: inc result[1]
 session.match-complete-needs-one-side | modules/session/scoring.nim | modules/session/tests/scoring_test.nim |   a >= rules.gamesToWin or b >= rules.gamesToWin |   a >= rules.gamesToWin and b >= rules.gamesToWin
 share.version-byte-is-checked | modules/share/crypto.nim | modules/share/tests/crypto_test.nim |   if blob.len < 1 + nonceLen + tagLen or blob[0] != version: |   if blob.len < 1 + nonceLen + tagLen:
 parity.empty-path-segment | tools/parity/main.nim | tools/parity/tests/cli_test.nim |       if got[index].len == 0: |       if false:
