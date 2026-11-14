@@ -583,7 +583,7 @@ proc stateCheck(options: Options) =
   let state = parityState.loadState(options.statePath)
   let database = openParityDb(options)
   defer: database.close()
-  let problems = parityState.digestProblems(database, state)
+  let problems = parityState.digestProblems(database, state, evidence = true)
   if problems.len > 0:
     for problem in problems:
       stderr.writeLine "parity: " & problem

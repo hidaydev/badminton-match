@@ -4,6 +4,12 @@
 ## `ORDER BY`. The digest proves that a replay ended on the same rows it was
 ## recorded against; row counts are checked too, so a projection that silently
 ## matches nothing can never freeze into a constant hash.
+##
+## The digest covers the array order, so an `ORDER BY` on a text column must
+## pin `collate "C"`: the locale collation differs between hosts (glibc
+## `en_US.utf8` ignores spaces and punctuation at the primary level, macOS does
+## not), and a locale-dependent order would make the same rows hash differently
+## on the developer machine and on the Linux runner.
 
 import std/[json, options, os, strutils]
 import db/db
@@ -50,9 +56,7 @@ proc loadState*(path: string): StateFile =
     result.selftestTable = document["selftest"]["projection"].getStr()
     result.selftestSql = document["selftest"]["sql"].getStr()
 
-proc projectionSql*(projection: Projection): string =
-  ## The digest input is the canonical JSON of the projected rows. `jsonb`
-  ## sorts object keys, so two equal result sets serialise byte-identically.
+proc projectionSelect(projection: Projection): string =
   if projection.columns.len == 0:
     raise newException(ValueError, "projection has no columns: " & projection.table)
   if projection.orderBy.len == 0:
@@ -61,10 +65,15 @@ proc projectionSql*(projection: Projection): string =
   let whereClause =
     if projection.whereClause.len > 0: " where " & projection.whereClause else: ""
   let orderBy = projection.orderBy.join(", ")
+  "select " & columns & " from " & projection.table & whereClause &
+    " order by " & orderBy
+
+proc projectionSql*(projection: Projection): string =
+  ## The digest input is the canonical JSON of the projected rows. `jsonb`
+  ## sorts object keys, so two equal result sets serialise byte-identically.
   "select count(*)::bigint as row_count, " &
     "coalesce(jsonb_agg(to_jsonb(p))::text, '[]') as body " &
-    "from (select " & columns & " from " & projection.table & whereClause &
-    " order by " & orderBy & ") p"
+    "from (" & projectionSelect(projection) & ") p"
 
 proc computeWith*(conn: DbConn, projection: Projection): (int, string) =
   let row = conn.queryOne(projectionSql(projection))
@@ -78,7 +87,19 @@ proc compute*(db: Db, projection: Projection): (int, string) =
     raise newException(ValueError, "projection returned no row: " & projection.table)
   (parseInt(row.get.get("row_count")), sha256Hex(row.get.get("body")))
 
-proc problemsFor*(db: Db, projections: seq[Projection]): seq[string] =
+proc rowDigests*(db: Db, projection: Projection): seq[(string, string)] =
+  ## Every projected row in digest order, paired with its own sha256. Only a
+  ## drifted projection pays for this second query.
+  for row in db.query("select to_jsonb(p)::text as body from (" &
+                      projectionSelect(projection) & ") p"):
+    let body = row.get("body")
+    result.add((sha256Hex(body), body))
+
+proc problemsFor*(db: Db, projections: seq[Projection],
+                  evidence = false): seq[string] =
+  ## With `evidence`, a drifted projection also prints every row it hashed,
+  ## each with its own digest: the array digest can only say that something
+  ## moved, while these lines name the row and the values.
   for projection in projections:
     if projection.columns.len == 0:
       result.add(projection.table & ": no columns")
@@ -91,6 +112,10 @@ proc problemsFor*(db: Db, projections: seq[Projection]): seq[string] =
       result.add(projection.table & ": projection returned 0 rows")
     elif projection.digest.len > 0 and projection.digest != digest:
       result.add(projection.table & ": state drifted (rows=" & $rows & ")")
+      if evidence:
+        for index, (rowDigest, body) in rowDigests(db, projection):
+          result.add("  row " & $(index + 1) & " sha256=" & rowDigest &
+            " " & body)
 
 proc snapshot*(db: Db, state: var StateFile) =
   for index in 0 ..< state.projections.len:
@@ -167,5 +192,6 @@ proc selftest*(db: Db, state: StateFile): seq[string] =
   if problemsFor(db, @[empty]).len == 0:
     result.add("zero-row projection was not reported")
 
-proc digestProblems*(db: Db, state: StateFile): seq[string] =
-  problemsFor(db, state.projections)
+proc digestProblems*(db: Db, state: StateFile,
+                     evidence = false): seq[string] =
+  problemsFor(db, state.projections, evidence)

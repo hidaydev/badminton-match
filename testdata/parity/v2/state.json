@@ -47,7 +47,9 @@
         "gender"
       ],
       "orderBy": [
-        "canonical_name"
+        "canonical_name collate \"C\"",
+        "tier collate \"C\"",
+        "gender collate \"C\""
       ],
       "rows": 40,
       "sha256": "091431a21ea43cbfaae84907a3d85b8ec22916f3eee48689a1b812fcf1d81236"

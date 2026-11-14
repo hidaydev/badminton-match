@@ -239,6 +239,28 @@ suite "problemsFor":
     check problems.len == 1
     check problems[0].contains("state drifted (rows=2)")
 
+  test "a digest mismatch names every row when evidence is asked for":
+    # Without the per-row lines a drifted projection only says that some byte
+    # moved, and the Linux runner's locale order was invisible until this.
+    var projection = itemsProjection()
+    projection.digest = repeat('0', 64)
+    let problems = parityState.problemsFor(database, @[projection],
+      evidence = true)
+    check problems.len == 3
+    check problems[0].contains("state drifted (rows=2)")
+    check problems[1].contains("row 1 sha256=")
+    check problems[1].contains("\"name\": \"alpha\"")
+    check problems[2].contains("row 2 sha256=")
+    check problems[2].contains("\"name\": \"beta\"")
+
+  test "the per-row evidence carries the row values":
+    let projection = itemsProjection()
+    let rows = parityState.rowDigests(database, projection)
+    check rows.len == 2
+    check rows[0][1].contains("\"alpha\"")
+    check rows[1][1].contains("\"beta\"")
+    check rows[0][0] != rows[1][0]
+
   test "a matching digest has no problem":
     var projection = itemsProjection()
     projection.digest = parityState.compute(database, projection)[1]
