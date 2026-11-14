@@ -87,19 +87,14 @@ proc compute*(db: Db, projection: Projection): (int, string) =
     raise newException(ValueError, "projection returned no row: " & projection.table)
   (parseInt(row.get.get("row_count")), sha256Hex(row.get.get("body")))
 
-proc rowDigests*(db: Db, projection: Projection): seq[(string, string)] =
-  ## Every projected row in digest order, paired with its own sha256. Only a
-  ## drifted projection pays for this second query.
-  for row in db.query("select to_jsonb(p)::text as body from (" &
-                      projectionSelect(projection) & ") p"):
-    let body = row.get("body")
-    result.add((sha256Hex(body), body))
-
 proc problemsFor*(db: Db, projections: seq[Projection],
                   evidence = false): seq[string] =
   ## With `evidence`, a drifted projection also prints every row it hashed,
   ## each with its own digest: the array digest can only say that something
-  ## moved, while these lines name the row and the values.
+  ## moved, while these lines name the row and the values. The row read lives
+  ## here instead of in a one-caller helper: gcov attributes a helper's entry
+  ## and its `result.add` to the caller, and the per-file ratchet then reads a
+  ## covered path as dead.
   for projection in projections:
     if projection.columns.len == 0:
       result.add(projection.table & ": no columns")
@@ -113,8 +108,10 @@ proc problemsFor*(db: Db, projections: seq[Projection],
     elif projection.digest.len > 0 and projection.digest != digest:
       result.add(projection.table & ": state drifted (rows=" & $rows & ")")
       if evidence:
-        for index, (rowDigest, body) in rowDigests(db, projection):
-          result.add("  row " & $(index + 1) & " sha256=" & rowDigest &
+        for index, row in db.query("select to_jsonb(p)::text as body from (" &
+                                   projectionSelect(projection) & ") p"):
+          let body = row.get("body")
+          result.add("  row " & $(index + 1) & " sha256=" & sha256Hex(body) &
             " " & body)
 
 proc snapshot*(db: Db, state: var StateFile) =

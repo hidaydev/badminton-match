@@ -253,13 +253,26 @@ suite "problemsFor":
     check problems[2].contains("row 2 sha256=")
     check problems[2].contains("\"name\": \"beta\"")
 
-  test "the per-row evidence carries the row values":
-    let projection = itemsProjection()
-    let rows = parityState.rowDigests(database, projection)
-    check rows.len == 2
-    check rows[0][1].contains("\"alpha\"")
-    check rows[1][1].contains("\"beta\"")
-    check rows[0][0] != rows[1][0]
+  test "digestProblems names the row that moved":
+    # The ratchet reads an unexercised path as dead code, so the drift is
+    # driven through the exported entry point the CLI uses: snapshot, add one
+    # row, then ask for evidence, which must name the added row.
+    var state = parityState.StateFile(projections: @[itemsProjection()])
+    parityState.snapshot(database, state)
+    try:
+      database.tx(proc(conn: DbConn) =
+        discard conn.execUpdate("insert into " & scratchSchema &
+          ".items (id, name) values (3, 'gamma')"))
+      let problems = parityState.digestProblems(database, state,
+        evidence = true)
+      check problems.len == 4
+      check problems[0].contains("state drifted (rows=3)")
+      check problems[1].contains("row 1 sha256=")
+      check problems[3].contains("\"gamma\"")
+    finally:
+      database.tx(proc(conn: DbConn) =
+        discard conn.execUpdate("delete from " & scratchSchema &
+          ".items where id = 3"))
 
   test "a matching digest has no problem":
     var projection = itemsProjection()
