@@ -100,7 +100,8 @@ communities) is still used; v2 pages that were never mounted in the router
   `session.changed`; the `full`/`revoked` frames stop reconnection. While the socket
   is not connected (or after a drop) the page keeps polling every 5 seconds, so
   realtime is an accelerator, not a requirement. In dev, Vite proxies `/ws`; in
-  production the socket uses the API origin (`VITE_WS_BASE`), because the Vercel rewrite does not
+  production the socket uses the API origin (`VITE_WS_BASE`, or the built-in
+  `wss://api.qouver.com/majadu` fallback), because the Vercel rewrite does not
   carry the upgrade.
 
 ## 5. Gates
