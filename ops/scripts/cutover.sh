@@ -385,7 +385,12 @@ step_preflight() {
   markers=$(printf '%s' "$release" |
     grep -oE 'digest:[[:space:]]*sha256:[0-9a-f]{64}' || true)
   marker_count=$(printf '%s\n' "$markers" | grep -c 'sha256:' || true)
-  strings=$(printf '%s' "$release" | grep -oE 'sha256:[0-9a-f]{64}' || true)
+  # The release response carries a `digest` for every uploaded asset (the SBOMs),
+  # so counting sha256 strings over the whole response always finds more than the
+  # one digest the release text publishes. Split on commas, drop the asset
+  # records, and count only what the release text itself mentions.
+  strings=$(printf '%s' "$release" | tr ',' '\n' | grep -v '"digest":' |
+    grep -oE 'sha256:[0-9a-f]{64}' || true)
   string_count=$(printf '%s\n' "$strings" | grep -c 'sha256:' || true)
   [ "$marker_count" -ne 0 ] || fail "release v$VERSION has no published image digest"
   [ "$marker_count" -eq 1 ] && [ "$string_count" -eq 1 ] ||

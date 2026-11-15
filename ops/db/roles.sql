@@ -100,8 +100,10 @@ end $$;
 -- only when it does.
 select 'revoke all on database bm from bm2_app, bm2_etl'
 where exists (select 1 from pg_database where datname = 'bm') \gexec
-select 'revoke connect on database bm from public'
-where exists (select 1 from pg_database where datname = 'bm') \gexec
+-- PUBLIC's CONNECT on bm is deliberately left alone: v1 reaches its own database
+-- through it, so revoking it here locks the v1 API out and breaks a rollback
+-- after the cutover has run this file. Keeping the v2 roles out is what the
+-- revoke above already does.
 
 do $$
 begin
