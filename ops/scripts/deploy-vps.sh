@@ -389,10 +389,16 @@ RELEASE=$(release_query 2>/dev/null || true)
 # digest-shaped string anywhere in it is not a binding. `release.yml` appends
 # exactly one machine line `digest: sha256:...`; anything else in the body that
 # looks like a digest is an ambiguity and a failed deploy, not a first match.
-DIGEST_MARKERS=$(printf '%s' "$RELEASE" |
+# Release assets carry their own `"digest":"sha256:..."` field, which is
+# machine-owned and outside the body; inside the JSON body every quote is
+# escaped, so an unescaped quoted field can only be an asset. Drop those first,
+# or a release with SBOM assets reads as three digests and never deploys.
+RELEASE_TEXT=$(printf '%s' "$RELEASE" |
+  sed -E 's/"digest":"sha256:[0-9a-f]{64}"/"digest":"asset"/g')
+DIGEST_MARKERS=$(printf '%s' "$RELEASE_TEXT" |
   grep -oE 'digest:[[:space:]]*sha256:[0-9a-f]{64}' || true)
 DIGEST_MARKER_COUNT=$(printf '%s\n' "$DIGEST_MARKERS" | grep -c 'sha256:' || true)
-DIGEST_STRINGS=$(printf '%s' "$RELEASE" | grep -oE 'sha256:[0-9a-f]{64}' || true)
+DIGEST_STRINGS=$(printf '%s' "$RELEASE_TEXT" | grep -oE 'sha256:[0-9a-f]{64}' || true)
 DIGEST_STRING_COUNT=$(printf '%s\n' "$DIGEST_STRINGS" | grep -c 'sha256:' || true)
 if [ "$DIGEST_MARKER_COUNT" -eq 0 ]; then
   fail "release v$VERSION has no published image digest"

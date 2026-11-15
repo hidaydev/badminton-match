@@ -729,6 +729,35 @@ exit 0
       "production does not point at bm2 yet: cutover has not happened, nothing to deploy")
     check not result.stdout.contains("tool env file")
 
+  test "release assets with their own digests do not read as ambiguous":
+    # GitHub attaches `"digest":"sha256:..."` to every release asset. Counting
+    # those as release-body digests made every release with SBOM assets
+    # undeployable, so only the human-writable text may be counted.
+    let fixture = newFixture("deploy-asset-digests")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    fixture.installFake("curl", """#!/bin/sh
+case "$*" in
+  *api.github.com*) printf '%s' '{"body":"release notes\ndigest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n","assets":[{"name":"deps.cdx.json","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"name":"image.cdx.json","digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]}' ;;
+esac
+exit 0
+""")
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
+    privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    check not result.stdout.contains(
+      "must carry exactly one 'digest: sha256:...' line")
+    check result.stdout.contains(
+      "release v2.0.0 resolves to sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+
   test "a digest in the tag message is refused as ambiguous":
     let fixture = newFixture("deploy-ambiguous-digest")
     defer: removeDir(fixture.root)
