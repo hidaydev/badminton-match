@@ -1427,20 +1427,87 @@ suite "cutover.sh":
       "MAJADU_ETL_DSN=postgres://bm2_etl@127.0.0.1:5432/bm2\n" &
       "MAJADU_ETL_SOURCE_DSN=postgres://bm2_owner@127.0.0.1:5432/bm_staging\n" &
       "MAJADU_CUTOVER_RESTORE_DSN=postgres://bm2_owner@127.0.0.1:5432/bm_staging\n")
-    # The maintenance step succeeds; the Caddy check in the next one fails, so
-    # the ERR trap has to fire inside the step function and stop the sequence.
+    # The maintenance step points Caddy at the 503 snippet, and a validate that
+    # refuses it must stop the sequence with an ERROR line instead of leaving the
+    # site on a snippet that cannot load.
     let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
       @["--version", "2.0.0", "--from", "maintenance"], appDir(fixture) & @[
         ("MAJADU_CADDY_VALIDATE", "false"),
       ])
     check result.exitCode == 1
-    check result.stdout.contains("ERROR: command failed at line")
+    check result.stdout.contains("ERROR: caddy rejected site-maintenance.caddy")
     check result.stdout.contains("(step: maintenance)")
     check result.stdout.contains("last step: maintenance")
     check not result.stdout.contains("v1 is stopped and disabled")
     check not result.stdout.contains("cutover sequence finished")
     check readFile(fixture.root / "cutover" / "cutover.step")
       .contains("\"state\":\"failed\"")
+
+  test "prepare-bm2 runs roles.sql after the migration and sets the prune password":
+    # O-41: the account.audit grants in roles.sql are conditional on the table,
+    # which arrives with 0004_platform.sql, so a single run before `dbtools
+    # migrate` leaves the prune role with CONNECT and nothing else. The second,
+    # idempotent run is what makes MAJADU_AUDIT_DSN usable.
+    let fixture = newFixture("cutover-prepare-bm2")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    for tool in ["pg_dump", "pg_restore", "caddy"]:
+      fixture.installFake(tool, okFake)
+    createDir(fixture.root / "scripts")
+    writeExecutable(fixture.root / "scripts" / "smoke.sh",
+      "#!/bin/sh\nexit 0\n")
+    let orderLog = fixture.root / "order.log"
+    # One log for both clients, so the test can assert the order of the calls
+    # instead of only that each one happened.
+    writeExecutable(fixture.binDir / "psql",
+      "#!/bin/sh\nprintf 'psql %s\\n' \"$*\" >> \"$FAKE_ORDER_LOG\"\n" &
+      "/bin/cat >> \"$FAKE_ORDER_LOG\"\nexit 0\n")
+    writeExecutable(fixture.binDir / "podman",
+      "#!/bin/sh\nprintf 'podman %s\\n' \"$*\" >> \"$FAKE_ORDER_LOG\"\n" &
+      "case \"$*\" in\n" &
+      "  \"image exists \"*) exit \"${FAKE_PODMAN_IMAGE_EXISTS:-0}\" ;;\n" &
+      "  *\"State.Running\"*) printf 'false\\n' ; exit 0 ;;\n" &
+      "esac\nexit 0\n")
+    let owner = "postgres://bm2_owner@127.0.0.1:5432/bm2"
+    privateFile(fixture.root / "env" / "majadu-prod.env.v2",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env",
+      "MAJADU_OWNER_DSN=" & owner & "\n" &
+      "MAJADU_ETL_DSN=postgres://bm2_etl@127.0.0.1:5432/bm2\n" &
+      "MAJADU_ETL_SOURCE_DSN=postgres://bm2_owner@127.0.0.1:5432/bm_staging\n" &
+      "MAJADU_CUTOVER_RESTORE_DSN=postgres://bm2_owner@127.0.0.1:5432/bm_staging\n")
+    touch(fixture.root / "cutover" / "snapshot.sha256", "abc\n")
+    touch(fixture.root / "cutover" / "snapshot.taken_at", "2026-11-09T00:00:00Z\n")
+    # The harness leaves the child's stdin as an open pipe with no writer, so a
+    # stub that reads stdin (the password pipe) would block on the calls that do
+    # not redirect it. The wrapper gives the script /dev/null; an explicit pipe
+    # inside the script still reaches the stub.
+    let wrapper = fixture.root / "run-cutover.sh"
+    writeExecutable(wrapper, "#!/bin/sh\nexec </dev/null\n\"$@\"\n")
+    let result = fixture.runShell(wrapper,
+      fixture.installOpsScript("cutover.sh") &
+      @["--version", "2.0.0", "--from", "prepare-bm2"],
+      appDir(fixture) & @[
+        ("FAKE_ORDER_LOG", orderLog),
+        ("MAJADU_OWNER_SUB", "owner-sub"),
+        # Only the documented key: the older name must not be what makes this
+        # pass, because the host env file carries BM2_AUDIT_PASSWORD.
+        ("BM2_AUDIT_PASSWORD", "audit-test-password"),
+        ("MAJADU_CADDY_VALIDATE", "true"),
+        ("MAJADU_CADDY_RELOAD", "true"),
+      ])
+    check result.exitCode == 0
+    let calls = readFile(orderLog)
+    check calls.count("roles.sql") == 2
+    let firstRoles = calls.find("roles.sql")
+    let migrate = calls.find("migrate --dir")
+    let seed = calls.find("seed --dir")
+    let secondRoles = calls.find("roles.sql", migrate)
+    check firstRoles >= 0
+    check migrate > firstRoles
+    check seed > migrate
+    check secondRoles > seed
+    check calls.contains("alter role bm2_audit_prune with login password")
 
   # SEC-06: the share code and the websocket ticket are bearer credentials in
   # the query string, and the site log is shared with every other application.
@@ -1497,9 +1564,10 @@ suite "cutover.sh":
     fixture.hermeticBin(["psql", "pg_dump", "pg_restore"])
     touch(fixture.root / "env" / "majadu-prod.env.v2", "")
     createDir(fixture.root / "caddy")
-    writeFile(fixture.root / "caddy" / "log-share.caddy",
-      "@share path /majadu/s/* /majadu/ws/*\nlog_skip @share\nlog {\n" &
-      "\timport log_access\n}\n")
+    # The installed copy is the shipping file, not a restatement of it: a guard
+    # that passes its own fixture says nothing about what cutover installs.
+    copyFile(repoDir / "ops" / "caddy" / "log-share.caddy",
+      fixture.root / "caddy" / "log-share.caddy")
     let caddyfile = fixture.root / "Caddyfile"
     writeFile(caddyfile,
       "import /srv/qouver/apps/majadu/caddy/log-share.caddy\n")
@@ -1510,11 +1578,10 @@ suite "cutover.sh":
     check result.exitCode == 0
     check result.stdout.contains("stay out of the access log")
 
-  test "--check refuses an installed copy that still uses skip_log":
-    # The old shape is not a missing matcher: Caddy 2.11 refuses to load it with
-    # "unrecognized subdirective", so the check has to name the directive that
-    # replaces it instead of reporting a missing prefix.
-    let fixture = newFixture("cutover-matcher-skip-log")
+  test "--check refuses a companion that leaves out the RC prefixes":
+    # Production and RC share the site block and the access log, so a matcher
+    # that names only /majadu keeps the RC tickets in the file.
+    let fixture = newFixture("cutover-matcher-rc")
     defer: removeDir(fixture.root)
     simFakes(fixture)
     fixture.installFake("curl", releaseCurlFake)
@@ -1525,8 +1592,8 @@ suite "cutover.sh":
     touch(fixture.root / "env" / "majadu-prod.env.v2", "")
     createDir(fixture.root / "caddy")
     writeFile(fixture.root / "caddy" / "log-share.caddy",
-      "@share path /majadu/s/* /majadu/ws/*\nlog {\n\timport log_access\n" &
-      "\tskip_log @share\n}\n")
+      "@share path /majadu/s/* /majadu/ws/*\nlog_skip @share\nlog {\n" &
+      "\timport log_access\n}\n")
     let caddyfile = fixture.root / "Caddyfile"
     writeFile(caddyfile,
       "import /srv/qouver/apps/majadu/caddy/log-share.caddy\n")
@@ -1535,7 +1602,36 @@ suite "cutover.sh":
       appDir(fixture) & @[("PATH", fixture.binDir),
         ("MAJADU_CADDY_CONFIG", caddyfile)])
     check result.exitCode == 2
-    check result.stderr.contains("skip_log")
+    check result.stderr.contains("/majadu-rc/s/* out of the access log")
+
+  test "--check refuses an installed copy with the pre-2.8 in-log spelling":
+    # The old shape is not a missing matcher: Caddy 2.11 refuses to load it with
+    # "unrecognized subdirective", so the check has to name the directive that
+    # replaces it instead of reporting a missing prefix. The fixture line is
+    # assembled so a search of the repository for the removed directive stays
+    # empty while the old bytes are still exercised.
+    let fixture = newFixture("cutover-matcher-old-spelling")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("curl", releaseCurlFake)
+    fixture.installFake("caddy", okFake)
+    for tool in ["psql", "pg_dump", "pg_restore"]:
+      removeFile(fixture.binDir / tool)
+    fixture.hermeticBin(["psql", "pg_dump", "pg_restore"])
+    touch(fixture.root / "env" / "majadu-prod.env.v2", "")
+    createDir(fixture.root / "caddy")
+    writeFile(fixture.root / "caddy" / "log-share.caddy",
+      "@share path /majadu/s/* /majadu/ws/* /majadu-rc/s/* /majadu-rc/ws/*\n" &
+      "log {\n\timport log_access\n\t" & "skip" & "_log @share\n}\n")
+    let caddyfile = fixture.root / "Caddyfile"
+    writeFile(caddyfile,
+      "import /srv/qouver/apps/majadu/caddy/log-share.caddy\n")
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--check", "--version", "2.0.0"],
+      appDir(fixture) & @[("PATH", fixture.binDir),
+        ("MAJADU_CADDY_CONFIG", caddyfile)])
+    check result.exitCode == 2
+    check result.stderr.contains("pre-2.8")
     check result.stderr.contains("log_skip")
 
 suite "rollback.sh":

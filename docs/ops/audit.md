@@ -12,12 +12,10 @@ and one is still missing in this release.
 | a daily digest is written next to the dumps | `ops/scripts/audit-digest.sh`, `majadu-audit-digest.timer` | an edit by a role that can write the table leaving no trace once the file leaves the host |
 
 `ops/db/roles.sql` creates `bm2_audit_prune` with `SELECT` and `DELETE` on
-`account.audit` and no other right. Enable login once for the password in
-`majadu-tools.env`:
-
-```sql
-alter role bm2_audit_prune login password '<secret>';
-```
+`account.audit`, `SELECT` on the two `platform.config` tables (the window comes
+from `audit.retention_days`), and no other right. `cutover.sh step_prepare_bm2`
+turns on LOGIN and sets the password from `BM2_AUDIT_PASSWORD`; do not alter the
+role by hand.
 
 The digest is a JSON file per UTC day in `MAJADU_BACKUP_DIR`:
 

@@ -36,6 +36,14 @@ select 'grant usage on schema account to bm2_audit_prune'
 where to_regclass('account.audit') is not null \gexec
 select 'grant select, delete on account.audit to bm2_audit_prune'
 where to_regclass('account.audit') is not null \gexec
+-- The tool reads its window from the registry (audit.retention_days) through the
+-- same snapshot every other process loads, so it needs the two registry tables.
+-- They are read-only and hold configuration, not secrets: the OIDC client secret
+-- and the share-code keyring live in the env file, never in platform.config.
+select 'grant usage on schema platform to bm2_audit_prune'
+where to_regclass('platform.config') is not null \gexec
+select 'grant select on platform.config, platform.config_version to bm2_audit_prune'
+where to_regclass('platform.config') is not null \gexec
 
 do $$
 begin
@@ -45,8 +53,27 @@ begin
   if not has_table_privilege('bm2_audit_prune', 'account.audit', 'DELETE') then
     raise exception 'bm2_audit_prune cannot delete from account.audit';
   end if;
+  if has_table_privilege('bm2_audit_prune', 'account.audit', 'UPDATE') then
+    raise exception 'bm2_audit_prune can update account.audit';
+  end if;
+  if not has_table_privilege('bm2_audit_prune', 'platform.config', 'SELECT') then
+    raise exception 'bm2_audit_prune cannot read platform.config';
+  end if;
   if has_table_privilege('bm2_app', 'account.audit', 'DELETE') then
     raise exception 'bm2_app can delete from account.audit';
+  end if;
+  -- DDL is the owner's job; a prune role that could create objects in public
+  -- could also replace the table it is allowed to empty.
+  if has_schema_privilege('bm2_audit_prune', 'public', 'CREATE') then
+    raise exception 'bm2_audit_prune can create objects in schema public';
+  end if;
+  if exists (
+    select 1
+    from pg_auth_members m
+    join pg_roles r on r.oid = m.member
+    where r.rolname = 'bm2_audit_prune'
+  ) then
+    raise exception 'bm2_audit_prune is a member of another role';
   end if;
 end $$;
 
@@ -86,5 +113,8 @@ begin
   end if;
   if has_database_privilege('bm2_etl', 'bm', 'CONNECT') then
     raise exception 'bm2_etl can still connect to bm';
+  end if;
+  if has_database_privilege('bm2_audit_prune', 'bm', 'CONNECT') then
+    raise exception 'bm2_audit_prune can still connect to bm';
   end if;
 end $$;
