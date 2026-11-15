@@ -40,20 +40,24 @@
 #
 #      import /srv/qouver/apps/majadu/caddy/log-share.caddy
 #
-#    The companion holds the two lines this step used to ask for by hand:
+#    The companion holds the three lines this step used to ask for by hand:
 #
-#      @share path /majadu/s/* /majadu/ws/*
-#      log { import log_access  skip_log @share }
+#      @share path /majadu/s/* /majadu/ws/* /majadu-rc/s/* /majadu-rc/ws/*
+#      log_skip @share
+#      log { import log_access }
 #
-#    Both prefixes matter: the share code and the one-use ticket are query
-#    parameters on /majadu/s/* and /majadu/ws/*, and this access log is shared
-#    with the other applications on the server. `cutover.sh --check` fails when
-#    the matcher names one prefix, when it is present but never skipped, and
+#    All four prefixes matter: the share code and the one-use ticket are query
+#    parameters on the /s/* and /ws/* paths, production and RC share this site
+#    block and this log, and the log is shared with the other applications on
+#    the server. `cutover.sh --check` fails when the matcher names one prefix,
+#    when it is present but never skipped, when a prefix family is missing, and
 #    when it is missing altogether while the Majadu handler is imported, so a
 #    host that skipped this step cannot cut over.
 #
-#    `skip_log` needs Caddy 2.7+. The rest of log_access (output, format) stays
-#    as it is, so other applications keep their logs unchanged.
+#    `log_skip` is site level and needs Caddy 2.8+ (the host runs 2.11). It
+#    cannot live inside the `log` block, which is why the companion keeps it on
+#    its own line. The rest of log_access (output, format) stays as it is, so
+#    other applications keep their logs unchanged.
 #
 # 4. Validate and reload before trusting it:
 #      caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile

@@ -181,9 +181,20 @@ run_tool() {
 }
 
 link_site() {
-  local snippet="$1"
+  local snippet="$1" previous
+  # The database is already cut over when this runs, so a snippet Caddy refuses
+  # must not leave the site pointing at a file that cannot load: keep the old
+  # link and fail loudly instead.
+  previous=$(readlink "$CADDY_ACTIVE" 2>/dev/null || true)
   ln -sfn "$CADDY_DIR/$snippet" "$CADDY_ACTIVE"
-  $CADDY_VALIDATE --config "$CADDY_CONFIG" --adapter caddyfile >/dev/null
+  if ! $CADDY_VALIDATE --config "$CADDY_CONFIG" --adapter caddyfile >/dev/null; then
+    if [ -n "$previous" ]; then
+      ln -sfn "$previous" "$CADDY_ACTIVE"
+      fail "caddy rejected $snippet; active.caddy restored to $previous"
+    fi
+    rm -f "$CADDY_ACTIVE"
+    fail "caddy rejected $snippet; active.caddy removed, restore the v1 snippet before retrying"
+  fi
   $CADDY_RELOAD
   log "caddy now serves $snippet"
 }
@@ -232,12 +243,24 @@ log_matcher_problem() {
     fi
     return 1
   fi
+  # Caddy 2.11 rejects the pre-2.8 in-log spelling ("unrecognized subdirective"),
+  # so a copy carrying it must be named for what it is instead of reporting a
+  # missing matcher. The character class keeps this file's own text out of every
+  # repository-wide search for the removed directive.
+  grep -Eq '^[[:space:]]*skip[_]log([[:space:]]|$)' "$config" &&
+    { printf '%s still uses the pre-2.8 in-log spelling, which Caddy 2.11 rejects; the directive is log_skip @share at site level\n' "$1"; return 0; }
   grep -q '/majadu/s/\*' "$config" ||
     { printf '%s skips /majadu/ws/* but not /majadu/s/* in the log matcher\n' "$1"; return 0; }
   grep -q '/majadu/ws/\*' "$config" ||
     { printf '%s skips /majadu/s/* but not /majadu/ws/* in the log matcher\n' "$1"; return 0; }
-  grep -q 'skip_log @share' "$config" ||
-    { printf '%s defines @share but never skips it; add skip_log @share\n' "$1"; return 0; }
+  # Production and RC are served from the same site block and the same access
+  # log, so RC share codes and tickets leak the same way when they are skipped.
+  grep -q '/majadu-rc/s/\*' "$config" ||
+    { printf '%s does not keep /majadu-rc/s/* out of the access log\n' "$1"; return 0; }
+  grep -q '/majadu-rc/ws/\*' "$config" ||
+    { printf '%s does not keep /majadu-rc/ws/* out of the access log\n' "$1"; return 0; }
+  grep -q 'log_skip @share' "$config" ||
+    { printf '%s defines @share but never skips it; add log_skip @share\n' "$1"; return 0; }
   return 1
 }
 
@@ -470,18 +493,31 @@ step_prepare_bm2() {
 
   set_role_password() {
     local role="$1" password="$2"
-    printf "alter role %s with login password '%s';\n" \
-      "$role" "${password//\'/\'\'}" |
+    # VERBOSITY terse keeps the failing statement out of the client output, so a
+    # refused `alter role` cannot print the password into cutover.log.
+    {
+      printf '%s\n' '\set VERBOSITY terse'
+      printf "alter role %s with login password '%s';\n" \
+        "$role" "${password//\'/\'\'}"
+    } |
       psql_cmd "$OWNER_DSN" -v ON_ERROR_STOP=1 >>"$LOG" 2>&1
   }
   [ -n "${BM2_OWNER_PASSWORD:-}" ] && set_role_password bm2_owner "$BM2_OWNER_PASSWORD"
   [ -n "${BM2_APP_PASSWORD:-}" ] && set_role_password bm2_app "$BM2_APP_PASSWORD"
   [ -n "${BM2_ETL_PASSWORD:-}" ] && set_role_password bm2_etl "$BM2_ETL_PASSWORD"
+  [ -n "${BM2_AUDIT_PASSWORD:-}" ] &&
+    set_role_password bm2_audit_prune "$BM2_AUDIT_PASSWORD"
 
   run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
     migrate --dir /app/db/migrations >>"$LOG" 2>&1
   run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
     seed --dir /app/db/seeds >>"$LOG" 2>&1
+
+  # The audit grants in roles.sql are conditional on account.audit existing, so
+  # the run above is a no-op on a fresh bm2: the table arrives with the
+  # migration. Same file, second run, after the schema exists.
+  psql_cmd "$OWNER_DSN" -v ON_ERROR_STOP=1 -v db="$BM2_DB" \
+    -f "$MONO_DIR/ops/db/roles.sql" >>"$LOG" 2>&1
 
   local owner_sub="${MAJADU_OWNER_SUB:-}"
   [ -n "$owner_sub" ] || fail "MAJADU_OWNER_SUB is required to bootstrap the owner"
