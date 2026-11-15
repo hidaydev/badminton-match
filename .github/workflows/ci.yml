@@ -95,7 +95,7 @@ jobs:
       # and the timing table on the runner; this makes them downloadable.
       - name: "API: upload failure reports"
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: api-check-results
           path: |
@@ -242,7 +242,7 @@ jobs:
       # from this shard, uploaded only when the shard fails.
       - name: "API: upload failure reports"
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: api-test-results-${{ matrix.shard }}
           path: |
@@ -426,7 +426,7 @@ jobs:
       # output; without the upload the runner deletes it.
       - name: "Web: upload failure reports"
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: web-test-results
           path: |
@@ -578,7 +578,7 @@ jobs:
       # otherwise delete with the job.
       - name: "E2E: upload failure artifacts"
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-failure-artifacts
           path: |
@@ -653,7 +653,7 @@ jobs:
       # the runner.
       - name: "Mutation: upload the run"
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mutation-results
           path: .cache/*/mutation/
