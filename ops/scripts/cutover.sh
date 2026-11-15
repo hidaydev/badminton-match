@@ -493,8 +493,10 @@ step_restore_staging() {
 
 step_prepare_bm2() {
   log "preparing bm2"
+  # psql runs inside the Postgres container when the host has no client, so the
+  # file goes in over stdin: a host path is not visible there.
   psql_cmd "$OWNER_DSN" -v ON_ERROR_STOP=1 -v db="$BM2_DB" \
-    -f "$MONO_DIR/ops/db/roles.sql" >>"$LOG" 2>&1
+    <"$MONO_DIR/ops/db/roles.sql" >>"$LOG" 2>&1
 
   set_role_password() {
     local role="$1" password="$2"
@@ -521,8 +523,10 @@ step_prepare_bm2() {
   # The audit grants in roles.sql are conditional on account.audit existing, so
   # the run above is a no-op on a fresh bm2: the table arrives with the
   # migration. Same file, second run, after the schema exists.
+  # psql runs inside the Postgres container when the host has no client, so the
+  # file goes in over stdin: a host path is not visible there.
   psql_cmd "$OWNER_DSN" -v ON_ERROR_STOP=1 -v db="$BM2_DB" \
-    -f "$MONO_DIR/ops/db/roles.sql" >>"$LOG" 2>&1
+    <"$MONO_DIR/ops/db/roles.sql" >>"$LOG" 2>&1
 
   local owner_sub="${MAJADU_OWNER_SUB:-}"
   [ -n "$owner_sub" ] || fail "MAJADU_OWNER_SUB is required to bootstrap the owner"
