@@ -393,8 +393,10 @@ RELEASE=$(release_query 2>/dev/null || true)
 # machine-owned and outside the body; inside the JSON body every quote is
 # escaped, so an unescaped quoted field can only be an asset. Drop those first,
 # or a release with SBOM assets reads as three digests and never deploys.
+# The API has answered both `"digest":"sha256:…"` and `"digest": "sha256:…"`,
+# so the spacing around the colon is optional.
 RELEASE_TEXT=$(printf '%s' "$RELEASE" |
-  sed -E 's/"digest":"sha256:[0-9a-f]{64}"/"digest":"asset"/g')
+  sed -E 's/"digest"[[:space:]]*:[[:space:]]*"sha256:[0-9a-f]{64}"/"digest":"asset"/g')
 DIGEST_MARKERS=$(printf '%s' "$RELEASE_TEXT" |
   grep -oE 'digest:[[:space:]]*sha256:[0-9a-f]{64}' || true)
 DIGEST_MARKER_COUNT=$(printf '%s\n' "$DIGEST_MARKERS" | grep -c 'sha256:' || true)
