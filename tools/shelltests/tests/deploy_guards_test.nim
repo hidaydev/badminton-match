@@ -1458,7 +1458,7 @@ suite "cutover.sh":
     touch(fixture.root / "env" / "majadu-prod.env.v2", "")
     let caddyfile = fixture.root / "Caddyfile"
     writeFile(caddyfile,
-      "@share path /majadu/s/*\nlog {\n\timport log_access\n\tskip_log @share\n}\n")
+      "@share path /majadu/s/*\nlog_skip @share\nlog {\n\timport log_access\n}\n")
     let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
       @["--check", "--version", "2.0.0"],
       appDir(fixture) & @[("PATH", fixture.binDir),
@@ -1498,8 +1498,8 @@ suite "cutover.sh":
     touch(fixture.root / "env" / "majadu-prod.env.v2", "")
     createDir(fixture.root / "caddy")
     writeFile(fixture.root / "caddy" / "log-share.caddy",
-      "@share path /majadu/s/* /majadu/ws/*\nlog {\n\timport log_access\n" &
-      "\tskip_log @share\n}\n")
+      "@share path /majadu/s/* /majadu/ws/*\nlog_skip @share\nlog {\n" &
+      "\timport log_access\n}\n")
     let caddyfile = fixture.root / "Caddyfile"
     writeFile(caddyfile,
       "import /srv/qouver/apps/majadu/caddy/log-share.caddy\n")
@@ -1509,6 +1509,34 @@ suite "cutover.sh":
         ("MAJADU_CADDY_CONFIG", caddyfile)])
     check result.exitCode == 0
     check result.stdout.contains("stay out of the access log")
+
+  test "--check refuses an installed copy that still uses skip_log":
+    # The old shape is not a missing matcher: Caddy 2.11 refuses to load it with
+    # "unrecognized subdirective", so the check has to name the directive that
+    # replaces it instead of reporting a missing prefix.
+    let fixture = newFixture("cutover-matcher-skip-log")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("curl", releaseCurlFake)
+    fixture.installFake("caddy", okFake)
+    for tool in ["psql", "pg_dump", "pg_restore"]:
+      removeFile(fixture.binDir / tool)
+    fixture.hermeticBin(["psql", "pg_dump", "pg_restore"])
+    touch(fixture.root / "env" / "majadu-prod.env.v2", "")
+    createDir(fixture.root / "caddy")
+    writeFile(fixture.root / "caddy" / "log-share.caddy",
+      "@share path /majadu/s/* /majadu/ws/*\nlog {\n\timport log_access\n" &
+      "\tskip_log @share\n}\n")
+    let caddyfile = fixture.root / "Caddyfile"
+    writeFile(caddyfile,
+      "import /srv/qouver/apps/majadu/caddy/log-share.caddy\n")
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--check", "--version", "2.0.0"],
+      appDir(fixture) & @[("PATH", fixture.binDir),
+        ("MAJADU_CADDY_CONFIG", caddyfile)])
+    check result.exitCode == 2
+    check result.stderr.contains("skip_log")
+    check result.stderr.contains("log_skip")
 
 suite "rollback.sh":
   test "an unknown argument exits 1 without paging":
