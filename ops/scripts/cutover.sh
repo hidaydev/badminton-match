@@ -59,6 +59,8 @@ CADDY_VALIDATE="${MAJADU_CADDY_VALIDATE:-caddy validate}"
 SYSTEMCTL="${MAJADU_SYSTEMCTL_CMD:-systemctl --user}"
 STAGING_DB="${MAJADU_STAGING_DB:-bm_staging}"
 BM2_DB="${MAJADU_BM2_DB:-bm2}"
+IMPORT_SLUG="${MAJADU_IMPORT_SLUG:-majadu}"
+IMPORT_NAME="${MAJADU_IMPORT_NAME:-Majadu}"
 CADDY_DIR="$APP_DIR/caddy"
 CADDY_ACTIVE="$CADDY_DIR/active.caddy"
 ENV_LINK="$APP_DIR/env/majadu-prod.env"
@@ -493,8 +495,10 @@ step_restore_staging() {
 
 step_prepare_bm2() {
   log "preparing bm2"
+  # psql runs inside the Postgres container when the host has no client, so the
+  # file goes in over stdin: a host path is not visible there.
   psql_cmd "$OWNER_DSN" -v ON_ERROR_STOP=1 -v db="$BM2_DB" \
-    -f "$MONO_DIR/ops/db/roles.sql" >>"$LOG" 2>&1
+    <"$MONO_DIR/ops/db/roles.sql" >>"$LOG" 2>&1
 
   set_role_password() {
     local role="$1" password="$2"
@@ -521,22 +525,30 @@ step_prepare_bm2() {
   # The audit grants in roles.sql are conditional on account.audit existing, so
   # the run above is a no-op on a fresh bm2: the table arrives with the
   # migration. Same file, second run, after the schema exists.
+  # psql runs inside the Postgres container when the host has no client, so the
+  # file goes in over stdin: a host path is not visible there.
   psql_cmd "$OWNER_DSN" -v ON_ERROR_STOP=1 -v db="$BM2_DB" \
-    -f "$MONO_DIR/ops/db/roles.sql" >>"$LOG" 2>&1
+    <"$MONO_DIR/ops/db/roles.sql" >>"$LOG" 2>&1
 
   local owner_sub="${MAJADU_OWNER_SUB:-}"
   [ -n "$owner_sub" ] || fail "MAJADU_OWNER_SUB is required to bootstrap the owner"
+  # The owner seed creates the default community when the database holds none,
+  # and this step runs before the import. Seeded under its own slug it would be
+  # a second community next to the imported one, and ADR-018 refuses that at
+  # boot. Seeded under the import slug, the import finds it and reuses it.
   run_tool /usr/local/bin/ownerseed "$OWNER_DSN" --sub "$owner_sub" \
+    --community-slug "$IMPORT_SLUG" --community-name "$IMPORT_NAME" \
     ${MAJADU_OWNER_EMAIL:+--email "$MAJADU_OWNER_EMAIL"} >>"$LOG" 2>&1
 }
 
 step_import() {
   log "importing bm_staging into bm2"
   run_tool /usr/local/bin/majadu-import "$ETL_DSN" \
-    etl --source "$SOURCE_DSN" --target "$ETL_DSN" --slug majadu --name Majadu \
+    etl --source "$SOURCE_DSN" --target "$ETL_DSN" \
+    --slug "$IMPORT_SLUG" --name "$IMPORT_NAME" \
     >>"$LOG" 2>&1
   run_tool /usr/local/bin/majadu-import "$ETL_DSN" \
-    verify --source "$SOURCE_DSN" --target "$ETL_DSN" --slug majadu \
+    verify --source "$SOURCE_DSN" --target "$ETL_DSN" --slug "$IMPORT_SLUG" \
     >>"$LOG" 2>&1
 }
 
@@ -585,7 +597,12 @@ step_site() {
 
 step_start() {
   podman tag "$LOCAL_IMAGE:release" "$LOCAL_IMAGE:local"
-  $SYSTEMCTL enable "$SERVICE" >/dev/null 2>&1
+  # A Quadlet unit is generated, and systemd refuses `enable` on it ("transient
+  # or generated") even though the generator has already linked it into
+  # default.target.wants. The enable is therefore a no-op that only ever fails;
+  # it is kept as a warning so a host that still needs it says so in the log.
+  $SYSTEMCTL enable "$SERVICE" >/dev/null 2>&1 ||
+    log "enable skipped for $SERVICE (generated unit)"
   $SYSTEMCTL restart "$SERVICE"
 }
 

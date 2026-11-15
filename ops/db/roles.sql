@@ -1,6 +1,6 @@
 -- Production privileges for the bm2 database and the v1 archive.
 --
---   psql -d bm2 -v db=bm2 -v ON_ERROR_STOP=1 -f ops/db/roles.sql
+--   psql -d bm2 -v db=bm2 -v ON_ERROR_STOP=1 < ops/db/roles.sql
 --
 -- Roles are created here without a password; cutover.sh sets LOGIN and the
 -- password from the environment file, so no secret is stored in the repository.

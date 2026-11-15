@@ -137,6 +137,14 @@ proc privateFile(path, body: string) =
   touch(path, body)
   setFilePermissions(path, {fpUserRead, fpUserWrite})
 
+proc installRolesSql(fixture: Fixture) =
+  ## cutover.sh hands roles.sql to psql over stdin, so the fixture needs the file
+  ## where the script resolves it: $MAJADU_APP_DIR/monorepo/ops/db/roles.sql.
+  ## A missing file fails the redirect inside bash, before psql is ever called.
+  let dest = fixture.root / "monorepo" / "ops" / "db" / "roles.sql"
+  createDir(dest.parentDir)
+  copyFile(repoDir / "ops" / "db" / "roles.sql", dest)
+
 # The tool env is the only env file the one-shot job units load, so every
 # fixture that reaches past the split gate has to carry the application DSN.
 const toolsEnvBody =
@@ -1379,6 +1387,7 @@ suite "cutover.sh":
     simFakes(fixture)
     for tool in ["pg_dump", "pg_restore", "caddy"]:
       fixture.installFake(tool, okFake)
+    fixture.installRolesSql()
     createDir(fixture.root / "scripts")
     writeExecutable(fixture.root / "scripts" / "smoke.sh",
       "#!/bin/sh\nexit 0\n")
@@ -1453,6 +1462,7 @@ suite "cutover.sh":
     simFakes(fixture)
     for tool in ["pg_dump", "pg_restore", "caddy"]:
       fixture.installFake(tool, okFake)
+    fixture.installRolesSql()
     createDir(fixture.root / "scripts")
     writeExecutable(fixture.root / "scripts" / "smoke.sh",
       "#!/bin/sh\nexit 0\n")
