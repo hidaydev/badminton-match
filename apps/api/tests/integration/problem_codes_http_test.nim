@@ -549,6 +549,11 @@ suite "problem-code reachability: players and claims":
       "both players already have a pair with the same partner")
 
   test "claim refusals":
+    # The self-decision guard only steps aside for a sole admin, so the fixture
+    # keeps a second one here: SELF_DECISION must stay reachable.
+    let secondAdminId = newUser(database, "be19-admin2",
+      "be19-admin2@example.com", "BE19 Admin2")
+    newMember(database, communityId, secondAdminId, "admin")
     let pending = call(baseUrl, HttpPost, "/c/" & slug & "/players/" &
       pClaimFree & "/claims", memberCCookie)
     doAssert pending.status == 201, pending.body

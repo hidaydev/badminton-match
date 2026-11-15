@@ -122,6 +122,30 @@ suite "player claim":
     check row.get("status") == "approved"
     check row.get("decided_by") == filer
 
+  test "the only admin decides a claim they filed themselves":
+    # A single-admin community has no second decider, so the guard steps aside
+    # instead of leaving the claim pending forever.
+    newMember(db, communityId, admin, "admin")
+    let target = newPlayer(db, communityId, "Sole Admin Target")
+    check submit(db, communityId, target, admin) == ceOk
+    let claimId = pendingClaimId(db, communityId, target)
+    check decide(db, communityId, target, claimId, admin, true,
+      "sole admin") == ceOk
+    check playerUser(db, communityId, target) == some(admin)
+
+  test "a second admin takes the decision away from the filer":
+    newMember(db, communityId, admin, "admin")
+    newMember(db, communityId, filer, "admin")
+    let target = newPlayer(db, communityId, "Two Admin Target")
+    check submit(db, communityId, target, admin) == ceOk
+    let claimId = pendingClaimId(db, communityId, target)
+    check decide(db, communityId, target, claimId, admin, true, "") ==
+      ceSelfDecision
+    check playerUser(db, communityId, target).isNone
+    check decide(db, communityId, target, claimId, filer, true,
+      "second admin") == ceOk
+    check playerUser(db, communityId, target) == some(admin)
+
   test "a rejection records the decision and leaves the player unbound":
     let target = newPlayer(db, communityId, "Reject Target")
     check submit(db, communityId, target, filer) == ceOk
