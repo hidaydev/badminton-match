@@ -379,13 +379,46 @@ export function useSessionRealtime(sessionId: string | undefined, enabled = true
   return { connected, reconnecting }
 }
 
-function socketBase(): string {
-  const configured = import.meta.env.VITE_WS_BASE as string | undefined
+/**
+ * Production serves the UI from Vercel, whose rewrite cannot carry an upgrade,
+ * so the socket has to reach the API host directly. That Vercel project is not
+ * ours to configure, which is why the value is also the last fallback here:
+ * without it `socketBase()` hands back the page origin, `/ws/...` is answered
+ * with index.html, and the session page quietly drops to its 5s poll.
+ */
+const PRODUCTION_WS_BASE = 'wss://api.qouver.com/majadu'
+
+/**
+ * `VITE_WS_BASE` wins, then an absolute `VITE_API_BASE`, then the API host for
+ * any deployed page, then the page origin so the dev proxy keeps working.
+ */
+export function resolveSocketBase(
+  configured: string | undefined,
+  api: string | undefined,
+  page: { protocol: string; host: string; hostname: string },
+): string {
   if (configured) return configured.replace(/\/+$/, '')
-  const api = import.meta.env.VITE_API_BASE as string | undefined
   if (api && /^https?:/.test(api)) return api.replace(/^http/, 'ws').replace(/\/+$/, '')
-  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${scheme}://${window.location.host}`
+  if (page.protocol === 'https:' && !isLocalHostname(page.hostname)) return PRODUCTION_WS_BASE
+  const scheme = page.protocol === 'https:' ? 'wss' : 'ws'
+  return `${scheme}://${page.host}`
+}
+
+function isLocalHostname(hostname: string): boolean {
+  return (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname === '127.0.0.1' ||
+    hostname === '[::1]'
+  )
+}
+
+function socketBase(): string {
+  return resolveSocketBase(
+    import.meta.env.VITE_WS_BASE as string | undefined,
+    import.meta.env.VITE_API_BASE as string | undefined,
+    window.location,
+  )
 }
 
 export function usePublishSession(sessionId: string | undefined) {

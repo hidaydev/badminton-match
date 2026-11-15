@@ -62,14 +62,17 @@ client uses the same-origin `/api` path. Copy `.env.local.example` to
 
 - `VITE_API_BASE` should stay unset: the rewrite already keeps HTTP traffic
   same-origin, which is what keeps the session cookie first-party.
-- **`VITE_WS_BASE` must be set in production**, to
-  `wss://api.qouver.com/majadu`. A Vercel rewrite cannot carry a WebSocket
-  upgrade, so the session socket has to reach the API host directly (the same
-  `/majadu` prefix applies). Without it `socketBase()` falls back to the page
-  origin, where `/ws/...` is a static asset: the socket never connects and the
-  session page silently degrades to its 5 s poll. The CSP in `vercel.json`
-  allows `wss://api.qouver.com`; pointing `VITE_WS_BASE` at another host also
-  means adding that host to `connect-src` there.
+- **`VITE_WS_BASE` overrides the socket host**; without it the client falls back
+  to `wss://api.qouver.com/majadu` on any deployed page. A Vercel rewrite cannot
+  carry a WebSocket upgrade, so the session socket has to reach the API host
+  directly (the same `/majadu` prefix applies). The fallback exists because the
+  Vercel project that serves `majadu.vercel.app` is not configured from here;
+  before it, an unset value made `socketBase()` return the page origin, where
+  `/ws/...` is a static asset: the socket never connected and the session page
+  silently degraded to its 5 s poll. `localhost` keeps the page origin so the
+  dev proxy carries the upgrade. The CSP in `vercel.json` allows
+  `wss://api.qouver.com`; pointing `VITE_WS_BASE` at another host also means
+  adding that host to `connect-src` there.
 - The API must allow this origin in `security.allowed_origins` and register
   `<origin>/api/auth/callback` as the OIDC redirect URI.
 - `vercel.json` also sets `Cache-Control: no-store` for `/`, `/index.html`, and

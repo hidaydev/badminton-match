@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mockFetch } from '../../test/fetchMock'
 import type { CloudSnapshot } from '../types'
 import { setCommunitySlug } from './endpoints'
-import { useSessionRealtime } from './sessions'
+import { useSessionRealtime, resolveSocketBase } from './sessions'
 
 /**
  * The smallest WebSocket the hook can drive: it records what the hook sent and
@@ -294,5 +294,41 @@ describe('useSessionRealtime reconnect schedule', () => {
     await vi.advanceTimersByTimeAsync(60_000)
     expect(FakeSocket.instances).toHaveLength(2)
     expect(issued()).toBe(2)
+  })
+})
+describe('resolveSocketBase', () => {
+  const vercel = { protocol: 'https:', host: 'majadu.vercel.app', hostname: 'majadu.vercel.app' }
+  const local = { protocol: 'http:', host: 'localhost:3000', hostname: 'localhost' }
+
+  it('prefers the configured base and drops trailing slashes', () => {
+    expect(resolveSocketBase('wss://api.qouver.com/majadu//', undefined, vercel)).toBe(
+      'wss://api.qouver.com/majadu',
+    )
+  })
+
+  it('turns an absolute API base into its socket origin', () => {
+    expect(resolveSocketBase(undefined, 'https://api.qouver.com/majadu', local)).toBe(
+      'wss://api.qouver.com/majadu',
+    )
+  })
+
+  // The Vercel rewrite cannot carry an upgrade and that project is not ours to
+  // configure, so a deployed page without VITE_WS_BASE still has to reach the API.
+  it('falls back to the API host for a deployed page with no configuration', () => {
+    expect(resolveSocketBase(undefined, undefined, vercel)).toBe('wss://api.qouver.com/majadu')
+  })
+
+  it('keeps the page origin on localhost so the dev proxy carries the upgrade', () => {
+    expect(resolveSocketBase(undefined, undefined, local)).toBe('ws://localhost:3000')
+  })
+
+  it('keeps the page origin for any other plain-http page', () => {
+    expect(
+      resolveSocketBase(undefined, undefined, {
+        protocol: 'http:',
+        host: '127.0.0.1:8080',
+        hostname: '127.0.0.1',
+      }),
+    ).toBe('ws://127.0.0.1:8080')
   })
 })
