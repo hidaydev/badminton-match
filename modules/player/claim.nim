@@ -109,17 +109,31 @@ proc countPending*(db: Db, communityId: string): int =
     @[textParam(communityId)])
   if row.isSome: parseInt(row.get.get("total")) else: 0
 
+proc soleAdmin*(db: Db, communityId, userId: string): bool =
+  ## True when this account is the community's only admin. `decide` reads it so a
+  ## single-admin community is not locked out of claims its admin filed; with a
+  ## second admin the decision belongs to that admin instead.
+  let row = db.queryOne(
+    """select count(*)::int as admins,
+              count(*) filter (where user_id = $2::uuid)::int as mine
+       from community.membership
+       where community_id = $1::uuid and role = 'admin'""",
+    @[textParam(communityId), textParam(userId)])
+  row.isSome and row.get.get("admins") == "1" and row.get.get("mine") == "1"
+
 proc decide*(db: Db, communityId, playerId, claimId, adminId: string,
              approve: bool, reason: string): ClaimError =
   ## Approval fills `user_id` and closes every other pending claim. The admin
-  ## who filed the claim cannot decide it, even when they are the only admin.
+  ## who filed the claim cannot decide it, except when they are the only admin:
+  ## then nobody else could, and the claim would wait forever.
   let claim = db.queryOne(
     """select user_id from player.claims
        where community_id = $1::uuid and player_id = $2::uuid and id = $3::uuid""",
     @[textParam(communityId), textParam(playerId), textParam(claimId)])
   if claim.isNone:
     return ceClaimNotFound
-  if claim.get.get("user_id") == adminId:
+  if claim.get.get("user_id") == adminId and
+     not soleAdmin(db, communityId, adminId):
     return ceSelfDecision
 
   var outcome = ceConflict
