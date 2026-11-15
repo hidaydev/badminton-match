@@ -12,10 +12,12 @@
 # then replace the bare `log` statement of the api.qouver.com site block with:
 #   import /srv/qouver/apps/majadu/caddy/log-share.caddy
 #
-# `skip_log` needs Caddy 2.7+. `log_access` is the host's existing output and
-# format snippet; keep its name so the other applications log unchanged.
+# The directive is `log_skip`, and it is site level: Caddy 2.11 rejects
+# `skip_log` inside a log block with "unrecognized subdirective". `log_skip`
+# needs Caddy 2.8+. `log_access` is the host's existing output and format
+# snippet; keep its name so the other applications log unchanged.
 @share path /majadu/s/* /majadu/ws/*
+log_skip @share
 log {
 	import log_access
-	skip_log @share
 }

@@ -51,7 +51,7 @@ begin
 end $$;
 
 revoke connect on database :"db" from public;
-grant connect on database :"db" to bm2_app, bm2_etl;
+grant connect on database :"db" to bm2_app, bm2_etl, bm2_audit_prune;
 
 alter schema public owner to bm2_owner;
 -- The application role reads and writes rows, never DDL: 0001_core.sql says

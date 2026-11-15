@@ -232,12 +232,16 @@ log_matcher_problem() {
     fi
     return 1
   fi
+  # Caddy 2.11 rejects `skip_log` inside a log block, so a copy of the old shape
+  # must be named for what it is instead of reporting a missing matcher.
+  grep -q 'skip_log' "$config" &&
+    { printf '%s still uses skip_log, which Caddy 2.11 rejects inside the log block; the directive is log_skip @share at site level\n' "$1"; return 0; }
   grep -q '/majadu/s/\*' "$config" ||
     { printf '%s skips /majadu/ws/* but not /majadu/s/* in the log matcher\n' "$1"; return 0; }
   grep -q '/majadu/ws/\*' "$config" ||
     { printf '%s skips /majadu/s/* but not /majadu/ws/* in the log matcher\n' "$1"; return 0; }
-  grep -q 'skip_log @share' "$config" ||
-    { printf '%s defines @share but never skips it; add skip_log @share\n' "$1"; return 0; }
+  grep -q 'log_skip @share' "$config" ||
+    { printf '%s defines @share but never skips it; add log_skip @share\n' "$1"; return 0; }
   return 1
 }
 
@@ -477,11 +481,19 @@ step_prepare_bm2() {
   [ -n "${BM2_OWNER_PASSWORD:-}" ] && set_role_password bm2_owner "$BM2_OWNER_PASSWORD"
   [ -n "${BM2_APP_PASSWORD:-}" ] && set_role_password bm2_app "$BM2_APP_PASSWORD"
   [ -n "${BM2_ETL_PASSWORD:-}" ] && set_role_password bm2_etl "$BM2_ETL_PASSWORD"
+  [ -n "${BM2_AUDIT_PRUNE_PASSWORD:-}" ] &&
+    set_role_password bm2_audit_prune "$BM2_AUDIT_PRUNE_PASSWORD"
 
   run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
     migrate --dir /app/db/migrations >>"$LOG" 2>&1
   run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
     seed --dir /app/db/seeds >>"$LOG" 2>&1
+
+  # The audit grants in roles.sql are conditional on account.audit existing, so
+  # the run above is a no-op on a fresh bm2: the table arrives with the
+  # migration. Same file, second run, after the schema exists.
+  psql_cmd "$OWNER_DSN" -v ON_ERROR_STOP=1 -v db="$BM2_DB" \
+    -f "$MONO_DIR/ops/db/roles.sql" >>"$LOG" 2>&1
 
   local owner_sub="${MAJADU_OWNER_SUB:-}"
   [ -n "$owner_sub" ] || fail "MAJADU_OWNER_SUB is required to bootstrap the owner"
