@@ -2,6 +2,10 @@
 # pins: the Dockerfile base images, the GitHub Actions SHAs and the frontend
 # npm packages. Nim packages are pinned by content in deps.lock and updated by
 # hand with ./task deps-check.
+#
+# Patch and minor are grouped per ecosystem: every merge to main deploys prod,
+# so one bump per PR meant nine deploys for one weekly round. A major stays its
+# own PR so a breaking bump is never mixed into a batch safe to merge unread.
 version: 2
 updates:
   - package-ecosystem: "docker"
@@ -15,9 +19,20 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      npm-patch-minor:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+          - minor
