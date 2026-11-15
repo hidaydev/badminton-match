@@ -639,6 +639,29 @@ exit 0
     check result.exitCode == 1
     check result.stdout.contains(alertFile & " must be mode 600 (found 644)")
 
+  test "a private env reached through a symlink passes the gate":
+    # The cutover points majadu-prod.env at a versioned file, and a symlink is
+    # always mode 777. The gate has to judge the file it points at, or every
+    # deploy after the cutover dies on a 600 env it cannot see.
+    let fixture = newFixture("deploy-env-symlink")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env.v2",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    createSymlink(fixture.root / "env" / "majadu-prod.env.v2",
+      fixture.root / "env" / "majadu-prod.env")
+    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
+    privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    check not result.stdout.contains("must be mode 600")
+    check result.stdout.contains("release v2.0.0 has no published image digest")
+
   test "a missing tool env fails before the release lookup":
     let fixture = newFixture("deploy-tool-env-missing")
     defer: removeDir(fixture.root)

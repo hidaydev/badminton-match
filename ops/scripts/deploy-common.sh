@@ -34,8 +34,11 @@ alert() {
   fi
 }
 
+# -L: a credential reached through a symlink is judged by the file it points at.
+# The cutover points majadu-prod.env at a versioned file, and without this the
+# link's own 777 mode fails the private-env gate on a file that is really 600.
 file_mode() {
-  stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null || echo "?"
+  stat -Lc '%a' "$1" 2>/dev/null || stat -Lf '%Lp' "$1" 2>/dev/null || echo "?"
 }
 
 service() {

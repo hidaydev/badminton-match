@@ -331,7 +331,7 @@ else
 fi
 
 if [ -f "$TOOLS_ENV" ]; then
-  mode=$(stat -c '%a' "$TOOLS_ENV" 2>/dev/null || stat -f '%Lp' "$TOOLS_ENV" 2>/dev/null || echo "?")
+  mode=$(stat -Lc '%a' "$TOOLS_ENV" 2>/dev/null || stat -Lf '%Lp' "$TOOLS_ENV" 2>/dev/null || echo "?")
   case "$mode" in
     600|400) ;;
     *) echo "cutover: $TOOLS_ENV must be mode 600 (found $mode)" >&2; exit 2 ;;

@@ -110,7 +110,7 @@ require_private_file() {
 # GNU stat and BSD stat disagree on the flag, and both forms are already used
 # for the mode above; the owner is checked the same way.
 file_owner() {
-  stat -c '%U' "$1" 2>/dev/null || stat -f '%Su' "$1" 2>/dev/null || echo "?"
+  stat -Lc '%U' "$1" 2>/dev/null || stat -Lf '%Su' "$1" 2>/dev/null || echo "?"
 }
 
 # Every credential file, not only the two the deploy reads by name: a 0644

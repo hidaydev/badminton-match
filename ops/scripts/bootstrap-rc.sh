@@ -51,7 +51,7 @@ mkdir -p "$APP_DIR/logs" "$STATE_DIR" "$BACKUP_DIR"
 [ -f "$ENV_FILE" ] || die "$ENV_FILE is missing; copy ops/env/rc.env.example and fill it in"
 [ -f "$TOOLS_ENV" ] || die "$TOOLS_ENV is missing; copy ops/env/rc-tools.env.example and fill it in"
 for file in "$ENV_FILE" "$TOOLS_ENV"; do
-  MODE=$(stat -c '%a' "$file" 2>/dev/null || stat -f '%Lp' "$file")
+  MODE=$(stat -Lc '%a' "$file" 2>/dev/null || stat -Lf '%Lp' "$file")
   case "$MODE" in 600|400) ;; *) die "$file must be mode 600 (found $MODE)" ;; esac
 done
 

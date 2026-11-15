@@ -35,7 +35,7 @@ ok() { printf 'ok: %s\n' "$*"; }
 missing() { printf 'MISSING: %s\n' "$*" >&2; failures=$((failures + 1)); }
 
 file_mode() {
-  stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null || echo "?"
+  stat -Lc '%a' "$1" 2>/dev/null || stat -Lf '%Lp' "$1" 2>/dev/null || echo "?"
 }
 
 require_private() {
