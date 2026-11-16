@@ -174,7 +174,7 @@ strip to `Tabs`, everything else to `Button`.
 ### Button variants
 
 Five variants. Each has one job, and the class strings stay in
-`components/Button.tsx`.
+`src/components/Button.tsx`.
 
 | Variant | Tokens | Use when | Never |
 |---|---|---|---|
