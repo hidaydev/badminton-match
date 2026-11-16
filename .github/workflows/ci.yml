@@ -663,6 +663,12 @@ jobs:
   image:
     name: "Image: build"
     needs: [gate]
+    # `always()` is what lets this job start at all: `gate` runs even when one of
+    # its own needs was skipped (`mutation` on a push), and a job whose needs
+    # chain contains a skip is skipped itself unless its own `if` overrides that.
+    # The second half keeps the ordering promise: the image is published only
+    # after the gate is green.
+    if: always() && needs.gate.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     # OPS-21: a push to main publishes the API image the host can pull, so every
