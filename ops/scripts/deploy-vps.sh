@@ -19,7 +19,8 @@
 #
 # Overridable for rehearsal (T-063): MAJADU_APP_DIR, MAJADU_SERVICE,
 # MAJADU_IMAGE, MAJADU_REGISTRY_IMAGE, MAJADU_SERVICE_CMD, MAJADU_SKIP_GIT_SYNC,
-# MAJADU_HEALTH_URL, MAJADU_CUTOVER_NETWORK, MAJADU_PULL_ATTEMPTS.
+# MAJADU_HEALTH_URL, MAJADU_CUTOVER_NETWORK, MAJADU_PULL_ATTEMPTS,
+# MAJADU_SIGNATURE_ATTEMPTS.
 #
 # Before restarting, the migrations shipped in the pulled image are applied and
 # verified (`dbtools migrate` + `dbtools verify`, both against MAJADU_OWNER_DSN
@@ -441,6 +442,14 @@ fi
 # The revision label binds the tag to a commit; only the signature binds the
 # image to this repository's build job. The public key is installed next to the
 # env files, and a missing cosign is a failed deploy rather than a skipped check.
+#
+# The image job pushes the tag and signs the digest in two steps, so a deploy
+# that pulls in between gets an image that is real and not signed yet: on
+# 2026-11-16 that failed the deploy 3 seconds after the pull and left production
+# on the previous commit until it was re-run by hand. Only that answer is
+# waited for; a wrong key, a tampered digest or any other error fails on the
+# first attempt, because waiting cannot fix those. 18 x 10s = 3 minutes, which
+# is well inside the pull window the build already gets.
 STEP="verify-signature"
 COSIGN_PUB="$APP_DIR/env/cosign.pub"
 [ -f "$COSIGN_PUB" ] ||
@@ -448,9 +457,26 @@ COSIGN_PUB="$APP_DIR/env/cosign.pub"
 require_private_file "$COSIGN_PUB"
 command -v cosign >/dev/null 2>&1 ||
   fail "cosign is required to verify $TARGET_IMAGE"
-if ! cosign verify --key "$COSIGN_PUB" "$TARGET_IMAGE" >>"$LOG" 2>&1; then
+SIGN_OUT=$(mktemp)
+SIGN_ATTEMPTS="${MAJADU_SIGNATURE_ATTEMPTS:-18}"
+SIGN_TRY=0
+SIGNED=""
+while [ "$SIGN_TRY" -lt "$SIGN_ATTEMPTS" ]; do
+  SIGN_TRY=$((SIGN_TRY + 1))
+  if cosign verify --key "$COSIGN_PUB" "$TARGET_IMAGE" >"$SIGN_OUT" 2>&1; then
+    SIGNED=1
+    break
+  fi
+  if ! grep -qiE 'no signatures found|no matching signatures|signature not found' "$SIGN_OUT"; then
+    break
+  fi
+  log "$TARGET_IMAGE is not signed yet; the image job is still signing it (attempt $SIGN_TRY of $SIGN_ATTEMPTS)"
+  sleep 10
+done
+cat "$SIGN_OUT" >>"$LOG" 2>/dev/null || true
+rm -f "$SIGN_OUT"
+[ -n "$SIGNED" ] ||
   fail "cosign verify failed for $TARGET_IMAGE"
-fi
 DIGEST=$(podman image inspect --format '{{.Digest}}' "$PULLED_ID" 2>/dev/null || true)
 [ -n "$DIGEST" ] || DIGEST="unknown"
 log "image $TARGET_IMAGE verified at revision $IMAGE_REV"
