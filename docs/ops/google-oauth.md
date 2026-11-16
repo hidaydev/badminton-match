@@ -8,8 +8,9 @@ Status: the login code exists (`modules/account/infrastructure/oidc.nim` and
 `apps/api/src/app.nim` → `/auth/start`, `/auth/callback`) and the flow has been
 exercised with the real Google client on the RC origin
 (`https://majadu-rc.vercel.app`) on 2026-11-09, where two sign-ins completed end
-to end through the Vercel rewrite. The production origin is still untested; see
-§6 and `.local/incidents/iso-02-real-login.md`.
+to end through the Vercel rewrite. Production has been live since the v2.0.0
+cutover, but a production sign-in has not been recorded here as of 2026-11-16;
+see §6 and `.local/incidents/iso-02-real-login.md`.
 
 ## 1. What the process reads
 

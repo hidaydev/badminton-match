@@ -4,9 +4,9 @@ The v2 release runbook: how a version is made, what must be right before it is
 declared done, and how to go back to the previous release on a functional
 regression (not during cutover; for that, see `docs/ops/cutover.md`).
 
-Status: the build flow and workflow are in the repo, but they have **never been
-run end to end on the VPS**. The parts that are not yet proven are named in §6;
-do not consider them tested.
+Status: three releases have shipped from this flow (`v2.0.0`, `v2.0.1`,
+`v2.0.2`; §7), and `v2.0.2` is what production runs. The parts that are still
+unproven are named in §7.
 
 ## 1. Source of truth
 
@@ -27,8 +27,9 @@ other digest-shaped string appears in the body (for example in the tag message).
 The signature is checked with `cosign verify --key env/cosign.pub` before
 `podman pull`.
 
-The tag is `v<version>` and nothing else. `VERSION` on this tree is `2.0.0`, so
-the tag is `v2.0.0`. The candidate branch carries a pre-release name of its own;
+The tag is `v<version>` and nothing else: `VERSION` with a `v` in front (`2.0.2`
+on this tree, so `v2.0.2`). The candidate branch carries a pre-release name of
+its own;
 the tag never does, and this repository has no release-candidate tag.
 `release.yml` refuses a tag whose name does not match `VERSION` (it fails with
 `VERSION is '<VERSION>' but the tag says '<tag>'`), and that is the intended
@@ -68,17 +69,17 @@ published before `main` is pushed.
    release: HEAD does not contain origin/main; merge origin/main, run the full gate on the merge and tag that commit (QA-04)
    ```
 
-   This is not a routine merge and must not be treated as one: v1 is superseded
-   wholesale by v2, so the cutover commit is `git merge -s ours origin/main`.
-   Its tree stays exactly the v2 tree and its parents record both histories. A
-   real merge is not available for this pair: `git merge origin/main` into the
-   release candidate produced 139 conflicts, 116 of them under `apps/` (76
-   delete/update against the v1 tree that `main` still carries, 45
-   both-modified, 18 both-added). That is why the resolution is the documented
-   path rather than an exception. The full gate runs on the merged tree, not on
-   either parent, and the tag goes on that commit. Record its SHA in the release
-   notes next to the coverage baseline date, so the number and the tree it
-   describes travel together.
+   **v2.0.0 only, historical:** that release superseded v1 wholesale, so its
+   cutover commit was `git merge -s ours origin/main`. Its tree stayed exactly
+   the v2 tree and its parents record both histories. A real merge was not
+   available for that pair: `git merge origin/main` into the release candidate
+   produced 139 conflicts, 116 of them under `apps/` (76 delete/update against
+   the v1 tree that `main` then carried, 45 both-modified, 18 both-added).
+   `main` has been the v2 tree since, so a release commit is an ordinary
+   descendant of `main` and the check above is the whole requirement. The full
+   gate runs on the commit that is tagged, not on a merge: record its SHA in the
+   release notes next to the coverage baseline date, so the number and the tree
+   it describes travel together.
 
    **The first release needs a baseline.** With no earlier tag, pass
    `--baseline`; without it the tool stops at
@@ -175,10 +176,11 @@ git -c gpg.format=ssh -c user.signingkey=~/.ssh/id_ed25519.pub \
   tag -s -F .cache/release/v<version>.md v<version>
 ```
 
-`ops/scripts/release-preflight.sh` now reports `.github/allowed_signers is
-committed`. Its older `warn:` line described a tree where `release.yml` fell
-back to the GitHub API; that fallback is gone, and a missing anchor fails the
-tag outright.
+`ops/scripts/release-preflight.sh` prints `warn: .github/allowed_signers is not
+committed` when the file is absent. That warning is stale prose from a tree where
+`release.yml` fell back to the GitHub API; the fallback is gone, so a missing
+anchor now fails the tag outright. Treat the line as a failure and commit the
+file.
 
 ## 3. What the deploy does
 
@@ -189,7 +191,11 @@ the sequence is:
 2. `podman pull ghcr.io/hidaydev/badminton-match:sha-<7>` for that commit,
    waiting for the tag while the image job is still building. The pulled image
    must carry `org.opencontainers.image.revision` = the commit, and `cosign
-   verify --key env/cosign.pub` must pass, before `:local` moves.
+   verify --key env/cosign.pub` must pass, before `:local` moves. The
+   verification retries only while the answer is `no signatures found`, `no
+   matching signatures` or `signature not found` — 10 seconds apart, 18 attempts
+   — because the image job pushes and signs in two steps; any other verification
+   error (wrong key, tampered digest) fails the deploy on the first attempt.
 3. **`dbtools verify`** from the pulled image, using `MAJADU_OWNER_DSN` from
    `env/majadu-tools.env` (the API unit loads only `env/majadu-prod.env` and
    never sees that credential). `dbtools migrate` and `dbtools seed` run first,
@@ -322,45 +328,22 @@ and the deploy log records `schema verified at <file>`. On rollback to `:prev`,
 the log line names that schema: a `:prev` that is incompatible will fail at
 readiness, not silently write wrong data.
 
-## 7. What is not yet proven
+## 7. Releases recorded
 
-- There is no real execution on the VPS: `podman pull`/`run`, `systemctl --user`,
-  Quadlet, and Caddy are not available on the dev machine. Everything above is
-  proven only with `bash -n`, code reading, and the T-063 rehearsal test, not
-  production.
-- `dbtools migrate` inside the container uses the `qouver` network and the
-  `bm2_owner` role; that combination has never been run on the VPS.
-- Two concurrent release queues have not been tested; `flock` holds the second
-  for up to 900 seconds and then gives up.
-## 8. First-release rehearsal
+Three releases have shipped from this flow. The digest is not copied into this
+document: the deploy records it in `deploy/last-release.json` on the host, next
+to the commit and the schema, and that file is what a rollback reads.
 
-No tag, release, digest or deploy has ever run, so the first execution is the
-release. `ops/scripts/release-preflight.sh <tag>` walks the same inputs the
-workflow and the deploy read and names the missing one; run it before the tag
-and again after the image is published. It creates nothing.
+| Tag | Date | What shipped | Digest |
+|---|---|---|---|
+| `v2.0.0` | 2026-11-09 | the v2 release: Google OIDC login, communities, players, sessions and scoring, share links, rating projection and leaderboards, tournaments, live watchers, the v1→v2 importer; production cut over from `bm` to `bm2` | recorded on the host |
+| `v2.0.1` | 2026-11-16 | Nim 2.4.2 and Playwright 1.65.0 pins, the image job gated behind a green gate, deploys keyed to the pushed commit's image, Caddy restarted (never reloaded) on cutover, and the cutover fixes listed in the changelog | recorded on the host |
+| `v2.0.2` | 2026-11-16 | the deploy waits for the image signature instead of failing seconds after the pull, and the SPA rebuilds when `VERSION` changes | recorded on the host |
 
-The rehearsal is the release itself, cut from a commit that contains
-`origin/main` (§2 step 1, QA-04) with the full gate run on that merged tree,
-then rehearsed against the RC database, in this order:
+`ops/scripts/release-preflight.sh <tag>` walks the same inputs the workflow and
+the deploy read and names the missing one; it creates nothing. Run it before the
+tag and again after the image is published.
 
-1. `./task release` and `./task release --apply`, then commit
-   `chore(release): v<version>`.
-2. `git -c gpg.format=ssh -c user.signingkey=~/.ssh/id_ed25519.pub
-   tag -s -F .cache/release/v<version>.md v<version>`, then
-   `ops/scripts/release-preflight.sh v<version>`. Fix every `MISSING:` line
-   before pushing.
-3. `git push origin refs/tags/v<version>` and wait for `release.yml`. Record the
-   digest from the release body, then run the preflight again and confirm the
-   cosign line.
-4. On the VPS, run the deploy by hand against the RC instance first
-   (`deploy-vps-rc.sh` builds from the checkout and proves the migrate, seed,
-   restart and smoke steps on the same host). Then trigger the production
-   deploy and confirm `deploy/last-release.json` carries the digest.
-5. Record the run here, with the date, the tag, the digest, the failing step (if
-   any) and the commit that fixed it.
-
-| Date | Tag | Digest | Result | Note |
-|---|---|---|---|---|
-| | | | | |
-
-Until that table has a row, the pipeline is untested and §7 stays true.
+What is still not proven: two release queues arriving at once. `flock -w 1200`
+gives the second deploy up to 1200 seconds and then gives up
+(`deploy-vps.sh:260`); that path has no recorded run.

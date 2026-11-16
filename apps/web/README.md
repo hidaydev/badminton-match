@@ -48,10 +48,9 @@ cookie stays first-party:
   **before** the SPA catch-all. The `/majadu` segment is required: Caddy serves
   the API only under `/majadu/*` and strips the prefix before proxying
   (`ops/caddy/site-v2.caddy`), so a rewrite to the bare host reaches nothing.
-  The production value is `https://api.qouver.com/majadu/:path*`. On this RC
-  branch the committed file is an intentional exception: it points at
-  `/majadu-rc/*` for the RC environment (`docs/ops/rc.md`). Restore `/majadu/*`
-  before merging to `main`; the cutover runbook assumes that value.
+  The production value is `https://api.qouver.com/majadu/:path*`, which is what
+  the committed file holds on `main`. The RC instance had its own value
+  (`/majadu-rc/*`); that exception is gone (`docs/ops/rc.md`).
 
 Set `VITE_API_BASE` to bypass both. It must carry the same prefix, for example
 `https://api.qouver.com/majadu`; without `/majadu` every call 404s. Unset, the

@@ -9,7 +9,7 @@ Register finding, as written:
 
 > **DB-16** no RLS and no tenant-scoped views; decision recorded, fix not built.
 
-ADR-018 (`docs/decisions.md:488-517`) already records the deferral and names its
+ADR-018 (`docs/decisions.md:518-559`) already records the deferral and names its
 reopener. This paper is the input for deciding whether to reopen it now.
 
 ## 1. The tenancy shape the code and migrations actually express
@@ -110,11 +110,10 @@ Measured on the same database at head `0054`:
   `tools/archcheck/allowlist_community.txt` holds 14 by-design exemptions (share
   code resolution, invite lookup, the community directory, the badge catalogue,
   the operator tools), each with a written reason.
-- **The guard is currently red for an unrelated reason on this tree**:
-  `archcheck` reports two `use clock.utcNow(), not now()` violations in
-  `tools/shelltests/tests/docs_check_test.nim:49` and `:103` (a shelltest
-  fixture, not a tenancy statement). Until that is fixed, "the scoping guard
-  runs in CI" is true of the rule and not of the gate.
+- **The guard is green.** The two `use clock.utcNow(), not now()` violations that
+  once made it red sat in the shelltest's date fixtures, not in a tenancy
+  statement; both fixtures use `clock.utcNow()` now
+  (`tools/shelltests/tests/docs_check_test.nim`), and `./task docs-check` passes.
 
 ### 1.4 What I could not prove
 
@@ -254,8 +253,8 @@ weeks, and no production risk.
 
 **What it does not buy.** The defence stays static: a statement assembled at
 runtime, or a new route that queries by a globally unique `session_id` alone,
-still returns another community's row. `apps/api/src/app.nim` already has 103
-`application.db` references, and the scan is the only thing between them and a
+still returns another community's row. The handlers in `apps/api/src/app.nim`
+reach the database, and the scan is the only thing between them and a
 cross-tenant read.
 
 ## 3. The decision that gates this
@@ -347,6 +346,9 @@ What it does not do, stated so nobody reads it as more than it is:
 Lifting it: the assertion is deleted in the release that ships RLS and the
 two-community isolation test as a gate, which is the same release ADR-018 names.
 
+**Shipped:** option (c) is the code in the tree — `modules/community/tenancy.nim`
+with the two-community isolation test — and ADR-018 is its record.
+
 **If the decision flips to RLS**, the first step there proves it without
 committing: a spike branch (not merged) that sets the GUC from `scoped()`, enables
 RLS on **`player.players` and `session.sessions` only**, runs the whole
@@ -356,11 +358,11 @@ sequence after a green spike:
 
 | Migration | Contents |
 |---|---|
-| `0055` | `session.tenant_id()` helper that raises a named error when the GUC is unset; `session.game_results` rebuilt with `security_invoker = true` |
-| `0056` | RLS + policy on the three hottest tables (`player.players`, `session.sessions`, `rating.player_state`), `enable` only |
-| `0057` | RLS + policy on the rest of `session.*` and `player.*` |
-| `0058` | RLS + policy on `rating.*`, `tournament.*`, `achievement.earned`, `community.settings`/`invite`/`join_request` (not `membership`, the door reads it first); `account.audit` with the platform-row clause |
-| `0059` | `import.row_map` policy and the ETL GUC, then the two-community test promoted from fixture to gate |
+| `0057` | `session.tenant_id()` helper that raises a named error when the GUC is unset; `session.game_results` rebuilt with `security_invoker = true` |
+| `0058` | RLS + policy on the three hottest tables (`player.players`, `session.sessions`, `rating.player_state`), `enable` only |
+| `0059` | RLS + policy on the rest of `session.*` and `player.*` |
+| `0060` | RLS + policy on `rating.*`, `tournament.*`, `achievement.earned`, `community.settings`/`invite`/`join_request` (not `membership`, the door reads it first); `account.audit` with the platform-row clause |
+| `0061` | `import.row_map` policy and the ETL GUC, then the two-community test promoted from fixture to gate |
 
 Each file is one transaction, so a failed batch leaves the previous head intact,
 and every batch is followed by the full integration suite before the next.

@@ -38,7 +38,7 @@ PostgreSQL 18 database. `apps/scoreboard` is a separate courtside PWA.
 - **`packages/contracts/openapi`** is the hand-written source; `api.yaml`,
   `routes_gen.nim`, and `packages/web-client/src/api.ts` are generated. Never edit
   generated files; run `./task contract-gen`.
-- **`db/migrations`** is append-only (32 files today). Every table carries
+- **`db/migrations`** is append-only (56 files today). Every table carries
   `community_id`; queries must scope by it.
 - **Business numbers live in the database** (`platform.config` →
   `community.settings`), never as literals. `tools/archcheck` fails on violations.
@@ -74,7 +74,8 @@ PostgreSQL 18 database. `apps/scoreboard` is a separate courtside PWA.
   `MAJADU_PG_DSN` and `INTEGRATION=1` (set by `./task test`).
 - `tools/parity` replays golden captures; the v1 corpus is frozen (the Go server
   is gone), the v2 corpus is live.
-- E2E runs on two phones: `iphone-17` (WebKit) and `poco-f5` (Chromium).
+- E2E runs four Playwright projects (`e2e/browsers.ts`): `iphone-17` (WebKit),
+  `poco-f5` (Chromium), `desktop` (Chromium) and `api` for the socket spec.
 
 ## Known limits
 
@@ -85,8 +86,8 @@ PostgreSQL 18 database. `apps/scoreboard` is a separate courtside PWA.
 - The schedule generator runs in the browser
   (`apps/web/src/legacy/generator`); the API stores whatever schedule the client
   sends.
-- Cutover rehearsal and VPS-side checks are prepared but not executed; see
-  `docs/ops/cutover.md`.
+- Production runs on the VPS since the cutover, against `bm2`. A few VPS-side
+  checks are still unproven and are listed in `docs/ops/cutover.md`.
 
 ## Pointers
 

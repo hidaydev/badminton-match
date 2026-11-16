@@ -4,14 +4,35 @@ This document is the source of truth for the **v2 database** (`bm2`) and the dat
 used by the API. Everything below comes from the migration files in the repo; there are no
 claims from a VPS dump or the v1 schema.
 
-- Migrations: `db/migrations/0001_core.sql` … `0048_version_triggers.sql` (48 files;
-  `0048` adds the version triggers and `0036` records the share key that encrypted each OIDC flow,
+- Migrations: `db/migrations/0001_core.sql` … `0056_court_foreign_keys.sql` (56 files;
+  `0036` records the share key that encrypted each OIDC flow,
   `0035` adds the `account.audit` occurred_at index, `0034` grants the ETL role,
   `0033` adds `session.links.legacy_id_ok`, `0032` adds default privileges
   for the application role, and `0030` grants access to `session.game_sets` and the
   `session.game_results` view).
+- The last eight migrations close the evidence gaps the audit findings named:
+  - `0049_audit_append_only.sql`: a trigger refuses `UPDATE` and `DELETE` on
+    `account.audit` for every role; the retention tool opts in for one transaction
+    with `set_config('majadu.audit_maintenance', 'on', true)`.
+  - `0050_rating_top_band_width.sql`: the strength assumed above the floor of the
+    open-ended top tier becomes `rating.top_band_width` instead of a code literal.
+  - `0051_game_skips_game_fk.sql`: `session.game_skips` gets a foreign key to the
+    game it names, so a skip cannot outlive its game.
+  - `0052_approved_session_needs_results.sql`: an approval is refused while a
+    played game in the session has no set, and the imported rows of that shape move
+    to `cancelled`.
+  - `0053_court_coordinate_reference.sql`: where a session ships a court register,
+    a game or skip may only name a court in it (`session.court_coordinate_exists`).
+  - `0054_played_game_needs_result.sql` and
+    `0055_played_game_insert_guard.sql`: `session.played_game_needs_result()`
+    refuses a played game with no set outside a draft, on transition (`0054`) and
+    at insert (`0055`), deferred to commit because the game row is written before
+    its set.
+  - `0056_court_foreign_keys.sql`: `session.courts.declared` separates the imported
+    register from a materialised coordinate, a game materialises the court it
+    names, and `games_court_fk` + `game_skips_court_fk` become real keys.
 - Seeds: `db/seeds/platform_config.sql`, `db/seeds/achievement_definitions.sql`.
-- Ledger: `tools/dbtools/main.nim:6-16` creates `dbtools.schema_migrations` and
+- Ledger: `tools/dbtools/main.nim:35-47` creates `dbtools.schema_migrations` and
   `dbtools.seed_files` (checksum per file).
 - The database names `bm2_dev`/`bm2_e2e` come from the tooling, not from SQL:
   `.github/workflows/ci.yml`, `task.d/e2e.sh`.
@@ -56,7 +77,7 @@ the working tree; `git log --all -- docs/backend` still has it.
 
 | Table | Key columns/constraints | Migration |
 |---|---|---|
-| `import.row_map` | PK `(community_id, entity, old_id)` → `new_id`; index `(community_id, entity, new_id)`; the one v1-to-v2 id map the loader reads and writes so a rerun does not mint a second set of ids | `0015:10-25` |
+| `import.row_map` | PK `(community_id, entity, old_id)` → `new_id`; index `(community_id, entity, new_id)`; the one v1-to-v2 id map the loader reads and writes so a rerun does not mint a second set of ids | `0015:12-25` |
 
 ### `session`
 
@@ -98,7 +119,7 @@ one pair of scores.
 | `rating.sources` | PK `(community_id, source_id)`, `kind` ∈ `session/tournament`, `finalized`, `finalized_at`; the sign-off survives rebuilds and makes revert refused | `0013:9-24` |
 | `rating.levels` | PK `(community_id, kind)`, `champion_points`, `round_ratios` JSONB (`qf/sf/final/group/runner_up/participant`), `enabled`; kind `session/tournament_classic/tournament_team` | `0020` |
 | `achievement.definitions` | PK `key`, `category`, `threshold >= 0`; include the `rank_streak` rung for the v1 medal display | `0002:69-74`, `0022` |
-| `achievement.earned` | PK `(community_id, player_id, achievement_key)`, `meta` JSONB, `earned_at`; no FK to definitions so v1 event medals stay stored | `0002:76-86`, `0019` |
+| `achievement.earned` | PK `(community_id, player_id, achievement_key)`, `meta` JSONB, `earned_at`; no FK to definitions so v1 event medals stay stored; `0045` replaces the dropped key with `achievement.validate_earned_key()`, which accepts `tournament:%` and `rank_streak:%` by pattern and requires every other key to name a catalog row | `0002:76-86`, `0019`, `0045` |
 
 Points are not stored as a column. The board is computed at read time from session games and
 tournament matches in a rolling window (v1 projection: one entry per source, best `best_n`);
@@ -183,14 +204,29 @@ are written, so an unknown zone is rejected as `400`, not stored.
 | Group | Key (seed default) |
 |---|---|
 | Community | `community.join_requests_enabled` (`false`), `community.invite_ttl_days` (`7`), `community.directory_enabled` (`false`), `community.default_timezone` (`Asia/Jakarta`) |
-| Pagination | `api.page_size_default` (`100`), `api.page_size_max` (`500`), `api.page_offset_max` (`1000000`), `rank.board_limit` (`200`) |
-| Points | `rating.session_base` (`250`), `rating.score_target` (`30`, fallback for sessions without a format snapshot), `rating.opponent_clamp` (`[0.5,1.5]`), `rating.window_weeks` (`12`), `rating.best_n` (`10`), `rating.thin_evidence_n` (`3`), `rating.tier_bands` (8 class bands: D 1000–1199 … A+ 2100–open) |
+| Pagination | `api.page_size_default` (`100`), `api.page_size_max` (`500`), `api.page_offset_max` (`1000000`), `rank.board_limit` (`200`), `rank.min_sessions` (`0`) |
+| Points | `rating.session_base` (`250`), `rating.score_target` (`30`, fallback for sessions without a format snapshot), `rating.opponent_clamp` (`[0.5,1.5]`), `rating.window_weeks` (`12`), `rating.best_n` (`10`), `rating.thin_evidence_n` (`3`), `rating.top_band_width` (`100`, strength assumed above the floor of the open-ended top band), `rating.tier_bands` (8 class bands: D 1000–1199 … A+ 2100–open) |
 | Tournament | domain constant `PairCount = 16` (not config; 16 pairs is a format rule) |
 | Security | `security.allowed_origins`, `security.rate_limit_per_minute` (`300`), `security.max_body_bytes` (`1048576`), `security.max_json_depth` (`16`), `security.join_request_rate` (`5`), `security.share_scrape_limit` (`120`) |
 | Realtime | `ws.max_watchers_per_session` (`50`), `ws.max_watchers_per_ip` (`20`), `ws.max_watchers_process` (`500`), `ws.ticket_ttl_seconds` (`60`) |
 | Login sessions | `session.absolute_days` (`30`), `session.idle_days` (`7`), `session.slot_minutes_default` (`30`), `auth.flow_ttl_minutes` (`10`) |
+| Scoring format | `session.scoring_presets` (three presets, below), `session.default_scoring_preset` (`majadu30`) |
 | Public links | `share.link_ttl_days` (`30`) |
 | Retention | `janitor.retention_days` (`30`), `audit.retention_days` (`365`) |
+
+The table lists all 36 keys in `allKeys`; `session.scoring_presets` holds the selectable
+match formats (platform scope), and `session.default_scoring_preset` is the community-scoped
+initial choice in the wizard:
+
+| Preset | Label | gamesToWin | pointsToWin | winBy | deuceAt | maxPoints | changeEndsAt |
+|---|---|---|---|---|---|---|---|
+| `majadu30` | MAJADU 30 | 1 | 30 | 1 | none | 30 | 15 |
+| `classic21` | Classic BO3 21 | 2 | 21 | 2 | 20 | 30 | 11 |
+| `bwf15` | New BWF BO3 15 | 2 | 15 | 2 | 14 | 21 | 8 |
+
+`pointsToWin` is also the rating target frozen into the session snapshot. The old
+`scoreA`/`scoreB` score body is accepted only when `gamesToWin = 1`; a multi-set session
+answers `400 SETS_REQUIRED` and expects `sets`.
 
 `rating.tier_bands` is a **display/classification attribute**, not the result of the points
 calculation: a player's tier is stored in `player.players.tier` and only changes through `PATCH player`.
@@ -234,7 +270,7 @@ Do not carry names from the v1 document into this one:
 
 | v1 | v2 |
 |---|---|
-| schema `bm`, migrations `000001`–`000023` | database `bm2`, migrations `0001`–`0048` |
+| schema `bm`, migrations `000001`–`000023` | database `bm2`, migrations `0001`–`0056` |
 | `scheduled_games`, `scheduled_game_players` | `session.games` + `session.participants` |
 | `rating_events`, `rating_deltas`, `rating_players` | `rating.events`, `rating.player_state` (the delta ledger has no counterpart) |
 | `player_achievements` | `achievement.earned` + `achievement.definitions` |

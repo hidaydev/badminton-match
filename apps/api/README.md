@@ -71,20 +71,20 @@ them is not ready.
 ./task contract-check   # fails if the spec and the generated output differ
 ```
 
-`packages/contracts/openapi/{core,community}.yaml` are the source: **75 operations**
+`packages/contracts/openapi/{core,community}.yaml` are the source: **76 operations**
 (see `CONTRACT.sha256`). Every generated route must have a handler; compilation
 fails if one is missing.
 
 ## Gate
 
 ```sh
-./task check            # nim check, unit tests, archcheck (no database)
+./task check            # nim check, deadcode, proc length, unit tests, TypeScript gate (no database)
 ./task test             # + integration (requires MAJADU_PG_DSN)
 ./task coverage         # lines per module, ratchet against coverage-baseline-<platform>.json
 ./task parity verify    # frozen v1 corpus (71 cases, 48 routes)
 ```
 
-Migrations: 36 files (`db/migrations/0001`–`0036`). Business config: 34 keys in
+Migrations: 56 files (`db/migrations/0001`–`0056`). Business config: 36 keys in
 `modules/platform/config/registry.nim`.
 
 ## v1 has been removed

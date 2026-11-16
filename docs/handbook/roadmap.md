@@ -1,15 +1,15 @@
 # Roadmap
 
-Status as of **2026-11-08**. The change history is in git history.
+Status as of **2026-11-16** (Release 2.0.2). The change history is in git history.
 
 ## ✅ Done
 
 - **Backend v2 (Nim 2.4)**: modules `account`, `community`, `player`, `session`,
   `tournament`, `rating`, `achievement`, `share`, `platform`; entrypoint
   `apps/api/src/main.nim`.
-- **75-operation contract**: `core.yaml` + `community.yaml` → `api.yaml`,
+- **76-operation contract**: `core.yaml` + `community.yaml` → `api.yaml`,
   `routes_gen.nim`, TS client, fingerprint (`packages/contracts/openapi`).
-- **v2 schema**: 48 migrations (`0001`–`0048`), 34 config keys, config and
+- **v2 schema**: 56 migrations (`0001`–`0056`), 36 config keys, config and
   achievement seeds.
 - **Auth & communities**: OIDC + session cookie, `member`/`host`/`admin` membership,
   invite, join request, settings, append-only audit, platform owner.
@@ -30,12 +30,12 @@ Status as of **2026-11-08**. The change history is in git history.
 - **Gates**: `check`, `test`, `contract-check`, `coverage`, `parity`, `pnpm
   check:web`, `e2e` (iPhone 17 + POCO F5), CI's 10 push jobs with `gate` last.
 - **Ops**: deploy/cutover/rollback/backup/restore/smoke, hardened Quadlet, Caddy
-  `/majadu` handler, alert unit, rehearsal harness.
+  reverse-proxy handler, alert unit, rehearsal harness.
 - **Daily snapshot**: `ranksnapshot` ships in the image and is run by
   `majadu-snapshot.timer` (active after cutover); the rank arrow no longer
   depends on a manual snapshot.
-- **Release**: SemVer 2.0.0, CHANGELOG, SSH-signed tags, image built once in CI, digest-based
-  Release.
+- **Release**: SemVer 2.0.2, CHANGELOG, SSH-signed tags, image built once in CI, digest-based
+  Release and automated VPS deploy.
 - **Go v1 decommission**: source removed; rollback uses `:v1-final`.
 
 ## ⏳ Next (outside the 88 tasks)
@@ -58,9 +58,7 @@ Status as of **2026-11-08**. The change history is in git history.
 
 ## Notes
 
-- Deploy: push `main` → webhook → `ops/scripts/deploy-vps.sh`. While the production env
-  still points at `bm`, the script stops before touching the container (cutover gate).
-- Backup/restore/cutover/rollback already exist in `ops/scripts/` and are documented
-  in [`../ops/cutover.md`](../ops/cutover.md); the procedure has not been executed on the VPS.
+- Deploy: push `main` → webhook → `ops/scripts/deploy-vps.sh` with cosign signature verification retry.
+- Production runs v2.0.2 on `bm2_prod` at 127.0.0.1:8080 behind Caddy.
 - Tests: `./task check` · `./task test` (with `MAJADU_PG_DSN`) · `./task coverage`
   · `./task e2e` · `pnpm check:web`.

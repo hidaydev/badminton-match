@@ -10,7 +10,8 @@ provides path helpers (`communitySlugFromPath`, `communityHref`); that file no
 longer maps routes or menus.
 
 All legacy screens live under `/c/:slug` through `LegacyShell`; the public URLs
-`/s/:code` and `/invites/:token` are outside that shell.
+`/s/:code`, `/invites/:token`, `/privacy` and `/terms` are outside that shell
+(`App.tsx`).
 
 | Path | Page | Access | Notes |
 |---|---|---|---|
@@ -28,7 +29,8 @@ All legacy screens live under `/c/:slug` through `LegacyShell`; the public URLs
 | `/c/:slug/tournaments/new` | legacy `NewTournamentPage` | admin/host | choose format |
 | `/c/:slug/tournaments/new/:format` | legacy `NewTournamentWizard` | admin/host | classic/team wizard |
 | `/c/:slug/tournaments/:id` | legacy `TournamentRouter` | login | score editor + standings/bracket |
-| `/c/:slug/instagram-post` | legacy `InstagramPostPage` | admin/host | 1080×1350 post and 1080×1920 story |
+| `/c/:slug/tournament` | redirect | login | redirected to `/tournaments` (`App.tsx`) |
+| `/c/:slug/instagram-post` | legacy `InstagramPostPage` | login | 1080×1350 post and 1080×1920 story |
 | `/c/:slug/export` | redirect | admin/host | redirected to `/instagram-post` |
 | `/c/:slug/settings` | `SettingsPage` | admin | members, roles, invites, join requests |
 | `/c/:slug/players` | `PlayersPage` | login | v2 roster, add player, claims |
@@ -47,6 +49,8 @@ All legacy screens live under `/c/:slug` through `LegacyShell`; the public URLs
 | `/c/:slug/dev/match-result-preview` | preview | login | development only |
 | `/c/:slug/dev/session-preview` | preview | login | development only |
 | `/invites/:token` | `InvitePage` (`pages/InvitePage.tsx`) | public | accept an invite; login with this URL as `returnTo` |
+| `/privacy` | `PrivacyPage` (`pages/PrivacyPage.tsx`) | public | legal page, outside the community shell |
+| `/terms` | `TermsPage` (`pages/TermsPage.tsx`) | public | legal page, outside the community shell |
 | `/s/:code` | `SharedSessionPage` | public | read-only session from a share code, Games/Standings tabs |
 
 Notes:
@@ -60,9 +64,11 @@ Notes:
   (`isAdmin` = host or admin). The grid holds Unlock Session and Tournament for
   staff, plus Ratings and Settings for community admins only (`isAdminRole`).
 - Access matrix: `member` read-only pages only; `host` adds sessions/tournaments
-  (wizard, admin sessions/tournaments, post editor); `admin` adds Settings,
+  (wizard, admin sessions/tournaments); `admin` adds Settings,
   Ratings, and member management. The platform owner manages communities through
   `/owner/communities`.
+- `/c/:slug/instagram-post` is reachable by any signed-in member: `App.tsx`
+  mounts it without `RequireStaff`, and `InstagramPostPage` checks no role.
 - v2 routes that were never mounted in the router (home, sessions, rankings,
   tournaments, export) were removed together with the canvas renderer and the v2
   tournament editor. The active tournament editor is the legacy one.
@@ -123,8 +129,8 @@ Notes:
 ## 3. API operations
 
 Source: `packages/contracts/openapi/core.yaml` + `community.yaml` → `api.yaml`;
-the generated list is in `apps/api/src/routes_gen.nim`. Count: **75**
-(`CONTRACT.sha256`, line `operations 75`).
+the generated list is in `apps/api/src/routes_gen.nim`. Count: **76**
+(`CONTRACT.sha256`, line `operations 76`).
 Contract base URL: `https://api.qouver.com` (no path prefix) or
 `http://127.0.0.1:8080` (`api.yaml`, `servers`).
 
@@ -135,15 +141,12 @@ The **Access** column follows `testdata/authz/matrix.yaml`; `session` means the
 
 | Method | Path | Access |
 |---|---|---|
-| `POST` | `/auth/start` | public* |
+| `POST` | `/auth/start` | public |
 | `GET` | `/auth/callback` | public |
 | `POST` | `/auth/logout` | session |
 | `GET` | `/auth/me` | session |
 | `GET` | `/auth/sessions` | session |
 | `DELETE` | `/auth/sessions` | session |
-
-**Note:** The implementation calls `startAuth` without a session check; the matrix marks it `session`.
-In practice this is the login entry point, so it must be reachable without a cookie.
 
 ### `system`
 
@@ -163,6 +166,7 @@ In practice this is the login entry point, so it must be reachable without a coo
 | `POST` | `/c/{slug}/join-requests` | public* (always `202`, anti-enumeration) |
 | `GET` | `/c/{slug}/join-requests` | session + admin |
 | `PATCH` | `/c/{slug}/join-requests/{id}` | session + admin |
+| `GET` | `/c/{slug}/claims` | session + admin |
 | `POST` | `/c/{slug}/invites` | session + admin |
 | `POST` | `/invites/{token}/accept` | session |
 | `GET` | `/c/{slug}/members` | session (member) |
@@ -249,6 +253,7 @@ resolve a uuid. `standings` uses the same tally as
 | `GET` | `/c/{slug}/rankings/{playerId}` | session (member) |
 | `GET` | `/c/{slug}/rating-sources` | session + admin* |
 | `PATCH` | `/c/{slug}/rating-sources/{id}` | session + admin |
+| `DELETE` | `/c/{slug}/rating-sources/{id}` | session + admin |
 | `POST` | `/c/{slug}/ratings/rebuild` | session + admin |
 | `POST` | `/c/{slug}/sessions/{id}/rating` | session + admin |
 | `DELETE` | `/c/{slug}/sessions/{id}/rating` | session + admin |

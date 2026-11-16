@@ -23,18 +23,28 @@ explicit `--nimcache` does not add a suffix.
 
 | Target | Purpose | Needs database |
 |---|---|---|
-| `check` | `nim check`, unit tests, archcheck, the flaky register and the TypeScript coverage gate | yes (D-6) |
+| `check` | `nim check`, deadcode, proc length, unit tests, the flaky register, the coverage debt register and the TypeScript gate | no |
+| `deadcode` | fail on dead declarations, unused imports, shadowing and warnings | no |
+| `proc-length` | fail when a production proc grows past 100 lines | no |
+| `typescript` | the web gate: types, lint, Tailwind, touch targets, docs and unit tests | no |
 | `build` | release build of `majadu-api` into `.cache/$WORKTREE/bin/`; `tools/*` and `dbtools` are not built here — compile them by hand with the same flags | no |
 | `test` | unit + integration tests; every suite runs on its own freshly copied database | integration only |
 | `verify <module>` | build and test one module | when it has integration tests |
 | `contract-gen` | regenerate routes, client and fingerprint | no |
 | `contract-check` | fail when specs and generated files drift | no |
 | `contract-keys` | fail when a contract operation has no access-table key or no explicit rule | no |
-| `docs-check` | fail when README or current-status quotes a stale migration or operation count, or the design system document loses its version or its review goes past 90 days | no |
+| `docs-check` | fail when a document quotes a stale migration or operation count, when a path in `requirements.md` does not exist, when `CONTRIBUTING.md` drifts from the pinned Node and pnpm versions, or when the design system document loses its version or its review goes past 90 days | no |
 | `loadtest` | committed HTTP/watcher load test for the capacity statement; needs a live API | no |
 | `ci` | check + build + test + contract check | same as `test` |
 | `coverage` | line coverage per module, ratcheted against `coverage-baseline-<platform>.json`; `--update` rewrites the baseline | no |
 | `deps-check` | compare the installed toolchain and Nim packages with `deps.lock` | no |
+| `coverage-debt` | fail on a low-coverage file with no dated exception | no |
+| `flakereport` | print the slowest suites and browser specs from the last run | no |
+| `flakeregister` | validate the quarantine register: owner, first seen, expiry, issue | no |
+| `branch-protection` | verify the required checks on a protected branch with `gh api` | no |
+| `mutation` | run the mutation manifest in `tools/mutation` | no |
+| `sharekeys` | generate or rotate session share-link keys; `retire-legacy` closes imported links | no |
+| `secrets-history` | scan the whole git history with the repository gitleaks config | no |
 | `ci-guards` | reject mutable or malformed action pins; `--release` also rejects an SPA rewrite to the RC API | no |
 | `osv-scan` | scan the lockfiles against the OSV advisory database and fail on HIGH or CRITICAL; needs the pinned `osv-scanner` on `PATH` (CI installs it) | no |
 | `deps-install` | install the Nim packages pinned in `deps.lock` into `~/.nimble` | no |

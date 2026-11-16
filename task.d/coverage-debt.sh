@@ -2,7 +2,7 @@
 # Low-coverage debt manifest (QA-13).
 #
 # The ratchet fails a file that drops, but it cannot ask an old file to rise.
-# Eleven files sit below 80 percent, nine of them at zero. Without a written
+# Fourteen files sit below 80 percent, nine of them at zero. Without a written
 # exception those files are frozen silently, which is how a "92 percent suite"
 # keeps a quarter of its tool sources untested.
 #

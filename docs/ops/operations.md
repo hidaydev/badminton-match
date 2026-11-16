@@ -47,11 +47,16 @@ rotation is a file replace plus the restart or re-login in the table.
 | Credential | File on the VPS | Rotate by | Verify after | Last rotated | Next due |
 |---|---|---|---|---|---|
 | GHCR read token | `env/ghcr-token` | issue a new `read:packages` token, replace the file, mode 600 | `podman login ghcr.io -u <user> --password-stdin < env/ghcr-token` | not recorded | not recorded |
-| GitHub CI token (RC) | `env/github-token` | new fine-grained token, `actions: read`, replace the file, mode 600 | `env/github-token` is read by the RC CI gate on the next push | not recorded | not recorded |
-| Vercel token | `env/vercel-token` | new token in the Vercel account, replace the file, mode 600 | `VERCEL_TOKEN=$(cat env/vercel-token) vercel whoami` | not recorded | not recorded |
+| GitHub CI token (RC) | `majadu-rc/env/github-token` | new fine-grained token, `actions: read`, replace the file, mode 600 | the file is read by the RC CI gate on the next push | not recorded | not recorded |
+| Vercel token | `majadu-rc/env/vercel-token` | new token in the Vercel account, replace the file, mode 600 | `VERCEL_TOKEN=$(cat majadu-rc/env/vercel-token) vercel whoami` | not recorded | not recorded |
 | Database passwords | `env/majadu-prod.env`, `env/majadu-tools.env`, `env/majadu-rc*.env` | `alter role ... password` for each role, then update every file that names it (`MAJADU_PG_DSN` is in both prod files) | `./task ci` against the DSN, or `curl /readyz` after `systemctl --user restart majadu-api` | not recorded | not recorded |
 | Alert webhook | `env/alert.env` | new webhook URL in the provider, replace the file, mode 600 | `systemctl --user start majadu-alert@rotation-test.service` and look for the delivery | not recorded | not recorded |
 | Cosign public key | `env/cosign.pub` | follows the signing key, not a secret | `cosign verify --key env/cosign.pub <image>` | not recorded | not recorded |
+
+Paths in the table are relative to the app dir. Everything except the two RC
+credentials sits under `/srv/qouver/apps/majadu/`; the RC CI and Vercel tokens
+are read by `deploy-vps-rc.sh` from `/srv/qouver/apps/majadu-rc/env/`
+(`deploy-vps-rc.sh:48`, `:553`), so rotating them there is what takes effect.
 
 The two date columns are the register, not a pointer to one: a credential whose
 row still says `not recorded` has no evidence that it was ever rotated, which is
@@ -88,7 +93,7 @@ is cheaper to lower it later than to explain a delay.
 
 | Level | Trigger | Examples | Response time | Containment target | Who is told, and by when | User notice |
 |---|---|---|---|---|---|---|
-| SEV-1 | the external uptime checker or `majadu-readyz.timer` reports the public origin down; `/readyz` answers 503; data is lost or corrupted; personal data may be exposed | production API down or serving 5xx to everyone; data loss or corruption; a personal-data exposure; the database unreachable | 15 minutes | 1 hour | repository owner immediately, by the alert webhook and a phone call to self; the community channel within 1 hour of a confirmed user impact | within 72 hours if personal data was involved |
+| SEV-1 | the external uptime checker reports the public origin down, or `majadu-readyz.timer` reports the local process down; `/readyz` answers 503; data is lost or corrupted; personal data may be exposed | production API down or serving 5xx to everyone; data loss or corruption; a personal-data exposure; the database unreachable | 15 minutes | 1 hour | repository owner immediately, by the alert webhook and a phone call to self; the community channel within 1 hour of a confirmed user impact | within 72 hours if personal data was involved |
 | SEV-2 | a core flow fails for one community while the origin still answers 200, or a release was rolled back | a core flow broken for one community (scores cannot be saved, login fails for one provider path); a release rollback used | 1 hour | 4 hours | repository owner the same day, by the alert webhook or a phone call to self; the affected community's channel within 4 hours when that community is known | if a community lost data or a feature for more than a day |
 | SEV-3 | a timer or check is red while users are not blocked, or a non-core report | degraded but working (slow reads, a badge missing, the RC instance down) | next working day | next working day | repository owner at the next check, written in the note; no community notice | not required |
 | SEV-4 | cosmetic, documentation, or one person's workaround | cosmetic, documentation, a single person's workaround | next release | next release | nobody; the note is the record | not required |
@@ -171,17 +176,20 @@ Filling rules:
 
 | When | What | Command |
 |---|---|---|
-| Every deploy | Process health; `deploy-vps.sh` runs migrations before the restart | `curl -fsS http://127.0.0.1:8080/readyz` |
+| Every deploy | Process health; `deploy-vps.sh` runs migrations only for a commit a release tag points at, and verifies the schema before every restart | `curl -fsS http://127.0.0.1:8080/readyz` |
 | Every 5 minutes | `/readyz` is watched by `majadu-readyz.timer`; a failure triggers `majadu-alert@`. `majadu-host-check.timer` watches free disk, OOM kills and the running image | `systemctl --user list-timers majadu-readyz.timer majadu-host-check.timer` |
 | Every ten minutes | Logs are rotated by `majadu-rotate-log.timer` (rename, gzip, delete >14 days, disk guard) | `ls -l /srv/qouver/apps/majadu/logs` |
 | Daily | Disk and memory headroom; no undelivered alerts | `df -h /srv && systemctl --user show majadu-api -p NRestarts && ls -l /srv/qouver/apps/majadu/logs/alert-dead-letter.log` |
 | Monthly | Migrations and seeds still match the schema | `./task ci` on a dev machine with `MAJADU_PG_DSN` |
 | Yearly | The access list above is still accurate | review by hand, revoke what is unused |
-| Once, after the cutover | The pre-code `/s/{sessionId}` shortcut still answers for rows that existed before codes | `./task sharekeys retire-legacy --older-than 30 --dry-run`, then without `--dry-run` |
+| Once, at the cutover (done) | The pre-code `/s/{sessionId}` shortcut still answers for rows that existed before codes | `./task sharekeys retire-legacy --older-than 30 --dry-run`, then without `--dry-run` |
 
-`deploy-vps.sh` runs `dbtools migrate` then `dbtools verify` from the newly
-pulled image, using `MAJADU_OWNER_DSN` from `majadu-tools.env`, before the unit
-is restarted. The API unit loads only `majadu-prod.env`; it never sees the owner
+`deploy-vps.sh` runs `dbtools migrate` and `dbtools seed` from the newly pulled
+image, using `MAJADU_OWNER_DSN` from `majadu-tools.env`, before the unit is
+restarted — but only when the commit carries a release tag. Any other commit
+gets `dbtools verify` alone: the schema is checked, not migrated, so a hotfix
+that brings a migration stops there and says it needs a release. The API unit
+loads only `majadu-prod.env`; it never sees the owner
 or ETL credential, and the one-shot job units load only `majadu-tools.env`, so
 neither side sees the other's secrets. A failure
 there aborts the deploy and leaves the old release running; `:local` and `:prev`
@@ -287,9 +295,10 @@ number to configure, not the default.
 Being honest about gaps is more useful than a runbook that assumes tools that do
 not exist:
 
-- `ops/scripts/{cutover,rollback,backup,restore,smoke}.sh` exist in the repo,
-  but have never been run on a real VPS. The D-3 rehearsal (T-063) is what
-  proves them; before that, do not consider the rollback path tested.
+- The ops scripts are executed, not theoretical: `cutover.sh` moved production to
+  `bm2`, and `deploy-vps.sh` runs `smoke.sh` on every deploy. The one thing still
+  not run is the D-3 rehearsal (T-063): `tools/rehearsal/timings.json` records
+  `"status": "not_run"`, so the rollback path has no rehearsed run behind it.
 - Automatic alerts exist at the unit level: `OnFailure=majadu-alert@%N.service`
   on every unit, and `deploy-vps.sh`, `cutover.sh`, and `rollback.sh` call the
   same template on failure. `%N` is the unit name without its type suffix, so
@@ -309,8 +318,9 @@ not exist:
   off-host are VPS steps.
 - `readyz` used to be just a probe; now `majadu-readyz.timer` hits it every 5
   minutes and a failure becomes an alert. Internal metrics exist on
-  `MAJADU_METRICS_PORT` (default 9090, bound to 127.0.0.1 inside the container
-  and never published). The endpoint stays unpublished, and a host agent
+  `MAJADU_METRICS_PORT` (the code default is `0`, off; `ops/env/prod.env.example`
+  sets `9090`, bound to 127.0.0.1 inside the container and never published). The
+  endpoint stays unpublished, and a host agent
   scrapes it through the `node_exporter` textfile collector:
 
   ```ini

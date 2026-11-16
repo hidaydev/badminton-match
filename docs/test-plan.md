@@ -34,7 +34,7 @@ Out of scope, on purpose:
 | HTTP integration | the router, session gate, problem envelope | `apps/api/tests/integration/*_http_test.nim` | one server per suite |
 | Contract | the specs, the generated routes and the TS client agree | `./task contract-check`, `packages/contracts/openapi/CONTRACT.sha256` | seconds |
 | Parity | recorded v1/v2 responses still match | `./task parity verify`, `./task parity v2 verify` | minutes |
-| E2E | router, server gate and UI visibility together | `e2e/*.spec.ts`, two phone engines | minutes |
+| E2E | router, server gate and UI visibility together | `e2e/*.spec.ts`, the four Playwright projects in `e2e/browsers.ts`: `iphone-17` (WebKit), `poco-f5` (Chromium), `desktop` (Chromium) and `api` (the socket spec, run once) | minutes |
 | Gates | coverage ratchet, mutation, deps, docs, architecture | `./task check`, `coverage.yml`, `nightly.yml` | varies |
 
 `./task check` runs the unit layer and the static gates; `./task test` adds the
@@ -46,7 +46,7 @@ instead of implying the whole tree.
 
 | Module | Risk | Why | Primary suites |
 |---|---|---|---|
-| `modules/account` | High | authorization classes, sessions, invites, claims, OIDC | `tests/authz_matrix_test.nim`, `apps/api/tests/integration/security/{idor_escalation,csrf_redirect,oidc_replay,ratelimit}_test.nim`, `integration/auth_sessions_http_test.nim`, `e2e/authz.spec.ts` |
+| `modules/account` | High | authorization classes, sessions, invites, claims, OIDC | `tests/authz_matrix_test.nim`, `apps/api/tests/flow_budget_test.nim`, `apps/api/tests/integration/security/{idor_escalation,csrf_redirect,oidc_replay,ratelimit}_test.nim`, `integration/auth_sessions_http_test.nim`, `e2e/authz.spec.ts` |
 | `modules/session` | High | scoring rules, optimistic concurrency, schedule generation, swaps | `tests/scoring_test.nim`, `tests/integration/{schedule,swap,write}_test.nim`, `integration/session_{concurrency,schedule}_http_test.nim`, `e2e/session-{write,occ}.spec.ts` |
 | `modules/tournament` | High | bracket generation, idempotency, match writes | `tests/{classic,team}_test.nim`, `tests/integration/store_test.nim`, `integration/tournament_http_test.nim`, `e2e/draw.ts` fixtures |
 | `modules/share` | High | share-code crypto and key rotation | `tests/crypto_test.nim`, `e2e/shared.spec.ts`, `tools/sharekeys/tests` |
@@ -55,8 +55,8 @@ instead of implying the whole tree.
 | `modules/community` | Medium | membership roles, join requests, settings | `tests/`, `integration/community_http_test.nim`, `integration/config_routes_test.nim` |
 | `modules/platform` | Medium | config snapshot, clock, database helpers | `tests/`, `apps/api/tests/{middleware,client_ip,request_id,quota_route}_test.nim` |
 | `modules/achievement` | Low | badges are derived, not authoritative | `tests/`, `integration/janitor_test.nim` |
-| `apps/api` dispatch | High | every route must be reachable and gated | `tests/routes_dispatch_test.nim` (matrix-driven anonymous sweep), `tests/routes_test.nim` |
-| ETL (`tools/import`) | High | cutover correctness | `tools/import/tests/import_test.nim`, `testdata/import/production-shaped.sql`, `nightly.yml` |
+| `apps/api` dispatch | High | every route must be reachable and gated | `tests/routes_dispatch_test.nim` (matrix-driven anonymous sweep), `tests/routes_test.nim`, `integration/body_limit_http_test.nim` |
+| ETL (`tools/import`) | High | cutover correctness | `tools/import/tests/integration/import_test.nim`, `testdata/import/production-shaped.sql`, `nightly.yml` |
 | `apps/web` | Medium | member-facing flows, hooks, router | `apps/web/src/**/*.test.tsx`, `pnpm check:web` |
 | `apps/scoreboard` | Medium | the score is the product | `apps/scoreboard/src/**`, `e2e/scoreboard.spec.ts`, `./task scoreboard-pwa` |
 | Operator scripts | High | deploy, cutover, rollback | `tools/shelltests/tests/ops_scripts_test.nim`, `deploy_guards_test.nim` |
@@ -71,7 +71,7 @@ instead of implying the whole tree.
 | Scoring | the rules in `docs/handbook/scoring-presets.md` | `modules/session/tests/scoring_test.nim`, `tools/rating*/tests` |
 | Concurrency | two writers, one winner | `integration/session_concurrency_http_test.nim`, `e2e/session-occ.spec.ts` |
 | Migration | schema reachable, upgrade from N-1 preserves rows | `tools/dbtools/tests/integration/migrations_test.nim` |
-| Cutover | v1 data arrives intact | `tools/import/tests/import_test.nim` (including the verify canary) |
+| Cutover | v1 data arrives intact | `tools/import/tests/integration/import_test.nim` (including the verify canary) |
 | Coverage | the ratchet, per file and total | `./task coverage`, `task.d/fixtures/coverage/` models |
 | Accessibility | WCAG A/AA on every route | `e2e/a11y.spec.ts` + `e2e/a11y-exemptions.json` |
 | Reflow | 320 CSS pixels without horizontal scroll | `e2e/reflow.spec.ts` |
@@ -85,14 +85,14 @@ or work that needs an environment this repository cannot provide.
 
 | Gap | Status | Owner | Where recorded |
 |---|---|---|---|
-| 13 routes have no axe walk | dated exemption | QA | `e2e/a11y-exemptions.json` (2027-03-31) |
+| 14 routes have no axe walk | dated exemption | QA | `e2e/a11y-exemptions.json` (2027-03-31) |
 | Keyboard pass is limited to the two sheets | partial | QA | `e2e/overlay.spec.ts` |
 | No 1M-request soak on the VPS | open | owner | `docs/handbook/roadmap.md` T-074 |
-| Mutation manifest covers 6 files | open | QA | `tools/mutation/manifest.txt` |
+| Mutation manifest covers 18 mutants in 13 files | open | QA | `tools/mutation/manifest.txt` |
 | Import fixture is synthetic plus production-shaped | partial | QA | `testdata/import/` |
 | Web coverage threshold is below the API's | open | web | `apps/web/vitest.config.ts` |
 | Scoreboard has no API round-trip in e2e | open | QA | `e2e/scoreboard.spec.ts` |
-| 13 files sit under the 80 percent line floor | dated exception | QA | `docs/handbook/coverage-debt.json` |
+| 14 files sit under the 80 percent line floor | dated exception | QA | `docs/handbook/coverage-debt.json` |
 | Branch coverage is reported, not gated | open | QA | `task.d/coverage.sh` |
 
 ## 6. Adding a test

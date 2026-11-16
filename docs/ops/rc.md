@@ -1,11 +1,13 @@
-# RC environment
+# RC instance (legacy)
 
-The RC instance is a standalone copy of production: a separate Podman service,
-a separate database, and the FE in the owner Vercel account. Production is not
-touched until cutover.
+The RC instance is a standalone copy of the v2 stack: a separate Podman service,
+a separate database, and the FE in the owner Vercel account. It is a test
+environment now — production has served `bm2` since the v2.0.0 cutover and runs
+`v2.0.2`, so nothing here is production guidance; `docs/ops/operations.md` and
+`docs/ops/release.md` are.
 
-The full plan and its design rationale are in
-[`rc-environment.md`](rc-environment.md).
+The original plan and its design rationale are in the git history
+(`docs/ops/rc-environment.md`, deleted 2026-11-16).
 
 ## 1. What is on the server
 
@@ -29,6 +31,11 @@ The full plan and its design rationale are in
 
 `majadu2` (port 8093, DB `majadu`) is a different application from a different
 repo. Do not touch it and do not use it for this RC.
+
+Production, for contrast: `majadu` on `127.0.0.1:8080` serves `bm2` with
+`localhost/majadu-api:local` (`:prev` kept for rollback) and the `bm2_*` roles;
+v1 and its `bm` database are no longer running, and the v1 image is kept as
+`:v1-final` for `rollback.sh`.
 
 ## 2. One time only: bootstrap
 
@@ -172,10 +179,9 @@ The token is passed to `curl` on stdin as a private config, so no copy is
 written to disk and nothing sensitive appears in the process list. Without the
 file, every RC deploy fails closed.
 
-CI must run for `release/*`. `.github/workflows/ci.yml` currently triggers on
-`main` and `pull_request` only, so the branch has to be added to its `push`
-trigger (or a matching workflow has to cover it) before the gate can pass
-normally.
+CI must run for `release/*`. `.github/workflows/ci.yml` triggers on pushes to
+`main` and `release/**`, and on pull requests, so `release/2.0.0-rc.1` is
+covered without adding a branch to the workflow.
 
 Emergency bypass: run the deploy by hand with
 `MAJADU_RC_SKIP_CI_GATE=1`. It logs a `WARNING`, builds without a CI result, and
@@ -185,6 +191,33 @@ and the commit has been verified another way.
 The first deploy after merging a change to `deploy-vps-rc.sh` still runs the
 previously installed copy in `/srv/qouver/apps/majadu-rc/scripts/`; the new
 version is installed during that run and is used from the next one.
+
+### 4.3 The privilege residual
+
+`deploy-vps-rc.sh` refreshes its installed copy from the checkout it just synced,
+because the webhook runs the installed file. The incoming copy is host code on
+the next push, so it is validated first: `bash -n` must pass, the installed file
+and its directory must be owned by the deploy user, and the replace is an atomic
+rename. A script that fails either check is not installed; the current run keeps
+its own inode and the next push starts from a rejected branch instead of
+executing it.
+
+That guard is not user separation. The RC deploy and the webhook daemon still run
+as the same Unix user that owns `/srv/qouver/apps/majadu`, so a push to the RC
+branch can read `majadu-prod.env`, the production podman store and the `qouver`
+network. Closing that is a host change, not a repository change: a dedicated
+`majadu-rc` user and group, `/srv/qouver/apps/majadu-rc` and the RC units moved
+to it, the webhook invoking the RC script as that user, and the RC deploy script
+installed root-owned (mode 755) instead of replacing itself.
+
+Verification, once the user exists:
+
+```sh
+sudo -u majadu-rc cat /srv/qouver/apps/majadu/env/majadu-prod.env   # must fail
+sudo -u majadu-rc ls /srv/qouver/apps/majadu/env                   # must fail
+```
+
+Until those two commands fail, treat the RC as production with a different port.
 
 ## 5. FE in Vercel
 
@@ -243,8 +276,10 @@ If you later want the standard Vercel pipeline:
 Deployment Protection must be off, otherwise the OAuth callback and share links
 are blocked.
 
-The RC branch carries one deliberate diff in `apps/web/vercel.json`:
-`/api` is pointed at `https://api.qouver.com/majadu-rc/*`, not `/majadu/*`.
+`apps/web/vercel.json` on the RC tip points `/api` at
+`https://api.qouver.com/majadu/*`, the same as `main`. The one deliberate RC diff
+(`/majadu-rc/*`) is gone: `./task ci-guards --release` refuses a tag whose tree
+still carries it, so the RC front end now talks to the production API path.
 
 Google Cloud Console: add
 `https://majadu-rc.vercel.app/api/auth/callback` to Authorized redirect URIs.
@@ -270,40 +305,3 @@ from the repository root (the workspace filter needs the lockfile):
 `no-store` HTML policy; the build fails if it drifts (`check-headers.mjs`). The
 app's install, offline and storage expectations live in
 `apps/scoreboard/README.md`.
-
-## 6. After merging to main
-
-Once the RC is validated, the production cutover uses the path already in the
-repo (`ops/scripts/cutover.sh`), not these RC scripts:
-
-1. Maintenance for `/majadu/*`.
-2. `cutover.sh` runs dump `bm` → staging → import `bm2` → migrate →
-   start the production unit → move Caddy.
-3. The FE stays `majadu.vercel.app`; `apps/web/vercel.json` on `main` goes back
-   to `/majadu/*`, so there is no domain change.
-4. `./task ranksnapshot` once after cutover.
-
-The RC instance stays up as a test environment until it is decided to shut it
-down.
-
-## 7. Notes found during recon
-
-- The host **does not have** `psql` and `pg_dump`; `ops/scripts/backup.sh`,
-  `restore.sh`, and `cutover.sh` call both directly. For the production cutover
-  later, they must be installed or the scripts changed to use containers.
-  `bootstrap-rc.sh` already uses containers, so it is unaffected.
-- `apps/api/Dockerfile` on the RC branch has two defects that made the image
-  impossible to build: the base tag `nimlang/nim:2.4.0-bookworm` does not exist
-  in the registry, and `modules/` was never `COPY`ed even though the API imports
-  it. Both are already fixed on the RC branch. That means the `v2.0.0` tag
-  **must** be created after merge, not from the current `main`.
-- The server Caddyfile uses `admin off` (audit H-5), so configuration changes
-  can only go through `systemctl restart caddy`, not `reload`. A restart drops
-  every site for about one second.
-- The Caddy snippet must live in `/etc/caddy` because the `caddy` user cannot
-  traverse `/srv/qouver/apps/majadu-rc` (mode 700).
-- `majadu` (port 8080, DB `bm`) is the production v1 that is still running.
-  `majadu2` (port 8093, DB `majadu`) is a different application from a different
-  repo.
-- Production uses the `majadu_app` role; the `bm2_*` roles do not exist in the
-  cluster yet.

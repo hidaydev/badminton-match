@@ -1,11 +1,11 @@
 # Current Status
 
-Last updated: **2026-11-08**. This document answers "what actually exists in the repo
+Last updated: **2026-11-16**. This document answers "what actually exists in the repo
 today", not "what is planned".
 
 Next entry points: [`architecture.md`](architecture.md),
 [`data-model.md`](data-model.md), [`features-and-routes.md`](features-and-routes.md),
-[`roadmap.md`](roadmap.md).
+[`requirements.md`](requirements.md).
 
 ## 1. Runtime
 
@@ -30,7 +30,7 @@ Postgres 18.6 · schema per domain (platform, community, player, session,
 ## 2. Contract & database
 
 - **76 operations** in the contract: `packages/contracts/openapi/CONTRACT.sha256`
-  (`operations 75`), generated output in `apps/api/src/routes_gen.nim`.
+  (`operations 76`), generated output in `apps/api/src/routes_gen.nim`.
   Hand-written sources: `core.yaml` + `community.yaml`; generated output: `api.yaml`,
   `routes_gen.nim`, `packages/web-client/src/api.ts`.
 - Every operation has a handler (compilation fails otherwise) and an authorization row in
@@ -38,7 +38,7 @@ Postgres 18.6 · schema per domain (platform, community, player, session,
 - **56 migrations** in `db/migrations/` (`0001`–`0056`, the last one
   `0056_court_foreign_keys.sql`); seeds: `db/seeds/platform_config.sql`,
   `db/seeds/achievement_definitions.sql`.
-- **35 config keys** in `modules/platform/config/registry.nim`, initial values in the seed;
+- **36 config keys** in `modules/platform/config/registry.nim`, initial values in the seed;
   per-community overrides in `community.settings` may only narrow the platform.
 - **Per-session scoring format** (ADR-012 in [`../decisions.md`](../decisions.md)): one
   schedule slot is one match containing 1..N sets. `0029_scoring_presets.sql`
@@ -108,13 +108,13 @@ communities) is still used; v2 pages that were never mounted in the router
 
 | Suite | Command | Note |
 |---|---|---|
-| `nim check`, archcheck, unit suites | `./task check` | no database; 70 unit suites (`./task check` prints the counts it will run) |
-| Unit + integration | `./task test` | needs `MAJADU_PG_DSN`; 140 suites (70 unit, 70 integration; 2026-11-10), each suite on its own database; `--timing` and `--shard I/N` feed the two CI shards, which took 439 s and 575 s including runner setup on `3afaa78e` |
+| `nim check`, archcheck, unit suites | `./task check` | no database; 76 unit suites (`./task check` prints the counts it will run) |
+| Unit + integration | `./task test` | needs `MAJADU_PG_DSN`; 148 suites (76 unit, 72 integration; 2026-11-16), each suite on its own database; `--timing` and `--shard I/N` feed the two CI shards, which took 439 s and 575 s including runner setup on `3afaa78e` |
 | One module | `./task verify <module\|api>` | integration when the DB is present |
 | Contract | `./task contract-check` | fingerprint + generated output |
 | Parity | `./task parity verify` / `./task parity v2 verify` | frozen v1 71 cases/48 routes; v2 144 cases |
 | Tournament ladder | `./task levels` | read/write `rating.levels`; no row = per-game formula |
-| Coverage | `./task coverage` | per file, module and total ratchet against `coverage-baseline-<platform>.json` (89.06% of 21,219 executable lines, Linux baseline measured 2026-11-10 after waves 3 and 4, integration; one fresh database per suite, gcov captured per suite, ~10 minutes). The Nim number is **line coverage only**: gcov branch counts are printed next to it but are not part of the ratchet, so it must not be read as branch coverage. The gate also prints how many files sit below the 50% per-file floor and fails when that count grows (documents with an owner and an expiry live in `docs/handbook/coverage-debt.json`). The gate's 0.1 pp tolerance is published with the number: 89.06% means a lower bound of 88.96%, and a run between them is inside the noise band, not a regression. Every file also records its branch counters; they are reported, not ratcheted |
+| Coverage | `./task coverage` | per file, module and total ratchet against `coverage-baseline-<platform>.json` (89.14% of 21,295 executable lines, Linux baseline measured 2026-11-11, integration; one fresh database per suite, gcov captured per suite, ~10 minutes). The Nim number is **line coverage only**: gcov branch counts are printed next to it but are not part of the ratchet, so it must not be read as branch coverage. The gate also prints how many files sit below the 50% per-file floor and fails when that count grows (documents with an owner and an expiry live in `docs/handbook/coverage-debt.json`). The gate's 0.1 pp tolerance is published with the number: 89.14% means a lower bound of 89.04%, and a run between them is inside the noise band, not a regression. Every file also records its branch counters; they are reported, not ratcheted |
 | Security | part of `./task test` | IDOR, escalation, CSRF, OIDC replay, rate limit, claims |
 | Web | `pnpm check:web` | TypeScript, ESLint, Tailwind guard, Vitest |
 | E2E | `./task e2e` | Playwright: a11y, visual, navigation, writes, OCC, offline, compatibility, role boundary; 170 runs across two devices and no skip, 65 of them drive a flow or the API socket (56 phone flows plus 9 API runs); snapshots per platform in `e2e/__screenshots__/{platform}/` |
@@ -124,11 +124,11 @@ E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
 
 ## 6. CI
 
-- `.github/workflows/ci.yml`: 12 jobs defined, 10 of them run on a push:
+- `.github/workflows/ci.yml`: 11 jobs defined, 9 of them run on a push:
   `api-check`, `api-test` in two shards (Postgres 18.6), `contract`, `web`,
   `e2e`, `image`, `supply-chain`, `coverage-gate` (waits for the Coverage run of
   the same commit), then `gate`; `mutation` runs on pull requests only and
-  `notify` pages on a red main.
+  `notify` pages only when main goes red.
 - `.github/workflows/coverage.yml`: instrumented build + ratchet, a separate
   workflow so the cache does not mix with the fast gate.
 - `.github/workflows/nightly.yml`: full `./task ci` with a database service, plus `./task mutation` so a mutant that survives without an allowlist entry fails the night.
@@ -151,8 +151,9 @@ E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
   `:local`/`:prev` untouched; the schema revision is recorded in `last-release.json`);
   rotate `:local` → `:prev`; restart the unit; `/readyz` gate; roll back to `:prev`
   on failure. The schema is not rolled back, so migrations must be expand/contract.
-  **Cutover gate:** while the production env still points at `bm`, the script stops
-  before pull/restart.
+  **Cutover gate:** the script refuses to deploy unless the production env names
+  `bm2`; production has run `bm2` since the cutover, and `bm` is the read-only v1
+  archive the ETL reads.
 - **RC** (`ops/scripts/deploy-vps-rc.sh`): branch `release/2.0.0-rc.1`, Podman service
   and database separate from production; all details are in
   [`../ops/rc.md`](../ops/rc.md).
@@ -165,7 +166,9 @@ E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
   `NoNewPrivileges`, `DropCapability=ALL`) + `majadu-alert@.service`.
 - **Daily snapshot**: `majadu-snapshot.service` + `.timer` run
   `ranksnapshot` from the same image (`podman run --rm --pull=never`), so the
-  movement arrow has a fresh snapshot every day. Enabled after cutover.
+  movement arrow has a fresh snapshot every day. Production runs `bm2`, so the
+  snapshot no longer depends on a manual run; the deploy installs the timer and
+  enabling it is the operator step in [`../ops/cutover.md`](../ops/cutover.md).
 - **Caddy**: `api.qouver.com` is one site with many `handle` blocks; the
   majadu snippet is a **handler block** imported inside that site, the `/majadu` prefix
   is kept. The one-time steps are in `ops/caddy/Caddyfile.api.qouver.com`.
@@ -179,17 +182,21 @@ E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
 
 ## 8. Remaining work
 
-The rewrite backlog is done; what remains is in [`roadmap.md`](roadmap.md). In short:
+The rewrite backlog is done; what remains is operations and measurement.
 
 - **Operations, waiting on the VPS/time:** T-063 rehearsal (and therefore the
-  T-060/061/065 evidence), T-074 soak, removal of `:v1-final` after 30 days (T-082),
+  T-060/061/065 evidence: production `caddy validate`, Quadlet parsing, digest
+  `podman pull`, stopwatch rollback), T-074 soak (`ops/scripts/loadtest.mjs`
+  reports p50/p95/p99 and RSS through `./task loadtest`; the 1 million request +
+  50 watcher run against the VPS is still outstanding, so the ceiling stays
+  unproven until it is archived), removal of `:v1-final` after 30 days (T-082),
   T-108 force-push postponed by owner decision.
 - **Gaps outside the plan:** `platform.outbox` producer (realtime is still
   per-process). Coverage is measured after the gcov attribution fix, and CI
-  judges `coverage-baseline-linux.json` (89.06% of 21,219 lines on 2026-11-10,
-  refreshed after waves 3 and 4; every fall in covered lines was checked against
-  the deletions that caused it). The lowest domains are `tools` 81.04%,
-  `modules/player` 89.51% and `modules/session` 91.48%.
+  judges `coverage-baseline-linux.json` (89.14% of 21,295 lines on 2026-11-11;
+  every fall in covered lines was checked against the deletions that caused it).
+  The lowest domains are `tools` 81.01%, `modules/player` 89.51% and `shared`
+  91.55%.
 - **Known data differences (accepted):** Salma, Youri, Zaid, and Firda
   differ from the v1 `bm.rank_snapshots` because the v1 ledger for the 2026-10-31 session
   was ingested before that session was edited. Owner decision: v2 follows current

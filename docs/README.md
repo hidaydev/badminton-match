@@ -5,7 +5,6 @@ lowercase and hyphens; `README.md` is the only exception.
 
 ## Start Here
 
-- [`../HANDOVER.md`](../HANDOVER.md): state of the release branch when work changed hands (2026-11-10)
 - [`handbook/README.md`](handbook/README.md): index handbook
 - [`handbook/current-status.md`](handbook/current-status.md): current condition, infrastructure, testing
 - [`handbook/architecture.md`](handbook/architecture.md): FE/BE architecture, WebSocket, PWA
@@ -15,9 +14,12 @@ lowercase and hyphens; `README.md` is the only exception.
 
 | Folder | Contents |
 |---|---|
-| `handbook/` | runtime: product, architecture, schema, routes, status, roadmap, scoring presets, `deps.lock` format |
+| `handbook/` | runtime: product overview, architecture, schema, routes, status, roadmap, requirements register, scoring presets, `coverage-debt.json`, `coverage-exclusions.json`, `flaky-tests.json`, `deps.lock` format |
 | `ops/` | access and incidents, releases, OAuth, cutover, pre-push hook, RC environment |
-| `docs/` root | [`decisions.md`](decisions.md), [`design-system.md`](design-system.md), [`privacy.md`](privacy.md) |
+| `db/` | tenancy and row level security options for DB-16 |
+| `qa/` | exploratory charters and session notes |
+| `tasks/` | task breakdowns and open-item lists |
+| `docs/` root | [`decisions.md`](decisions.md), [`design-system.md`](design-system.md), [`privacy.md`](privacy.md), [`test-plan.md`](test-plan.md) |
 
 ## Conventions
 

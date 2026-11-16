@@ -20,7 +20,8 @@ A finding closes with one of three artefacts, in this order of preference:
 
 1. A test or a guard in this repository that fails when the behaviour returns.
    `e2e/api.spec.ts` drives the real API from the e2e harness, and
-   `tools/qa/tests/` holds checks that need the delivery layer but not a socket.
+   `tools/qa/stub_router_test.nim` holds checks that need the delivery layer but
+   not a socket.
 2. A session note that records the gap and names the layer that still has to
    change, when the fix is outside the QA tree (`apps/`, `db/`, `ops/`).
 3. A session note that records the behaviour as intended, with the contract
@@ -29,8 +30,11 @@ A finding closes with one of three artefacts, in this order of preference:
 An observation made by reading source only belongs in the note as an
 assumption, never as a result.
 
+A session note whose fix has shipped is deleted to git history rather than left as
+a stale record.
+
 ## Index
 
 | Charter | Sessions |
 |---|---|
-| `charter-http-boundary.md` | `QAE-02`, `QAE-03`, `QAE-04`, `QAE-05`, `QAE-06` |
+| `charter-http-boundary.md` | `QAE-03`, `QAE-04`, `QAE-06` |

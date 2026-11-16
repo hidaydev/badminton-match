@@ -512,8 +512,8 @@ one statement.
 session has, what they are called, and whether a coordinate is valid rather than
 merely present. With materialisation every coordinate exists, so a ceiling (or a
 court set declared at session creation) is the only remaining way to say a game
-points at a court the session does not have. That is a product answer, and
-`docs/db/court-reference.md` records it as the open half of the finding.
+points at a court the session does not have. That is a product answer, and it
+stays the open half of the finding.
 
 ## ADR-018 · Tenancy is guarded at build time, not by row level security
 
@@ -561,7 +561,7 @@ that connect as `bm2_owner` are not constrained by it.
 
 **Date:** 2026-11-10
 **Audit finding:** DB-06
-**Status:** Deferred (blocked on the deploy script)
+**Status:** Applied (deploy seed step, 2026-11-16); the seed-ownership half stays open
 
 **Decision:** `db/seeds/platform_config.sql` keeps `on conflict (key) do
 nothing`. A release that adds a config key must add its seed row in the same
@@ -582,6 +582,14 @@ which the build already refuses.
 is replaced by it). If the seed then runs on every release, decide explicitly
 whether `do update` is wanted, and change the `dbtools seed` comment in the same
 commit.
+
+**Update 2026-11-16:** `ops/scripts/deploy-vps.sh:536-541` runs
+`dbtools seed --dir /app/db/seeds` between `migrate` and `verify`, and a failed
+seed fails the deploy, so the step this ADR was blocked on is applied. The
+reopener's second half is now live rather than hypothetical: the seed runs on
+every release, so whether the seed or the operator owns a default — the current
+`on conflict (key) do nothing` versus `do update` — is still an open product
+decision, and a change of answer moves the `dbtools seed` comment with it.
 
 ## ADR-020 · `contract-keys` compares key sets, it does not bind a handler to an operation
 

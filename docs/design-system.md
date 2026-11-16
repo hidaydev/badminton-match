@@ -1,7 +1,7 @@
 # Majadu App — Design System
 
-Version: 2.0.0
-Last reviewed: 2026-11-10
+Version: 2.1.0
+Last reviewed: 2026-11-16
 
 > Formalized and adopted across the codebase. `./task docs-check` fails when
 > either line above goes missing or the review date goes stale.
@@ -23,14 +23,6 @@ the version is not `X.Y.Z`, when the date is not `YYYY-MM-DD` or lies in the
 future, and when the review is more than 90 days old. The limit is deliberate:
 a document nobody has opened for a quarter is describing a codebase that has
 moved, and a red build is a better reminder than a note in a calendar.
-
-Two companions hold the parts of the system that are a decision rather than a
-component:
-
-| Document | Answers |
-|---|---|
-| `docs/design/cta-recipe.md` | Which control to use, its variants, sizes and states, and the raw button inventory behind DS-03 |
-| `docs/design/panel-mapping.md` | Which `Card` variant each of the 64 hand-built panels becomes, and which ones cannot be a `Card` |
 
 ## Typography
 
@@ -103,8 +95,9 @@ palette classes (`slate-*`, `indigo-*`). The intended equivalents:
 
 ## Typography Scale
 
-The steps are declared in `@theme` (`--text-*`). `text-2xs` (11px) is the floor:
-nothing smaller is allowed, and data never uses a size below `text-xs` (12px).
+The steps are declared in `@theme` (`--text-*`). Two of them sit below `text-xs`:
+`text-2xs` (11px) is the floor for body copy, and `text-meta` (10px) is the smaller
+tracked-label token, used only by `label-meta` and never for data.
 
 | Level | Token | Classes | Usage |
 |-------|-------|---------|-------|
@@ -160,13 +153,80 @@ admin screens. `pnpm check:e2e` runs the visual baseline on all three, and the
 `e2e/__screenshots__/{platform}/`; a changed screen is recorded on both
 platforms before review.
 
+## Choosing a primitive
+
+The set is closed. A site that does not fit one of these is a defect in the
+recipe, not a new exception.
+
+| Job | Primitive | Import |
+|---|---|---|
+| An action with a label | `Button` | `components/Button` |
+| Navigation styled as an action | `ButtonLink` | `components/Button` |
+| An action whose label is an icon | `IconButton` | `components/Button` |
+| The whole surface is the target | `Card` with `variant="interactive"` | `components/Card` |
+| Filter or single-choice pill | `Chip` | `components/Chip` |
+| Tab strip | `Tabs` | `components/Tabs` |
+
+Decision order: navigation goes to `ButtonLink`, an icon-only control to
+`IconButton`, a whole-row target to `Card interactive`, a filter to `Chip`, a tab
+strip to `Tabs`, everything else to `Button`.
+
+### Button variants
+
+Five variants. Each has one job, and the class strings stay in
+`components/Button.tsx`.
+
+| Variant | Tokens | Use when | Never |
+|---|---|---|---|
+| `primary` | `bg-accent`, `text-ground`, `font-semibold` | The single forward action of the screen or of one card | Twice in the same card, or next to another `primary` |
+| `secondary` | `border-border`, `text-fg`, hover on `bg-elevated` | A real alternative next to a primary: cancel, retry, back, paging | As a decorative twin of primary when the action is the only one |
+| `danger` | `border-border`, `text-error`, hover on `bg-elevated` | An action that destroys or overwrites data | A reversible action, or a neutral dismiss |
+| `ghost` | `text-fg-dim`, no border, underline on hover | Low-emphasis inline action inside a card, row or block of text | As a row's primary action |
+| `dashed` | dashed `border-border`, `text-fg-dim`, hover border `accent` | An empty slot that adds an item (player, pair, fixed match) | Anywhere the slot is already filled |
+
+### Sizes
+
+Two sizes, both 44px tall (`min-h-11`). `sm` narrows padding and type; it does not
+shrink the tap target.
+
+| Size | Padding | Type | Use |
+|---|---|---|---|
+| `md` | `px-4` | `text-sm` | Page and card level actions |
+| `sm` | `px-3` | `text-xs` | Inside a row, a table cell or a dense toolbar |
+
+### States
+
+Every variant ships these seven states. A variant that cannot show one of them is
+not shipped.
+
+| State | Contract | How it is produced |
+|---|---|---|
+| Default | Readable at WCAG AA on its surface | Variant tokens |
+| Hover | Visible change with no layout shift | Filter or background change, never size |
+| Focus-visible | 2px accent ring with offset, visible on dark and light surfaces | `focus-ring` utility |
+| Active | Scale `0.99`, no ring change | Utility class |
+| Disabled | 50% opacity, `cursor: not-allowed`, no active scale, no hover change | `disabled` attribute |
+| Loading | `aria-busy="true"`, unchanged label, spinner, submit blocked | `loading` prop |
+| Pressed / selected | `aria-pressed` or `aria-selected`, accent border plus accent ink | Toggle and chip only |
+
+Rules that hold across every state:
+
+- Real `<button>` or `<a>`; no `role="button"` on a `div`.
+- `type="button"` is the default, so a button inside a form does not submit by surprise.
+- No nested interactive elements. A `Card interactive` never contains a `Button`.
+- Icon-only controls carry `aria-label` and never an empty label with a tooltip.
+- Disabled is not used to hide a permission the user cannot see; an action the
+  user may not take is absent or explained, not dimmed.
+- Loading keeps the label. Replacing the label with "Loading..." makes the button
+  change width and tells the user nothing about what is in flight.
+
 ## Component Catalogue
 
 Every file in `apps/web/src/components` is listed here. A component is imported
 by name (`import { Button } from '../components/Button'`); there is no barrel.
 Class strings belong in the component, not in this document: the props table and
-the two examples are the contract. Choosing between the primitives is
-`docs/design/cta-recipe.md`; this section is the reference for each one.
+the examples are the contract. Choosing between the primitives is the section
+above; this section is the reference for each one.
 
 ### Button
 
@@ -206,6 +266,19 @@ because it becomes the `aria-label`; `loading` swaps the icon for a spinner.
 
 Anti-example: a `×` button with a `title` and no `aria-label`.
 
+### Icon
+
+`src/components/Icon.tsx` — the one 24px stroke set, drawn in `currentColor`.
+`name` is the glyph (`IconName`), `size` defaults to 20, and every `svg` prop
+passes through. The glyph is `aria-hidden`, so an icon-only control takes its name
+from `IconButton`'s `label`.
+
+```tsx
+<Icon name="chevron-right" size={18} />
+```
+
+Anti-example: a hand-written `<svg>` with its own `strokeWidth` in a page.
+
 ### Chip
 
 `src/components/Chip.tsx` — the filter or single-choice pill. `selected` is
@@ -221,11 +294,15 @@ Anti-example: a `<button>` whose selected state is only a blue background.
 ### Card
 
 `src/components/Card.tsx` — the panel container. `padding` is `none` (default),
-`sm` (p-3) or `md` (p-4); the remaining div props pass through. `CARD_RECIPE`
-is exported for the one component that has to spell the recipe on a `details`.
-`variant="interactive"` is the whole-surface target: it adds the hover and press
-affordances and takes `as` so the card is a real `button` (or a link) instead of
-a clickable div.
+`sm` (p-3), `md` (p-4) or `lg` (p-6); `radius` is `2xl` (default), `xl` or `lg`,
+so adoption keeps the corner each site already had rather than flattening it — the
+three radii stay on purpose. `variant` is `panel` (default), `flush` or
+`interactive`: `flush` adds `overflow-hidden` for children that draw their own
+dividers, such as a list or a table. The remaining div props pass through.
+`CARD_RECIPE` is exported for the one component that has to spell the recipe on a
+`details`. `variant="interactive"` is the whole-surface target: it adds the hover
+and press affordances and takes `as` so the card is a real `button` (or a link)
+instead of a clickable div.
 
 ```tsx
 <Card padding="md" role="group" aria-label="Danger zone">...</Card>
@@ -305,6 +382,20 @@ Anti-example: a `<p style={{ color: 'red' }}>`.
 
 Anti-example: a single "Loading..." line that shifts the layout when data lands.
 
+### Spinner
+
+`src/components/Spinner.tsx` — the one spinner. `size` is the pixel box (12–16px
+covers every inline use) and `className` passes through. It is decorative by
+default; passing `label` turns it into a `role="status"` region marked
+`aria-busy`, which is the only form assistive technology can act on.
+
+```tsx
+<Spinner size={14} label={t('app.saving')} />
+```
+
+Anti-example: an unlabelled spinner standing in for the only signal that a save is
+in flight.
+
 ### PageHeader
 
 `src/components/PageHeader.tsx` — the `h1` and optional subtitle every V2 page
@@ -315,6 +406,47 @@ opens with.
 ```
 
 Anti-example: a page-local `<h1 className="text-xl ...">`.
+
+### Page
+
+`src/components/Page.tsx` — the page column, exported as the `PAGE_COLUMN` class
+string (`mx-auto w-full max-w-3xl px-4`). Every shell header and every page body
+renders inside it, so the title, the back arrow and the content share one left
+edge at every width. A page that needs a narrower column nests inside this one
+instead of shrinking it.
+
+```tsx
+<main id="main" className={`${PAGE_COLUMN} py-4`}>...</main>
+```
+
+Anti-example: a page-local `max-w-` column that shifts the content edge.
+
+### SkipLink
+
+`src/components/SkipLink.tsx` — the first focusable element in a layout. It is
+`sr-only` until focused, then appears above the header with `focus:z-overlay`, so a
+keyboard user reaches `#main` without walking the header controls on every screen.
+It takes no props; the label is `shell.skipToContent`.
+
+```tsx
+<SkipLink />
+```
+
+Anti-example: a shell with no way past its own header.
+
+### RouteChange
+
+`src/components/RouteChange.tsx` — the router-level scroll and focus handling,
+mounted once in `App.tsx` and rendering nothing. A push starts at the top, a pop
+restores the offset of that history entry, and the new screen is announced by
+focusing `main h1` (or `main`, which is focusable for exactly this purpose). The
+first render is a page load, so it leaves the browser's own restoration alone.
+
+```tsx
+<RouteChange />
+```
+
+Anti-example: a screen reader user left with no signal that the page changed.
 
 ### Overlay
 
@@ -333,6 +465,38 @@ handling; the panel stays with the page.
 ```
 
 Anti-example: a page-local `role="tablist"` with its own `querySelectorAll`.
+
+### TabBar
+
+`src/components/TabBar.tsx` — the other tab strip, used by the tournament screen.
+`items`, `value`, `onChange`, `label`, a required `idPrefix` (shared with the
+exported `tabId` and `tabPanelId` helpers), `className` and
+`tabClassName(item, selected)`. It owns the same roving tabindex and arrow/Home/End
+handling as `Tabs`; the difference is that the id scheme and the per-tab look are
+both required rather than defaulted.
+
+```tsx
+<TabBar items={tabs} value={tab} onChange={handleTabChange} label="Views"
+  idPrefix="tournament-tabs" tabClassName={(_item, selected) => tabClass(selected)} />
+```
+
+Anti-example: three unrelated buttons that each set the same view.
+
+### StandingsTable
+
+`src/components/StandingsTable.tsx` — the standings ledger (CMP-07), one row per
+player or team. `layout` picks the shape: `ledger` (default, the five fixed
+columns), `compact` (one line per pair inside a group card), `team` (points pills
+over a member list), `record` (a stage line under the name) and `rank` (a drill-in
+row with a movement arrow). `labels` carries the words, because the component holds
+no literal of its own. Each layout keeps the classes of the surface it replaced, so
+a pixel baseline does not move for a refactor.
+
+```tsx
+<StandingsTable layout="compact" rows={rows} labels={{ wins: 'W', losses: 'L' }} />
+```
+
+Anti-example: a sixth hand-built rank cell beside five others.
 
 ### ClientOutdatedBanner
 
@@ -358,10 +522,43 @@ state. `confirmLabel`, `onConfirm`, `variant`, `disabled`. Never use
 
 Anti-example: `if (window.confirm(...)) merge()`.
 
+### Toast
+
+`src/components/Toast.tsx` — the one toast (DS-24). It carries `role="alert"`
+itself and floats fixed at the top centre; five pages import it.
+
+The rule is **toast for a failed action, inline for a failed place**. A write that
+failed with no element waiting for the message is a toast; a field, row, card or
+list the user has to fix in place keeps its message inline, because a floating box
+loses that association for a screen reader and for a sighted user on a phone. One
+toast per screen: two failures at once are a screen that should show one of them
+inline.
+
+The z ladder is in `src/index.css`: 10 sticky row, 20 dropdown, 30 app header, 40
+toast, 50 overlay. A toast sits **below** an open sheet, because an alert drawn
+over a sheet that owns the focus trap cannot be focused or dismissed and it covers
+the dialog; an alert raised while a sheet is open belongs inside the sheet as an
+inline `ErrorText`.
+
+| Prop | Type | Notes |
+|---|---|---|
+| `message` | `ReactNode` | The sentence the user reads |
+| `onRetry` | `() => void` | Retries the failed action; rendered first |
+| `action` | `ReactNode` | An action that is not a retry, e.g. "Load the server's version"; sits between retry and close |
+| `onDismiss` | `() => void` | Renders the close button; without it the toast stays until the caller clears it |
+
+Nothing here starts a timer: a failure is not an acknowledgement.
+
+```tsx
+{error !== null && <Toast message={error} onRetry={save} onDismiss={clear} />}
+```
+
+Anti-example: a toast for a field error, or two toasts stacked at once.
+
 ### Notification and status
 
-`ErrorText` and `ClientOutdatedBanner` above are the two status surfaces. A
-success message is a `role="status"` paragraph owned by the page.
+`ErrorText`, `ClientOutdatedBanner` and `Toast` above are the three status
+surfaces. A success message is a `role="status"` paragraph owned by the page.
 
 ## Overlay (bottom sheet)
 
@@ -419,7 +616,6 @@ Full-screen is a page, not a dialog (see the list below).
 | ActionsMenu (#14), account menu in HomeLayout (#16) | `role="menu"`, non-modal, must not scroll-lock or trap (tabbing out of that menu is legitimate), and must stay close to the trigger |
 | ConfirmBars (#13), discard confirm scoreboard (#20) | Not dialogs: they have no open/close cycle, deliberately do not cover the screen, and their height is compensated by the content behind them. The only thing to add is Esc and `aria-live` |
 | Tooltip `AnnotatedPlayerName` (#17) | Has no dismissal, `pointer-events-none` |
-| Toast `ErrorBanner` (#18) | `role="alert"`, has no open/close lifecycle |
 | Scoreboard surface (#19) | Not a dialog: a rotated landscape surface, score tap zones, no title, no scrim, no scroll lock |
 | SummaryModal mode `standalone` (#10) | A page, not an overlay; only the non-standalone path uses the primitive |
 
@@ -473,5 +669,4 @@ is the person who decides the next move.
 | `constraints/` | keep for the v1 session editor | web |
 | `ratings/` | keep for the canvas and medal surfaces | web |
 | `HomeLayout.tsx`, `SessionLayout.tsx` | keep until the shell moves | web |
-| `ErrorBanner.tsx` | delete once every caller uses `ErrorText` | web |
 | `hitTarget.ts` | keep; the `hit44` utility is still used by dense rows | web |

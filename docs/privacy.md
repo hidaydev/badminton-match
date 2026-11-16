@@ -34,10 +34,15 @@ not for auditors.
 What is **not** stored: passwords (login is through Google), IP addresses, user
 agents, navigation history, and raw email.
 
-There is only one cookie: the `HttpOnly` session cookie. There are no tokens in
-JavaScript, no `localStorage`, and no third-party cookies. Share links
-(`/s/<code>`) can be opened without a cookie and only show the content of the
-session being shared.
+There is only one cookie: the `HttpOnly` session cookie, and there are no
+third-party cookies. No token and no cookie content is stored in JavaScript.
+`localStorage` holds two navigation preferences and nothing else:
+`majadu.community.slug`, the selected community
+(`apps/web/src/community/storage.ts`), and `last-visited-session`, the session the
+device last opened with its id, title, date, player and game counts, lock state and
+community slug (`apps/web/src/legacy/hooks/useLastSession.ts`). Neither carries
+identity. Share links (`/s/<code>`) can be opened without a cookie and only show
+the content of the session being shared.
 
 ## 3. Retention
 

@@ -36,8 +36,8 @@ is not a receipt: it is the only answer the route gives.
 
 ## Assessment
 
-This is the anti-enumeration design recorded in
-`apps/api/src/app.nim:1481-1512`: an anonymous caller must not be able to tell
+This is the anti-enumeration design recorded in `requestJoin`
+(`apps/api/src/app.nim:1560-1596`): an anonymous caller must not be able to tell
 an accepting community from a closed one, from an unknown slug, or from a body
 that would never be stored. A 4xx for "a session is required" would answer the
 question the response is hiding, so the audit's suggestion and the design

@@ -150,16 +150,15 @@ A separate release candidate runs on the same host: branch
 ## 📌 Status
 
 The v2 rewrite is complete: 76 contract operations, 56 migrations, backend and
-frontend features wired end to end. The v1 Go tree is gone. The release
-candidate `2.0.0-rc.1` runs on the RC instance; the production release chain
-(tag, `release.yml`, digest deploy) has not yet run end to end on the VPS, and
-production still runs v1 until the cutover.
+frontend features wired end to end. The v1 Go tree is gone. `2.0.2` is released
+and runs in production: the tag, the release workflow and the digest deploy have
+each run end to end.
 
-Known gaps, tracked in [`docs/handbook/roadmap.md`](docs/handbook/roadmap.md):
+Known gaps, tracked in [`docs/handbook/current-status.md`](docs/handbook/current-status.md):
 
 - `platform.outbox` has no producer, so realtime is in-memory and the API must
   stay a single instance;
-- the cutover rehearsal and the VPS-side checks are prepared but not executed.
+- the cutover ran, but the D-3 rehearsal before it did not.
 
 ---
 
@@ -172,7 +171,7 @@ Start at [`docs/README.md`](docs/README.md). The short version:
 | [`docs/handbook/current-status.md`](docs/handbook/current-status.md) | What exists today: stack, contract, gates, infrastructure |
 | [`docs/handbook/architecture.md`](docs/handbook/architecture.md) | Request pipeline, modules, realtime, layers |
 | [`docs/handbook/data-model.md`](docs/handbook/data-model.md) | Schemas, tables, tenancy, config registry |
-| [`docs/handbook/features-and-routes.md`](docs/handbook/features-and-routes.md) | Web routes and the 75 API operations |
+| [`docs/handbook/features-and-routes.md`](docs/handbook/features-and-routes.md) | Web routes and the 76 API operations |
 | [`docs/ops/operations.md`](docs/ops/operations.md) | Access holders, incident format, routine checks |
 | [`docs/ops/release.md`](docs/ops/release.md) | Release order, exit criteria, expand/contract, rollback |
 | [`docs/ops/cutover.md`](docs/ops/cutover.md) | Cutover, rehearsal, rollback, consequences |
