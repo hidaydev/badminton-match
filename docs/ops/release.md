@@ -104,7 +104,7 @@ published before `main` is pushed.
    ```
 
    `Coverage` runs on `main`, `release/**` and pull requests only, and
-   `Release: verify tag` refuses a commit with no completed, successful Coverage
+   `Release: tag integrity` refuses a commit with no completed, successful Coverage
    run (QA-15). Tagging a commit that was never pushed therefore waits five
    minutes and fails. `main` cannot be used for this step because pushing it
    triggers the deploy before the image exists, which is why the branch exists.
@@ -121,10 +121,10 @@ published before `main` is pushed.
    git push origin HEAD:main
    ```
 
-   The tag triggers `release.yml` (verify → image → publish). `main` triggers the
-   deploy webhook, which waits for the `sha-<7>` image of that commit. The reverse
-   order is still wrong: the deploy would wait out its pull attempts and fail at
-   the `pull` step instead of deploying.
+   The tag triggers `release.yml` (tag integrity, static and test → image →
+   publish). `main` triggers the deploy webhook, which waits for the `sha-<7>`
+   image of that commit. The reverse order is still wrong: the deploy would wait
+   out its pull attempts and fail at the `pull` step instead of deploying.
 7. Wait for `release.yml` to go green and record the digest from the GitHub
    Release body. `release.yml` never creates or moves a tag; the tag always comes
    from the operator.
@@ -136,7 +136,7 @@ published before `main` is pushed.
 
 ### What the tag now refuses
 
-`Release: verify tag` runs four checks before any build. Each one fails closed,
+`Release: tag integrity` runs four checks before any build. Each one fails closed,
 and each one is reproducible on a laptop:
 
 | Check | Refuses | Reproduce locally |
