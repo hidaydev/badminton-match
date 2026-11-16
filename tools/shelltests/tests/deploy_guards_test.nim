@@ -614,6 +614,66 @@ suite "deploy-vps.sh":
     check not argv.contains("secret-token")
     check not readFile(fixture.root / "logs" / "deploy.log").contains("secret-token")
 
+  # OPS-24: the image job pushes the tag and signs the digest in two steps. A
+  # deploy that pulled in between used to fail 3 seconds later with "no
+  # signatures found" and leave production on the previous commit, which is
+  # exactly what happened on 2026-11-16 at a65ef1a. The wait is for that answer
+  # only, so the case below pairs with the wrong-signature one.
+  test "a signature that lands after the pull is waited for":
+    let fixture = newFixture("deploy-sign-late")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    let state = fixture.root / "cosign.signed"
+    fixture.installFake("cosign", "#!/bin/sh\n" &
+      "if [ -f '" & state & "' ]; then exit 0; fi\n" &
+      ": >'" & state & "'\n" &
+      "echo 'Error: no signatures found' >&2\n" &
+      "exit 1\n")
+    let sleepLog = fixture.root / "sleep.log"
+    fixture.installFake("sleep", "#!/bin/sh\necho \"sleep $*\" >>'" & sleepLog & "'\nexit 0\n")
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
+    privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    let deployLog = readFile(fixture.root / "logs" / "deploy.log")
+    check deployLog.contains("is not signed yet; the image job is still signing it (attempt 1 of 18)")
+    check deployLog.contains("verified at revision")
+    check readFile(sleepLog).contains("sleep 10")
+    check not result.stdout.contains("cosign verify failed")
+
+  test "a wrong signature fails on the first attempt":
+    # A tampered digest or a foreign key is not a race: waiting cannot fix it,
+    # and a retry loop that swallowed it would turn a failed deploy into a slow
+    # one.
+    let fixture = newFixture("deploy-sign-wrong")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    fixture.installFake("cosign",
+      "#!/bin/sh\necho 'Error: verifying signature: invalid signature' >&2\nexit 1\n")
+    let sleepLog = fixture.root / "sleep.log"
+    fixture.installFake("sleep", "#!/bin/sh\necho \"sleep $*\" >>'" & sleepLog & "'\nexit 0\n")
+    createDir(fixture.root / "monorepo")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
+    privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    check result.exitCode == 1
+    check result.stdout.contains("cosign verify failed")
+    check not fileExists(sleepLog)
+
   test "a world-readable credential file fails the deploy":
     let fixture = newFixture("deploy-env-mode")
     defer: removeDir(fixture.root)
