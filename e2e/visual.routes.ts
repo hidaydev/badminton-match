@@ -1,5 +1,8 @@
 import { t } from '../apps/web/src/i18n'
 
+/** A session the write specs may mutate, and the title its page shows. */
+export type WritableSession = { id: string; title: string }
+
 /** Data the global setup creates; specs read it through `state()`. */
 export type E2eState = {
   communitySlug: string
@@ -17,10 +20,14 @@ export type E2eState = {
    */
   shareCode: string
   shareTitle: string
-  /** One writable session per project: the specs mutate it, so they must not share. */
-  writableByProject: Record<string, string>
-  /** A second writable session per project, for the two-writer spec. */
-  occByProject: Record<string, string>
+  /**
+   * One writable session per project and repeat: the specs mutate it, and
+   * `--repeat-each` runs the same test several times, so they must not share.
+   * Indexed by `test.info().repeatEachIndex`.
+   */
+  writableByProject: Record<string, WritableSession[]>
+  /** A second family per project and repeat, for the two-writer spec. */
+  occByProject: Record<string, WritableSession[]>
   /** Writable sessions live outside the community the baselines pin. */
   writableCommunitySlug: string
   /**

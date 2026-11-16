@@ -8,10 +8,10 @@ import {
   generateGroupMatches,
   initKnockoutMatches,
 } from '../apps/web/src/legacy/utils/tournament'
-import type { APIRequestContext } from 'playwright/test'
+import type { APIRequestContext, FullConfig } from 'playwright/test'
 import { projects } from './browsers'
 import { drawGroups } from './draw'
-import type { E2eState } from './visual.routes'
+import type { E2eState, WritableSession } from './visual.routes'
 
 /**
  * Bootstraps one community with the data the visual baseline needs. Login goes
@@ -46,6 +46,29 @@ export function state(): E2eState {
 }
 
 const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:5173'
+
+/**
+ * How many copies of every test this run makes (`--repeat-each`). Each copy
+ * writes its own session, so the fixture has to create one per copy. The
+ * runner's argv is the only place the count exists before the tests start.
+ */
+function repeatCount(argv: string[]): number {
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index]
+    const value = arg.startsWith('--repeat-each=')
+      ? arg.slice('--repeat-each='.length)
+      : arg === '--repeat-each'
+        ? argv[index + 1]
+        : undefined
+    if (value === undefined) continue
+    const count = Number(value)
+    if (!Number.isInteger(count) || count < 1) {
+      throw new Error(`--repeat-each is not a positive integer: ${value}`)
+    }
+    return count
+  }
+  return 1
+}
 
 type Game = { round: number; court: number; sideA: string[]; sideB: string[] }
 
@@ -96,7 +119,7 @@ async function startLogin(api: APIRequestContext) {
   return (await me.json()) as { id: string }
 }
 
-export default async function globalSetup() {
+export default async function globalSetup(config: FullConfig) {
   // The CSRF guard needs the origin a browser would send; this context has none.
   const api = await request.newContext({ baseURL, extraHTTPHeaders: { Origin: baseURL } })
   try {
@@ -242,12 +265,16 @@ export default async function globalSetup() {
     // There are two families, because `fullyParallel` runs one spec file's
     // tests beside another file's: `E2E Writable` belongs to the single-writer
     // spec and `E2E OCC` to the two-writer one, so neither can bump the other's
-    // version mid-test. Both are named per project so the sessions list reads as
-    // a fixture, not as duplicates someone forgot to delete.
+    // version mid-test. Each family also gets one session per repeat, because
+    // `--repeat-each` runs the same test in parallel with itself and two copies
+    // cannot share a version. All of them are named per project and repeat, so
+    // the sessions list reads as a fixture, not as duplicates someone forgot to
+    // delete.
     async function writableSessionFor(prefix: string, date: string,
-        project: (typeof projects)[number]): Promise<string> {
+        project: (typeof projects)[number], repeat: number): Promise<WritableSession> {
+      const title = `${prefix} ${project.name} r${repeat + 1}`
       const created = await api.post('/api/c/e2e-writes/sessions', {
-        data: { title: `${prefix} ${project.name}`, date, startTime: '19:00' },
+        data: { title, date, startTime: '19:00' },
       })
       if (created.status() !== 201) {
         throw new Error(`${prefix} session: ${created.status()} ${await created.text()}`)
@@ -256,16 +283,21 @@ export default async function globalSetup() {
       await putGames(api, 'e2e-writes', id, [
         { round: 0, court: 0, sideA: [writePlayerIds[0], writePlayerIds[1]], sideB: [writePlayerIds[2], writePlayerIds[3]] },
       ], 1)
-      return id
+      return { id, title }
     }
 
-    const writableByProject: Record<string, string> = {}
-    const occByProject: Record<string, string> = {}
+    const repeats = repeatCount(config.argv)
+    const writableByProject: Record<string, WritableSession[]> = {}
+    const occByProject: Record<string, WritableSession[]> = {}
     for (const project of projects) {
-      writableByProject[project.name] = await writableSessionFor(
-        'E2E Writable', '2026-11-05', project)
-      occByProject[project.name] = await writableSessionFor(
-        'E2E OCC', '2026-11-06', project)
+      writableByProject[project.name] = []
+      occByProject[project.name] = []
+      for (let repeat = 0; repeat < repeats; repeat += 1) {
+        writableByProject[project.name].push(await writableSessionFor(
+          'E2E Writable', '2026-11-05', project, repeat))
+        occByProject[project.name].push(await writableSessionFor(
+          'E2E OCC', '2026-11-06', project, repeat))
+      }
     }
 
     // The draw uses the same round robin and bracket slots the app does (and
