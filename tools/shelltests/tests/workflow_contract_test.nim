@@ -52,8 +52,10 @@ suite "workflow contract":
     check text.contains("cancel-in-progress: ${{ github.event_name == 'pull_request' }}")
     check text.contains("nimcache-${{ runner.os }}-")
     check text.contains("coverage-gate:")
+    # `image` waits for the gate and `coverage-gate` reports as its own check, so
+    # neither can be a dependency of the gate without a cycle or a 12-minute hold.
     check text.contains(
-      "needs: [api-check, api-test, contract, supply-chain, web, e2e, mutation, image, coverage-gate]")
+      "needs: [api-check, api-test, contract, supply-chain, web, e2e, mutation]")
 
   # OPS-20: the coverage gate used the distro tools and could be cancelled by
   # the next push.
