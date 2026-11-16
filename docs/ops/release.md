@@ -17,6 +17,7 @@ do not consider them tested.
 | tag `v<version>` | SSH-signed, created by the operator | `.github/workflows/release.yml` |
 | `.github/allowed_signers` | the public half of the release signing key, one key line; **owned by the owner**, committed by the owner | `git verify-tag` in `release.yml`, `./task ci-guards --release` |
 | image `ghcr.io/hidaydev/badminton-match:v<version>` | one build per tag | `deploy-vps.sh` (pull by digest) |
+| image `ghcr.io/hidaydev/badminton-match:sha-<7>` and `:main` | one build per push to main, signed with the same key | nothing yet; `deploy-vps.sh` still deploys the release digest |
 | `digest: sha256:…` line in the GitHub Release body | the only digest the deploy accepts, signed by `cosign` | `deploy-vps.sh`, `cutover.sh` |
 | `cosign.pub` in `env/` | verifies the image signature before the pull | `deploy-vps.sh`, `cutover.sh` |
 
@@ -41,6 +42,16 @@ exist, the container must be running and `/version` must report the same
 version. Anything else deploys again and says which check failed. That is why the tag
 must already be published **and** its image must already exist before `main` is
 pushed.
+
+`ci.yml` publishes `sha-<7>` and `main` on every push to main, signed with the
+release key, so a commit on main always has a pullable image and a hotfix does
+not need a tag before the bytes exist. The deploy does not follow that tag yet:
+it still resolves the digest from the `v<version>` release, because on this
+repository a deploy runs migrations and the signed tag is the gate that decides
+which tree may migrate production. Pointing the deploy at `sha-<7>` is a
+separate decision, and it needs the `VERSION`-keyed skip in `deploy-vps.sh` to
+become commit-keyed first, or the first main image would make the following
+release skip as "already live".
 
 ## 2. Release sequence
 
