@@ -94,7 +94,7 @@ project instead of a spec inside an existing one because the checks talk to a
 socket, not to a screen: running them once is the point, and the width they
 would inherit from a phone says nothing.
 
-Firefox is not part of the suite. Its macOS build (revision 1555, pinned in
+Firefox is not part of the suite. Its macOS build (revision 1572, pinned in
 `deps.lock`) only starts with `CFFIXED_USER_HOME` pointed at an empty directory,
 and the owner chose not to carry that workaround.
 

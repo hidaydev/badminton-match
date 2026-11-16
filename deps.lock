@@ -1,7 +1,7 @@
 # deps.lock — pinned toolchain, Nim packages, and gate tools.
 # Format: docs/handbook/deps-format.md. Verify with ./task deps-check.
 # tree = sha256 over the sorted entry lines below (comments excluded).
-tree 85de4818787e0cf792d9cf21bc334c7dd28bfe4d13fe27f86682b472b551e4c2
+tree a5d46cc15877498745d71a1258719bdfead21857efab612d3c449c19d5fef31d
 
 # Nim toolchain
 nim 2.4.0 toolchain:nim -
@@ -44,7 +44,7 @@ advisory nim:webby 325d6ade0970562bee7d7d53961a2c3287f0c4bc none
 advisory nim:db_connector 29450a2063970712422e1ab857695c12d80112a6 none
 
 # Frontend gate tools (T-072)
-playwright 1.64.1 npm:playwright -
+playwright 1.65.0 npm:playwright -
 @axe-core/playwright 4.14.0 npm:@axe-core/playwright -
 
 # CI-only scanner (SEC-05). The workflow downloads this exact asset and verifies
@@ -58,11 +58,11 @@ osv-scanner 2.7.0 release:https://github.com/google/osv-scanner/releases/downloa
 gitleaks 8.30.1 release:https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
 
 # Playwright browser builds (revision directory names under the browser cache)
-chromium 1248 playwright-browser:chromium -
-chromium_headless_shell 1248 playwright-browser:chromium_headless_shell -
+chromium 1254 playwright-browser:chromium -
+chromium_headless_shell 1254 playwright-browser:chromium_headless_shell -
 ffmpeg 1013 playwright-browser:ffmpeg -
-firefox 1555 playwright-browser:firefox -
-webkit 2370 playwright-browser:webkit -
+firefox 1572 playwright-browser:firefox -
+webkit 2388 playwright-browser:webkit -
 
 # Locally served fonts (sha256 of the file bytes)
 edosz - repo:apps/web/public/edosz.ttf bc67cf1c852c6d4ffbb7bc8fb4cd702d293ee49bda3de12c94e3635d80a4d55b
