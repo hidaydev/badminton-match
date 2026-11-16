@@ -1786,7 +1786,7 @@ suite "rollback.sh":
       "WARNING: abandoning 3 row(s) written since the cutover")
     check result.stdout.contains("rollback complete")
 
-  test "a Caddy reload failure ends with v1 running and one alert":
+  test "a Caddy apply failure ends with v1 running and one alert":
     let fixture = newFixture("rollback-caddy")
     defer: removeDir(fixture.root)
     simFakes(fixture)
@@ -1804,9 +1804,9 @@ suite "rollback.sh":
     # The service is back before Caddy is touched, and the failure names the
     # state the site is left in.
     check rollbackLog.contains("v1 answers /healthz")
-    check rollbackLog.contains("ERROR: Caddy reload failed")
+    check rollbackLog.contains("ERROR: Caddy config was not applied")
     check rollbackLog.find("v1 answers /healthz") <
-      rollbackLog.find("ERROR: Caddy reload failed")
+      rollbackLog.find("ERROR: Caddy config was not applied")
     let calls = readFile(systemctlLog)
     check calls.contains("restart majadu-api")
     check calls.contains("start majadu-alert@rollback.service")

@@ -30,7 +30,7 @@ APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"
 SERVICE="${MAJADU_SERVICE:-majadu-api}"
 LOCAL_IMAGE="${MAJADU_IMAGE:-localhost/majadu-api}"
 CADDY_CONFIG="${MAJADU_CADDY_CONFIG:-/etc/caddy/Caddyfile}"
-CADDY_RELOAD="${MAJADU_CADDY_RELOAD:-sudo systemctl reload caddy}"
+CADDY_RELOAD="${MAJADU_CADDY_RELOAD:-sudo systemctl restart caddy}"
 CADDY_VALIDATE="${MAJADU_CADDY_VALIDATE:-caddy validate}"
 SYSTEMCTL="${MAJADU_SYSTEMCTL_CMD:-systemctl --user}"
 BM2_DB="${MAJADU_BM2_DB:-bm2}"
@@ -239,7 +239,7 @@ if ! $CADDY_VALIDATE --config "$CADDY_CONFIG" --adapter caddyfile >/dev/null; th
   fail "Caddy rejected the v1 snippet; v1 is running and healthy, the site is not switched"
 fi
 if ! $CADDY_RELOAD; then
-  fail "Caddy reload failed (admin off?); v1 is running and healthy, the site is not switched"
+  fail "Caddy config was not applied; v1 is running and healthy, the site is not switched"
 fi
 log "caddy serves the v1 site again"
 
