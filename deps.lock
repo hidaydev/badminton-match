@@ -1,10 +1,10 @@
 # deps.lock — pinned toolchain, Nim packages, and gate tools.
 # Format: docs/handbook/deps-format.md. Verify with ./task deps-check.
 # tree = sha256 over the sorted entry lines below (comments excluded).
-tree a5d46cc15877498745d71a1258719bdfead21857efab612d3c449c19d5fef31d
+tree 7f0b9378ff865cef73d131333b22bcac84ad32a211086094286c7eb76cf4a000
 
 # Nim toolchain
-nim 2.4.0 toolchain:nim -
+nim 2.4.2 toolchain:nim -
 
 # Container base images (manifest-list digests pinned in apps/api/Dockerfile).
 # The fourth field must equal the digest on the matching FROM line.

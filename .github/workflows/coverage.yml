@@ -43,7 +43,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  NIM_VERSION: "2.4.0"
+  NIM_VERSION: "2.4.2"
 
 jobs:
   measure:

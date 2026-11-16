@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  NIM_VERSION: "2.4.0"
+  NIM_VERSION: "2.4.2"
 
 # The runner image is pinned instead of `ubuntu-latest`. The `ubuntu-latest`
 # label moved to Ubuntu 26 on 2026-10-19 and broke the pinned lcov build, so the
