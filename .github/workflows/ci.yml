@@ -662,6 +662,7 @@ jobs:
 
   image:
     name: "Image: build"
+    needs: [gate]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     # OPS-21: a push to main publishes the API image the host can pull, so every
@@ -671,6 +672,9 @@ jobs:
     # repos. The versioned `v<version>` tag stays the release workflow's own
     # artifact; this job never writes it, and a pull request builds the same
     # image with `push: false` so the PR check stays read-only.
+    # `needs: [gate]` is what makes "published" mean "checks are green": the tag
+    # appears after the gate, and the host waits for it instead of reading a
+    # missing tag as "this half did not change".
     permissions:
       contents: read
       packages: write
@@ -804,7 +808,11 @@ jobs:
     name: "Gate"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    needs: [api-check, api-test, contract, supply-chain, web, e2e, mutation, image, coverage-gate]
+    # Only the in-repo quality jobs. `image` waits for this job instead of the other
+    # way round, so a tag is published only for a commit whose checks are green.
+    # `coverage-gate` stays out of it too: it polls another workflow for up to 12
+    # minutes and keeps reporting as its own check, so it must not hold the image back.
+    needs: [api-check, api-test, contract, supply-chain, web, e2e, mutation]
     if: always()
     steps:
       - name: "Gate: require every job"
@@ -813,6 +821,8 @@ jobs:
         run: |
           echo "$NEEDS"
           # `mutation` is pull-request only; a push run treats it as skipped.
+          # `image` and `coverage-gate` are no longer dependencies: `image` needs this
+          # job, and `coverage-gate` reports on its own.
           echo "$NEEDS" | jq -e '
             to_entries | all(.[];
               .value.result == "success" or
