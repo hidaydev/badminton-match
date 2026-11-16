@@ -15,6 +15,12 @@ const okFake = """#!/bin/sh
 exit 0
 """
 
+# A health endpoint that never answers: the state a container that exits before
+# READY leaves behind.
+const deadCurlFake = """#!/bin/sh
+exit 7
+"""
+
 const podmanFake = """#!/bin/sh
 if [ -n "${FAKE_PODMAN_LOG:-}" ]; then
   printf '%s\n' "$*" >>"$FAKE_PODMAN_LOG"
@@ -267,11 +273,14 @@ suite "deploy-vps.sh":
     check not result.stdout.contains("deploy trigger")
     check not fileExists(podmanLog)
 
-  test "a failure inside the restart step logs, records and alerts":
-    let fixture = newFixture("deploy-restart-trap")
+  test "a failed restart is a warning, and the readiness gate decides":
+    let fixture = newFixture("deploy-restart-warning")
     defer: removeDir(fixture.root)
     simFakes(fixture)
     fixture.installFake("git", gitFake)
+    # The container never becomes ready, which is the state a crash-looping unit
+    # produces; the restart's own exit code is what the gate must stop deciding.
+    fixture.installFake("curl", deadCurlFake)
     let systemctlLog = fixture.root / "systemctl.log"
     fixture.installFake("systemctl", systemctlLogFake)
     let mono = fixture.root / "monorepo"
@@ -291,9 +300,10 @@ suite "deploy-vps.sh":
       "{\"version\":\"1.9.0\",\"commit\":\"abc\",\"digest\":\"sha256:" &
       "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"," &
       "\"schema\":\"0031_old\",\"at\":\"2026-10-01T00:00:00Z\"}\n")
-    # Everything before the restart succeeds; `false` stands in for a systemctl
-    # that refuses the restart, which used to exit through set -e without a log
-    # line, an alert or a state record.
+    # `false` stands in for a systemctl that refuses both restarts: the forward
+    # one and the one inside the rollback. Restart-guard v1.1 rule 8 says neither
+    # may decide the deploy, so the script has to reach the readiness gate, log
+    # both warnings and let the gate record the failure.
     let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
       @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
         ("MAJADU_SKIP_GIT_SYNC", "1"),
@@ -302,12 +312,15 @@ suite "deploy-vps.sh":
       ])
     check result.exitCode != 0
     let deployLog = readFile(fixture.root / "logs" / "deploy.log")
-    check deployLog.contains("ERROR: command failed at line")
-    check deployLog.contains("(step: restart)")
-    check readFile(fixture.root / "deploy" / "last-attempt.json")
-      .contains("\"step\":\"restart\"")
-    check readFile(fixture.root / "deploy" / "last-attempt.json")
-      .contains("\"version\":\"1.9.0\"")
+    check deployLog.contains("WARNING: restart majadu-api returned non-zero")
+    check deployLog.contains("readiness gate failed")
+    check deployLog.contains("WARNING: ROLLBACK restart majadu-api returned non-zero")
+    check deployLog.contains("ERROR: readiness gate failed for v")
+    # The record names the gate, not the restart: the restart is no longer the
+    # step that failed.
+    let attempt = parseFile(fixture.root / "deploy" / "last-attempt.json")
+    check attempt["step"].getStr == "readiness"
+    check attempt["version"].getStr == "1.9.0"
     check readFile(fixture.root / "deploy" / "last-release.json")
       .contains("\"version\":\"1.9.0\"")
     check readFile(fixture.root / "deploy" / "last-release.json")
@@ -315,9 +328,6 @@ suite "deploy-vps.sh":
     check readFile(systemctlLog).contains("start majadu-alert@deploy.service")
     # OPS-23: the failure record is one atomic rename, so it always parses and
     # never leaves a temp file behind for the next deploy to trip over.
-    let attempt = parseFile(fixture.root / "deploy" / "last-attempt.json")
-    check attempt["step"].getStr == "restart"
-    check attempt["version"].getStr == "1.9.0"
     for kind, path in walkDir(fixture.root / "deploy"):
       check not path.extractFilename.contains(".tmp")
 
@@ -1786,7 +1796,7 @@ suite "rollback.sh":
       "WARNING: abandoning 3 row(s) written since the cutover")
     check result.stdout.contains("rollback complete")
 
-  test "a Caddy reload failure ends with v1 running and one alert":
+  test "a Caddy apply failure ends with v1 running and one alert":
     let fixture = newFixture("rollback-caddy")
     defer: removeDir(fixture.root)
     simFakes(fixture)
@@ -1804,9 +1814,9 @@ suite "rollback.sh":
     # The service is back before Caddy is touched, and the failure names the
     # state the site is left in.
     check rollbackLog.contains("v1 answers /healthz")
-    check rollbackLog.contains("ERROR: Caddy reload failed")
+    check rollbackLog.contains("ERROR: Caddy config was not applied")
     check rollbackLog.find("v1 answers /healthz") <
-      rollbackLog.find("ERROR: Caddy reload failed")
+      rollbackLog.find("ERROR: Caddy config was not applied")
     let calls = readFile(systemctlLog)
     check calls.contains("restart majadu-api")
     check calls.contains("start majadu-alert@rollback.service")

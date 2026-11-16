@@ -30,7 +30,7 @@ APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"
 SERVICE="${MAJADU_SERVICE:-majadu-api}"
 LOCAL_IMAGE="${MAJADU_IMAGE:-localhost/majadu-api}"
 CADDY_CONFIG="${MAJADU_CADDY_CONFIG:-/etc/caddy/Caddyfile}"
-CADDY_RELOAD="${MAJADU_CADDY_RELOAD:-sudo systemctl reload caddy}"
+CADDY_RELOAD="${MAJADU_CADDY_RELOAD:-sudo systemctl restart caddy}"
 CADDY_VALIDATE="${MAJADU_CADDY_VALIDATE:-caddy validate}"
 SYSTEMCTL="${MAJADU_SYSTEMCTL_CMD:-systemctl --user}"
 BM2_DB="${MAJADU_BM2_DB:-bm2}"
@@ -230,16 +230,16 @@ fi
 
 # ---------------------------------------------------------------------------
 # Caddy last: the site snippet is optional relative to a running service, and
-# the live server runs Caddy with `admin off`, which makes `systemctl reload`
-# fail. Point the active snippet at v1 and try to reload, but a failure here is
-# a paged partial rollback, not a dead site.
+# the live server runs Caddy with `admin off`, so a reload has no endpoint to
+# reach; the script restarts Caddy instead. Point the active snippet at v1, and
+# a failure there is a paged partial rollback, not a dead site.
 # ---------------------------------------------------------------------------
 ln -sfn "$CADDY_DIR/site-v1.caddy" "$CADDY_ACTIVE"
 if ! $CADDY_VALIDATE --config "$CADDY_CONFIG" --adapter caddyfile >/dev/null; then
   fail "Caddy rejected the v1 snippet; v1 is running and healthy, the site is not switched"
 fi
 if ! $CADDY_RELOAD; then
-  fail "Caddy reload failed (admin off?); v1 is running and healthy, the site is not switched"
+  fail "Caddy config was not applied; v1 is running and healthy, the site is not switched"
 fi
 log "caddy serves the v1 site again"
 

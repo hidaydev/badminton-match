@@ -59,9 +59,10 @@
 #    its own line. The rest of log_access (output, format) stays as it is, so
 #    other applications keep their logs unchanged.
 #
-# 4. Validate and reload before trusting it:
+# 4. Validate and restart before trusting it (this server's Caddyfile sets
+#    `admin off`, so `caddy reload` has no endpoint to reach):
 #      caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-#      sudo systemctl reload caddy
+#      sudo systemctl restart caddy
 #
 # The snippets themselves are handler blocks:
 #   site-v1.caddy          -> reverse proxy 127.0.0.1:8080 (v1, schema bm)

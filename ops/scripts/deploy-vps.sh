@@ -606,14 +606,22 @@ for SRC in "$MONO_DIR"/ops/scripts/*.sh; do
 done
 
 STEP="restart"
-service restart "$SERVICE" >>"$LOG" 2>&1
+# Rule 8 (restart-guard v1.1): a non-zero restart is a warning, never the end of
+# the deploy. Here the ERR trap calls fail(), which alerts and exits without
+# rolling back, so an unguarded restart left :local on an image that never
+# became ready and the readiness gate never ran.
+service restart "$SERVICE" >>"$LOG" 2>&1 \
+  || log "WARNING: restart $SERVICE returned non-zero; unit may be crash-looping, checking the readiness gate anyway"
 
 STEP="readiness"
 if ! wait_ready; then
   log "readiness gate failed; rolling back to :prev: schema $PREV_SCHEMA -> $SCHEMA (the schema is not rolled back, so :prev must still serve $SCHEMA)"
   if podman image exists "$LOCAL_IMAGE:prev"; then
     podman tag "$LOCAL_IMAGE:prev" "$LOCAL_IMAGE:local"
-    service restart "$SERVICE" >>"$LOG" 2>&1 || true
+    # Same rule for the restore restart: it must not abort before the readiness
+    # check below and the alert inside fail(); a failure here is logged instead.
+    service restart "$SERVICE" >>"$LOG" 2>&1 \
+      || log "WARNING: ROLLBACK restart $SERVICE returned non-zero; unit may be crash-looping, checking readiness anyway"
     if wait_ready; then
       log "rolled back: :prev answers /readyz"
     else
