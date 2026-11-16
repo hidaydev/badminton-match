@@ -107,7 +107,15 @@ proc report(options: Options, current, next: Version, tag: string,
   echo "next steps (run by hand from the repository root; nothing is tagged or pushed here):"
   echo "  git add VERSION CHANGELOG.md"
   echo "  git commit -m \"chore(release): v" & $next & "\""
-  echo "  git tag -s -F " & notesPath & " v" & $next
+  # SEC-03: release.yml verifies the tag with `git verify-tag` against
+  # `.github/allowed_signers` under `gpg.format=ssh`. A bare `git tag -s` follows
+  # the committer's default, which is OpenPGP here, and the gate rejects that
+  # signature, so the format is stated on the command line instead of assumed
+  # from configuration the operator cannot see from this output.
+  echo "  git -c gpg.format=ssh -c user.signingkey=~/.ssh/id_ed25519.pub \\"
+  echo "    tag -s -F " & notesPath & " v" & $next
+  echo "  git -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=.github/allowed_signers \\"
+  echo "    verify-tag v" & $next & "   # the gate's own check, run it before pushing"
   # The tag must be pushed before main: the deploy webhook on main reads the
   # release that the tag run publishes, and the reverse order makes the deploy
   # fail at resolve-digest.
@@ -132,8 +140,8 @@ proc main*() =
       "; bump VERSION with the release that created the tag")
   if tag.len == 0 and not options.baseline:
     fail(program, "no baseline tag: create v" & $current &
-      " first (git tag -s v" & $current & "), or pass --baseline to cut " &
-      $current & " as the first release")
+      " first (an SSH-signed `git tag -s`, see docs/ops/release.md), or pass " &
+      "--baseline to cut " & $current & " as the first release")
   if isDirty(options.repo):
     fail(program, "working tree is dirty; commit or stash before preparing a release")
   var commits: seq[Commit] = @[]

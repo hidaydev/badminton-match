@@ -84,7 +84,7 @@ published before `main` is pushed.
    `--baseline`; without it the tool stops at
 
    ```text
-   release: no baseline tag: create v2.0.0 first (git tag -s v2.0.0), or pass --baseline to cut 2.0.0 as the first release
+   release: no baseline tag: create v2.0.0 first (an SSH-signed `git tag -s`, see docs/ops/release.md), or pass --baseline to cut 2.0.0 as the first release
    ```
 
    That message is the reference behaviour, and the runbook keeps it rather than
@@ -94,9 +94,11 @@ published before `main` is pushed.
    working tree is clean and the last tag matches `VERSION`.
 3. Commit `chore(release): v<version>`.
 4. `git -c gpg.format=ssh -c user.signingkey=~/.ssh/id_ed25519.pub
-   tag -s -F .cache/release/v<version>.md v<version>`. The format is stated
-   explicitly because the committer's default is OpenPGP and `release.yml`
-   verifies SSH signatures.
+   tag -s -F .cache/release/v<version>.md v<version>`, then the matching
+   `git -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=.github/allowed_signers
+   verify-tag v<version>` before pushing. `./task release` prints both lines in
+   this form; the format is stated explicitly because the committer's default is
+   OpenPGP and `release.yml` verifies SSH signatures.
 5. **Push the tag first**, then `main`:
 
    ```sh

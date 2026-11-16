@@ -216,7 +216,16 @@ suite "release command line":
     check run.output.contains("release: apply")
     check run.output.contains("release: wrote VERSION, CHANGELOG.md and .cache/release/v1.5.0.md")
     check run.output.contains("  git add VERSION CHANGELOG.md")
-    check run.output.contains("  git tag -s -F .cache/release/v1.5.0.md v1.5.0")
+    # SEC-03: the printed tag command states the SSH format, because a bare
+    # `git tag -s` follows the committer's OpenPGP default and release.yml
+    # rejects that signature. The verify line is the gate's own check.
+    check run.output.contains(
+      "  git -c gpg.format=ssh -c user.signingkey=~/.ssh/id_ed25519.pub \\\n" &
+      "    tag -s -F .cache/release/v1.5.0.md v1.5.0")
+    check run.output.contains(
+      "  git -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=.github/allowed_signers \\\n" &
+      "    verify-tag v1.5.0")
+    check not run.output.contains("  git tag -s -F")
     check run.output.contains("  git push origin main")
     check run.output.contains("  git push origin refs/tags/v1.5.0")
     check run.output.contains(
