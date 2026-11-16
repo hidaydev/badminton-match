@@ -78,6 +78,13 @@ client uses the same-origin `/api` path. Copy `.env.local.example` to
 - `vercel.json` also sets `Cache-Control: no-store` for `/`, `/index.html`, and
   `/s/*`, `Referrer-Policy: no-referrer` and `X-Robots-Tag: noindex` everywhere,
   and immutable caching under `/assets/*`.
+- `ignoreCommand` in `vercel.json` watches `apps/web`, `packages` **and the root
+  `VERSION`**, because `build-info.mjs` bakes the version into the bundle at
+  build time. Without it a release that only bumps `VERSION` is skipped as
+  "no web change" and the login footer keeps reporting the previous version
+  (v2.0.1 shipped that way). It overrides the project's Ignored Build Step in the
+  dashboard; a non-zero exit, including a shallow clone without `HEAD^`, builds
+  instead of skipping.
 
 ### Not verifiable from this repo
 
