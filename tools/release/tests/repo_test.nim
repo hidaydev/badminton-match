@@ -144,6 +144,23 @@ suite "release git helpers":
       subjects.add item.subject
     check subjects.contains("feat: sideline")
 
+  test "logCommits leaves out a release commit and its revert":
+    # v2.0.1's first cut was reverted; the pair cancels out and neither is a
+    # change a CHANGELOG reader can act on.
+    let repo = newRepo("bookkeeping")
+    discard commitFiles(repo, "feat: real change", "", [("a.txt", "a\n")])
+    let release = commitFiles(repo, "chore(release): v2.0.1", "",
+      [("VERSION", "2.0.1\n")])
+    discard git(repo, @["revert", "--no-edit", release])
+    discard commitFiles(repo, "fix: another change", "", [("b.txt", "b\n")])
+
+    let commits = logCommits(repo, "")
+    check commits.len == 2
+    var subjects: seq[string]
+    for item in commits:
+      subjects.add item.subject
+    check subjects == @["fix: another change", "feat: real change"]
+
   test "parseRecord ignores a record without the record separator":
     check parseRecord("").hash == ""
     check parseRecord("deadbeef\x1ffeat: subject\x1fbody").hash == ""
