@@ -230,9 +230,9 @@ fi
 
 # ---------------------------------------------------------------------------
 # Caddy last: the site snippet is optional relative to a running service, and
-# the live server runs Caddy with `admin off`, which makes `systemctl reload`
-# fail. Point the active snippet at v1 and try to reload, but a failure here is
-# a paged partial rollback, not a dead site.
+# the live server runs Caddy with `admin off`, so a reload has no endpoint to
+# reach; the script restarts Caddy instead. Point the active snippet at v1, and
+# a failure there is a paged partial rollback, not a dead site.
 # ---------------------------------------------------------------------------
 ln -sfn "$CADDY_DIR/site-v1.caddy" "$CADDY_ACTIVE"
 if ! $CADDY_VALIDATE --config "$CADDY_CONFIG" --adapter caddyfile >/dev/null; then
