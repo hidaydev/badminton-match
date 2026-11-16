@@ -61,7 +61,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
         with:
           nim-version: ${{ env.NIM_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -286,7 +286,7 @@ jobs:
       MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
         with:
           nim-version: ${{ env.NIM_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -377,7 +377,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
         with:
           nim-version: ${{ env.NIM_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -481,7 +481,7 @@ jobs:
       # and the timing table behind.
       - name: "Coverage: upload this shard's failure log"
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-coverage-failure-${{ matrix.shard }}
           path: |
@@ -493,7 +493,7 @@ jobs:
       # Only a successful shard uploads, so a failed measurement is never
       # presented as a complete slice.
       - name: "Coverage: upload this shard's parts"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-coverage-parts-${{ matrix.shard }}
           path: .cache/*/coverage/parts-${{ matrix.shard }}-of-4
@@ -527,7 +527,7 @@ jobs:
       # `download-artifact` v7 has no v7.0.1 tag; v7.0.0 is the release in the
       # same line the upload steps pin, and both are first-party actions.
       - name: "Coverage: download the shard parts"
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: release-coverage-parts-*
           path: .cache/release-coverage-parts
@@ -542,7 +542,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
         with:
           nim-version: ${{ env.NIM_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -585,7 +585,7 @@ jobs:
       MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
         with:
           nim-version: ${{ env.NIM_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

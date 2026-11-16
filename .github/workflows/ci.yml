@@ -38,7 +38,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
         with:
           nim-version: ${{ env.NIM_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -95,7 +95,7 @@ jobs:
       # and the timing table on the runner; this makes them downloadable.
       - name: "API: upload failure reports"
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: api-check-results
           path: |
@@ -127,7 +127,7 @@ jobs:
           --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
         with:
           nim-version: ${{ env.NIM_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -242,7 +242,7 @@ jobs:
       # from this shard, uploaded only when the shard fails.
       - name: "API: upload failure reports"
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: api-test-results-${{ matrix.shard }}
           path: |
@@ -258,7 +258,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
         with:
           nim-version: ${{ env.NIM_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -322,7 +322,7 @@ jobs:
           fetch-depth: 0
       # `./task osv-scan` compiles the severity gate (tools/osvgate), which is
       # stdlib only: no nimble packages are installed in this job.
-      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
         with:
           nim-version: ${{ env.NIM_VERSION }}
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
@@ -426,7 +426,7 @@ jobs:
       # output; without the upload the runner deletes it.
       - name: "Web: upload failure reports"
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: web-test-results
           path: |
@@ -452,7 +452,7 @@ jobs:
       MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
         with:
           nim-version: ${{ env.NIM_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -578,7 +578,7 @@ jobs:
       # otherwise delete with the job.
       - name: "E2E: upload failure artifacts"
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-failure-artifacts
           path: |
@@ -599,7 +599,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
         with:
           nim-version: ${{ env.NIM_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -653,7 +653,7 @@ jobs:
       # the runner.
       - name: "Mutation: upload the run"
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mutation-results
           path: .cache/*/mutation/
