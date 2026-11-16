@@ -345,7 +345,8 @@ then rehearsed against the RC database, in this order:
 
 1. `./task release` and `./task release --apply`, then commit
    `chore(release): v<version>`.
-2. `git tag -s -F .cache/release/v<version>.md v<version>`, then
+2. `git -c gpg.format=ssh -c user.signingkey=~/.ssh/id_ed25519.pub
+   tag -s -F .cache/release/v<version>.md v<version>`, then
    `ops/scripts/release-preflight.sh v<version>`. Fix every `MISSING:` line
    before pushing.
 3. `git push origin refs/tags/v<version>` and wait for `release.yml`. Record the
