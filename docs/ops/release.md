@@ -4,8 +4,8 @@ The v2 release runbook: how a version is made, what must be right before it is
 declared done, and how to go back to the previous release on a functional
 regression (not during cutover; for that, see `docs/ops/cutover.md`).
 
-Status: three releases have shipped from this flow (`v2.0.0`, `v2.0.1`,
-`v2.0.2`; §7), and `v2.0.2` is what production runs. The parts that are still
+Status: four releases have shipped from this flow (`v2.0.0`, `v2.0.1`,
+`v2.0.2`, `v2.0.3`; §7), and `v2.0.3` is what production runs. The parts that are still
 unproven are named in §7.
 
 ## 1. Source of truth
@@ -27,8 +27,8 @@ other digest-shaped string appears in the body (for example in the tag message).
 The signature is checked with `cosign verify --key env/cosign.pub` before
 `podman pull`.
 
-The tag is `v<version>` and nothing else: `VERSION` with a `v` in front (`2.0.2`
-on this tree, so `v2.0.2`). The candidate branch carries a pre-release name of
+The tag is `v<version>` and nothing else: `VERSION` with a `v` in front (`2.0.3`
+on this tree, so `v2.0.3`). The candidate branch carries a pre-release name of
 its own;
 the tag never does, and this repository has no release-candidate tag.
 `release.yml` refuses a tag whose name does not match `VERSION` (it fails with
@@ -330,7 +330,7 @@ readiness, not silently write wrong data.
 
 ## 7. Releases recorded
 
-Three releases have shipped from this flow. The digest is not copied into this
+Four releases have shipped from this flow. The digest is not copied into this
 document: the deploy records it in `deploy/last-release.json` on the host, next
 to the commit and the schema, and that file is what a rollback reads.
 

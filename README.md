@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/hidaydev/badminton-match/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hidaydev/badminton-match/actions/workflows/ci.yml)
 [![Coverage gate](https://github.com/hidaydev/badminton-match/actions/workflows/coverage.yml/badge.svg?branch=main)](https://github.com/hidaydev/badminton-match/actions/workflows/coverage.yml)
-![Release](https://img.shields.io/badge/Release-2.0.2-brightgreen?style=flat-square)
+![Release](https://img.shields.io/badge/Release-2.0.3-brightgreen?style=flat-square)
 ![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8%20%2F%206-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![Nim](https://img.shields.io/badge/Nim-2.4-FFE953?style=flat-square&logo=nim&logoColor=black)

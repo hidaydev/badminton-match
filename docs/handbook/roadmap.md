@@ -1,6 +1,6 @@
 # Roadmap
 
-Status as of **2026-11-16** (Release 2.0.2). The change history is in git history.
+Status as of **2026-11-16** (Release 2.0.3). The change history is in git history.
 
 ## ✅ Done
 
@@ -34,7 +34,7 @@ Status as of **2026-11-16** (Release 2.0.2). The change history is in git histor
 - **Daily snapshot**: `ranksnapshot` ships in the image and is run by
   `majadu-snapshot.timer` (active after cutover); the rank arrow no longer
   depends on a manual snapshot.
-- **Release**: SemVer 2.0.2, CHANGELOG, SSH-signed tags, image built once in CI, digest-based
+- **Release**: SemVer 2.0.3, CHANGELOG, SSH-signed tags, image built once in CI, digest-based
   Release and automated VPS deploy.
 - **Go v1 decommission**: source removed; rollback uses `:v1-final`.
 
@@ -59,6 +59,6 @@ Status as of **2026-11-16** (Release 2.0.2). The change history is in git histor
 ## Notes
 
 - Deploy: push `main` → webhook → `ops/scripts/deploy-vps.sh` with cosign signature verification retry.
-- Production runs v2.0.2 on `bm2_prod` at 127.0.0.1:8080 behind Caddy.
+- Production runs v2.0.3 on `bm2_prod` at 127.0.0.1:8080 behind Caddy.
 - Tests: `./task check` · `./task test` (with `MAJADU_PG_DSN`) · `./task coverage`
   · `./task e2e` · `pnpm check:web`.

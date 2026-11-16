@@ -5,6 +5,16 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.0.3] - 2026-11-16
+
+### Changed
+- docs: fix Button.tsx path in design-system.md (0181f14; docs/design-system.md)
+- docs: prune stale QA spike sessions and handover snapshot (8f385f6; HANDOVER.md, docs/README.md, docs/handbook/README.md (+5 more))
+- docs: audit and prune documentation for v2.0.2 (deaf079; CLAUDE.md, HANDOVER.md, README.md (+29 more))
+
+### Fixed
+- fix(docs): clarify release SOP, version bump workflow, and beautify README (d3f8d24; .gitignore, AGENTS.md, CLAUDE.md (+1 more))
+
 ## [2.0.2] - 2026-11-16
 
 ### Fixed
