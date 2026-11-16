@@ -77,6 +77,50 @@ PostgreSQL 18 database. `apps/scoreboard` is a separate courtside PWA.
 - E2E runs four Playwright projects (`e2e/browsers.ts`): `iphone-17` (WebKit),
   `poco-f5` (Chromium), `desktop` (Chromium) and `api` for the socket spec.
 
+## Versioning & Release SOP
+
+The repository uses SemVer 2.0 derived from Conventional Commits (`tools/release`).
+
+### Release Rules & Sequence
+1. **Source of Truth**: `VERSION` file at repository root.
+2. **Conventional Commits**: Bumps require at least one `feat` (minor) or `fix`/`perf` (patch) commit since the last tag. Commits with `!` or `BREAKING CHANGE:` trigger a major bump.
+3. **Dry Run**:
+   ```bash
+   ./task release
+   ```
+   Inspect the computed bump and rendered changelog preview without writing files.
+4. **Apply Bump**:
+   ```bash
+   ./task release --apply
+   ```
+   This automatically updates:
+   - `VERSION`
+   - `CHANGELOG.md`
+   - `.cache/release/v<version>.md` (tag message source)
+   - `testdata/parity/v2/version.json` (pinned version for parity tests)
+   - `testdata/parity/v2/MANIFEST.sha256` (pin checksum)
+5. **Commit Release**:
+   ```bash
+   git add VERSION CHANGELOG.md testdata/parity/v2/
+   git commit -m "chore(release): v<version>"
+   ```
+6. **Pre-release Branch Verification**:
+   ```bash
+   git push origin HEAD:refs/heads/release/v<version>
+   ```
+   Wait for CI and Coverage workflows to pass. `release.yml` refuses any tag whose commit lacks a green Coverage run (QA-15).
+7. **SSH-Signed Tag**:
+   ```bash
+   git -c gpg.format=ssh -c user.signingkey=~/.ssh/id_ed25519.pub tag -s -F .cache/release/v<version>.md v<version>
+   git -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag v<version>
+   ```
+8. **Push Order (CRITICAL: Push Tag First, Then Main)**:
+   ```bash
+   git push origin refs/tags/v<version>
+   git push origin HEAD:main
+   ```
+   **Why:** Pushing the tag triggers `.github/workflows/release.yml` (builds and signs image with cosign). Pushing `main` triggers the VPS deploy webhook, which immediately polls for the image and signature. Pushing main before tag causes the deploy to fail on timeout waiting for an image that isn't building yet.
+
 ## Known limits
 
 - The in-app session screen consumes the WebSocket (`useSessionRealtime`) and
@@ -93,4 +137,4 @@ PostgreSQL 18 database. `apps/scoreboard` is a separate courtside PWA.
 
 `docs/handbook/current-status.md` · `docs/handbook/architecture.md` ·
 `docs/handbook/data-model.md` · `docs/handbook/features-and-routes.md` ·
-`docs/ops/cutover.md` · `apps/api/README.md` · `apps/web/README.md`
+`docs/ops/release.md` · `docs/ops/cutover.md` · `apps/api/README.md` · `apps/web/README.md`
