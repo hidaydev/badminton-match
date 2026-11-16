@@ -395,11 +395,13 @@ STEP="pull"
 # service is left on :local instead, and the state files are not written.
 #
 # The push reaches the host before the image job has finished building, so a tag
-# that is not in the registry yet is waited for rather than failed: the window is
-# a few minutes and the running container keeps serving through it.
+# that is not in the registry yet is waited for rather than failed: the running
+# container keeps serving through the window. The image is now published only
+# after the gate, so the window has to cover gate + queue + build: 45 x 20s = 15
+# minutes.
 PULL_OUT=$(mktemp)
 PULLED_ID=""
-PULL_ATTEMPTS="${MAJADU_PULL_ATTEMPTS:-15}"
+PULL_ATTEMPTS="${MAJADU_PULL_ATTEMPTS:-45}"
 PULL_TRY=0
 while [ "$PULL_TRY" -lt "$PULL_ATTEMPTS" ]; do
   PULL_TRY=$((PULL_TRY + 1))

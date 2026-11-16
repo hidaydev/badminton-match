@@ -43,11 +43,13 @@ the container must carry that commit's `org.opencontainers.image.revision`
 label. Anything else deploys again and says which check failed.
 
 `ci.yml` publishes `sha-<7>` and `main` on every push to main, signed with the
-release key, and that tag is what the deploy pulls. The tag is only a name until
-the image states its own revision, so the deploy checks the revision label and
-then the signature before `:local` moves. The push reaches the host before the
-image exists, so the deploy waits for the tag (15 attempts, 20 seconds apart) and
-fails closed if it never appears.
+release key, and that tag is what the deploy pulls. Publishing happens only after
+the gate is green, so the tag means the checks passed, not just that a build
+finished. The tag is only a name until the image states its own revision, so the
+deploy checks the revision label and then the signature before `:local` moves.
+The push reaches the host before the image exists, so the deploy waits for the
+tag (45 attempts, 20 seconds apart, covering gate + queue + build) and fails
+closed if it never appears.
 
 One step is still keyed on the tag: `dbtools migrate` runs only for a commit a
 release tag points at, because a migration cannot be rolled back the way an image
