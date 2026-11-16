@@ -226,7 +226,11 @@ suite "release command line":
       "  git -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=.github/allowed_signers \\\n" &
       "    verify-tag v1.5.0")
     check not run.output.contains("  git tag -s -F")
-    check run.output.contains("  git push origin main")
+    # QA-15: Coverage only runs on main, release/** and pull requests, so the
+    # commit is pushed to a release branch before it is tagged.
+    check run.output.contains(
+      "  git push origin HEAD:refs/heads/release/v1.5.0   # CI + Coverage for this commit; wait for both to go green")
+    check run.output.contains("  git push origin HEAD:main")
     check run.output.contains("  git push origin refs/tags/v1.5.0")
     check run.output.contains(
       "  gh release create v1.5.0 --notes-file .cache/release/v1.5.0.md --verify-tag")
@@ -243,6 +247,25 @@ suite "release command line":
     check readFile(notes).contains("### Added")
     # The tool never commits or tags on its own.
     check git(repo, @["tag"]).strip() == "v1.4.2"
+
+  test "--apply moves the v2 parity version pin with VERSION":
+    # `Parity: v2 verify` replays the pinned /version body, which the API builds
+    # from VERSION. A bump that leaves the pin behind fails the release gate.
+    let repo = taggedRepo("parity-pin", "1.4.2")
+    discard commitFiles(repo, "feat: add the board", "",
+      [("testdata/parity/v2/version.json",
+        "{\n  \"route\": \"getVersion\",\n  \"expect\": {\n    \"status\": 200,\n" &
+        "    \"body\": {\n      \"commit\": \"none\",\n      \"version\": \"1.4.2\"\n" &
+        "    }\n  }\n}\n")])
+
+    let run = selfRun(@["--repo", repo, "--date", "2026-11-08", "--apply"])
+    check run.exitCode == 0
+    check run.output.contains(
+      "release: rewrote the testdata/parity/v2/version.json pin to 1.5.0")
+    check run.output.contains("  git add VERSION CHANGELOG.md testdata/parity/v2/version.json")
+    let pin = readFile(repo / "testdata/parity/v2/version.json")
+    check pin.contains("\"version\": \"1.5.0\"")
+    check not pin.contains("\"version\": \"1.4.2\"")
 
   test "a dirty working tree is refused before anything is written":
     let repo = taggedRepo("dirty-refusal", "1.4.2")

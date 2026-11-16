@@ -22,6 +22,12 @@ anything else is not a release on its own. VERSION must match the last tag."""
 
 const previewLimit = 40
 
+# The v2 parity corpus pins the `/version` body, and the API builds that body
+# from VERSION. A bump that moves one and not the other fails the release gate at
+# `Parity: v2 verify`, so the pin is rewritten here instead of being left for the
+# operator to remember.
+const parityVersionPin = "testdata/parity/v2/version.json"
+
 type Options = object
   repo: string
   apply: bool
@@ -84,6 +90,20 @@ proc writeAtomic(path, content: string) =
   writeFile(staging, content)
   moveFile(staging, path)
 
+proc repinParityVersion(repo: string, current, next: Version): bool =
+  ## Rewrite the pinned `/version` body in the v2 parity corpus. Returns false
+  ## when the corpus or the pin is absent, which is not an error: the file only
+  ## exists in the v2 tree.
+  let path = repo / parityVersionPin
+  if not fileExists(path):
+    return false
+  let body = readFile(path)
+  let pinned = "\"version\": \"" & $current & "\""
+  if not body.contains(pinned):
+    return false
+  writeAtomic(path, body.replace(pinned, "\"version\": \"" & $next & "\""))
+  true
+
 proc report(options: Options, current, next: Version, tag: string,
             bump: Bump, commits: seq[Commit], section, notesPath: string) =
   let verb = if options.apply: "apply" else: "dry run (no files written)"
@@ -98,6 +118,8 @@ proc report(options: Options, current, next: Version, tag: string,
   echo "files:"
   echo "  VERSION                  " & $current & " -> " & $next
   echo "  CHANGELOG.md             prepend section for " & $next
+  if fileExists(options.repo / parityVersionPin):
+    echo "  " & parityVersionPin & "  pin " & $current & " -> " & $next
   echo "  " & notesPath & " annotated tag notes"
   echo ""
   echo "section:"
@@ -105,8 +127,16 @@ proc report(options: Options, current, next: Version, tag: string,
     echo "  " & line
   echo ""
   echo "next steps (run by hand from the repository root; nothing is tagged or pushed here):"
-  echo "  git add VERSION CHANGELOG.md"
+  echo "  git add VERSION CHANGELOG.md" &
+    (if fileExists(options.repo / parityVersionPin): " " & parityVersionPin else: "")
   echo "  git commit -m \"chore(release): v" & $next & "\""
+  # QA-15: `Release: verify tag` wants a completed, successful Coverage run for
+  # the exact tagged commit, and Coverage only runs on main, release/** and pull
+  # requests. Tagging a commit that was never pushed therefore waits five minutes
+  # and fails, so the commit goes to a release branch first and the tag follows a
+  # green run.
+  echo "  git push origin HEAD:refs/heads/release/v" & $next &
+    "   # CI + Coverage for this commit; wait for both to go green"
   # SEC-03: release.yml verifies the tag with `git verify-tag` against
   # `.github/allowed_signers` under `gpg.format=ssh`. A bare `git tag -s` follows
   # the committer's default, which is OpenPGP here, and the gate rejects that
@@ -120,7 +150,7 @@ proc report(options: Options, current, next: Version, tag: string,
   # release that the tag run publishes, and the reverse order makes the deploy
   # fail at resolve-digest.
   echo "  git push origin refs/tags/v" & $next
-  echo "  git push origin main"
+  echo "  git push origin HEAD:main"
   echo "  gh release view v" & $next &
     "   # release.yml creates it and records the image digest"
   echo "  # only if the workflow is unavailable:"
@@ -162,6 +192,8 @@ proc main*() =
   writeAtomic(changelogPath, insertSection(existing, section))
   writeAtomic(options.repo / notesPath, section)
   writeAtomic(options.repo / "VERSION", $next & "\n")
+  if repinParityVersion(options.repo, current, next):
+    echo "release: rewrote the " & parityVersionPin & " pin to " & $next
   echo ""
   echo "release: wrote VERSION, CHANGELOG.md and " & notesPath
 
