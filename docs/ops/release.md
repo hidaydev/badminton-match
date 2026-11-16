@@ -12,16 +12,16 @@ do not consider them tested.
 
 | Artifact | Contents | Used by |
 |---|---|---|
-| `VERSION` | the version under development | `deploy-vps.sh` (deploy gate), `apps/api/src/app.nim` (`appVersion`) |
+| `VERSION` | the version under development | `apps/api/src/app.nim` (`appVersion`), the smoke check |
 | `CHANGELOG.md` | per-version sections from Conventional Commits | the GitHub release |
-| tag `v<version>` | SSH-signed, created by the operator | `.github/workflows/release.yml` |
+| tag `v<version>` | SSH-signed, created by the operator | `.github/workflows/release.yml`, and the schema gate in `deploy-vps.sh` |
 | `.github/allowed_signers` | the public half of the release signing key, one key line; **owned by the owner**, committed by the owner | `git verify-tag` in `release.yml`, `./task ci-guards --release` |
-| image `ghcr.io/hidaydev/badminton-match:v<version>` | one build per tag | `deploy-vps.sh` (pull by digest) |
-| image `ghcr.io/hidaydev/badminton-match:sha-<7>` and `:main` | one build per push to main, signed with the same key | nothing yet; `deploy-vps.sh` still deploys the release digest |
-| `digest: sha256:…` line in the GitHub Release body | the only digest the deploy accepts, signed by `cosign` | `deploy-vps.sh`, `cutover.sh` |
-| `cosign.pub` in `env/` | verifies the image signature before the pull | `deploy-vps.sh`, `cutover.sh` |
+| image `ghcr.io/hidaydev/badminton-match:v<version>` | one build per tag | the archive; `cutover.sh` still resolves it by digest |
+| image `ghcr.io/hidaydev/badminton-match:sha-<7>` and `:main` | one build per push to main, signed with the same key | `deploy-vps.sh` (pull by tag, then revision label + signature) |
+| `digest: sha256:…` line in the GitHub Release body | the only digest `cutover.sh` accepts, signed by `cosign` | `cutover.sh` |
+| `cosign.pub` in `env/` | verifies the image signature after the pull | `deploy-vps.sh`, `cutover.sh` |
 
-The release body begins with the tag message, which is free text. The deploy
+The release body begins with the tag message, which is free text. `cutover.sh`
 accepts exactly one `digest: sha256:…` line and refuses the release when any
 other digest-shaped string appears in the body (for example in the tag message).
 The signature is checked with `cosign verify --key env/cosign.pub` before
@@ -35,23 +35,25 @@ the tag never does, and this repository has no release-candidate tag.
 behaviour: the version that was tested and the version that is released are the
 same string.
 
-`deploy-vps.sh` decides to deploy from `VERSION`, not from the tag: a commit that
-bumps `VERSION` is a release, a documentation commit is not. A matching
-`deploy/deployed-version` is not enough to skip the run: the image `:local` must
-exist, the container must be running and `/version` must report the same
-version. Anything else deploys again and says which check failed. That is why the tag
-must already be published **and** its image must already exist before `main` is
-pushed.
+`deploy-vps.sh` decides to deploy from the commit, not from `VERSION`: every push
+to main deploys the image published for that commit, so a hotfix that leaves
+`VERSION` alone still ships. A matching `deploy/deployed-rev` is not enough to
+skip the run: the image `:local` must exist, the container must be running and
+the container must carry that commit's `org.opencontainers.image.revision`
+label. Anything else deploys again and says which check failed.
 
 `ci.yml` publishes `sha-<7>` and `main` on every push to main, signed with the
-release key, so a commit on main always has a pullable image and a hotfix does
-not need a tag before the bytes exist. The deploy does not follow that tag yet:
-it still resolves the digest from the `v<version>` release, because on this
-repository a deploy runs migrations and the signed tag is the gate that decides
-which tree may migrate production. Pointing the deploy at `sha-<7>` is a
-separate decision, and it needs the `VERSION`-keyed skip in `deploy-vps.sh` to
-become commit-keyed first, or the first main image would make the following
-release skip as "already live".
+release key, and that tag is what the deploy pulls. The tag is only a name until
+the image states its own revision, so the deploy checks the revision label and
+then the signature before `:local` moves. The push reaches the host before the
+image exists, so the deploy waits for the tag (15 attempts, 20 seconds apart) and
+fails closed if it never appears.
+
+One step is still keyed on the tag: `dbtools migrate` runs only for a commit a
+release tag points at, because a migration cannot be rolled back the way an image
+can. Every deploy runs `dbtools verify`, so a hotfix that brought a migration
+stops there and says the commit needs a release. That is why the tag must be
+published before `main` is pushed.
 
 ## 2. Release sequence
 
@@ -101,9 +103,9 @@ release skip as "already live".
    ```
 
    The tag triggers `release.yml` (verify → image → publish). `main` triggers the
-   deploy webhook. The reverse order makes the deploy run before the image
-   exists; the deploy script will fail at the `resolve-digest` step, not silently
-   use another image.
+   deploy webhook, which waits for the `sha-<7>` image of that commit. The reverse
+   order is still wrong: the deploy would wait out its pull attempts and fail at
+   the `pull` step instead of deploying.
 6. Wait for `release.yml` to go green and record the digest from the GitHub
    Release body. `release.yml` never creates or moves a tag; the tag always comes
    from the operator.
@@ -127,7 +129,7 @@ and each one is reproducible on a laptop:
 
 The Coverage run URL that satisfied the last check is written into the release
 body under `## Verification`, next to the tagged commit, so the number and the
-run travel together. The `deploy-vps.sh` digest scrape is unaffected: the body
+run travel together. `cutover.sh` still scrapes the digest from that body, so it
 still carries exactly one `digest: sha256:…` line and the workflow rejects a tag
 message that adds a second digest-shaped string.
 
@@ -161,16 +163,20 @@ tag outright.
 
 ## 3. What the deploy does
 
-After the cutover gate (`MAJADU_PG_DSN` points at `bm2`) and the version check,
+After the cutover gate (`MAJADU_PG_DSN` points at `bm2`) and the commit check,
 the sequence is:
 
 1. `git fetch origin main` + `git reset --hard origin/main`.
-2. Resolve the digest from the GitHub Release, `podman pull` that digest.
-3. **`dbtools migrate` + `dbtools seed` + `dbtools verify`** from the newly
-   pulled image, using `MAJADU_OWNER_DSN` from `env/majadu-tools.env` (the API
-   unit loads only `env/majadu-prod.env` and never sees that credential). A
-   failure here = the release is not installed,
-   `:local`/`:prev` are not touched, the old service keeps running.
+2. `podman pull ghcr.io/hidaydev/badminton-match:sha-<7>` for that commit,
+   waiting for the tag while the image job is still building. The pulled image
+   must carry `org.opencontainers.image.revision` = the commit, and `cosign
+   verify --key env/cosign.pub` must pass, before `:local` moves.
+3. **`dbtools verify`** from the pulled image, using `MAJADU_OWNER_DSN` from
+   `env/majadu-tools.env` (the API unit loads only `env/majadu-prod.env` and
+   never sees that credential). `dbtools migrate` and `dbtools seed` run first,
+   but only for a commit a release tag points at. A failure here = the release is
+   not installed, `:local`/`:prev` are not touched, the old service keeps
+   running.
 4. Tag rotation: `:local` → `:prev`, the new image → `:local`.
 5. Sync the systemd units and operator scripts from the repo.
 6. Restart the unit, wait for `/readyz` (60 seconds). Failure → `:prev` is made
@@ -179,6 +185,7 @@ the sequence is:
    version just pulled. Failure → the release is not recorded, so the next push
    repeats the same version.
 8. Make sure the container really uses the `:local` image, then write
+   `deploy/deployed-rev` (the commit the skip check reads),
    `deploy/deployed-version` and `deploy/last-release.json`
    (`version`, `commit`, `digest`, `schema`, `at`).
 
@@ -190,11 +197,15 @@ That file stays the rollback input.
 
 A release is not done until all eight are true:
 
-1. **Digest matches.** `deploy/last-release.json` records the digest used;
-   its value must equal the digest in the GitHub Release body, and
-   `podman inspect --format '{{.Image}}' majadu-api` must equal
+1. **Revision matches.** The running container carries the released commit:
+   `podman inspect --format '{{index .Config.Labels
+   "org.opencontainers.image.revision"}}' majadu-api` equals
+   `git -C /srv/qouver/apps/majadu/monorepo rev-parse HEAD`, and
+   `podman inspect --format '{{.Image}}' majadu-api` equals
    `podman image inspect --format '{{.Id}}' localhost/majadu-api:local`
-   (the deploy already checks this last pair in the `verify-image` step).
+   (the deploy already checks the label and this last pair in the
+   `verify-revision` and `verify-image` steps). `deploy/last-release.json` records
+   the digest the image was pulled as.
 2. **Version matches.** `curl -fsS http://127.0.0.1:8080/version` reports the
    version **and** the commit released (`-d:appVersion`/`-d:appCommit` from
    `apps/api/Dockerfile`, `--build-arg` from `release.yml`). The deploy itself
@@ -211,7 +222,7 @@ A release is not done until all eight are true:
    `ops/scripts/smoke.sh http://127.0.0.1:8080 <version>`: `/version`,
    `/healthz`, `/readyz`, `/metrics` 404, a foreign share code 404, `/auth/me` 401.
    The deploy runs it itself after `/readyz` goes green (step 7 in §3); if that
-   gate fails, `deploy/deployed-version` is not written and the release is retried
+   gate fails, `deploy/deployed-rev` is not written and the release is retried
    on the next push.
 6. **`:v1-final` has a deletion date and an archived digest.** That tag is never
    deleted by the deploy (`podman image prune -f` only drops untagged images);
@@ -265,7 +276,8 @@ migrated by the new release. The rules are in §6.
 
 ## 6. Migrations: the expand/contract rules
 
-The deploy runs migrations automatically, so every release must satisfy:
+The deploy runs migrations automatically for a released commit, so every
+release must satisfy:
 
 - **Add only** within a single release: new tables, nullable or
   `NOT NULL DEFAULT` columns, new indexes. Do not `rename`, `drop`, or change the

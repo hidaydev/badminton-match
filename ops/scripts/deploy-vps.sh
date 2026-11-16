@@ -5,20 +5,28 @@
 # name and the git ref as arguments. Live copy: /srv/qouver/apps/majadu/scripts/
 # deploy-vps.sh; this file in the repository is the source of truth.
 #
-# The image is built once by the release workflow and pulled here by digest, so
-# what runs in production is exactly what was tagged. This script never runs the
-# cutover: until the operator has moved production to `bm2`, it only syncs the
-# checkout and leaves v1 alone (the Dockerfile in this repository is already the
-# v2 build, so deploying before the cutover would point v2 at the v1 schema).
+# The image is built on GitHub for every push to main (`ci.yml`) and pulled here
+# by its `sha-<7>` tag, so the commit the webhook names is the commit that runs.
+# The tag is only a name until the image states its own revision: the pull checks
+# that label and then the cosign signature before `:local` moves. The schema is
+# the one thing still bound to a release tag, because a migration cannot be
+# rolled back the way an image can.
+#
+# This script never runs the cutover: until the operator has moved production to
+# `bm2`, it only syncs the checkout and leaves v1 alone (the Dockerfile in this
+# repository is already the v2 build, so deploying before the cutover would point
+# v2 at the v1 schema).
 #
 # Overridable for rehearsal (T-063): MAJADU_APP_DIR, MAJADU_SERVICE,
 # MAJADU_IMAGE, MAJADU_REGISTRY_IMAGE, MAJADU_SERVICE_CMD, MAJADU_SKIP_GIT_SYNC,
-# MAJADU_HEALTH_URL, MAJADU_CUTOVER_NETWORK.
+# MAJADU_HEALTH_URL, MAJADU_CUTOVER_NETWORK, MAJADU_PULL_ATTEMPTS.
 #
 # Before restarting, the migrations shipped in the pulled image are applied and
 # verified (`dbtools migrate` + `dbtools verify`, both against MAJADU_OWNER_DSN
 # from $APP_DIR/env/majadu-tools.env; the API unit never loads that file).
-# A failure there leaves the running release and the tags untouched. Migrations
+# `migrate` only runs for a commit a release tag points at; every deploy runs
+# `verify`, so a hotfix that changes the schema stops there instead of applying
+# it. A failure leaves the running release and the tags untouched. Migrations
 # must therefore stay expand/contract: `:prev` has to keep serving on the new
 # schema, because that is what the readiness rollback starts.
 #
@@ -169,7 +177,7 @@ run_tool() {
   local entry="$1" dsn="$2"
   shift 2
   podman run --rm --network "$NETWORK" -e MAJADU_PG_DSN="$dsn" \
-    --entrypoint "$entry" "$REGISTRY_IMAGE@$DIGEST" "$@"
+    --entrypoint "$entry" "$PULLED_ID" "$@"
 }
 
 # Fail closed: anything that is not a push to main must not deploy. An empty ref
@@ -320,43 +328,51 @@ done
 
 VERSION=$(tr -d '[:space:]' <"$MONO_DIR/VERSION")
 [ -n "$VERSION" ] || fail "VERSION is empty"
+SHORT=$(printf '%.7s' "$NEW_REV")
+TARGET_IMAGE="$REGISTRY_IMAGE:sha-$SHORT"
 
-# The decision is the version, not a path filter: a commit that only bumps
-# VERSION is a release and must deploy, while a documentation push that leaves
-# VERSION alone must not restart the service.
+# The decision is the commit, not VERSION: a hotfix that lands on main without a
+# version bump still has to deploy, and the image published for that commit is
+# the one that runs. A commit that also carries a release tag is what lets the
+# schema step below migrate.
+#
 # The state file records intent, not observed state: a host rebuilt from a
-# snapshot, a `podman image prune` or a deleted tag leaves it saying a version
-# is live when nothing serves it. The short-circuit is only taken when the image
-# exists, the container runs and /version answers with the same version.
+# snapshot, a `podman image prune` or a deleted tag leaves it saying a commit is
+# live when nothing serves it. The short-circuit is only taken when the image
+# exists, the container runs and the container carries this commit's revision
+# label, which is the label the image job stamps at build time.
 container_running() {
   [ "$(podman inspect --format '{{.State.Running}}' "$SERVICE" 2>/dev/null || true)" = "true" ]
 }
 
-serving_version() {
-  curl -fsS --max-time 5 "$HEALTH_URL/version" 2>/dev/null |
-    grep -q "\"version\":\"$VERSION\""
+container_revision() {
+  podman inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' \
+    "$SERVICE" 2>/dev/null || true
 }
 
 DEPLOYED=""
-[ -f "$STATE_DIR/deployed-version" ] && DEPLOYED=$(cat "$STATE_DIR/deployed-version")
-if [ "$DEPLOYED" = "$VERSION" ]; then
+[ -f "$STATE_DIR/deployed-rev" ] && DEPLOYED=$(tr -d '[:space:]' <"$STATE_DIR/deployed-rev")
+if [ "$DEPLOYED" = "$NEW_REV" ]; then
   if ! podman image exists "$LOCAL_IMAGE:local"; then
-    log "$DEPLOYED is recorded as live but $LOCAL_IMAGE:local is missing; deploying $VERSION again"
+    log "$SHORT is recorded as live but $LOCAL_IMAGE:local is missing; deploying $NEW_REV again"
   elif ! container_running; then
-    log "$DEPLOYED is recorded as live but container $SERVICE is not running; deploying $VERSION again"
-  elif ! serving_version; then
-    log "$DEPLOYED is recorded as live but $HEALTH_URL/version does not report $VERSION; deploying again"
+    log "$SHORT is recorded as live but container $SERVICE is not running; deploying $NEW_REV again"
+  elif [ "$(container_revision)" != "$NEW_REV" ]; then
+    log "$SHORT is recorded as live but $SERVICE does not carry revision $NEW_REV; deploying again"
   else
-    log "version $VERSION is already live; nothing to do"
+    log "commit $SHORT is already live; nothing to do"
     exit 0
   fi
 fi
 
 # ---------------------------------------------------------------------------
-# Resolve the digest published with the release. The release workflow records
-# it in the release notes, so the tag alone never decides what runs.
+# The image for this commit. `ci.yml` builds ghcr.io/<repo>:sha-<7> on every push
+# to main and signs that digest with the release key, so the commit the webhook
+# names is the commit that runs, released or not. The tag is only a name until
+# the image states its own revision, so the label check below is what makes it
+# binding, and the signature is what makes it this repository's build.
 # ---------------------------------------------------------------------------
-STEP="resolve-digest"
+STEP="registry-login"
 TOKEN_FILE="$APP_DIR/env/ghcr-token"
 require_private_file "$ENV_FILE"
 # The owner and ETL DSNs are for the deploy and cutover tools, not for the API
@@ -365,66 +381,6 @@ require_private_file "$ENV_FILE"
 require_private_file "$TOOLS_ENV"
 require_private_file "$TOKEN_FILE"
 require_private_env "$APP_DIR/env"
-# The token travels on stdin as a curl config, so it never reaches argv where
-# `ps -ef` would show it. `read` keeps it out of an `set -x` trace too.
-release_query() {
-  local token=""
-  if [ -f "$TOKEN_FILE" ]; then
-    IFS= read -r token <"$TOKEN_FILE" || true
-  elif [ -n "${GITHUB_TOKEN:-}" ]; then
-    token="$GITHUB_TOKEN"
-  fi
-  if [ -n "$token" ]; then
-    curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
-      --config - "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION" <<EOF
-header = "Authorization: Bearer $token"
-EOF
-  else
-    curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
-      "https://api.github.com/repos/$GITHUB_REPO/releases/tags/v$VERSION"
-  fi
-}
-RELEASE=$(release_query 2>/dev/null || true)
-# The release body starts with the tag message, which is human-writable, so a
-# digest-shaped string anywhere in it is not a binding. `release.yml` appends
-# exactly one machine line `digest: sha256:...`; anything else in the body that
-# looks like a digest is an ambiguity and a failed deploy, not a first match.
-# Release assets carry their own `"digest":"sha256:..."` field, which is
-# machine-owned and outside the body; inside the JSON body every quote is
-# escaped, so an unescaped quoted field can only be an asset. Drop those first,
-# or a release with SBOM assets reads as three digests and never deploys.
-# The API has answered both `"digest":"sha256:…"` and `"digest": "sha256:…"`,
-# so the spacing around the colon is optional.
-RELEASE_TEXT=$(printf '%s' "$RELEASE" |
-  sed -E 's/"digest"[[:space:]]*:[[:space:]]*"sha256:[0-9a-f]{64}"/"digest":"asset"/g')
-DIGEST_MARKERS=$(printf '%s' "$RELEASE_TEXT" |
-  grep -oE 'digest:[[:space:]]*sha256:[0-9a-f]{64}' || true)
-DIGEST_MARKER_COUNT=$(printf '%s\n' "$DIGEST_MARKERS" | grep -c 'sha256:' || true)
-DIGEST_STRINGS=$(printf '%s' "$RELEASE_TEXT" | grep -oE 'sha256:[0-9a-f]{64}' || true)
-DIGEST_STRING_COUNT=$(printf '%s\n' "$DIGEST_STRINGS" | grep -c 'sha256:' || true)
-if [ "$DIGEST_MARKER_COUNT" -eq 0 ]; then
-  fail "release v$VERSION has no published image digest"
-fi
-if [ "$DIGEST_MARKER_COUNT" -ne 1 ] || [ "$DIGEST_STRING_COUNT" -ne 1 ]; then
-  fail "release v$VERSION must carry exactly one 'digest: sha256:...' line (found $DIGEST_MARKER_COUNT marker(s) and $DIGEST_STRING_COUNT sha256 string(s)); a digest in the tag message is ambiguous"
-fi
-DIGEST="sha256:${DIGEST_MARKERS#*sha256:}"
-
-# The digest alone binds the tag to a registry object; only the signature binds
-# it to this repository's release job. The public key is installed next to the
-# env files, and a missing cosign is a failed deploy rather than a skipped check.
-COSIGN_PUB="$APP_DIR/env/cosign.pub"
-[ -f "$COSIGN_PUB" ] ||
-  fail "release signature key $COSIGN_PUB is missing; cannot verify $DIGEST"
-require_private_file "$COSIGN_PUB"
-command -v cosign >/dev/null 2>&1 ||
-  fail "cosign is required to verify $DIGEST"
-if ! cosign verify --key "$COSIGN_PUB" "$REGISTRY_IMAGE@$DIGEST" >>"$LOG" 2>&1; then
-  fail "cosign verify failed for $REGISTRY_IMAGE@$DIGEST"
-fi
-log "release v$VERSION resolves to $DIGEST and the signature verifies"
-
-STEP="registry-login"
 if [ -f "$TOKEN_FILE" ]; then
   podman login ghcr.io -u "${MAJADU_GHCR_USER:-hidaydev}" --password-stdin \
     <"$TOKEN_FILE" >>"$LOG" 2>&1 || fail "podman login ghcr.io failed"
@@ -437,16 +393,70 @@ STEP="pull"
 # image running while the state files below recorded the release as deployed,
 # and the version check then skipped every later push for that version. The
 # service is left on :local instead, and the state files are not written.
-if ! podman pull "$REGISTRY_IMAGE@$DIGEST" >>"$LOG" 2>&1; then
-  log "ERROR: could not pull $REGISTRY_IMAGE@$DIGEST; v$VERSION is not deployed and :local was left untouched (step: $STEP)"
+#
+# The push reaches the host before the image job has finished building, so a tag
+# that is not in the registry yet is waited for rather than failed: the window is
+# a few minutes and the running container keeps serving through it.
+PULL_OUT=$(mktemp)
+PULLED_ID=""
+PULL_ATTEMPTS="${MAJADU_PULL_ATTEMPTS:-15}"
+PULL_TRY=0
+while [ "$PULL_TRY" -lt "$PULL_ATTEMPTS" ]; do
+  PULL_TRY=$((PULL_TRY + 1))
+  if podman pull "$TARGET_IMAGE" >"$PULL_OUT" 2>&1; then
+    PULLED_ID=$(podman image inspect --format '{{.Id}}' "$TARGET_IMAGE")
+    break
+  fi
+  # A missing tag means the build is still running; anything else (auth, network)
+  # is a failed deploy and waiting will not fix it.
+  if ! grep -qiE 'manifest unknown|no such manifest|manifest for .* not found|name unknown' "$PULL_OUT"; then
+    TAIL_OUT=$(tail -3 "$PULL_OUT" 2>/dev/null || true)
+    rm -f "$PULL_OUT"
+    log "ERROR: could not pull $TARGET_IMAGE: $TAIL_OUT; $SHORT is not deployed and :local was left untouched (step: $STEP)"
+    alert
+    exit 1
+  fi
+  log "$TARGET_IMAGE is not in the registry yet; the image job is still building (attempt $PULL_TRY of $PULL_ATTEMPTS)"
+  sleep 20
+done
+rm -f "$PULL_OUT"
+if [ -z "$PULLED_ID" ]; then
+  log "ERROR: $TARGET_IMAGE never appeared in the registry; $SHORT is not deployed and :local was left untouched (step: $STEP)"
   alert
   exit 1
 fi
-log "pulled $REGISTRY_IMAGE@$DIGEST"
+log "pulled $TARGET_IMAGE"
+
+# The tag is a file name until the image states its own commit: an image built
+# from another commit is a failed deploy, not a deploy of what the tag says.
+STEP="verify-revision"
+IMAGE_REV=$(podman image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' \
+  "$PULLED_ID" 2>/dev/null || true)
+if [ "$IMAGE_REV" != "$NEW_REV" ]; then
+  fail "image $TARGET_IMAGE carries revision '${IMAGE_REV:-<none>}', not $NEW_REV; :local was left untouched"
+fi
+
+# The revision label binds the tag to a commit; only the signature binds the
+# image to this repository's build job. The public key is installed next to the
+# env files, and a missing cosign is a failed deploy rather than a skipped check.
+STEP="verify-signature"
+COSIGN_PUB="$APP_DIR/env/cosign.pub"
+[ -f "$COSIGN_PUB" ] ||
+  fail "release signature key $COSIGN_PUB is missing; cannot verify $TARGET_IMAGE"
+require_private_file "$COSIGN_PUB"
+command -v cosign >/dev/null 2>&1 ||
+  fail "cosign is required to verify $TARGET_IMAGE"
+if ! cosign verify --key "$COSIGN_PUB" "$TARGET_IMAGE" >>"$LOG" 2>&1; then
+  fail "cosign verify failed for $TARGET_IMAGE"
+fi
+DIGEST=$(podman image inspect --format '{{.Digest}}' "$PULLED_ID" 2>/dev/null || true)
+[ -n "$DIGEST" ] || DIGEST="unknown"
+log "image $TARGET_IMAGE verified at revision $IMAGE_REV"
+
 
 # ---------------------------------------------------------------------------
 # Schema first, service second. The image carries db/migrations, db/seeds and
-# dbtools, so the release that is about to run also migrates the database.
+# dbtools, so the deploy that is about to run also migrates the database.
 # `migrate` is a single transaction with an advisory lock; `seed` then lands the
 # config registry the image expects, before `verify` reads the ledger back and
 # proves it matches the committed files. Either failure aborts here, while
@@ -455,38 +465,59 @@ log "pulled $REGISTRY_IMAGE@$DIGEST"
 # --allow-contract: a migration marked `-- contract` is refused here and applied
 # by hand one release later, so a deploy can never be the step that removes the
 # old shape.
+#
+# `migrate` is the one step still bound to a release: `./task release` pushes the
+# signed tag and only then main, so a released commit carries a tag here. A
+# hotfix pushed straight to main gets the image and the container, and `verify`
+# below refuses it if it brought a migration, which is the case that has to be
+# released instead of applied by a hotfix.
 # ---------------------------------------------------------------------------
 # The previous release's schema is read before `migrate`: a later failure writes
 # last-attempt.json and leaves last-release.json as the record of what runs.
 PREV_SCHEMA=$(sed -n 's/.*"schema":"\([^"]*\)".*/\1/p' \
   "$STATE_DIR/last-release.json" 2>/dev/null | tail -1 || true)
 [ -n "$PREV_SCHEMA" ] || PREV_SCHEMA="unknown"
-STEP="migrate"
+STEP="release-gate"
+# Annotated tags carry both `refs/tags/vX` (the tag object) and `refs/tags/vX^{}`
+# (the commit), so the peeled name is stripped before the sha is compared.
+RELEASE_TAG=$(git -C "$MONO_DIR" ls-remote --tags origin 2>/dev/null |
+  awk -v rev="$NEW_REV" '{
+    name = $2
+    sub(/\^\{\}$/, "", name)
+    sub("refs/tags/", "", name)
+    if ($1 == rev && name ~ /^v[0-9]/) print name
+  }' | head -1 || true)
 OWNER_DSN=$(sed -n 's/^MAJADU_OWNER_DSN=//p' "$TOOLS_ENV" | tail -1)
 if [ -z "$OWNER_DSN" ]; then
   fail "MAJADU_OWNER_DSN is missing from $TOOLS_ENV; cannot migrate"
 fi
-if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
-  migrate --dir /app/db/migrations >>"$LOG" 2>&1; then
-  fail "dbtools migrate failed; v$VERSION is not deployed and the running release was left alone"
+if [ -n "$RELEASE_TAG" ]; then
+  log "commit $SHORT carries release $RELEASE_TAG; applying migrations"
+  STEP="migrate"
+  if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
+    migrate --dir /app/db/migrations >>"$LOG" 2>&1; then
+    fail "dbtools migrate failed; $SHORT is not deployed and the running release was left alone"
+  fi
+  # DB-06: a registry key with no seeded row boots into a container that cannot
+  # answer, and the RC path has seeded since it was written. The seed files are
+  # idempotent upserts, so running them on every release deploy is what keeps the
+  # database and the image's config registry in step. It runs between `migrate`
+  # and `verify` so the schema, the rows the schema needs and the ledger are one
+  # ordered release step: a missing seed aborts before the deploy claims the
+  # database is at the committed schema.
+  STEP="seed"
+  if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
+    seed --dir /app/db/seeds >>"$LOG" 2>&1; then
+    fail "dbtools seed failed; $SHORT is not deployed and the running release was left alone"
+  fi
+  log "applied the seed files"
+else
+  log "commit $SHORT carries no release tag; the schema is verified, not migrated"
 fi
-# DB-06: a registry key with no seeded row boots into a container that cannot
-# answer, and the RC path has seeded since it was written. The seed files are
-# idempotent upserts, so running them on every deploy is what keeps the
-# database and the image's config registry in step. It runs between `migrate`
-# and `verify` so the schema, the rows the schema needs and the ledger are one
-# ordered release step: a missing seed aborts before the deploy claims the
-# database is at the committed schema.
-STEP="seed"
-if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
-  seed --dir /app/db/seeds >>"$LOG" 2>&1; then
-  fail "dbtools seed failed; v$VERSION is not deployed and the running release was left alone"
-fi
-log "applied the seed files"
 STEP="verify-schema"
 if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
   verify --dir /app/db/migrations >>"$LOG" 2>&1; then
-  fail "dbtools verify failed; the database is not at the committed schema, v$VERSION is not deployed"
+  fail "dbtools verify failed; the database is not at the schema of $SHORT, so $SHORT is not deployed (a commit that adds a migration needs a release: ./task release)"
 fi
 # The last migration file is the schema this release expects. An empty name is
 # not a version: without it the release record cannot say which schema the image
@@ -500,17 +531,16 @@ SCHEMA=$(basename "$SCHEMA_FILE" .sql)
 log "schema verified at $SCHEMA"
 
 STEP="rotate"
-PULLED_ID=$(podman image inspect --format '{{.Id}}' "$REGISTRY_IMAGE@$DIGEST")
 CURRENT_ID=""
 if podman image exists "$LOCAL_IMAGE:local"; then
   CURRENT_ID=$(podman image inspect --format '{{.Id}}' "$LOCAL_IMAGE:local")
 fi
-# A redeploy of the same digest must not rotate :prev onto the image it is
-# meant to replace.
+# A redeploy of the same image must not rotate :prev onto the image it is meant
+# to replace.
 if [ "$PULLED_ID" != "$CURRENT_ID" ] && [ -n "$CURRENT_ID" ]; then
   podman tag "$LOCAL_IMAGE:local" "$LOCAL_IMAGE:prev"
 fi
-podman tag "$REGISTRY_IMAGE@$DIGEST" "$LOCAL_IMAGE:local"
+podman tag "$PULLED_ID" "$LOCAL_IMAGE:local"
 
 # ---------------------------------------------------------------------------
 # Units come from the repository, not from whatever was left on the VPS.
@@ -610,6 +640,7 @@ if [ -n "$CONTAINER_IMAGE" ] && [ "$CONTAINER_IMAGE" != "$LOCAL_ID" ]; then
 fi
 
 printf '%s\n' "$VERSION" | atomic_write "$STATE_DIR/deployed-version"
+printf '%s\n' "$NEW_REV" | atomic_write "$STATE_DIR/deployed-rev"
 # release-rollback.sh needs the previous release's identity after this record is
 # replaced; the image label is not guaranteed to carry it.
 if [ -f "$STATE_DIR/last-release.json" ]; then
@@ -624,4 +655,4 @@ printf '{"version":"%s","commit":"%s","digest":"%s","schema":"%s","at":"%s"}\n' 
 STEP="prune"
 podman image prune -f >>"$LOG" 2>&1 || true
 
-log "deployed v$VERSION ($DIGEST)"
+log "deployed $SHORT (v$VERSION, $DIGEST)"
