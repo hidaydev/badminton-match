@@ -12,7 +12,7 @@ frontend) that exists in the repo today.
 ## Reference
 
 - [data-model.md](data-model.md): `bm2` database schema, tables, constraints, config
-- [features-and-routes.md](features-and-routes.md): web routes and 75 API operations
+- [features-and-routes.md](features-and-routes.md): web routes and 76 API operations
 - [scoring-presets.md](scoring-presets.md): scoring preset rules and numbers
 - [deps-format.md](deps-format.md): `deps.lock` format and pinning rules
 - [roadmap.md](roadmap.md): what already exists and the next priorities
@@ -21,8 +21,7 @@ frontend) that exists in the repo today.
 ## Related
 
 - [`../ops/`](../ops/): releases, operations, OAuth, cutover
-- [`../ops/rc-environment.md`](../ops/rc-environment.md): RC environment
+- [`../ops/rc.md`](../ops/rc.md): RC instance
 - [`../decisions.md`](../decisions.md): architecture decision records
-- [`../../HANDOVER.md`](../../HANDOVER.md): release-branch state at handover
-- Historical documents (rewrite plan, Go v1 ADRs, old design spec) are in git
+- Historical documents (rewrite plan, Go v1 ADRs, old design spec, RC handover) are in git
   history: `git log --all -- docs/`.

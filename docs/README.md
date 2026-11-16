@@ -18,7 +18,6 @@ lowercase and hyphens; `README.md` is the only exception.
 | `ops/` | access and incidents, releases, OAuth, cutover, pre-push hook, RC environment |
 | `db/` | tenancy and row level security options for DB-16 |
 | `qa/` | exploratory charters and session notes |
-| `tasks/` | task breakdowns and open-item lists |
 | `docs/` root | [`decisions.md`](decisions.md), [`design-system.md`](design-system.md), [`privacy.md`](privacy.md), [`test-plan.md`](test-plan.md) |
 
 ## Conventions

@@ -33,8 +33,9 @@ assumption, never as a result.
 A session note whose fix has shipped is deleted to git history rather than left as
 a stale record.
 
-## Index
+## Status
 
-| Charter | Sessions |
-|---|---|
-| `charter-http-boundary.md` | `QAE-03`, `QAE-04`, `QAE-06` |
+All exploratory audit sessions from the RC cycle (`QAE-02` through `QAE-06`)
+have their findings resolved and verified by permanent automated tests (`e2e/api.spec.ts`,
+`tools/qa/stub_router_test.nim`, `body_limit_http_test.nim`). Their historical session notes
+are preserved in git history (`git log -- docs/qa/`).
