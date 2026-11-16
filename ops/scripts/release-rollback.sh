@@ -140,9 +140,13 @@ case "$served" in
 esac
 
 printf '%s\n' "$prev_version" | atomic_write "$STATE_DIR/deployed-version"
+# The deploy's skip check reads the commit, so the rollback moves that back too;
+# otherwise the next push of the bad commit would look like it is already live.
+[ "$prev_commit" = "unknown" ] ||
+  printf '%s\n' "$prev_commit" | atomic_write "$STATE_DIR/deployed-rev"
 printf '{"version":"%s","commit":"%s","digest":"%s","schema":"%s","at":"%s"}\n' \
   "$prev_version" "$prev_commit" "$prev_digest" "${current_schema:-unknown}" \
   "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" |
   atomic_write "$STATE_FILE"
 
-log "rolled back to v$prev_version; deployed-version and last-release.json updated"
+log "rolled back to v$prev_version; deployed-rev, deployed-version and last-release.json updated"

@@ -22,9 +22,16 @@ fi
 case "$*" in
   "image exists "*) exit "${FAKE_PODMAN_IMAGE_EXISTS:-0}" ;;
   *"State.Running"*) printf '%s\n' "${FAKE_CONTAINER_RUNNING:-false}" ; exit 0 ;;
+  *"{{.Id}}"*) printf 'sha256:%s\n' "${FAKE_IMAGE_ID:-1111111111111111111111111111111111111111111111111111111111111111}" ; exit 0 ;;
+  *"{{.Digest}}"*) printf 'sha256:%s\n' "${FAKE_IMAGE_DIGEST:-2222222222222222222222222222222222222222222222222222222222222222}" ; exit 0 ;;
   *"migrate --dir /app/db/migrations"*) exit "${FAKE_MIGRATE_EXIT:-0}" ;;
   *"datname = 'bm2'"*) printf '%s\n' "${FAKE_BM2_EXISTS:-}" ; exit 0 ;;
   *"datname = 'bm2_rc'"*) printf '1\n' ; exit 0 ;;
+  # The RC fixture's own :local image carries no revision label, which is what
+  # keeps its CI gate from reading the commit as already live. This case comes
+  # last so a `podman run` against that image still reaches its own case above.
+  *"majadu-rc-api:local"*) exit 0 ;;
+  *org.opencontainers.image.revision*) printf '%s\n' "${FAKE_IMAGE_REV:-abc1234}" ; exit 0 ;;
 esac
 exit 0
 """
@@ -42,25 +49,26 @@ exit 0
 const gitFake = """#!/bin/sh
 case "$*" in
   *"rev-parse HEAD"*) printf 'abc1234\n' ;;
+  # The deploy migrates only for a commit a release tag points at; both the tag
+  # object and its peeled commit are listed, as `git ls-remote --tags` does.
+  *"ls-remote --tags origin"*) printf 'abc1234\trefs/tags/v2.0.0\nabc1234\trefs/tags/v2.0.0^{}\n' ;;
 esac
 exit 0
 """
 
-# The release API plus the health probes: deploy-vps.sh reads the single
-# machine digest line from the release body and treats any curl exit 0 as a
-# ready endpoint.
+# A hotfix reaches main without a tag, so `ls-remote` answers with no tag at all.
+const gitFakeNoRelease = """#!/bin/sh
+case "$*" in
+  *"rev-parse HEAD"*) printf 'abc1234\n' ;;
+esac
+exit 0
+"""
+
+# The release API for the cutover path, which still resolves the digest from the
+# published release body. Every other URL is a health probe: exit 0 is enough.
 const releaseCurlFake = """#!/bin/sh
 case "$*" in
   *api.github.com*) printf '%s' '{"body":"release notes\ndigest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n"}' ;;
-esac
-exit 0
-"""
-
-# A tag message that already carries a digest makes the published body
-# ambiguous; deploy-vps.sh must refuse it rather than take the first match.
-const ambiguousDigestCurlFake = """#!/bin/sh
-case "$*" in
-  *api.github.com*) printf '%s' '{"body":"tag message sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ndigest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n"}' ;;
 esac
 exit 0
 """
@@ -159,15 +167,15 @@ proc simFakes(fixture: Fixture) =
   fixture.installFake("podman", podmanFake)
   fixture.installFake("psql", psqlFake)
   fixture.installFake("cosign", okFake)
-  # deploy-vps.sh verifies the release signature before it pulls, so every
-  # fixture that reaches the digest step needs the public key installed.
+  # deploy-vps.sh verifies the image signature after it pulls, so every fixture
+  # that reaches the pull needs the public key installed.
   privateFile(fixture.root / "env" / "cosign.pub", "fake cosign public key\n")
 
 proc runDeployForEnvGate(fixture: Fixture, apiBody: string,
     extra: seq[(string, string)] = @[]): ShellResult =
   ## Runs the production deploy far enough to reach the API-env gate, with the
   ## checkout, the tool env and a VERSION so the commented-line case can pass
-  ## the gate and fail later at the release lookup.
+  ## the gate and fail later in the image step.
   simFakes(fixture)
   fixture.installFake("git", gitFake)
   createDir(fixture.root / "monorepo")
@@ -175,7 +183,7 @@ proc runDeployForEnvGate(fixture: Fixture, apiBody: string,
   privateFile(fixture.root / "env" / "majadu-prod.env", apiBody)
   privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
   # A non-empty token file keeps bash 3.2 from tripping on an empty AUTH array
-  # when the commented-line case reaches the release lookup.
+  # when the commented-line case reaches the registry login.
   privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
   fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
     @["badminton-match", "refs/heads/main"],
@@ -264,7 +272,6 @@ suite "deploy-vps.sh":
     defer: removeDir(fixture.root)
     simFakes(fixture)
     fixture.installFake("git", gitFake)
-    fixture.installFake("curl", releaseCurlFake)
     let systemctlLog = fixture.root / "systemctl.log"
     fixture.installFake("systemctl", systemctlLogFake)
     let mono = fixture.root / "monorepo"
@@ -323,7 +330,6 @@ suite "deploy-vps.sh":
     defer: removeDir(fixture.root)
     simFakes(fixture)
     fixture.installFake("git", gitFake)
-    fixture.installFake("curl", releaseCurlFake)
     fixture.installFake("systemctl", systemctlLogFake)
     let podmanLog = fixture.root / "podman.log"
     let mono = fixture.root / "monorepo"
@@ -481,49 +487,40 @@ suite "deploy-vps.sh":
     check fpGroupRead notin logDir
     check fpOthersRead notin logDir
 
-  # OPS-22: the "already live" gate trusted deployed-version alone.
-  test "a matching deployed-version with a running service is a no-op":
+  # OPS-22: the "already live" gate trusted deployed-version alone, which is why
+  # a hotfix that did not bump VERSION never deployed. The gate is the commit,
+  # and the running container has to carry that commit's revision label.
+  test "a matching deployed-rev with a running service is a no-op":
     let fixture = newFixture("deploy-live-ok")
     defer: removeDir(fixture.root)
     simFakes(fixture)
     fixture.installFake("git", gitFake)
-    fixture.installFake("curl", """#!/bin/sh
-case "$*" in
-  */version) printf '%s' '{"version":"2.0.0","commit":"abc"}' ;;
-esac
-exit 0
-""")
     createDir(fixture.root / "monorepo")
     touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
     privateFile(fixture.root / "env" / "majadu-prod.env",
       "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
     privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
-    touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
+    touch(fixture.root / "deploy" / "deployed-rev", "abc1234\n")
     let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
       @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
         ("MAJADU_SKIP_GIT_SYNC", "1"),
         ("FAKE_CONTAINER_RUNNING", "true"),
+        ("FAKE_IMAGE_REV", "abc1234"),
       ])
     check result.exitCode == 0
-    check result.stdout.contains("version 2.0.0 is already live; nothing to do")
+    check result.stdout.contains("commit abc1234 is already live; nothing to do")
 
-  test "a deleted :local defeats the deployed-version short-circuit":
+  test "a deleted :local defeats the deployed-rev short-circuit":
     let fixture = newFixture("deploy-live-no-image")
     defer: removeDir(fixture.root)
     simFakes(fixture)
     fixture.installFake("git", gitFake)
-    fixture.installFake("curl", """#!/bin/sh
-case "$*" in
-  */version) printf '%s' '{"version":"2.0.0","commit":"abc"}' ;;
-esac
-exit 0
-""")
     createDir(fixture.root / "monorepo")
     touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
     privateFile(fixture.root / "env" / "majadu-prod.env",
       "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
     privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
-    touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
+    touch(fixture.root / "deploy" / "deployed-rev", "abc1234\n")
     let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
       @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
         ("MAJADU_SKIP_GIT_SYNC", "1"),
@@ -531,13 +528,10 @@ exit 0
         ("FAKE_PODMAN_IMAGE_EXISTS", "1"),
       ])
     check result.stdout.contains(
-      "2.0.0 is recorded as live but localhost/majadu-api:local is missing")
+      "abc1234 is recorded as live but localhost/majadu-api:local is missing")
     check not result.stdout.contains("nothing to do")
-    # The run falls through to the release lookup, which has no published
-    # digest in this fixture.
-    check result.exitCode == 1
 
-  test "a stopped container defeats the deployed-version short-circuit":
+  test "a stopped container defeats the deployed-rev short-circuit":
     let fixture = newFixture("deploy-live-stopped")
     defer: removeDir(fixture.root)
     simFakes(fixture)
@@ -547,58 +541,49 @@ exit 0
     privateFile(fixture.root / "env" / "majadu-prod.env",
       "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
     privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
-    touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
+    touch(fixture.root / "deploy" / "deployed-rev", "abc1234\n")
     let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
       @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
         ("MAJADU_SKIP_GIT_SYNC", "1"),
         ("FAKE_CONTAINER_RUNNING", "false"),
       ])
     check result.stdout.contains(
-      "2.0.0 is recorded as live but container majadu-api is not running")
+      "abc1234 is recorded as live but container majadu-api is not running")
     check not result.stdout.contains("nothing to do")
 
-  test "a different /version defeats the deployed-version short-circuit":
-    let fixture = newFixture("deploy-live-wrong-version")
+  test "a container without this commit's revision defeats the short-circuit":
+    # The state file says the commit is live, but a container built from another
+    # commit is still running it: the label the image job stamps is the proof.
+    let fixture = newFixture("deploy-live-wrong-rev")
     defer: removeDir(fixture.root)
     simFakes(fixture)
     fixture.installFake("git", gitFake)
-    fixture.installFake("curl", """#!/bin/sh
-case "$*" in
-  */version) printf '%s' '{"version":"1.9.0","commit":"abc"}' ;;
-esac
-exit 0
-""")
     createDir(fixture.root / "monorepo")
     touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
     privateFile(fixture.root / "env" / "majadu-prod.env",
       "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
     privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
-    touch(fixture.root / "deploy" / "deployed-version", "2.0.0\n")
+    touch(fixture.root / "deploy" / "deployed-rev", "abc1234\n")
     let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
       @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
         ("MAJADU_SKIP_GIT_SYNC", "1"),
         ("FAKE_CONTAINER_RUNNING", "true"),
+        ("FAKE_IMAGE_REV", "9999999"),
       ])
     check result.stdout.contains(
-      "2.0.0 is recorded as live but http://127.0.0.1:8080/version does not report 2.0.0")
+      "abc1234 is recorded as live but majadu-api does not carry revision abc1234")
     check not result.stdout.contains("nothing to do")
 
   # OPS-17: the GHCR token used to be built into a curl argument, where any
-  # process of the same user reads it with `ps -ef`.
-  test "the release token never reaches curl argv":
+  # process of the same user reads it with `ps -ef`. It reaches the registry on
+  # stdin to `podman login`, and no argv of any process may carry it.
+  test "the registry token never reaches argv":
     let fixture = newFixture("deploy-token-argv")
     defer: removeDir(fixture.root)
     simFakes(fixture)
     fixture.installFake("git", gitFake)
-    let curlLog = fixture.root / "curl.log"
-    fixture.installFake("curl", """#!/bin/sh
-printf '%s\n' "$*" >>"$FAKE_CURL_LOG"
-case "$*" in
-  *api.github.com*) printf '%s' '{"body":"digest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n"}' ;;
-esac
-exit 0
-""")
-    # Stop right after the lookup: a failing cosign keeps the case about argv.
+    let podmanLog = fixture.root / "podman.log"
+    # Stop right after the pull: a failing cosign keeps the case about argv.
     fixture.installFake("cosign", "#!/bin/sh\nexit 1\n")
     createDir(fixture.root / "monorepo")
     touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
@@ -609,13 +594,15 @@ exit 0
     let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
       @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
         ("MAJADU_SKIP_GIT_SYNC", "1"),
-        ("FAKE_CURL_LOG", curlLog),
+        ("FAKE_PODMAN_LOG", podmanLog),
       ])
     check result.exitCode == 1
     check result.stdout.contains("cosign verify failed")
-    let argv = readFile(curlLog)
-    check argv.contains("--config -")
+    let argv = readFile(podmanLog)
+    check argv.contains("login ghcr.io")
+    check argv.contains("--password-stdin")
     check not argv.contains("secret-token")
+    check not readFile(fixture.root / "logs" / "deploy.log").contains("secret-token")
 
   test "a world-readable credential file fails the deploy":
     let fixture = newFixture("deploy-env-mode")
@@ -660,7 +647,8 @@ exit 0
         ("MAJADU_SKIP_GIT_SYNC", "1"),
       ])
     check not result.stdout.contains("must be mode 600")
-    check result.stdout.contains("release v2.0.0 has no published image digest")
+    check result.stdout.contains(
+      "pulled ghcr.io/hidaydev/badminton-match:sha-abc1234")
 
   test "a missing tool env fails before the release lookup":
     let fixture = newFixture("deploy-tool-env-missing")
@@ -678,7 +666,7 @@ exit 0
     let toolsFile = fixture.root / "env" / "majadu-tools.env"
     check result.stdout.contains(
       "tool env file " & toolsFile & " is missing; copy ops/env/prod-tools.env.example")
-    check not result.stdout.contains("release v")
+    check not result.stdout.contains("pulled ")
 
   test "the prod env gate sees systemd assignment forms":
     let cases = [
@@ -709,7 +697,8 @@ exit 0
       "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n" &
       "# MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
     check not result.stdout.contains("must not contain MAJADU_OWNER_DSN")
-    check result.stdout.contains("release v2.0.0 has no published image digest")
+    check result.stdout.contains(
+      "pulled ghcr.io/hidaydev/badminton-match:sha-abc1234")
 
   test "a pre-cutover host exits 0 without the tool env":
     let fixture = newFixture("deploy-pre-cutover")
@@ -729,43 +718,21 @@ exit 0
       "production does not point at bm2 yet: cutover has not happened, nothing to deploy")
     check not result.stdout.contains("tool env file")
 
-  test "release assets with their own digests do not read as ambiguous":
-    # GitHub attaches `"digest":"sha256:..."` to every release asset. Counting
-    # those as release-body digests made every release with SBOM assets
-    # undeployable, so only the human-writable text may be counted.
-    let fixture = newFixture("deploy-asset-digests")
+  # OPS-21: a hotfix lands on main without a release tag. It gets the image and
+  # the container, but the schema is verified rather than migrated, so a hotfix
+  # that brought a migration is refused by that verify instead of applied.
+  test "a commit without a release tag verifies the schema without migrating":
+    let fixture = newFixture("deploy-hotfix-no-tag")
     defer: removeDir(fixture.root)
     simFakes(fixture)
-    fixture.installFake("git", gitFake)
-    fixture.installFake("curl", """#!/bin/sh
-case "$*" in
-  *api.github.com*) printf '%s' '{"body":"release notes\ndigest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n","assets":[{"name":"deps.cdx.json","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"name":"image.cdx.json","digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]}' ;;
-esac
-exit 0
-""")
-    createDir(fixture.root / "monorepo")
-    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
-    privateFile(fixture.root / "env" / "majadu-prod.env",
-      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
-    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
-    privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
-    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
-      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
-        ("MAJADU_SKIP_GIT_SYNC", "1"),
-      ])
-    check not result.stdout.contains(
-      "must carry exactly one 'digest: sha256:...' line")
-    check result.stdout.contains(
-      "release v2.0.0 resolves to sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
-
-  test "a digest in the tag message is refused as ambiguous":
-    let fixture = newFixture("deploy-ambiguous-digest")
-    defer: removeDir(fixture.root)
-    simFakes(fixture)
-    fixture.installFake("git", gitFake)
-    fixture.installFake("curl", ambiguousDigestCurlFake)
+    fixture.installFake("git", gitFakeNoRelease)
+    fixture.installFake("systemctl", systemctlLogFake)
+    let podmanLog = fixture.root / "podman.log"
     let mono = fixture.root / "monorepo"
     touch(mono / "VERSION", "2.0.0\n")
+    touch(mono / "db" / "migrations" / "0001_init.sql", "select 1;\n")
+    createDir(mono / "ops" / "systemd")
+    createDir(mono / "ops" / "scripts")
     privateFile(fixture.root / "env" / "majadu-prod.env",
       "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
     privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
@@ -773,12 +740,15 @@ exit 0
     let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
       @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
         ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("FAKE_PODMAN_LOG", podmanLog),
       ])
-    check result.exitCode == 1
+    let calls = readFile(podmanLog)
     check result.stdout.contains(
-      "must carry exactly one 'digest: sha256:...' line")
-    check readFile(fixture.root / "deploy" / "last-attempt.json")
-      .contains("\"step\":\"resolve-digest\"")
+      "commit abc1234 carries no release tag; the schema is verified, not migrated")
+    check calls.contains("pull ghcr.io/hidaydev/badminton-match:sha-abc1234")
+    check not calls.contains("migrate --dir /app/db/migrations")
+    check not calls.contains("seed --dir /app/db/seeds")
+    check calls.contains("verify --dir /app/db/migrations")
 
 suite "deploy-vps-rc.sh":
   test "a ref other than the RC branch is ignored":
