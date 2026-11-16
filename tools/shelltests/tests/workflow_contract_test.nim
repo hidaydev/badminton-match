@@ -52,7 +52,13 @@ suite "workflow contract":
     check text.contains("cancel-in-progress: ${{ github.event_name == 'pull_request' }}")
     check text.contains("nimcache-${{ runner.os }}-")
     check text.contains("coverage-gate:")
+    # #65: the gate needs only the in-repo quality jobs, and `image` needs the
+    # gate. The reverse order published a pullable `sha-<7>` tag for a commit
+    # whose checks were still running, and the host deploys that tag, so the
+    # direction is the assertion here, not just the membership of the list.
     check text.contains(
+      "needs: [api-check, api-test, contract, supply-chain, web, e2e, mutation]")
+    check not text.contains(
       "needs: [api-check, api-test, contract, supply-chain, web, e2e, mutation, image, coverage-gate]")
 
   # OPS-20: the coverage gate used the distro tools and could be cancelled by
