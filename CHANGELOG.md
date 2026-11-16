@@ -5,6 +5,12 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.0.2] - 2026-11-16
+
+### Fixed
+- fix(ops): wait for the image signature instead of failing the deploy (dfab039; ops/scripts/deploy-vps.sh, tools/shelltests/tests/deploy_guards_test.nim)
+- fix(web): rebuild the SPA when VERSION changes (7ea5391; apps/web/README.md, apps/web/vercel.json)
+
 ## [2.0.1] - 2026-11-16
 
 ### Changed
