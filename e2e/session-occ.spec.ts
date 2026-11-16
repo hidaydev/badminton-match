@@ -3,12 +3,14 @@ import type { Page } from 'playwright/test'
 import { t } from '../apps/web/src/i18n'
 import { state } from './global-setup'
 import { signIn } from './session'
+import type { WritableSession } from './visual.routes'
 
 /**
  * FE-20: optimistic concurrency seen from two browsers. The fixture gives every
- * project its own `E2E OCC` session (`occByProject`), separate from the
+ * project and every repeat its own `E2E OCC` session, separate from the
  * single-writer spec's session: `fullyParallel` runs this file beside
- * `session-write.spec.ts`, and two specs must not bump the same version.
+ * `session-write.spec.ts`, and `--repeat-each` runs it beside a copy of itself,
+ * so two specs must not bump the same version.
  *
  * The three cases are one story and cannot be reordered: case 3 reads back the
  * first writer's score, so it has to happen before case 2 saves over it.
@@ -27,14 +29,12 @@ const STALE = { a: 20, b: 30 }
 /** Accepted after the reload, against the version the reload brought in. */
 const SECOND = { a: 30, b: 24 }
 
-function writableSession(projectName: string): string {
-  const id = state().occByProject[projectName]
-  if (id === undefined) throw new Error(`no writable session for ${projectName}`)
-  return id
-}
-
-function sessionTitle(projectName: string): string {
-  return `E2E OCC ${projectName}`
+function writableSession(projectName: string, repeat: number): WritableSession {
+  const session = state().occByProject[projectName]?.[repeat]
+  if (session === undefined) {
+    throw new Error(`no writable session for ${projectName} r${repeat + 1}`)
+  }
+  return session
 }
 
 /** The row's score control: an empty row until the game has a score. */
@@ -81,8 +81,9 @@ async function openSession(page: Page, slug: string, sessionId: string, title: s
 test('two writers on one session: the stale save is refused, a reload shows the first score, then the next save lands', async ({ browser }) => {
   const info = test.info()
   const { writableCommunitySlug: slug } = state()
-  const sessionId = writableSession(info.project.name)
-  const title = sessionTitle(info.project.name)
+  const session = writableSession(info.project.name, info.repeatEachIndex)
+  const sessionId = session.id
+  const title = session.title
   const detailUrl = `${info.project.use.baseURL ?? 'http://127.0.0.1:5173'}/api/c/${slug}/sessions/${sessionId}`
 
   // A service worker answers the app's own fetches on its own network stack,
