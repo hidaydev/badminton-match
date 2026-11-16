@@ -11,6 +11,7 @@
 ## compiles the same source the shipped binary uses, and its line info still
 ## points at `repo.nim`, so the case covers the real parser.
 import std/[os, osproc, strtabs, strutils, unittest]
+import sha256
 
 include ../repo
 import ../main
@@ -283,6 +284,28 @@ suite "release command line":
     let pin = readFile(repo / "testdata/parity/v2/version.json")
     check pin.contains("\"version\": \"1.5.0\"")
     check not pin.contains("\"version\": \"1.4.2\"")
+
+  test "--apply refreshes the corpus manifest digest for the moved pin":
+    # `parity v2 lint` hashes every corpus file against MANIFEST.sha256 before it
+    # replays, so the rewritten pin needs its own digest or the release commit
+    # fails the contract job.
+    let repo = taggedRepo("parity-manifest", "1.4.2")
+    discard commitFiles(repo, "feat: add the board", "",
+      [("testdata/parity/v2/version.json",
+        "{\n  \"version\": \"1.4.2\"\n}\n"),
+       ("testdata/parity/v2/MANIFEST.sha256",
+        "0000000000000000000000000000000000000000000000000000000000000000" &
+        "  ./version.json\n")])
+
+    let run = selfRun(@["--repo", repo, "--date", "2026-11-08", "--apply"])
+    check run.exitCode == 0
+    check run.output.contains(
+      "  git add VERSION CHANGELOG.md testdata/parity/v2/version.json " &
+      "testdata/parity/v2/MANIFEST.sha256")
+    let pin = readFile(repo / "testdata/parity/v2/version.json")
+    check pin.contains("\"version\": \"1.5.0\"")
+    check readFile(repo / "testdata/parity/v2/MANIFEST.sha256") ==
+      sha256Hex(pin) & "  ./version.json\n"
 
   test "a dirty working tree is refused before anything is written":
     let repo = taggedRepo("dirty-refusal", "1.4.2")

@@ -3,6 +3,7 @@
 ## writes VERSION and prepends the section. It never creates tags, commits or
 ## pushes; it prints those commands for the operator.
 import std/[os, strutils, times]
+import sha256
 import cli
 import clock
 import versioning, changelog, repo
@@ -27,6 +28,12 @@ const previewLimit = 40
 # `Parity: v2 verify`, so the pin is rewritten here instead of being left for the
 # operator to remember.
 const parityVersionPin = "testdata/parity/v2/version.json"
+
+# `parity v2 lint` hashes every corpus file against this manifest before it
+# replays anything, so a rewritten pin that keeps the old digest fails the
+# release commit on the contract job.
+const parityManifest = "testdata/parity/v2/MANIFEST.sha256"
+const parityPinEntry = "./version.json"
 
 type Options = object
   repo: string
@@ -90,6 +97,23 @@ proc writeAtomic(path, content: string) =
   writeFile(staging, content)
   moveFile(staging, path)
 
+proc refreshParityDigest(repo, content: string) =
+  ## Replace the `./version.json` line of the corpus manifest with the digest of
+  ## the rewritten file, leaving every other line byte for byte.
+  let manifestPath = repo / parityManifest
+  if not fileExists(manifestPath):
+    return
+  let digest = sha256Hex(content)
+  # Split on `\n` instead of `splitLines`: the latter drops nothing and appends
+  # nothing, so joining reproduces the file byte for byte, trailing newline
+  # included.
+  var lines = readFile(manifestPath).split('\n')
+  for i in 0 ..< lines.len:
+    let cols = lines[i].splitWhitespace()
+    if cols.len == 2 and cols[1] == parityPinEntry:
+      lines[i] = digest & "  " & parityPinEntry
+  writeAtomic(manifestPath, lines.join("\n"))
+
 proc repinParityVersion(repo: string, current, next: Version): bool =
   ## Rewrite the pinned `/version` body in the v2 parity corpus. Returns false
   ## when the corpus or the pin is absent, which is not an error: the file only
@@ -101,7 +125,9 @@ proc repinParityVersion(repo: string, current, next: Version): bool =
   let pinned = "\"version\": \"" & $current & "\""
   if not body.contains(pinned):
     return false
-  writeAtomic(path, body.replace(pinned, "\"version\": \"" & $next & "\""))
+  let rewritten = body.replace(pinned, "\"version\": \"" & $next & "\"")
+  writeAtomic(path, rewritten)
+  refreshParityDigest(repo, rewritten)
   true
 
 proc report(options: Options, current, next: Version, tag: string,
@@ -120,6 +146,8 @@ proc report(options: Options, current, next: Version, tag: string,
   echo "  CHANGELOG.md             prepend section for " & $next
   if fileExists(options.repo / parityVersionPin):
     echo "  " & parityVersionPin & "  pin " & $current & " -> " & $next
+  if fileExists(options.repo / parityManifest):
+    echo "  " & parityManifest & "  digest of " & parityPinEntry
   echo "  " & notesPath & " annotated tag notes"
   echo ""
   echo "section:"
@@ -128,7 +156,8 @@ proc report(options: Options, current, next: Version, tag: string,
   echo ""
   echo "next steps (run by hand from the repository root; nothing is tagged or pushed here):"
   echo "  git add VERSION CHANGELOG.md" &
-    (if fileExists(options.repo / parityVersionPin): " " & parityVersionPin else: "")
+    (if fileExists(options.repo / parityVersionPin): " " & parityVersionPin else: "") &
+    (if fileExists(options.repo / parityManifest): " " & parityManifest else: "")
   echo "  git commit -m \"chore(release): v" & $next & "\""
   # QA-15: `Release: verify tag` wants a completed, successful Coverage run for
   # the exact tagged commit, and Coverage only runs on main, release/** and pull
