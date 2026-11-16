@@ -74,7 +74,9 @@ check_release_order() {
   file="docs/ops/release.md"
   [ -f "$REPO_ROOT/$file" ] || { report "$file is missing"; return 0; }
   tag_line=$(grep -n 'git push origin refs/tags/' "$REPO_ROOT/$file" | head -1 | cut -d: -f1)
-  main_line=$(grep -n 'git push origin main' "$REPO_ROOT/$file" | head -1 | cut -d: -f1)
+  # `HEAD:main` is the same push the release tool prints when the release commit
+  # is cut on a branch, so both spellings count as the main step.
+  main_line=$(grep -nE 'git push origin (HEAD:)?main' "$REPO_ROOT/$file" | head -1 | cut -d: -f1)
   if [ -z "$tag_line" ] || [ -z "$main_line" ]; then
     report "$file no longer shows the tag-then-main push commands"
   elif [ "$tag_line" -ge "$main_line" ]; then

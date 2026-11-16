@@ -90,6 +90,18 @@ suite "docs-check":
     check result.exitCode == 1
     check result.stderr.contains("pushes main before the tag")
 
+  test "a release page that pushes HEAD:main after the tag passes":
+    # The release commit is cut on a release branch, so the tool prints
+    # `git push origin HEAD:main`; the ordering control has to read it.
+    let fixture = newFixture("docs-order-head")
+    defer: removeDir(fixture.root)
+    seed(fixture)
+    writeFile(fixture.root / "docs" / "ops" / "release.md",
+      "   git push origin refs/tags/v<version>\n   git push origin HEAD:main\n")
+    let result = fixture.runTask(@["docs-check"])
+    check result.exitCode == 0
+    check result.stdout.contains("docs-check: ok")
+
   test "the committed ci target runs the docs gate":
     let fixture = newFixture("docs-ci-target")
     defer: removeDir(fixture.root)

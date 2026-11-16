@@ -84,34 +84,51 @@ published before `main` is pushed.
    `--baseline`; without it the tool stops at
 
    ```text
-   release: no baseline tag: create v2.0.0 first (git tag -s v2.0.0), or pass --baseline to cut 2.0.0 as the first release
+   release: no baseline tag: create v2.0.0 first (an SSH-signed `git tag -s`, see docs/ops/release.md), or pass --baseline to cut 2.0.0 as the first release
    ```
 
    That message is the reference behaviour, and the runbook keeps it rather than
    adding a second path around it.
-2. `./task release --apply`: writes `VERSION`, `CHANGELOG.md`, and
-   `.cache/release/v<version>.md` (tag message source). It only runs if the
-   working tree is clean and the last tag matches `VERSION`.
+2. `./task release --apply`: writes `VERSION`, `CHANGELOG.md`,
+   `.cache/release/v<version>.md` (tag message source) and moves the
+   `testdata/parity/v2/version.json` pin to the new version. The pin is part of
+   the same edit on purpose: `Parity: v2 verify` replays the `/version` body,
+   which the API builds from `VERSION`, so a bump that leaves the pin behind
+   fails the release gate. It only runs if the working tree is clean and the last
+   tag matches `VERSION`.
 3. Commit `chore(release): v<version>`.
-4. `git -c gpg.format=ssh -c user.signingkey=~/.ssh/id_ed25519.pub
-   tag -s -F .cache/release/v<version>.md v<version>`. The format is stated
-   explicitly because the committer's default is OpenPGP and `release.yml`
-   verifies SSH signatures.
-5. **Push the tag first**, then `main`:
+4. **Push the commit to a release branch and wait for it to go green**:
+
+   ```sh
+   git push origin HEAD:refs/heads/release/v<version>
+   ```
+
+   `Coverage` runs on `main`, `release/**` and pull requests only, and
+   `Release: verify tag` refuses a commit with no completed, successful Coverage
+   run (QA-15). Tagging a commit that was never pushed therefore waits five
+   minutes and fails. `main` cannot be used for this step because pushing it
+   triggers the deploy before the image exists, which is why the branch exists.
+5. `git -c gpg.format=ssh -c user.signingkey=~/.ssh/id_ed25519.pub
+   tag -s -F .cache/release/v<version>.md v<version>`, then the matching
+   `git -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=.github/allowed_signers
+   verify-tag v<version>` before pushing. `./task release` prints both lines in
+   this form; the format is stated explicitly because the committer's default is
+   OpenPGP and `release.yml` verifies SSH signatures.
+6. **Push the tag first**, then `main`:
 
    ```sh
    git push origin refs/tags/v<version>
-   git push origin main
+   git push origin HEAD:main
    ```
 
    The tag triggers `release.yml` (verify → image → publish). `main` triggers the
    deploy webhook, which waits for the `sha-<7>` image of that commit. The reverse
    order is still wrong: the deploy would wait out its pull attempts and fail at
    the `pull` step instead of deploying.
-6. Wait for `release.yml` to go green and record the digest from the GitHub
+7. Wait for `release.yml` to go green and record the digest from the GitHub
    Release body. `release.yml` never creates or moves a tag; the tag always comes
    from the operator.
-7. Record the CI and Coverage run URLs for the tagged commit next to the tag
+8. Record the CI and Coverage run URLs for the tagged commit next to the tag
    message. The coverage gate has failed at setup before (a cache pin named a
    commit GitHub could not resolve), so the number is not evidence until its run
    URL is recorded. `./task deps-check` now fails on a pin GitHub cannot resolve;
@@ -328,7 +345,8 @@ then rehearsed against the RC database, in this order:
 
 1. `./task release` and `./task release --apply`, then commit
    `chore(release): v<version>`.
-2. `git tag -s -F .cache/release/v<version>.md v<version>`, then
+2. `git -c gpg.format=ssh -c user.signingkey=~/.ssh/id_ed25519.pub
+   tag -s -F .cache/release/v<version>.md v<version>`, then
    `ops/scripts/release-preflight.sh v<version>`. Fix every `MISSING:` line
    before pushing.
 3. `git push origin refs/tags/v<version>` and wait for `release.yml`. Record the

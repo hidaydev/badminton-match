@@ -11,6 +11,7 @@
 ## compiles the same source the shipped binary uses, and its line info still
 ## points at `repo.nim`, so the case covers the real parser.
 import std/[os, osproc, strtabs, strutils, unittest]
+import sha256
 
 include ../repo
 import ../main
@@ -144,6 +145,23 @@ suite "release git helpers":
       subjects.add item.subject
     check subjects.contains("feat: sideline")
 
+  test "logCommits leaves out a release commit and its revert":
+    # v2.0.1's first cut was reverted; the pair cancels out and neither is a
+    # change a CHANGELOG reader can act on.
+    let repo = newRepo("bookkeeping")
+    discard commitFiles(repo, "feat: real change", "", [("a.txt", "a\n")])
+    let release = commitFiles(repo, "chore(release): v2.0.1", "",
+      [("VERSION", "2.0.1\n")])
+    discard git(repo, @["revert", "--no-edit", release])
+    discard commitFiles(repo, "fix: another change", "", [("b.txt", "b\n")])
+
+    let commits = logCommits(repo, "")
+    check commits.len == 2
+    var subjects: seq[string]
+    for item in commits:
+      subjects.add item.subject
+    check subjects == @["fix: another change", "feat: real change"]
+
   test "parseRecord ignores a record without the record separator":
     check parseRecord("").hash == ""
     check parseRecord("deadbeef\x1ffeat: subject\x1fbody").hash == ""
@@ -216,8 +234,21 @@ suite "release command line":
     check run.output.contains("release: apply")
     check run.output.contains("release: wrote VERSION, CHANGELOG.md and .cache/release/v1.5.0.md")
     check run.output.contains("  git add VERSION CHANGELOG.md")
-    check run.output.contains("  git tag -s -F .cache/release/v1.5.0.md v1.5.0")
-    check run.output.contains("  git push origin main")
+    # SEC-03: the printed tag command states the SSH format, because a bare
+    # `git tag -s` follows the committer's OpenPGP default and release.yml
+    # rejects that signature. The verify line is the gate's own check.
+    check run.output.contains(
+      "  git -c gpg.format=ssh -c user.signingkey=~/.ssh/id_ed25519.pub \\\n" &
+      "    tag -s -F .cache/release/v1.5.0.md v1.5.0")
+    check run.output.contains(
+      "  git -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=.github/allowed_signers \\\n" &
+      "    verify-tag v1.5.0")
+    check not run.output.contains("  git tag -s -F")
+    # QA-15: Coverage only runs on main, release/** and pull requests, so the
+    # commit is pushed to a release branch before it is tagged.
+    check run.output.contains(
+      "  git push origin HEAD:refs/heads/release/v1.5.0   # CI + Coverage for this commit; wait for both to go green")
+    check run.output.contains("  git push origin HEAD:main")
     check run.output.contains("  git push origin refs/tags/v1.5.0")
     check run.output.contains(
       "  gh release create v1.5.0 --notes-file .cache/release/v1.5.0.md --verify-tag")
@@ -234,6 +265,47 @@ suite "release command line":
     check readFile(notes).contains("### Added")
     # The tool never commits or tags on its own.
     check git(repo, @["tag"]).strip() == "v1.4.2"
+
+  test "--apply moves the v2 parity version pin with VERSION":
+    # `Parity: v2 verify` replays the pinned /version body, which the API builds
+    # from VERSION. A bump that leaves the pin behind fails the release gate.
+    let repo = taggedRepo("parity-pin", "1.4.2")
+    discard commitFiles(repo, "feat: add the board", "",
+      [("testdata/parity/v2/version.json",
+        "{\n  \"route\": \"getVersion\",\n  \"expect\": {\n    \"status\": 200,\n" &
+        "    \"body\": {\n      \"commit\": \"none\",\n      \"version\": \"1.4.2\"\n" &
+        "    }\n  }\n}\n")])
+
+    let run = selfRun(@["--repo", repo, "--date", "2026-11-08", "--apply"])
+    check run.exitCode == 0
+    check run.output.contains(
+      "release: rewrote the testdata/parity/v2/version.json pin to 1.5.0")
+    check run.output.contains("  git add VERSION CHANGELOG.md testdata/parity/v2/version.json")
+    let pin = readFile(repo / "testdata/parity/v2/version.json")
+    check pin.contains("\"version\": \"1.5.0\"")
+    check not pin.contains("\"version\": \"1.4.2\"")
+
+  test "--apply refreshes the corpus manifest digest for the moved pin":
+    # `parity v2 lint` hashes every corpus file against MANIFEST.sha256 before it
+    # replays, so the rewritten pin needs its own digest or the release commit
+    # fails the contract job.
+    let repo = taggedRepo("parity-manifest", "1.4.2")
+    discard commitFiles(repo, "feat: add the board", "",
+      [("testdata/parity/v2/version.json",
+        "{\n  \"version\": \"1.4.2\"\n}\n"),
+       ("testdata/parity/v2/MANIFEST.sha256",
+        "0000000000000000000000000000000000000000000000000000000000000000" &
+        "  ./version.json\n")])
+
+    let run = selfRun(@["--repo", repo, "--date", "2026-11-08", "--apply"])
+    check run.exitCode == 0
+    check run.output.contains(
+      "  git add VERSION CHANGELOG.md testdata/parity/v2/version.json " &
+      "testdata/parity/v2/MANIFEST.sha256")
+    let pin = readFile(repo / "testdata/parity/v2/version.json")
+    check pin.contains("\"version\": \"1.5.0\"")
+    check readFile(repo / "testdata/parity/v2/MANIFEST.sha256") ==
+      sha256Hex(pin) & "  ./version.json\n"
 
   test "a dirty working tree is refused before anything is written":
     let repo = taggedRepo("dirty-refusal", "1.4.2")

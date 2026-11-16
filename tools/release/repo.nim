@@ -45,6 +45,13 @@ proc parseRecord(record: string): Commit =
       paths.add path
   parseCommit(fields[0], fields[1], fields[2], paths)
 
+proc isReleaseBookkeeping*(subject: string): bool =
+  ## A release commit, and a revert of one, describe the release tool's own
+  ## output rather than a change a CHANGELOG reader can act on: the pair cancels
+  ## out and neither belongs in the section.
+  let text = subject.strip()
+  text.startsWith("chore(release):") or text.startsWith("Revert \"chore(release):")
+
 proc logCommits*(repo: string, sinceTag: string): seq[Commit] =
   ## Commits since `sinceTag` (exclusive), or every commit when it is empty.
   ## Merge commits are skipped: their subject is never a change description.
@@ -58,5 +65,5 @@ proc logCommits*(repo: string, sinceTag: string): seq[Commit] =
     if record.strip().len == 0:
       continue
     let commit = parseRecord(record)
-    if commit.hash.len > 0:
+    if commit.hash.len > 0 and not isReleaseBookkeeping(commit.subject):
       result.add commit
