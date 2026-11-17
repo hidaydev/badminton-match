@@ -826,7 +826,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           notes=$(mktemp)
-          git tag -l --format='%(contents)' "$TAG" >"$notes"
+          git tag -l --format='%(contents)' "$TAG" | \
+            sed -e '/^-----BEGIN SSH SIGNATURE-----/,/^-----END SSH SIGNATURE-----/d' \
+                -e '/^-----BEGIN PGP SIGNATURE-----/,/^-----END PGP SIGNATURE-----/d' >"$notes"
           # deploy-vps.sh accepts exactly one digest-shaped string in the
           # release body. A tag message that already contains one would make the
           # published body ambiguous, so the release fails here instead.
