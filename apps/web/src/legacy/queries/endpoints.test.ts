@@ -115,9 +115,10 @@ describe('legacy achievements', () => {
     expect(keys.filter((key) => key === 'medal:rank')).toHaveLength(1)
     expect(rows.find((row) => row.key === 'medal:streak')?.value).toBe(8)
     expect(rows.find((row) => row.key === 'medal:rank')?.value).toBe(2)
-    // v1 had no tier or tournament-count badge; event medals stay as-is.
-    expect(keys).not.toContain('medal:tier')
-    expect(keys).not.toContain('medal:tournaments')
+    // v2 awards a tier badge and a tournament-count ladder, and both reach the
+    // shelf (docs/handbook/product-overview.md §4). Event medals stay as-is.
+    expect(keys).toContain('medal:tier')
+    expect(keys).toContain('medal:tournaments')
     expect(keys).toContain('medal:rank_streak')
     expect(keys).toContain('tournament:event-1')
     expect(rows.find((row) => row.key === 'tournament:event-1')?.title).toBe(

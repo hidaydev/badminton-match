@@ -3,6 +3,8 @@ import { EVENT_TONES, MEDAL_TONES } from '../config/achievements'
 
 // MedalIcon: the glyph name. Every medal has its own icon so none repeat; the
 // badge carries no text, so the icon plus the colour are the only markers.
+// `medal:tournaments` shares the `flag` of a single-tournament medal: same
+// family, and a count medal should not read as a different kind of thing.
 export type MedalIcon =
   | 'check'
   | 'shuttlecock'
@@ -13,6 +15,7 @@ export type MedalIcon =
   | 'flag'
   | 'podium'
   | 'stairup'
+  | 'chevrons'
 
 // medalIcon — achievement_key → ikon.
 export function medalIcon(key: string): MedalIcon {
@@ -33,6 +36,10 @@ export function medalIcon(key: string): MedalIcon {
       return 'podium'
     case 'medal:rank_streak':
       return 'stairup'
+    case 'medal:tournaments':
+      return 'flag'
+    case 'medal:tier':
+      return 'chevrons'
   }
   if (key.startsWith('tournament:')) return 'flag'
   return 'trophy'

@@ -24,6 +24,7 @@ import {
   getEventMedalStyle,
   MEDAL_TIER_NAMES,
   MEDAL_TIER_STYLES,
+  UNKNOWN_MEDAL_STYLE,
 } from '../../config/achievements'
 import type { AchievementRow } from '../../queries/endpoints'
 import { t } from '../../../i18n'
@@ -53,14 +54,19 @@ export default function AchievementDetailModal({
     ? getEventMedalStyle(eventTone(seed))
     : isMilestone
       ? MEDAL_TIER_STYLES[tierIdx]
-      : MEDAL_TIER_STYLES[2]
+      : UNKNOWN_MEDAL_STYLE
+
+  // `value` on the wire is the rung's threshold, not the player's own count
+  // (`backfill.nim:571`), so it is only a real number for `rank_streak`, whose
+  // key suffix stores the run.
+  const showsCount = a.key === 'medal:rank_streak' && a.value != null
 
   // Hitung progres ke tier berikutnya jika ada
   const nextTarget = a.nextTarget ?? (tierLevel < thresholds.length ? thresholds[tierLevel] : null)
   const prevTarget = tierLevel > 1 && thresholds[tierLevel - 2] ? thresholds[tierLevel - 2] : 0
   const currentValue = a.value ?? 0
   let progressPercent = 0
-  if (nextTarget && nextTarget > prevTarget && currentValue >= prevTarget) {
+  if (showsCount && nextTarget && nextTarget > prevTarget && currentValue >= prevTarget) {
     progressPercent = Math.min(
       100,
       Math.max(0, Math.round(((currentValue - prevTarget) / (nextTarget - prevTarget)) * 100)),
@@ -193,8 +199,10 @@ export default function AchievementDetailModal({
               </div>
             </div>
 
-            {/* Progress Bar ke Tier Berikutnya jika belum Max */}
-            {tierLevel < thresholds.length && nextTarget && a.value != null && (
+            {/* Next rung. The count and the bar only appear when `value` is a
+                real player count (`rank_streak`); elsewhere it is the rung's
+                threshold, so a ratio built from it would be fiction. */}
+            {tierLevel < thresholds.length && nextTarget && (
               <div className="mt-1 rounded-lg border border-border-subtle bg-ground/40 p-2.5">
                 <div className="flex items-center justify-between text-[10px]">
                   <span className="text-fg-dim">
@@ -202,16 +210,20 @@ export default function AchievementDetailModal({
                       {MEDAL_TIER_NAMES[tierLevel]} ({a.key === 'medal:rank' ? `#${nextTarget}` : nextTarget})
                     </span>
                   </span>
-                  <span className="font-mono text-xs font-semibold text-accent">
-                    {a.value} / {nextTarget}
-                  </span>
+                  {showsCount && (
+                    <span className="font-mono text-xs font-semibold text-accent">
+                      {a.value} / {nextTarget}
+                    </span>
+                  )}
                 </div>
-                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-elevated">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-[width] duration-500"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
+                {showsCount && (
+                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-elevated">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-[width] duration-500"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -22,6 +22,7 @@ import {
   getEventMedalStyle,
   MEDAL_TIER_STYLES,
   type MedalTierStyle,
+  UNKNOWN_MEDAL_STYLE,
 } from '../../config/achievements'
 
 export type AchievementState = 'earned' | 'locked'
@@ -377,6 +378,14 @@ function Glyph({
           <path d="M31 22 L36 26.5 L31 31" strokeWidth="2.4" />
         </g>
       )
+
+    case 'chevrons':
+      return (
+        <g fill="none" stroke={stroke} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M15 20 L24 27 L33 20" strokeWidth="2.4" />
+          <path d="M15 30 L24 37 L33 30" strokeWidth="2.4" />
+        </g>
+      )
   }
 }
 
@@ -420,8 +429,10 @@ export default function AchievementBadge({
     const tone = eventTone(seed)
     style = getEventMedalStyle(tone)
   } else {
-    // Default fallback ke Gold style
-    style = MEDAL_TIER_STYLES[2]
+    // No tier and no event seed: neutral, never Gold. A tier badge arrives
+    // without a rung (`ladderLevel` returns 0 for `tier`), so Gold here would
+    // paint every class badge as the third rung.
+    style = UNKNOWN_MEDAL_STYLE
   }
 
   const height = Math.round(width * HEX_RATIO)

@@ -109,6 +109,24 @@ export const MEDAL_TIER_STYLES: MedalTierStyle[] = [
   },
 ]
 
+// Neutral style for a medal whose `tierLevel` is missing: a family with no rung
+// (the tier badge carries its class in the key suffix) or a definition row that
+// is not seeded. Deliberately not Gold, so an unknown tier cannot read as the
+// third rung.
+export const UNKNOWN_MEDAL_STYLE: MedalTierStyle = {
+  level: 0,
+  name: 'Unknown',
+  tone: '#7f8a99',
+  rimStops: ['#c2ccd8', '#98a4b3', '#6b7686', '#333c48', '#59636f'],
+  faceStops: ['#232a33', '#0c1015'],
+  glyphStops: ['#cdd6e0', '#94a0af', '#4d5765'],
+  specular: '#dbe3ea',
+  glow: 'rgba(148, 163, 184, 0.22)',
+  pillBg: 'bg-slate-900/70',
+  pillText: 'text-slate-300',
+  pillBorder: 'border-slate-600/50',
+}
+
 function parseHex(hex: string): [number, number, number] {
   const c = hex.replace('#', '')
   const n = parseInt(c.length === 3 ? c.split('').map((x) => x + x).join('') : c, 16)

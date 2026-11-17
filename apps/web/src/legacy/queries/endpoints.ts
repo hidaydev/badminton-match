@@ -1121,9 +1121,21 @@ function legacyAchievementKey(key: string): string | null {
   if (key.startsWith('tournament:')) return key
   const metric = key.slice(0, key.indexOf(':'))
   if (metric === 'rank_streak') return 'medal:rank_streak'
-  // v1 had no tournament-count or tier ladder: tournaments show up as event
-  // medals, and tier is the player's class, not a badge.
-  if (['sessions', 'games', 'wins', 'streak', 'partners', 'opponents', 'rank'].includes(metric)) {
+  // v2 also earns a tournament-count ladder and a tier badge, and both belong
+  // on the player shelf (docs/handbook/product-overview.md §4).
+  if (
+    [
+      'sessions',
+      'games',
+      'wins',
+      'streak',
+      'partners',
+      'opponents',
+      'rank',
+      'tournaments',
+      'tier',
+    ].includes(metric)
+  ) {
     return `medal:${metric}`
   }
   return null
@@ -1161,7 +1173,8 @@ export async function getPlayerAchievements(
     }]
   })
   // v2 earns one row per crossed threshold, while v1 kept one row per family.
-  // Collapse them so the shelf shows the family once, at its best rung.
+  // Collapse them so the shelf shows the family once, at its best rung. `rank`
+  // improves downward; `tier` climbs (C..A+) like every other family.
   const best = new Map<string, AchievementRow>()
   for (const row of rows) {
     const previous = best.get(row.key)
