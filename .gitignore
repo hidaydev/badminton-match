@@ -98,3 +98,5 @@ nimbledeps
 # Templates are meant to be tracked; only real env files are local.
 !.env.example
 !.env.*.example
+# Local MCP tool output, never committed
+mcp-results/
