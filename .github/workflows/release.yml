@@ -424,8 +424,24 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('deps.lock') }}
       - name: "E2E: install"
         run: pnpm install --frozen-lockfile
+      # The system libraries a browser needs come from apt, and a slow mirror is
+      # what spends this job's budget. Same shape as ci.yml: the binaries are
+      # installed first and each engine the suite drives is started once; only a
+      # launch that fails pays for `--with-deps`. Every pinned browser is
+      # downloaded, not just the two the suite runs, because `deps.lock` pins
+      # firefox as well and a cold cache has to produce all of them.
       - name: "E2E: install browsers"
-        run: pnpm exec playwright install --with-deps
+        run: |
+          # Each apt request is bounded so a stalled mirror fails over or fails
+          # fast and names itself instead of eating this job's budget.
+          printf 'Acquire::http::Timeout "15";\nAcquire::Retries "3";\n' |
+            sudo tee /etc/apt/apt.conf.d/99-majadu-timeout >/dev/null
+          pnpm exec playwright install
+          if ! pnpm --filter badminton-pair-tmp exec node -e \
+            "const {chromium,webkit}=require('playwright');(async()=>{for(const engine of [chromium,webkit]){const browser=await engine.launch();await browser.close()}})()"; then
+            echo "a cached browser could not start; installing the system dependencies"
+            pnpm exec playwright install --with-deps
+          fi
       - name: "Database: provision"
         env:
           MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env

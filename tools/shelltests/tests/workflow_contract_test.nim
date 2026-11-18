@@ -73,6 +73,19 @@ suite "workflow contract":
     # instead of inheriting the skip in task.d/coverage.sh.
     check text.contains("git merge-base HEAD \"origin/$BASE_REF\"")
 
+  # OPS-22: release.yml's e2e job ran a bare `--with-deps` and spent the whole
+  # 15-minute budget in apt (release run 44267937137 on tag v2.0.5, cancelled at
+  # 13m36s), so no image and no GitHub Release followed. The launch-check shape
+  # ci.yml already uses is the contract: install the binaries, start each engine
+  # once, and pay for apt only when a launch fails.
+  test "release.yml installs browsers with the launch check and no bare --with-deps":
+    let text = readFile(repoDir / ".github" / "workflows" / "release.yml")
+    check text.contains("      - name: \"E2E: install browsers\"")
+    check text.contains("pnpm exec playwright install\n")
+    check text.contains("a cached browser could not start; installing the system dependencies")
+    check text.contains("99-majadu-timeout")
+    check not text.contains("run: pnpm exec playwright install --with-deps")
+
   # ISO-14: the Linux baseline is committed, so CI may only compare it.
   test "no CI path records a visual baseline":
     for workflow in ["ci.yml", "release.yml"]:
