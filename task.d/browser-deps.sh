@@ -6,7 +6,7 @@
 # every Recommends: on the ubuntu-24.04 runner that was 181 packages and 125 MB.
 # On 2026-11-18 a slow mirror spent 13m47s on it and the 15-minute job cap
 # cancelled the job before a single test ran. This target installs the exact
-# list in e2e/system-deps.txt with `--no-install-recommends`, which is 62
+# list in e2e/system-deps.txt with `--no-install-recommends`, which is 72
 # packages when the runner image has nothing, and skips apt entirely when a
 # cached package set already satisfies it.
 #
@@ -65,42 +65,18 @@ apt_get="apt-get -y -qq --no-install-recommends $apt_opts"
 
 install_bounded() {
   # shellcheck disable=SC2086 # the option strings are lists on purpose
-  timeout "$budget" sudo $apt_get $cache_opt "$@" install $missing
+  timeout "$budget" sudo $apt_get install $missing
 }
 
-# MAJADU_BROWSER_DEPS_CACHE names a directory the workflow restores, keyed by a
-# hash of the list above. With a restored set the packages come from disk
-# (`--no-download`), so the 125 MB never crosses the mirror again; apt still
-# needs its package index to resolve the names, and the runner image ships one.
-# A miss, or an index that cannot answer, falls through to one bounded online
-# install, which fills the cache for the next run on the same list.
-cache=${MAJADU_BROWSER_DEPS_CACHE:-}
-cache_opt=""
-if [ -n "$cache" ]; then
-  mkdir -p "$cache"
-  cache_opt="-o Dir::Cache::archives=$cache"
-  if [ -n "$(find "$cache" -maxdepth 1 -name '*.deb' -print -quit 2>/dev/null)" ]; then
-    printf 'browser-deps: installing from the restored deb cache in %s\n' "$cache"
-    if install_bounded --no-download; then
-      installed_from_cache=1
-    else
-      printf 'browser-deps: the restored cache could not satisfy the list; falling back to one bounded online install\n'
-    fi
-  else
-    printf 'browser-deps: deb cache is empty; this run fills %s\n' "$cache"
-  fi
+# shellcheck disable=SC2086 # apt_opts is a list of -o options on purpose
+if ! timeout "$budget" sudo apt-get update -qq $apt_opts; then
+  fail "apt-get update did not finish in ${budget}s (slow or unreachable mirror); a missing library will be named below if the browsers cannot start"
 fi
 
-if [ "${installed_from_cache:-0}" != "1" ]; then
-  # shellcheck disable=SC2086 # apt_opts is a list of -o options on purpose
-  if ! timeout "$budget" sudo apt-get update -qq $apt_opts; then
-    fail "apt-get update did not finish in ${budget}s (slow or unreachable mirror); a missing library will be named below if the browsers cannot start"
-  fi
-  # `timeout` on the install too: a half-written dpkg state is repaired by the
-  # next apt run, an exhausted job budget is not.
-  if ! install_bounded; then
-    fail "installing the browser system libraries did not finish in ${budget}s: $missing"
-  fi
+# `timeout` on the install too: a half-written dpkg state is repaired by the
+# next apt run, an exhausted job budget is not.
+if ! install_bounded; then
+  fail "installing the browser system libraries did not finish in ${budget}s: $missing"
 fi
 
 still_missing=""
