@@ -103,6 +103,7 @@ junit_finish""")
     defer: removeDir(fixture.root)
     writeFile(fixture.root / "task.d" / "test-costs.tsv",
       "a\t300\nb\t200\nc\t100\nd\t50\n")
+    check fileExists(fixture.root / "task.d" / "test-costs.tsv")
     let body = """. "$1"
 printf '%s\n' "$REPO_ROOT/a" "$REPO_ROOT/b" "$REPO_ROOT/c" "$REPO_ROOT/d" |
   shard_plan 2 """
@@ -119,6 +120,7 @@ printf '%s\n' "$REPO_ROOT/a" "$REPO_ROOT/b" "$REPO_ROOT/c" "$REPO_ROOT/d" |
       "a\t300\nb\t200\nc\t100\nd\t50\n")
     # median of 50, 100, 200, 300 is 100, so `e` costs the same as `c` and the
     # greedy pass must still place it by load instead of treating it as free.
+    check fileExists(fixture.root / "task.d" / "test-costs.tsv")
     let result = fixture.runLib(""". "$1"
 printf '%s\n' "$REPO_ROOT/a" "$REPO_ROOT/b" "$REPO_ROOT/e" | shard_plan 2 2""")
     check result.exitCode == 0
