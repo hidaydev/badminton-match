@@ -107,21 +107,40 @@ shard_plan() {
   # where every suite costs 0 and the greedy pass still emits each line once.
   _costs=/dev/null
   [ -n "${TEST_COST_FILE:-}" ] && [ -s "$TEST_COST_FILE" ] && _costs=$TEST_COST_FILE
+  # The list is read once: a plan that has to be thrown away must not lose it.
+  _suites=$(cat)
   # A suite the table does not know is not free: it costs the median, so a new
   # file joins the split instead of piling onto whichever shard asked last.
-  _default=$(awk -F'\t' '{ print $2 }' "$_costs" | sort -n |
+  _missing=$(awk -F'\t' '{ print $2 }' "$_costs" | sort -n |
     awk '{ c[NR] = $1 } END { if (NR) print c[int((NR + 1) / 2)]; else print 0 }')
-  _default=${_default:-0}
+  _missing=${_missing:-0}
   # FILENAME marks the boundary, not NR == FNR: with an empty table the two stay
   # level into the second input and the first suite would be eaten as a cost row.
-  awk -F'\t' -v default="$_default" -v root="$REPO_ROOT/" '
-    FILENAME == ARGV[1] { cost[$1] = $2; next }
-    {
-      rel = $0
-      if (index(rel, root) == 1) rel = substr(rel, length(root) + 1)
-      printf "%s\t%s\t%s\n", (rel in cost) ? cost[rel] : default, rel, $0
-    }' "$_costs" - |
-    sort -t"$(printf '\t')" -k1,1nr -k2,2 |
+  # The cost variable is `missing_cost`, never `default`: gawk refuses
+  # `-v default=...` with "cannot use gawk builtin `default' as variable name",
+  # and a dead awk in a pipeline without pipefail reads as an empty plan rather
+  # than an error. That is how shard 1/2 ran zero suites on the gawk runner on
+  # 2026-11-18 while the same code passed under macOS awk, mawk and busybox.
+  _annotated=$(printf '%s\n' "$_suites" |
+    awk -F'\t' -v missing_cost="$_missing" -v root="$REPO_ROOT/" '
+      FILENAME == ARGV[1] { cost[$1] = $2; next }
+      {
+        rel = $0
+        if (index(rel, root) == 1) rel = substr(rel, length(root) + 1)
+        printf "%s\t%s\t%s\n", (rel in cost) ? cost[rel] : missing_cost, rel, $0
+      }' "$_costs" - |
+    sort -t"$(printf '\t')" -k1,1nr -k2,2)
+  _in=$(printf '%s\n' "$_suites" | awk 'NF' | wc -l | tr -d ' ')
+  _kept=$(printf '%s\n' "$_annotated" | awk 'NF' | wc -l | tr -d ' ')
+  # Every suite has to survive to the plan. If the annotation above lost one, an
+  # awk or the table is broken, and the positional split still puts every suite
+  # in exactly one shard instead of handing this one nothing to run.
+  if [ "$_in" -ne "$_kept" ]; then
+    printf '%s\n' "$_suites" | awk 'NF' |
+      awk -v t="$_total" -v w="$_want" '(NR - 1) % t + 1 == w'
+    return 0
+  fi
+  printf '%s\n' "$_annotated" |
     awk -F'\t' -v total="$_total" -v want="$_want" '
       {
         best = 1

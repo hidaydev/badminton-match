@@ -113,6 +113,27 @@ printf '%s\n' "$REPO_ROOT/a" "$REPO_ROOT/b" "$REPO_ROOT/c" "$REPO_ROOT/d" |
     check first.stdout == fixture.root / "a" & "\n" & fixture.root / "d" & "\n"
     check second.stdout == fixture.root / "b" & "\n" & fixture.root / "c" & "\n"
 
+  test "shard_plan survives gawk, which refuses `default` as a variable name":
+    # 2026-11-18: `awk -v default=` is a fatal error under gawk and the runner's
+    # awk is gawk, so shard 1/2 planned zero suites there while macOS awk, mawk
+    # and busybox all accepted it. Guard the name, not just the split.
+    let gawk = findExe("gawk")
+    if gawk.len == 0:
+      skip()
+    else:
+      let fixture = newFixture("lib-shard-plan-gawk")
+      defer: removeDir(fixture.root)
+      writeFile(fixture.root / "task.d" / "test-costs.tsv",
+        "a\t300\nb\t200\nc\t100\nd\t50\n")
+      # The fixture PATH starts at binDir, so this wrapper is the awk that runs.
+      writeExecutable(fixture.binDir / "awk",
+        "#!/bin/sh\nexec " & quoteShell(gawk) & " \"$@\"\n")
+      let result = fixture.runLib(""". "$1"
+printf '%s\n' "$REPO_ROOT/a" "$REPO_ROOT/b" "$REPO_ROOT/c" "$REPO_ROOT/d" |
+  shard_plan 2 1""")
+      check result.exitCode == 0
+      check result.stdout == fixture.root / "a" & "\n" & fixture.root / "d" & "\n"
+
   test "shard_plan gives an unknown suite the median cost, not zero":
     let fixture = newFixture("lib-shard-plan-unknown")
     defer: removeDir(fixture.root)
