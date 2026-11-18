@@ -16,6 +16,11 @@ Report vulnerabilities through GitHub private security advisories:
 
 https://github.com/hidaydev/badminton-match/security/advisories/new
 
+If that page does not offer **Report a vulnerability**, the setting is off on the
+repository: send the same report to `hello@qouver.com` with `SECURITY` in the
+subject and say in the first line that it is a security report, and it will be
+opened as a private advisory from the maintainer side.
+
 Do not open a public issue for a vulnerability. A public report exposes the
 problem before a fix exists, including for self-hosted deployments that cannot
 be patched quickly.
