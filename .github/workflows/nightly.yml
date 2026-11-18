@@ -1,3 +1,4 @@
+# class: C
 name: Nightly
 
 on:
@@ -7,6 +8,12 @@ on:
 
 permissions:
   contents: read
+
+# One nightly run per ref; a manual dispatch queues behind it instead of cutting
+# a full suite off halfway.
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   NIM_VERSION: "2.4.2"

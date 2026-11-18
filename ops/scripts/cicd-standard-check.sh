@@ -20,6 +20,10 @@
 #         github.actor == 'dependabot[bot]', and never on push
 #     W11 one gate command per workflow run: two jobs may not run the same
 #         check/test command with the same env
+#     W13 every workflow file declares a class (# class: A|B|C) and a
+#         concurrency: block; class A and B never cancel in progress on main
+#     W15 one push runs one gate graph: two class A files may not run the same
+#         gate command
 #     D1  deploy script exists and is reachable from the documented path
 #     D2  fail-closed ref guard, exact form: if [ "$REF" != "refs/heads/main" ]
 #     D3  flock concurrency lock
@@ -417,6 +421,73 @@ EOF
   fi
 }
 
+# ------------------------------------------------- W13/W15 (workflow file) ---
+# 13 every workflow file declares a class and a concurrency block; a gate (A) and a
+#    release (B) must not cancel an in-progress run on main, because the deploy
+#    reads that run's result
+# 15 one push = one gate graph: the same gate command may not run in two class A
+#    files of the same repo
+wf_class() { # "A" | "B" | "C" | empty
+  awk '/^# *class:[[:space:]]*[ABC][[:space:]]*$/ { gsub(/.*class:[[:space:]]*/,""); print; exit }' "$1"
+}
+
+check_workflow_class() {
+  local f="$1" cls cancel
+  cls=$(wf_class "$f")
+  if [ -z "$cls" ]; then
+    bad "$(basename "$f"): W13 tanpa deklarasi class (# class: A|B|C)"
+  else
+    ok "$(basename "$f"): W13 class $cls"
+  fi
+  if ! grep -qE '^concurrency:' "$f"; then
+    bad "$(basename "$f"): W13 tanpa blok concurrency"
+    return 0
+  fi
+  cancel=$(awk '/^concurrency:/ { inc=1; next }
+                inc && /^[^[:space:]#]/ { inc=0 }
+                inc && /cancel-in-progress:/ { sub(/.*cancel-in-progress:[[:space:]]*/,""); print; exit }' "$f")
+  case "$cls" in
+    A|B)
+      # an unconditional true cancels the run the deploy waits on
+      if [ "$cancel" = "true" ]; then
+        bad "$(basename "$f"): W13 class $cls cancel-in-progress true tanpa syarat ref (main ikut terbatal)"
+      else
+        ok "$(basename "$f"): W13 concurrency ada, cancel dibatasi ref"
+      fi ;;
+    *)
+      [ -n "$cancel" ] && ok "$(basename "$f"): W13 concurrency ada (cancel-in-progress $cancel)" ||
+        ok "$(basename "$f"): W13 concurrency ada" ;;
+  esac
+}
+
+check_cross_file_gates() {
+  local d="$1" wf pairs dup
+  wf=$(ls "$d"/.github/workflows/*.y*ml 2>/dev/null)
+  [ -n "$wf" ] || return 0
+  pairs=$(for f in $wf; do
+    [ "$(wf_class "$f")" = "A" ] || continue
+    job_lines "$f" | awk -F'\t' -v file="$(basename "$f")" -v c="$GATE_COMPOSITE" -v p="$GATE_PRIM" '
+      /^JOB\t/ { next }
+      $2 ~ /^[[:space:]]*-?[[:space:]]*run:[[:space:]]*/ && ($2 ~ c || $2 ~ p) {
+        cmd=$2; sub(/^[[:space:]]*-?[[:space:]]*run:[[:space:]]*/,"",cmd)
+        gsub(/[[:space:]]+/," ",cmd); sub(/[[:space:]]+$/,"",cmd)
+        print cmd "\t" file }'
+  done)
+  if [ -z "$pairs" ]; then
+    note "W15 tidak ada gate command di file class A"
+    return 0
+  fi
+  dup=$(printf '%s\n' "$pairs" | sort -u | awk -F'\t' '
+    { files[$1]=files[$1] " " $2; n[$1]++ }
+    END { for (c in files) if (n[c] > 1) print c " ->" files[c] }')
+  [ -n "$dup" ] && while IFS= read -r l; do
+    [ -n "$l" ] && bad "W15 gate yang sama di dua file class A: $l"
+  done <<EOF
+$dup
+EOF
+  [ -z "$dup" ] && ok "W15 satu graf gate per push (tidak ada gate ganda antar file)"
+}
+
 # -------------------------------------------------------------- per project ---
 check_repo() {
   local d="$1" name stacks wf deploy
@@ -437,7 +508,9 @@ check_repo() {
       check_timeouts "$f"; check_injection "$f"; check_paths_filter "$f"
       check_gate_skips "$f"; check_build_call "$f"
       check_cross_workflow_poll "$f"; check_duplicate_gates "$f"
+      check_workflow_class "$f"
     done
+    check_cross_file_gates "$d"
     check_dependabot_guard "$d"
     check_web_container "$d" "$wf"
     check_path_filter_table "$d" "$wf"

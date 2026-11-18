@@ -1,3 +1,4 @@
+# class: B
 # Release pipeline: triggered by a `v*` tag created and signed by `./task release`.
 #
 # Required secrets: none beyond the built-in GITHUB_TOKEN.
@@ -25,6 +26,12 @@ on:
 
 permissions:
   contents: read
+
+# A release run judges a tag, so a second run on the same tag must never cancel
+# the one whose digest `./task release` is waiting for.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   NIM_VERSION: "2.4.2"

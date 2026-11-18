@@ -1,3 +1,4 @@
+# class: A
 # Coverage gate (T-109). Its own workflow so a coverage regression does not block
 # the fast CI jobs, and so the instrumented build never shares a cache with them.
 #
