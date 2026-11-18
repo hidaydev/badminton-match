@@ -11,8 +11,6 @@ on:
 
 permissions:
   contents: read
-  # The gate reads the Coverage workflow result for this commit.
-  actions: read
 
 # One run per commit within an event class. Pull requests group by head SHA, so
 # two PR runs for the same commit dedupe; pushes and dispatch runs group by
@@ -109,9 +107,12 @@ jobs:
     name: "API: integration (shard ${{ matrix.shard }}/2)"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    # Two shards of the sorted suite list. The list is split by position, so both
-    # jobs run the same files every time, and each has its own database service
-    # on its own runner. `./task test --timing` records per-suite wall time.
+    # Two shards of the suite list. The split is planned against
+    # task.d/test-costs.tsv (measured on this runner, written by
+    # `./task test-costs`), so both jobs run the same files every time and the
+    # slower shard stays inside the W8 ceiling; without the table it falls back
+    # to a positional split. Each shard has its own database service on its own
+    # runner. `./task test --timing` records per-suite wall time.
     strategy:
       fail-fast: false
       matrix:
@@ -233,10 +234,17 @@ jobs:
       - name: "API: timing report"
         if: always()
         run: |
+          # W8 (QOUVER_CICD_STANDARD §11.2) is judged on the two shards' totals,
+          # so each shard prints its own total and the WHOLE table, not the top
+          # ten. A shard can only be balanced against costs that were recorded:
+          # the ten-line summary cannot produce the cost table a cost-aware split
+          # needs, and about a hundred suites never appeared in it.
           for f in .cache/*/timing/test.tsv; do
             [ -f "$f" ] || continue
             echo "== $f"
-            sort -t"$(printf '\t')" -k2,2nr "$f" | head -10
+            awk -F'\t' '{ ms += $2 } END {
+              printf "shard total: %d s across %d suite(s)\n", ms / 1000, NR }' "$f"
+            sort -t"$(printf '\t')" -k2,2nr "$f"
           done
       # QA-11: JUnit, the machine-readable failure list and the timing table
       # from this shard, uploaded only when the shard fails.
@@ -251,6 +259,19 @@ jobs:
             .cache/*/timing/*.tsv
           include-hidden-files: true
           if-no-files-found: warn
+      # W8 (QOUVER_CICD_STANDARD §11.2) needs a per-suite cost table measured on
+      # the runner, not on a laptop: the two differ by an order of magnitude for
+      # the shell-heavy suites. The table is small, so every green run keeps one
+      # and a cost-aware split can be built from real numbers instead of guesses.
+      - name: "API: upload the shard timing table"
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: api-test-timing-${{ matrix.shard }}
+          path: .cache/*/timing/test.tsv
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
 
   contract:
     name: "Contract: generated files"
@@ -304,6 +325,13 @@ jobs:
       # the directory and CONTRACT.sha256 instead of maintaining a second copy.
       - name: "Docs: quoted counts match the artefacts"
         run: ./task docs-check
+      # QOUVER_CICD_STANDARD v1.2 §11: the static rules a pipeline cannot feel at
+      # run time. W9 no cross-workflow poll in a Class A workflow, W10 Dependabot
+      # guard, W11 one gate command per run, plus the universal contract (timeout,
+      # caching-independent job shape, deploy invariants). Byte-identical copy of
+      # the standard's checker, so a refresh here is a `cp` and a diff of nothing.
+      - name: "CI standard: static rules"
+        run: ./ops/scripts/cicd-standard-check.sh .
       # Offline: both corpora are hashed against their MANIFEST.sha256 and every
       # case is linted against the generated routes. The recorded cases are the
       # only per-route behaviour record, so a fixture edit that skips the
@@ -439,6 +467,11 @@ jobs:
     name: "E2E: browser"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # W10 (QOUVER_CICD_STANDARD §11.2): a Dependabot PR proves that a dependency
+    # bump still type-checks and passes the suites, not that the browser path in
+    # a real Chromium works; it skips the browser suite. Push, schedule and
+    # dispatch runs are untouched, and a human PR still runs it.
+    if: github.event_name != 'pull_request' || github.actor != 'dependabot[bot]'
     services:
       postgres:
         image: postgres:18.6
@@ -594,7 +627,10 @@ jobs:
     name: "Mutation: changed modules"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    if: github.event_name == 'pull_request'
+    # W10: mutation tests answer "did the suite catch a changed write path", which
+    # a dependency bump does not change. Pull-request only either way; a Dependabot
+    # PR skips it and the gate accepts the skip for that actor alone.
+    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -667,7 +703,9 @@ jobs:
     # its own needs was skipped (`mutation` on a push), and a job whose needs
     # chain contains a skip is skipped itself unless its own `if` overrides that.
     # The second half keeps the ordering promise: the image is published only
-    # after the gate is green.
+    # after the gate is green. W10 deliberately does NOT guard this job on
+    # Dependabot: a `docker` ecosystem bump changes the base image, and building
+    # it on the PR is the only proof that bump is good before main deploys it.
     if: always() && needs.gate.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -766,49 +804,12 @@ jobs:
             --data "{\"text\":\"majadu: main CI failed at $SHA $RUN_URL\"}" \
             "$WEBHOOK"
 
-  # OPS-19 and OPS-20: Coverage is its own workflow, so a cross-workflow
-  # dependency is the only way the gate can require it. The job waits for the
-  # Coverage run of this exact commit and fails closed on a red result or on a
-  # run that never finishes inside the job's cap. A cancelled Coverage run is a
-  # failure here, not a pass.
-  coverage-gate:
-    name: "Coverage: required result"
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - name: "Coverage: wait for the run of this commit"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          # A pull request's `github.sha` is the merge commit GitHub builds for
-          # the run, and no Coverage run ever carries that sha: the runs API
-          # reports the branch head for a PR. Asking for the merge commit found
-          # nothing and the gate failed every PR on a timeout while Coverage was
-          # green (2026-11-12, run 43201635487). The head sha is the commit both
-          # workflows actually tested.
-          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          deadline=$((SECONDS + 720))
-          while :; do
-            body=$(gh api \
-              "repos/$REPO/actions/workflows/coverage.yml/runs?head_sha=$SHA&per_page=1" \
-              2>/dev/null || true)
-            status=$(printf '%s' "$body" | jq -r '.workflow_runs[0].status // ""')
-            conclusion=$(printf '%s' "$body" | jq -r '.workflow_runs[0].conclusion // ""')
-            if [ "$status" = "completed" ]; then
-              if [ "$conclusion" = "success" ]; then
-                echo "coverage: the run for $SHA succeeded"
-                exit 0
-              fi
-              echo "::error::the Coverage run for $SHA ended as '${conclusion:-none}'"
-              exit 1
-            fi
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              echo "::error::no completed Coverage run for $SHA within 12 minutes (last status: '${status:-none}')"
-              exit 1
-            fi
-            sleep 20
-          done
+  # W9 (QOUVER_CICD_STANDARD §11.2): a job that waits on another workflow's run
+  # does not live in a Class A workflow. `Coverage: ratchet` reports as its own
+  # check on the same commit, and branch protection decides whether it is
+  # required. The poll this replaced could hold the CI wall for 12 minutes and
+  # turned a green CI red whenever Coverage was slow, so the dependency is the
+  # check-run, not a job inside ci.yml.
 
   gate:
     name: "Gate"
@@ -816,20 +817,21 @@ jobs:
     timeout-minutes: 15
     # Only the in-repo quality jobs. `image` waits for this job instead of the other
     # way round, so a tag is published only for a commit whose checks are green.
-    # `coverage-gate` stays out of it too: it polls another workflow for up to 12
-    # minutes and keeps reporting as its own check, so it must not hold the image back.
     needs: [api-check, api-test, contract, supply-chain, web, e2e, mutation]
     if: always()
     steps:
       - name: "Gate: require every job"
         env:
           NEEDS: ${{ toJSON(needs) }}
+          # W10: the gate accepts a skipped `e2e` only for the actor that is
+          # allowed to skip it, so a job that disappears for any other reason
+          # still reddens the gate.
+          DEPENDABOT: ${{ github.event_name == 'pull_request' && github.actor == 'dependabot[bot]' && '1' || '0' }}
         run: |
           echo "$NEEDS"
           # `mutation` is pull-request only; a push run treats it as skipped.
-          # `image` and `coverage-gate` are no longer dependencies: `image` needs this
-          # job, and `coverage-gate` reports on its own.
-          echo "$NEEDS" | jq -e '
+          echo "$NEEDS" | jq -e --arg dep "$DEPENDABOT" '
             to_entries | all(.[];
               .value.result == "success" or
-              (.key == "mutation" and .value.result == "skipped"))'
+              (.key == "mutation" and .value.result == "skipped") or
+              ($dep == "1" and .key == "e2e" and .value.result == "skipped"))'

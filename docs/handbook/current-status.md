@@ -124,11 +124,11 @@ E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
 
 ## 6. CI
 
-- `.github/workflows/ci.yml`: 11 jobs defined, 9 of them run on a push:
+- `.github/workflows/ci.yml`: 10 jobs defined, 8 of them run on a push:
   `api-check`, `api-test` in two shards (Postgres 18.6), `contract`, `web`,
-  `e2e`, `image`, `supply-chain`, `coverage-gate` (waits for the Coverage run of
-  the same commit), then `gate`; `mutation` runs on pull requests only and
-  `notify` pages only when main goes red.
+  `e2e`, `image`, `supply-chain`, then `gate`; `mutation` runs on pull requests
+  only and `notify` pages only when main goes red. No job waits on another
+  workflow: `Coverage: ratchet` reports on its own check (QOUVER_CICD_STANDARD §11.2, W9).
 - `.github/workflows/coverage.yml`: instrumented build + ratchet, a separate
   workflow so the cache does not mix with the fast gate.
 - `.github/workflows/nightly.yml`: full `./task ci` with a database service, plus `./task mutation` so a mutant that survives without an allowlist entry fails the night.
@@ -141,6 +141,14 @@ E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
   fifteen minute job is a latent timeout: on 2026-11-10 one coverage shard and one
   e2e job each spent fourteen minutes in apt and were reported as `cancelled`
   before a single test ran.
+- `ops/scripts/cicd-standard-check.sh`: the static half of
+  `QOUVER_CICD_STANDARD` v1.2 §11, run as a step in the `contract` job. It fails on
+  W9 (a job polling another workflow), W10 (a Dependabot guard that is not limited
+  to pull requests) and W11 (the same gate command in two jobs), plus the universal
+  contract: timeout, a secret scan, Dependabot coverage and the deploy invariants.
+  It is a byte-identical copy of the standard's checker; the file is named
+  differently here because `./task contract-check` already means the generated-file
+  fingerprint.
 
 ## 7. Infrastructure
 
