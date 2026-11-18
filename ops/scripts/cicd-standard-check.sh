@@ -40,7 +40,8 @@
 #   container / frontend (DEPLOY-FLOW.md §13.7)
 #     C1  no paths:/paths-ignore: under on: (a filtered workflow creates no check-run)
 #     C2  gate tolerates `skipped` only for image-api / image-web
-#     C3  apps/web/ implies an image-web job and a quadlet on 127.0.0.1:<port>
+#     C3  apps/web/ is shipped: an image-web job, or a static-host target in
+#         apps/web/, plus a quadlet on 127.0.0.1:<port>
 #     C4  a changes job ships its path-filter test table
 #     C5  one Dockerfile name: apps/<part>/Dockerfile, never Containerfile*
 #     C6  buildx uses context: . with file: apps/<part>/Dockerfile
@@ -178,7 +179,8 @@ badid() {
 }
 
 # ------------------------------------------------- §13.7 additional rules ---
-# 9  frontend container shape: apps/web/ implies an image-web job and a quadlet
+# 9  frontend shape: apps/web/ ships via an image-web job or a static-host
+#    target, plus a quadlet
 #    publishing a loopback port
 # 10 no `paths:` / `paths-ignore:` under `on:` (a filtered workflow creates no
 #    check-run, and a deploy gate waiting for one hangs)
@@ -240,8 +242,17 @@ check_build_call() {
 check_web_container() {
   local d="$1" wf="$2" quad
   [ -d "$d/apps/web" ] || return 0
-  grep -lqE 'image-web:' $wf 2>/dev/null && ok "frontend: image-web job ada" ||
-    badid C3 "frontend: apps/web/ ada tapi tanpa job image-web"
+  # A container is one way to ship the SPA, not the only one. A static host
+  # target in apps/web/ is just as concrete, so name the file that proves it
+  # instead of failing a repo that never had a web image to begin with.
+  if grep -lqE 'image-web:' $wf 2>/dev/null; then
+    ok "frontend: image-web job ada"
+  elif [ -f "$d/apps/web/vercel.json" ] || [ -f "$d/apps/web/netlify.toml" ] ||
+       [ -f "$d/apps/web/wrangler.toml" ] || [ -f "$d/apps/web/firebase.json" ]; then
+    ok "frontend: web dikirim ke static host, bukan image"
+  else
+    badid C3 "frontend: apps/web/ ada tapi tanpa job image-web dan tanpa target static host"
+  fi
   quad=$(find "$d" \( -name node_modules -o -name .git \) -prune -o \
     -type f \( -name '*.container' -o -name '*.quadlet' \) -print 2>/dev/null)
   if [ -n "$quad" ] && grep -qE '^PublishPort=127\.0\.0\.1:[0-9]+:8080$' $quad 2>/dev/null; then

@@ -101,17 +101,26 @@ shard_plan() {
   # $1 total shards, $2 wanted shard; the suite list on stdin.
   _total=$1
   _want=$2
+  # An unreadable or empty table must not decide the split: awk that cannot open
+  # its first input exits before reading stdin, prints nothing, and a shard that
+  # prints nothing runs none of the files it was handed. Fall back to /dev/null,
+  # where every suite costs 0 and the greedy pass still emits each line once.
+  _costs=/dev/null
+  [ -n "${TEST_COST_FILE:-}" ] && [ -s "$TEST_COST_FILE" ] && _costs=$TEST_COST_FILE
   # A suite the table does not know is not free: it costs the median, so a new
   # file joins the split instead of piling onto whichever shard asked last.
-  _default=$(awk -F'\t' '{ print $2 }' "$TEST_COST_FILE" | sort -n |
+  _default=$(awk -F'\t' '{ print $2 }' "$_costs" | sort -n |
     awk '{ c[NR] = $1 } END { if (NR) print c[int((NR + 1) / 2)]; else print 0 }')
+  _default=${_default:-0}
+  # FILENAME marks the boundary, not NR == FNR: with an empty table the two stay
+  # level into the second input and the first suite would be eaten as a cost row.
   awk -F'\t' -v default="$_default" -v root="$REPO_ROOT/" '
-    NR == FNR { cost[$1] = $2; next }
+    FILENAME == ARGV[1] { cost[$1] = $2; next }
     {
       rel = $0
       if (index(rel, root) == 1) rel = substr(rel, length(root) + 1)
       printf "%s\t%s\t%s\n", (rel in cost) ? cost[rel] : default, rel, $0
-    }' "$TEST_COST_FILE" - |
+    }' "$_costs" - |
     sort -t"$(printf '\t')" -k1,1nr -k2,2 |
     awk -F'\t' -v total="$_total" -v want="$_want" '
       {
