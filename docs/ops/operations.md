@@ -434,3 +434,25 @@ written while serving it carry it too, so `journalctl | grep <request_id>`
 reconstructs the request. Once the textfile agent above is installed, those
 four series are the minimum the dashboard needs; nothing else in the registry is
 required to answer "is it slow, is it failing, is it the pool".
+## 7. CI budget: what a wall-clock number does and does not say
+
+`QOUVER_CICD_STANDARD.md` §11 caps the CI wall, the share one job may own and the
+distance between the two `api-test` shards (W8, 25 %). Three measurement traps cost
+most of a day on 2026-11-18, and each one has a fixed reading.
+
+- **A re-run inflates the run, not the job.** The runs API keeps attempt 1's
+  `created_at`, so `created_at..updated_at` spans every attempt: run 44220764369
+  reads 6225 s and ran 8 m 3 s in its only executed attempt, run 44214797445 reads
+  2363 s and ran 8 m 25 s. Both are `run_attempt: 2`. Read the wall from
+  `run_started_at`, or drop `run_attempt > 1`; a job span above the 15 minute cap
+  is this, not a slow suite.
+- **A queue delay is not a job.** A job that waited 90 minutes for a runner has a
+  `started_at` well past its `created_at`. That is why W6-W8 are measured outside
+  CI (`~/Projects/server/ops/scripts/workflow-budget.sh`) and never gated on.
+- **A laptop cannot plan the shards.** The same shell-heavy suites differ by an
+  order of magnitude between a laptop and the runner, so the shard split plans
+  against `task.d/test-costs.tsv`, written only from the artifacts CI uploads
+  (`./task test-costs <shard-1 tsv> <shard-2 tsv>`). Until that table exists the
+  split stays positional (`task.d/lib.sh:shard_keeps`); with it the slice is
+  longest-processing-time-first and the projected gap is printed before the table
+  is written.
