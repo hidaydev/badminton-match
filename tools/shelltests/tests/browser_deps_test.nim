@@ -52,6 +52,8 @@ suite "browser deps":
     let fixture = newFixture("browser-deps-macos")
     defer: removeDir(fixture.root)
     copyList(fixture)
+    # The gate is `uname`, and the runner that executes this suite is Linux.
+    fixture.installFake("uname", "#!/bin/sh\nprintf 'Darwin\\n'\n")
     let result = fixture.runTask(@["browser-deps"])
     check result.exitCode == 0
     check result.stdout.contains("not Linux, nothing to install")
