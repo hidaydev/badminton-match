@@ -64,7 +64,7 @@ suite "browser deps":
     fixture.installFake("dpkg", "#!/bin/sh\nexit 0\n")
     let result = fixture.runTask(@["browser-deps"])
     check result.exitCode == 0
-    check result.stdout.contains("all 62 packages already installed")
+    check result.stdout.contains("all 72 packages already installed")
     check not fileExists(fixture.root / "home" / "apt.log")
 
   test "only the missing packages are asked for, without recommends":
@@ -74,7 +74,7 @@ suite "browser deps":
     installLinuxFakes(fixture)
     let result = fixture.runTask(@["browser-deps"])
     check result.exitCode == 0
-    check result.stdout.contains("installing 61 missing package(s)")
+    check result.stdout.contains("installing 71 missing package(s)")
     let log = readFile(fixture.root / "home" / "apt.log")
     check log.contains("--no-install-recommends")
     check log.contains("Acquire::http::Timeout=15")

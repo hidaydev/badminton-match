@@ -104,6 +104,10 @@ suite "workflow contract":
     check text.contains("timeout \"$budget\"")
     let list = readFile(repoDir / "e2e" / "system-deps.txt")
     check list.contains("libevent-2.1-7t64")
+    # Playwright's `tools` array carries the fonts, and the visual baselines bake
+    # their glyphs in; without it the scoreboard renders fallback tofu.
+    check list.contains("fonts-unifont")
+    check list.contains("fonts-liberation")
 
   # ISO-14: the Linux baseline is committed, so CI may only compare it.
   test "no CI path records a visual baseline":

@@ -63,49 +63,44 @@ budget=${MAJADU_BROWSER_DEPS_TIMEOUT:-300}
 apt_opts="-o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15"
 apt_get="apt-get -y -qq --no-install-recommends $apt_opts"
 
-# shellcheck disable=SC2086 # apt_opts is a list of -o options on purpose
+install_bounded() {
+  # shellcheck disable=SC2086 # the option strings are lists on purpose
+  timeout "$budget" sudo $apt_get $cache_opt "$@" install $missing
+}
+
 # MAJADU_BROWSER_DEPS_CACHE names a directory the workflow restores, keyed by a
-# hash of the list above. A hit installs from disk with `--no-download`, so the
-# packages never come from a mirror; a miss fills it once with `--download-only`.
-# Without the variable the step is what it always was: one bounded online install.
+# hash of the list above. With a restored set the packages come from disk
+# (`--no-download`), so the 125 MB never crosses the mirror again; apt still
+# needs its package index to resolve the names, and the runner image ships one.
+# A miss, or an index that cannot answer, falls through to one bounded online
+# install, which fills the cache for the next run on the same list.
 cache=${MAJADU_BROWSER_DEPS_CACHE:-}
 cache_opt=""
-offline=""
 if [ -n "$cache" ]; then
   mkdir -p "$cache"
   cache_opt="-o Dir::Cache::archives=$cache"
-  offline="--no-download"
   if [ -n "$(find "$cache" -maxdepth 1 -name '*.deb' -print -quit 2>/dev/null)" ]; then
     printf 'browser-deps: installing from the restored deb cache in %s\n' "$cache"
-    # A restored cache still needs the package index to resolve names. When the
-    # runner has none, only the index is fetched: the 125 MB of packages stay
-    # on disk, so a slow mirror cannot decide this step either way.
-    # shellcheck disable=SC2086
-    if ! sudo $apt_get $cache_opt --no-download --simulate install $missing >/dev/null 2>&1; then
-      printf 'browser-deps: the package index is absent or stale; fetching only the index\n'
-      if ! timeout "$budget" sudo apt-get update -qq $apt_opts; then
-        fail "apt-get update did not finish in ${budget}s (slow or unreachable mirror); a missing library will be named below if the browsers cannot start"
-      fi
+    if install_bounded --no-download; then
+      installed_from_cache=1
+    else
+      printf 'browser-deps: the restored cache could not satisfy the list; falling back to one bounded online install\n'
     fi
   else
-    printf 'browser-deps: deb cache is empty; downloading the set once into %s\n' "$cache"
-    if ! timeout "$budget" sudo apt-get update -qq $apt_opts; then
-      fail "apt-get update did not finish in ${budget}s (slow or unreachable mirror); a missing library will be named below if the browsers cannot start"
-    fi
-    # shellcheck disable=SC2086 # cache_opt is an option list on purpose
-    if ! timeout "$budget" sudo $apt_get $cache_opt install --download-only $missing; then
-      fail "downloading the browser system libraries did not finish in ${budget}s: $missing"
-    fi
+    printf 'browser-deps: deb cache is empty; this run fills %s\n' "$cache"
   fi
-elif ! timeout "$budget" sudo apt-get update -qq $apt_opts; then
-  fail "apt-get update did not finish in ${budget}s (slow or unreachable mirror); a missing library will be named below if the browsers cannot start"
 fi
 
-# `timeout` on the install too: a half-written dpkg state is repaired by the
-# next apt run, an exhausted job budget is not.
-# shellcheck disable=SC2086
-if ! timeout "$budget" sudo $apt_get $cache_opt $offline install $missing; then
-  fail "installing the browser system libraries did not finish in ${budget}s: $missing"
+if [ "${installed_from_cache:-0}" != "1" ]; then
+  # shellcheck disable=SC2086 # apt_opts is a list of -o options on purpose
+  if ! timeout "$budget" sudo apt-get update -qq $apt_opts; then
+    fail "apt-get update did not finish in ${budget}s (slow or unreachable mirror); a missing library will be named below if the browsers cannot start"
+  fi
+  # `timeout` on the install too: a half-written dpkg state is repaired by the
+  # next apt run, an exhausted job budget is not.
+  if ! install_bounded; then
+    fail "installing the browser system libraries did not finish in ${budget}s: $missing"
+  fi
 fi
 
 still_missing=""

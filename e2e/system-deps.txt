@@ -1,6 +1,7 @@
-# System libraries the Playwright browsers link against on ubuntu-24.04-x64.
+# System libraries and fonts the Playwright browsers link against on
+# ubuntu-24.04-x64.
 #
-# This is the `chromium` and `webkit` arrays of Playwright 1.65.0's own
+# This is the `tools`, `chromium` and `webkit` arrays of Playwright 1.65.0's own
 # dependency table for ubuntu24.04-x64, deduplicated and sorted. It is a file
 # here instead of a `playwright install --with-deps` call because that call also
 # lets apt resolve every Recommends: on 2026-11-18 that was 181 packages and
@@ -8,19 +9,31 @@
 # until the 15-minute job cap cancelled the job before a single test ran.
 # `./task browser-deps` installs this list with `--no-install-recommends`.
 #
+# `tools` is not optional: it carries the fonts, and the visual baselines bake
+# their glyphs in. Leaving it out kept the browsers launchable but swapped the
+# two symbol controls on the scoreboard for fallback tofu, which the Linux
+# baseline diffed at 91-525 pixels on all three viewports (PR #77, 2026-11-18).
+#
 # Bump it together with the Playwright pin in deps.lock: the arrays live in
 # node_modules/playwright-core/lib/coreBundle.js under "ubuntu24.04-x64".
 # The suite drives chromium and webkit only (e2e/browsers.ts), so the firefox
 # system libraries are deliberately absent; `pnpm exec playwright install`
 # still downloads the pinned firefox build that `./task deps-check` requires.
+fonts-freefont-ttf
+fonts-ipafont-gothic
+fonts-liberation
+fonts-noto-color-emoji
+fonts-tlwg-loma-otf
+fonts-unifont
+fonts-wqy-zenhei
 gstreamer1.0-libav
 gstreamer1.0-plugins-bad
 gstreamer1.0-plugins-base
 gstreamer1.0-plugins-good
 libasound2t64
-libatomic1
 libatk-bridge2.0-0t64
 libatk1.0-0t64
+libatomic1
 libatspi2.0-0t64
 libavif16
 libcairo-gobject2
@@ -72,6 +85,9 @@ libxdamage1
 libxext6
 libxfixes3
 libxkbcommon0
-libxrandr2
 libxml2
+libxrandr2
 libxslt1.1
+xfonts-cyrillic
+xfonts-scalable
+xvfb
