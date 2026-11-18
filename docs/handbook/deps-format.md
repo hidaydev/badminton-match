@@ -188,9 +188,19 @@ reason = "why this is acceptable, and what reopens it"
   reads the config that sits in the directory of the lockfile it parses, so the root
   `pnpm-lock.yaml` picks up the root file.
 - The key is `ignoreUntil`, not the `effectiveUntil` the upstream docs show. This repo
-  pins `osv-scanner` 2.7.0, which rejects `effectiveUntil` as an unknown key; the entry
-  then silently does not apply. Verify an entry by removing the advisory from the report
-  (`./task osv-scan` on a machine with the scanner), never by reading the file back.
+  pins `osv-scanner` 2.7.0, which rejects `effectiveUntil` as an unknown key: the scanner
+  prints a configuration error naming the key it refused, and the rejected file is
+  discarded whole, so none of its entries apply, not only the one being edited. Verify
+  an entry by removing the advisory from the report (`./task osv-scan` on a machine with
+  the scanner), never by reading the file back.
+- The exception matches the advisory id exactly as the report prints it: the `GHSA-…`
+  id. An alias of the same advisory, such as its `CVE-…` id, does not match, and the
+  entry has no effect. Copy the id out of the report, never retype it.
+- `ignoreUntil` is a plain date read in the time zone of the machine running the scan. CI
+  runs in UTC, so `ignoreUntil = 2026-12-18` stops applying at 07:00 Asia/Jakarta on the
+  18th, not at the end of that day. Do not set the date to the last day the risk is
+  acceptable: leave a margin of days, or the build turns red on a morning that was
+  meant to be covered.
 - An exception is id-scoped and dated, never package-scoped and never open-ended. When
   `ignoreUntil` passes, the finding returns on its own; a stale exception is a red build,
   not a forgotten one.

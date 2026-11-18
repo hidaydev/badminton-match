@@ -3,7 +3,7 @@
 # An entry here silences one advisory id until `ignoreUntil`; the scan stops
 # honouring it on that date, so a forgotten exception turns the build red again
 # instead of living forever. The policy behind an entry is written down in
-# docs/handbook/deps-format.md section 6.
+# docs/handbook/deps-format.md section 8.
 
 [[IgnoredVulns]]
 id = "GHSA-fc5q-39xc-vjpf"
