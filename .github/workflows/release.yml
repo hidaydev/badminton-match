@@ -432,11 +432,21 @@ jobs:
       # firefox as well and a cold cache has to produce all of them.
       - name: "E2E: install browsers"
         run: pnpm exec playwright install
-      # Each apt request is bounded and the whole run is capped inside the
-      # target, so a stalled mirror fails fast here and names itself instead of
-      # eating this job's budget.
+      # Each apt invocation is capped inside the target, so a stalled mirror ends
+      # this step with its own message instead of eating the job's budget. The
+      # .deb cache lets a repeat run install from disk without a mirror.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/majadu-debs
+          key: browser-debs-${{ runner.os }}-${{ hashFiles('e2e/system-deps.txt') }}
       - name: "E2E: system libraries"
-        run: ./task browser-deps
+        env:
+          MAJADU_BROWSER_DEPS_CACHE: ${{ runner.temp }}/majadu-debs
+        run: |
+          mkdir -p "$MAJADU_BROWSER_DEPS_CACHE"
+          cp -a "$HOME/.cache/majadu-debs/." "$MAJADU_BROWSER_DEPS_CACHE/" 2>/dev/null || true
+          ./task browser-deps
+          cp -a "$MAJADU_BROWSER_DEPS_CACHE/." "$HOME/.cache/majadu-debs/" 2>/dev/null || true
       # A browser that will not start names the missing shared library, so a red
       # release run says why before the suite is attempted.
       - name: "E2E: browsers start"

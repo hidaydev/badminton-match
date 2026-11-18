@@ -1,22 +1,28 @@
 #!/bin/sh
-# The system libraries the Playwright browsers need, installed from a pinned
-# list instead of `playwright install --with-deps`.
+# The system packages the Playwright browsers need, installed in their own step
+# instead of inside `playwright install --with-deps`.
 #
-# `--with-deps` asks apt for Playwright's dependency names and lets apt resolve
-# every Recommends: on the ubuntu-24.04 runner that was 181 packages and 125 MB.
-# On 2026-11-18 a slow mirror spent 13m47s on it and the 15-minute job cap
-# cancelled the job before a single test ran. This target installs the exact
-# list in e2e/system-deps.txt with `--no-install-recommends`, which is 62
-# packages when the runner image has nothing, and skips apt entirely when a
-# cached package set already satisfies it.
+# The package set is deliberately the same one. e2e/system-deps.txt is the
+# `tools`, `chromium`, `firefox` and `webkit` arrays of the Playwright build
+# pinned in deps.lock, installed with Recommends on, which is what
+# `--with-deps` asks apt for. Narrowing it is not free: with Recommends off the
+# font set drops from 117 to 8, and without the firefox group the scoreboard's
+# `⛶` control falls through to a different face and renders as a box. The
+# committed visual baselines were recorded against the full set, so the install
+# has to reproduce it.
 #
-# Two things this target guarantees that `--with-deps` did not:
+# What changes is that this step can no longer consume the job:
 #
-# 1. A missing library is named. Every apt request is bounded, and the launch
-#    probe reports the shared object that would not load instead of hanging.
-# 2. A slow mirror fails fast. `MAJADU_BROWSER_DEPS_TIMEOUT` (default 300s)
-#    caps the whole apt run, so a job can never again spend its budget inside
-#    this step. The 15-minute job contract is unchanged.
+# 1. The whole apt run is capped by MAJADU_BROWSER_DEPS_TIMEOUT, and each
+#    invocation is distinguished: a cap (timeout, exit 124) says so, and any
+#    other failure reports apt's own exit code. On 2026-11-18 `--with-deps`
+#    spent 13m47s here and the 15-minute job cap cancelled the job before a
+#    single test ran (CI 44267955982, release 44267937137).
+# 2. The downloaded .deb set is cached through MAJADU_BROWSER_DEPS_CACHE. A
+#    cold run fills it; later runs install from those files and never touch a
+#    mirror, so a slow mirror costs one run instead of every run. A cache that
+#    apt cannot satisfy falls back to a bounded online install rather than
+#    failing the job.
 set -eu
 
 # `./task browser-deps` provides REPO_ROOT and the shared helpers.
@@ -34,9 +40,11 @@ fi
 
 packages=$(sed -e 's/#.*$//' "$LIST" | tr -s ' \t' '\n' | sed -e '/^$/d' | LC_ALL=C sort -u)
 [ -n "$packages" ] || fail "$LIST names no packages"
+# shellcheck disable=SC2086 # packages is a newline list on purpose
+total=$(printf '%s\n' $packages | wc -l | tr -d ' ')
 
-# A warm runner image already has most of these, and `dpkg -s` answers in
-# milliseconds. Anything missing decides whether apt runs at all.
+# A warm runner image already carries most of these and `dpkg -s` answers in
+# milliseconds, so the offline fast path only needs to know what is absent.
 missing=""
 for pkg in $packages; do
   if ! dpkg -s "$pkg" >/dev/null 2>&1; then
@@ -45,64 +53,68 @@ for pkg in $packages; do
 done
 missing=$(printf '%s' "$missing" | sed -e 's/^ *//')
 
-if [ -z "$missing" ]; then
-  # shellcheck disable=SC2086 # packages is a newline list on purpose
-  count=$(printf '%s\n' $packages | wc -l | tr -d ' ')
-  printf 'browser-deps: all %s packages already installed\n' "$count"
+# 420s is under a third of the job's 15 minutes: enough for a cold download on a
+# working mirror, small enough that a stuck one still leaves the suite its four.
+budget=${MAJADU_BROWSER_DEPS_TIMEOUT:-420}
+apt_opts="-o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15"
+apt_get="apt-get -y -qq $apt_opts"
+cache=${MAJADU_BROWSER_DEPS_CACHE:-}
+
+# 0. Nothing to do: every pinned package is on disk and there is no cache to
+#    seed. Reaching a mirror here would only re-resolve a set that is already
+#    resolved, and a warm runner is the common case.
+if [ -z "$missing" ] &&
+  { [ -z "$cache" ] || [ -z "$(find "$cache" -maxdepth 1 -name '*.deb' -print -quit 2>/dev/null)" ]; }; then
+  printf 'browser-deps: all %s packages already installed\n' "$total"
   exit 0
 fi
 
-# shellcheck disable=SC2086 # missing is a newline list on purpose
-count=$(printf '%s\n' $missing | wc -l | tr -d ' ')
-printf 'browser-deps: installing %s missing package(s)\n' "$count"
-printf 'browser-deps: %s\n' "$missing"
-
-# Each request is bounded so a stalled mirror fails over or fails fast, and the
-# whole run is capped because the job's 15 minutes are not this step's to spend.
-budget=${MAJADU_BROWSER_DEPS_TIMEOUT:-300}
-apt_opts="-o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15"
-apt_get="apt-get -y -qq --no-install-recommends $apt_opts"
-
-install_bounded() {
-  # shellcheck disable=SC2086 # the option strings are lists on purpose
-  timeout "$budget" sudo $apt_get $cache_opt "$@" install $missing
+# `timeout` exits 124 when the cap is what stopped the command; any other code
+# is apt's own failure and is reported as that. Collapsing the two would blame a
+# slow mirror for an unresolvable host, which is a different fix.
+run_apt() {
+  _step=$1
+  shift
+  _code=0
+  # shellcheck disable=SC2086 # option lists on purpose
+  timeout "$budget" "$@" || _code=$?
+  [ "$_code" -eq 0 ] && return 0
+  if [ "$_code" -eq 124 ]; then
+    fail "$_step did not finish in ${budget}s; the mirror is too slow for this step. Raise MAJADU_BROWSER_DEPS_TIMEOUT, or let a run seed MAJADU_BROWSER_DEPS_CACHE so later runs install from disk"
+  fi
+  fail "$_step failed with exit $_code (apt output above); the pinned packages were: $(printf '%s' "$packages" | tr '\n' ' ')"
 }
 
-# MAJADU_BROWSER_DEPS_CACHE names a directory the workflow restores, keyed by a
-# hash of the list above. With a restored set the packages come from disk
-# (`--no-download`), so the 125 MB never crosses the mirror again; apt still
-# needs its package index to resolve the names, and the runner image ships one.
-# A miss, or an index that cannot answer, falls through to one bounded online
-# install, which fills the cache for the next run on the same list.
-cache=${MAJADU_BROWSER_DEPS_CACHE:-}
-cache_opt=""
+# 1. A cache hit installs from disk. `--no-download` refuses to reach a mirror;
+#    when the cached set cannot satisfy the current lists apt exits fast and we
+#    fall through to the online path instead of failing the job.
+if [ -n "$cache" ] &&
+  [ -n "$(find "$cache" -maxdepth 1 -name '*.deb' -print -quit 2>/dev/null)" ]; then
+  printf 'browser-deps: trying the cached .deb set in %s\n' "$cache"
+  if timeout "$budget" sudo $apt_get \
+    -o Dir::Cache::archives="$cache" --no-download install $packages; then
+    printf 'browser-deps: ok (%s packages installed from cache)\n' "$total"
+    exit 0
+  fi
+  printf 'browser-deps: the cached set did not satisfy apt; falling back to a bounded online install\n'
+fi
+
+# 2. The online path. `apt-get update` is only paid when the cache could not
+#    answer, and the download step fills the cache for next time.
+run_apt "apt-get update" sudo apt-get update -qq $apt_opts
+
 if [ -n "$cache" ]; then
   mkdir -p "$cache"
-  cache_opt="-o Dir::Cache::archives=$cache"
-  if [ -n "$(find "$cache" -maxdepth 1 -name '*.deb' -print -quit 2>/dev/null)" ]; then
-    printf 'browser-deps: installing from the restored deb cache in %s\n' "$cache"
-    if install_bounded --no-download; then
-      installed_from_cache=1
-    else
-      printf 'browser-deps: the restored cache could not satisfy the list; falling back to one bounded online install\n'
-    fi
-  else
-    printf 'browser-deps: deb cache is empty; this run fills %s\n' "$cache"
-  fi
+  printf 'browser-deps: seeding the .deb cache in %s\n' "$cache"
+  run_apt "downloading the browser package set" \
+    sudo $apt_get -o Dir::Cache::archives="$cache" install --download-only $packages
+  run_apt "installing the browser package set" \
+    sudo $apt_get -o Dir::Cache::archives="$cache" --no-download install $packages
+else
+  run_apt "installing the browser package set" sudo $apt_get install $packages
 fi
 
-if [ "${installed_from_cache:-0}" != "1" ]; then
-  # shellcheck disable=SC2086 # apt_opts is a list of -o options on purpose
-  if ! timeout "$budget" sudo apt-get update -qq $apt_opts; then
-    fail "apt-get update did not finish in ${budget}s (slow or unreachable mirror); a missing library will be named below if the browsers cannot start"
-  fi
-  # `timeout` on the install too: a half-written dpkg state is repaired by the
-  # next apt run, an exhausted job budget is not.
-  if ! install_bounded; then
-    fail "installing the browser system libraries did not finish in ${budget}s: $missing"
-  fi
-fi
-
+# apt exiting 0 is not proof the packages are on disk.
 still_missing=""
 for pkg in $packages; do
   if ! dpkg -s "$pkg" >/dev/null 2>&1; then
@@ -112,4 +124,4 @@ done
 if [ -n "$(printf '%s' "$still_missing" | tr -d ' ')" ]; then
   fail "apt reported success but these packages are still absent:$still_missing"
 fi
-printf 'browser-deps: ok (%s packages installed)\n' "$count"
+printf 'browser-deps: ok (%s packages installed)\n' "$total"

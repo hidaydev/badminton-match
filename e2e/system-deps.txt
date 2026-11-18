@@ -1,24 +1,24 @@
-# System libraries and fonts the Playwright browsers link against on
-# ubuntu-24.04-x64.
+# System packages the Playwright browsers need on ubuntu-24.04-x64.
 #
-# This is the `tools`, `chromium` and `webkit` arrays of Playwright 1.65.0's own
-# dependency table for ubuntu24.04-x64, deduplicated and sorted. It is a file
-# here instead of a `playwright install --with-deps` call because that call also
-# lets apt resolve every Recommends: on 2026-11-18 that was 181 packages and
-# 125 MB, and a slow mirror turned it into fourteen minutes of `Get:` lines
-# until the 15-minute job cap cancelled the job before a single test ran.
-# `./task browser-deps` installs this list with `--no-install-recommends`.
+# The `tools`, `chromium`, `firefox` and `webkit` arrays of the Playwright
+# build pinned in deps.lock, deduplicated and sorted. They live in a file here
+# instead of being asked for by `playwright install --with-deps` because that
+# call is one unbounded apt run: on 2026-11-18 a slow mirror spent 13m47s
+# inside it and the 15-minute job cap cancelled the job before a single test
+# ran.
 #
-# `tools` is not optional: it carries the fonts, and the visual baselines bake
-# their glyphs in. Leaving it out kept the browsers launchable but swapped the
-# two symbol controls on the scoreboard for fallback tofu, which the Linux
-# baseline diffed at 91-525 pixels on all three viewports (PR #77, 2026-11-18).
+# All four groups are kept, firefox included, because `--with-deps` reads the
+# same table and the resolved set is what the committed visual baselines were
+# recorded against. Narrowing it is not free: dropping the firefox group
+# changed the font fallback enough that the scoreboard`s `\u26f6` control
+# rendered as a hollow box and every visual test failed on 91 pixels. Recommends
+# stay on for the same reason: the closure is 181 packages and 117 fonts, and
+# without Recommends 8 fonts remain.
 #
-# Bump it together with the Playwright pin in deps.lock: the arrays live in
+# Bump this together with the Playwright pin: the arrays live in
 # node_modules/playwright-core/lib/coreBundle.js under "ubuntu24.04-x64".
-# The suite drives chromium and webkit only (e2e/browsers.ts), so the firefox
-# system libraries are deliberately absent; `pnpm exec playwright install`
-# still downloads the pinned firefox build that `./task deps-check` requires.
+#
+# `./task browser-deps` installs this list and caps the whole apt run.
 fonts-freefont-ttf
 fonts-ipafont-gothic
 fonts-liberation
@@ -35,6 +35,7 @@ libatk-bridge2.0-0t64
 libatk1.0-0t64
 libatomic1
 libatspi2.0-0t64
+libavcodec60
 libavif16
 libcairo-gobject2
 libcairo2
@@ -55,6 +56,7 @@ libgstreamer-gl1.0-0
 libgstreamer-plugins-bad1.0-0
 libgstreamer-plugins-base1.0-0
 libgstreamer1.0-0
+libgtk-3-0t64
 libgtk-4-1
 libharfbuzz-icu0
 libharfbuzz0b
@@ -78,15 +80,20 @@ libwebp7
 libwebpdemux2
 libwoff1
 libx11-6
+libx11-xcb1
 libx264-164
+libxcb-shm0
 libxcb1
 libxcomposite1
+libxcursor1
 libxdamage1
 libxext6
 libxfixes3
+libxi6
 libxkbcommon0
 libxml2
 libxrandr2
+libxrender1
 libxslt1.1
 xfonts-cyrillic
 xfonts-scalable
