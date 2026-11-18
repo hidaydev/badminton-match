@@ -95,19 +95,24 @@ suite "workflow contract":
         check text.contains("./task browser-deps")
         check text.contains("./task browser-check")
 
-  test "browser-deps installs the pinned list without recommends":
+  test "browser-deps caps the apt run and keeps the set --with-deps resolves":
     let text = readFile(repoDir / "task.d" / "browser-deps.sh")
     check text.contains("e2e/system-deps.txt")
-    check text.contains("--no-install-recommends")
     # The whole apt run is capped, so a stalled mirror cannot spend the job.
     check text.contains("MAJADU_BROWSER_DEPS_TIMEOUT")
     check text.contains("timeout \"$budget\"")
+    # Recommends must stay on: the closure carries 117 fonts, and without them
+    # the scoreboard's box glyphs render as tofu and every visual test fails.
+    check not text.contains("--no-install-recommends")
+    # A cache hit has to install without a mirror.
+    check text.contains("--no-download")
+    check text.contains("MAJADU_BROWSER_DEPS_CACHE")
     let list = readFile(repoDir / "e2e" / "system-deps.txt")
-    check list.contains("libevent-2.1-7t64")
-    # Playwright's `tools` array carries the fonts, and the visual baselines bake
-    # their glyphs in; without it the scoreboard renders fallback tofu.
-    check list.contains("fonts-unifont")
-    check list.contains("fonts-liberation")
+    # One entry per group Playwright installs for; a dropped group is a silent
+    # visual-baseline change, so the guard names each.
+    for needed in ["libevent-2.1-7t64", "libavcodec60", "libx11-xcb1",
+                   "fonts-unifont", "xvfb"]:
+      check list.contains(needed)
 
   # ISO-14: the Linux baseline is committed, so CI may only compare it.
   test "no CI path records a visual baseline":

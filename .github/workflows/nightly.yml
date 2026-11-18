@@ -221,9 +221,20 @@ jobs:
         run: pnpm exec playwright install
       # A slow mirror has twice eaten this job's whole budget (14m24s on
       # 2026-11-10 and 13m47s on 2026-11-18, both cancelled at the cap before a
-      # single test ran). The target bounds each request and caps the run.
+      # single test ran). The target caps the run, and the .deb cache lets a
+      # repeat run install from disk without a mirror.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/majadu-debs
+          key: browser-debs-${{ runner.os }}-${{ hashFiles('e2e/system-deps.txt') }}
       - name: "E2E: system libraries"
-        run: ./task browser-deps
+        env:
+          MAJADU_BROWSER_DEPS_CACHE: ${{ runner.temp }}/majadu-debs
+        run: |
+          mkdir -p "$MAJADU_BROWSER_DEPS_CACHE"
+          cp -a "$HOME/.cache/majadu-debs/." "$MAJADU_BROWSER_DEPS_CACHE/" 2>/dev/null || true
+          ./task browser-deps
+          cp -a "$MAJADU_BROWSER_DEPS_CACHE/." "$HOME/.cache/majadu-debs/" 2>/dev/null || true
       - name: "E2E: browsers start"
         run: ./task browser-check
       - name: "Database: provision"

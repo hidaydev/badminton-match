@@ -542,11 +542,24 @@ jobs:
       # 2026-11-18, both cancelled at the cap before a single test ran. The
       # second one was `playwright install --with-deps` resolving Recommends:
       # 181 packages and 125 MB on a slow mirror. `./task browser-deps` installs
-      # the pinned list in e2e/system-deps.txt instead, with each request bounded
-      # and the whole run capped, so a slow mirror fails fast in this step
-      # rather than starving the suite.
+      # the same package set from the pinned list in e2e/system-deps.txt, with
+      # each request bounded and the whole run capped, so a slow mirror fails in
+      # this step rather than starving the suite. The .deb cache makes the
+      # install repeatable: a cold run pays for the download once, and every
+      # later run installs from these files with `--no-download` and never
+      # opens a mirror.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/majadu-debs
+          key: browser-debs-${{ runner.os }}-${{ hashFiles('e2e/system-deps.txt') }}
       - name: "E2E: system libraries"
-        run: ./task browser-deps
+        env:
+          MAJADU_BROWSER_DEPS_CACHE: ${{ runner.temp }}/majadu-debs
+        run: |
+          mkdir -p "$MAJADU_BROWSER_DEPS_CACHE"
+          cp -a "$HOME/.cache/majadu-debs/." "$MAJADU_BROWSER_DEPS_CACHE/" 2>/dev/null || true
+          ./task browser-deps
+          cp -a "$MAJADU_BROWSER_DEPS_CACHE/." "$HOME/.cache/majadu-debs/" 2>/dev/null || true
       # Separate from the install so a red run says which half broke: a browser
       # that will not start names the missing shared library, and a wasted
       # cache says so in its own sentence. The 15-minute cap is unchanged.
