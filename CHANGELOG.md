@@ -5,6 +5,16 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.0.4] - 2026-11-18
+
+### Changed
+- chore: ignore local mcp-results output (92074df; .gitignore)
+- test(achievement): pin the BO3 format rule in the backfill suite (57abe7a; modules/achievement/tests/integration/backfill_format_test.nim)
+- chore(ci): strip signature block from release notes in release.yml (2871e23; .github/workflows/release.yml)
+
+### Fixed
+- fix(web): show tier and tournament medals on the player shelf (113c88f; apps/web/src/legacy/components/ratings/AchievementBadge.tsx, apps/web/src/legacy/components/ratings/AchievementDetailModal.tsx, apps/web/src/legacy/config/achievements.ts (+4 more))
+
 ## [2.0.3] - 2026-11-16
 
 ### Changed
