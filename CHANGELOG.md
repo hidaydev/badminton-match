@@ -5,6 +5,15 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.0.6] - 2026-11-18
+
+### Changed
+- ci(e2e): install the pinned browser libraries instead of --with-deps (#77) (684770b; .github/workflows/ci.yml, .github/workflows/nightly.yml, .github/workflows/release.yml (+6 more))
+
+### Fixed
+- fix(e2e): cache the browser system packages and cap the install step (#78) (27616d0; .github/workflows/ci.yml, .github/workflows/nightly.yml, .github/workflows/release.yml (+4 more))
+- fix(release): install browsers with the launch check instead of a bare --with-deps (#76) (5c53cdd; .github/workflows/release.yml, tools/shelltests/tests/workflow_contract_test.nim)
+
 ## [2.0.5] - 2026-11-18
 
 ### Changed
