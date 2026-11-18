@@ -106,8 +106,8 @@ merged.
 
 ## Where to start
 
-* `docs/handbook/architecture.md` — request pipeline, modules, realtime, layers.
-* `docs/handbook/README.md` — product overview, architecture, and feature map.
-* `docs/design-system.md` — UI tokens and typography.
+* `docs/handbook/architecture.md`: request pipeline, modules, realtime, layers.
+* `docs/handbook/README.md`: product overview, architecture, and feature map.
+* `docs/design-system.md`: UI tokens and typography.
 
 Open an issue before a large change so the design can be discussed first.
