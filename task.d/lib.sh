@@ -19,6 +19,16 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "required command not found: $1"
 }
 
+# Postgres client. This host keeps Postgres in a container and carries no psql,
+# so the client is either the host binary or `docker exec` into that container:
+# call sites keep writing plain `psql`, the route is decided in one place.
+# Skipped when the file is absent, because the shelltest fixtures build a
+# repository without ops/ and provide their own fake `psql` on PATH.
+# shellcheck source=../ops/dev/db-client.sh
+if [ -f "$REPO_ROOT/ops/dev/db-client.sh" ]; then
+  . "$REPO_ROOT/ops/dev/db-client.sh"
+fi
+
 # Wall clock in milliseconds. `perl` is on macOS and on the GitHub runner, and
 # the fallback keeps the script working where it is absent, at one second
 # resolution: a slow suite is still visible, a fast one records 0.
@@ -71,6 +81,46 @@ timing_summary() {
 shard_keeps() {
   # $1 index (1-based), $2 total shards, $3 wanted shard
   [ $(( ($1 - 1) % $2 + 1 )) -eq "$3" ]
+}
+
+# BM-03: measured cost per suite, written by `./task test-costs` from a CI run's
+# uploaded timing table. The table is the only input that makes the split
+# cost-aware, and it is committed because both shards must plan against the same
+# numbers: a table read from the runner's own cache would differ per shard.
+TEST_COST_FILE="$REPO_ROOT/task.d/test-costs.tsv"
+
+# W8 (QOUVER_CICD_STANDARD §11.2) asks the two shards to stay within 25 %. A
+# positional slice hands one shard every second file of a path-sorted list, which
+# is uncorrelated with cost: on 2026-11-18 the two shards differed by 63 % and one
+# of them owned 75-90 % of the CI wall. With the cost table present the slice is
+# longest-processing-time-first, each suite to the shard that is currently
+# lighter, which balances within one suite of the best possible split. Without
+# the table the split stays positional, so a checkout without it still runs every
+# suite exactly once.
+shard_plan() {
+  # $1 total shards, $2 wanted shard; the suite list on stdin.
+  _total=$1
+  _want=$2
+  # A suite the table does not know is not free: it costs the median, so a new
+  # file joins the split instead of piling onto whichever shard asked last.
+  _default=$(awk -F'\t' '{ print $2 }' "$TEST_COST_FILE" | sort -n |
+    awk '{ c[NR] = $1 } END { if (NR) print c[int((NR + 1) / 2)]; else print 0 }')
+  awk -F'\t' -v default="$_default" -v root="$REPO_ROOT/" '
+    NR == FNR { cost[$1] = $2; next }
+    {
+      rel = $0
+      if (index(rel, root) == 1) rel = substr(rel, length(root) + 1)
+      printf "%s\t%s\t%s\n", (rel in cost) ? cost[rel] : default, rel, $0
+    }' "$TEST_COST_FILE" - |
+    sort -t"$(printf '\t')" -k1,1nr -k2,2 |
+    awk -F'\t' -v total="$_total" -v want="$_want" '
+      {
+        best = 1
+        for (s = 2; s <= total; s++) if (load[s] < load[best]) best = s
+        load[best] += $1
+        if (best == want) print $3
+      }' |
+    sort
 }
 
 nim_check() {
