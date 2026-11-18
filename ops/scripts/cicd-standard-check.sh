@@ -217,15 +217,29 @@ check_gate_skips() {
 }
 
 check_dockerfile() {
-  local d="$1" stray inapps
-  stray=$(find "$d" \( -name node_modules -o -name .git \) -prune -o \
-    -type f \( -name 'Containerfile*' -o -name '*.containerfile' \) -print 2>/dev/null | sed "s|^$d/||")
+  local d="$1" stray inapps tracked has
+  # A build cache carries generated Dockerfiles (nimble ships
+  # dist/nimble/tests/Dockerfile.debug inside .nim_runtime) and those are not the
+  # repository's own content: on 2026-11-18 that file reddened the contract job
+  # after `./task deps-install`. Scan tracked files when the directory is a work
+  # tree, and a pruned find otherwise.
+  if tracked=$(git -C "$d" ls-files 2>/dev/null) && [ -n "$tracked" ]; then
+    stray=$(printf '%s\n' "$tracked" |
+      grep -E '(^|/)(Containerfile[^/]*|[^/]*\.containerfile)$' || true)
+    inapps=$(printf '%s\n' "$tracked" |
+      grep -E '(^|/)Dockerfile' | grep -vE '^apps/[A-Za-z0-9_.-]+/Dockerfile$' || true)
+    has=$(printf '%s\n' "$tracked" | grep -E '(^|/)Dockerfile' || true)
+  else
+    stray=$(find "$d" \( -name node_modules -o -name .git -o -name .nim_runtime -o -name .cache -o -name .nimble \) -prune -o \
+      -type f \( -name 'Containerfile*' -o -name '*.containerfile' \) -print 2>/dev/null | sed "s|^$d/||")
+    inapps=$(find "$d" \( -name node_modules -o -name .git -o -name .nim_runtime -o -name .cache -o -name .nimble \) -prune -o \
+      -type f -name 'Dockerfile*' -print 2>/dev/null | sed "s|^$d/||" | grep -vE '^apps/[A-Za-z0-9_.-]+/Dockerfile$' || true)
+    has=$(find "$d" \( -name node_modules -o -name .git -o -name .nim_runtime -o -name .cache -o -name .nimble \) -prune -o \
+      -type f -name Dockerfile -print -quit 2>/dev/null)
+  fi
   [ -n "$stray" ] && badid C5 "container file naming: -> $(echo $stray | tr '\n' ' ')"
-  inapps=$(find "$d" \( -name node_modules -o -name .git \) -prune -o \
-    -type f -name 'Dockerfile*' -print 2>/dev/null | sed "s|^$d/||" | grep -vE '^apps/[A-Za-z0-9_.-]+/Dockerfile$' || true)
   [ -n "$inapps" ] && badid C5 "Dockerfile outside apps/<part>/ -> $(echo $inapps | tr '\n' ' ')"
-  if [ -z "$stray" ] && [ -z "$inapps" ] &&
-     [ -n "$(find "$d" \( -name node_modules -o -name .git \) -prune -o -type f -name Dockerfile -print -quit 2>/dev/null)" ]; then
+  if [ -z "$stray" ] && [ -z "$inapps" ] && [ -n "$has" ]; then
     ok "container file naming: apps/<part>/Dockerfile only"
   fi
 }
