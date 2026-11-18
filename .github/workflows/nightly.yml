@@ -214,22 +214,18 @@ jobs:
       - name: "E2E: install"
         run: pnpm install --frozen-lockfile
       # Same rule as ci.yml: every pinned browser is downloaded, because
-      # `./task deps-check` requires firefox to be present too, and apt is paid
-      # only when one of the two engines the suite drives cannot start.
+      # `./task deps-check` requires firefox to be present too, and the system
+      # libraries come from the pinned list in e2e/system-deps.txt through
+      # `./task browser-deps`, never from `install --with-deps`.
       - name: "E2E: install browsers"
-        run: |
-          # The system libraries come from apt, and a slow mirror has twice
-          # eaten this job's whole budget (14m24s on 2026-11-10, cancelled at
-          # the cap before a single test ran). Each request is bounded so a
-          # stalled mirror fails over or fails fast and names itself.
-          printf 'Acquire::http::Timeout "15";\nAcquire::Retries "3";\n' |
-            sudo tee /etc/apt/apt.conf.d/99-majadu-timeout >/dev/null
-          pnpm exec playwright install
-          if ! pnpm --filter badminton-pair-tmp exec node -e \
-            "const {chromium,webkit}=require('playwright');(async()=>{for(const engine of [chromium,webkit]){const browser=await engine.launch();await browser.close()}})()"; then
-            echo "a cached browser could not start; installing the system dependencies"
-            pnpm exec playwright install --with-deps
-          fi
+        run: pnpm exec playwright install
+      # A slow mirror has twice eaten this job's whole budget (14m24s on
+      # 2026-11-10 and 13m47s on 2026-11-18, both cancelled at the cap before a
+      # single test ran). The target bounds each request and caps the run.
+      - name: "E2E: system libraries"
+        run: ./task browser-deps
+      - name: "E2E: browsers start"
+        run: ./task browser-check
       - name: "Database: provision"
         env:
           MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env

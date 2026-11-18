@@ -73,18 +73,41 @@ suite "workflow contract":
     # instead of inheriting the skip in task.d/coverage.sh.
     check text.contains("git merge-base HEAD \"origin/$BASE_REF\"")
 
-  # OPS-22: release.yml's e2e job ran a bare `--with-deps` and spent the whole
-  # 15-minute budget in apt (release run 44267937137 on tag v2.0.5, cancelled at
-  # 13m36s), so no image and no GitHub Release followed. The launch-check shape
-  # ci.yml already uses is the contract: install the binaries, start each engine
-  # once, and pay for apt only when a launch fails.
-  test "release.yml installs browsers with the launch check and no bare --with-deps":
-    let text = readFile(repoDir / ".github" / "workflows" / "release.yml")
-    check text.contains("      - name: \"E2E: install browsers\"")
-    check text.contains("pnpm exec playwright install\n")
-    check text.contains("a cached browser could not start; installing the system dependencies")
-    check text.contains("99-majadu-timeout")
-    check not text.contains("run: pnpm exec playwright install --with-deps")
+  # OPS-22: an e2e job that installs browser dependencies through apt has spent
+  # the whole 15-minute budget there three times (14m24s on 2026-11-10, 13m47s
+  # and 13m36s on 2026-11-18), and `--with-deps` resolving Recommends: is what
+  # made it 181 packages instead of the 62 the browsers link against. The
+  # contract is the pinned list: binaries first, then `./task browser-deps`, then
+  # `./task browser-check` so a missing library is named in its own step.
+  test "no workflow and no CI path installs browsers with a bare --with-deps":
+    for kind, path in walkDir(repoDir / ".github" / "workflows"):
+      if kind != pcFile:
+        continue
+      var text = ""
+      for line in readFile(path).splitLines():
+        # The comments name the old call to explain why it left, so only the
+        # executable lines count.
+        if line.strip().startsWith("#"):
+          continue
+        text.add(line & "\n")
+      check not text.contains("playwright install --with-deps")
+      if text.contains("playwright install\n"):
+        check text.contains("./task browser-deps")
+        check text.contains("./task browser-check")
+
+  test "browser-deps installs the pinned list without recommends":
+    let text = readFile(repoDir / "task.d" / "browser-deps.sh")
+    check text.contains("e2e/system-deps.txt")
+    check text.contains("--no-install-recommends")
+    # The whole apt run is capped, so a stalled mirror cannot spend the job.
+    check text.contains("MAJADU_BROWSER_DEPS_TIMEOUT")
+    check text.contains("timeout \"$budget\"")
+    let list = readFile(repoDir / "e2e" / "system-deps.txt")
+    check list.contains("libevent-2.1-7t64")
+    # Playwright's `tools` array carries the fonts, and the visual baselines bake
+    # their glyphs in; without it the scoreboard renders fallback tofu.
+    check list.contains("fonts-unifont")
+    check list.contains("fonts-liberation")
 
   # ISO-14: the Linux baseline is committed, so CI may only compare it.
   test "no CI path records a visual baseline":

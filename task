@@ -51,6 +51,8 @@ Targets:
   sharekeys    generate or rotate session share-link keys
   rehearsal    cutover rehearsal on a VPS (run | check | clean)
   e2e          browser a11y, visual and compatibility regression (Playwright)
+  browser-deps install the pinned browser system libraries (Linux, no Recommends)
+  browser-check  prove the two engines the browser suite drives can start
   scoreboard-pwa  assert the built scoreboard service worker precache
   release      prepare a release (dry-run by default)
   hooks        install the repository hooks (core.hooksPath)
