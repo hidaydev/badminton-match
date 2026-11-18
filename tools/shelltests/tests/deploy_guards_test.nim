@@ -62,6 +62,23 @@ esac
 exit 0
 """
 
+# BM-04: `deploy-vps-rc.sh` serialises its build through the host-wide
+# `qouver-build-lock`, so every fixture that reaches the build needs one. It
+# records the app it was asked for and then runs the command after `--`, which
+# is what the real lock does once it holds flock. `FAKE_BUILD_LOCK_EXIT` stands
+# in for the lock timeout (75 on the host), which exits without running the
+# command.
+const buildLockPassthroughFake = """#!/bin/sh
+if [ -n "${FAKE_BUILD_LOCK_LOG:-}" ]; then
+  printf '%s\n' "$*" >>"$FAKE_BUILD_LOCK_LOG"
+fi
+if [ -n "${FAKE_BUILD_LOCK_EXIT:-}" ]; then
+  exit "$FAKE_BUILD_LOCK_EXIT"
+fi
+shift 2
+exec "$@"
+"""
+
 # A hotfix reaches main without a tag, so `ls-remote` answers with no tag at all.
 const gitFakeNoRelease = """#!/bin/sh
 case "$*" in
@@ -173,6 +190,10 @@ proc simFakes(fixture: Fixture) =
   fixture.installFake("podman", podmanFake)
   fixture.installFake("psql", psqlFake)
   fixture.installFake("cosign", okFake)
+  # BM-04: the RC build asks the host-wide lock first, so a fixture that reaches
+  # the build must answer it. The passthrough fake runs the command after `--`,
+  # exactly as the real lock does once it holds flock.
+  fixture.installFake("qouver-build-lock", buildLockPassthroughFake)
   # deploy-vps.sh verifies the image signature after it pulls, so every fixture
   # that reaches the pull needs the public key installed.
   privateFile(fixture.root / "env" / "cosign.pub", "fake cosign public key\n")
@@ -272,6 +293,25 @@ suite "deploy-vps.sh":
       "deploy ignored: repository 'someone/fork' is not badminton-match")
     check not result.stdout.contains("deploy trigger")
     check not fileExists(podmanLog)
+
+  # BM-08: the lock waited 1200 s and the line that reported the timeout said
+  # 900 s, so a reader of the log was given a shorter wait than the script
+  # performed. The number in the message has to be the number it waited.
+  test "the deploy lock timeout reports the wait it actually used":
+    let fixture = newFixture("deploy-lock-timeout")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFake)
+    fixture.installFake("flock", "#!/bin/sh\nexit 1\n")
+    touch(fixture.root / "monorepo" / "VERSION", "2.0.0\n")
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+      ])
+    check result.exitCode == 1
+    check result.stdout.contains("another deploy still holds the lock after 1200s")
+    let lockWait = readFile(opsScriptsDir / "deploy-vps.sh")
+    check lockWait.contains("flock -w \"$DEPLOY_LOCK_WAIT\" 9")
 
   test "a failed restart is a warning, and the readiness gate decides":
     let fixture = newFixture("deploy-restart-warning")
@@ -1317,6 +1357,73 @@ suite "deploy-vps-rc.sh":
     let result = runRcGate(fixture, rcDir, @[("FAKE_PODMAN_LOG", podmanLog)])
     check result.exitCode == 1
     check not readFile(podmanLog).contains("tag localhost/majadu-rc-api:prev")
+
+  # BM-04: the RC build ran beside a production build from another app, because
+  # the per-app .deploy.lock cannot see the neighbour. The host-wide lock is what
+  # makes "one build at a time" true, so the build must go through it.
+  test "the RC build goes through the host-wide build lock":
+    let fixture = newFixture("rc-build-lock")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let podmanLog = fixture.root / "podman.log"
+    let lockLog = fixture.root / "build-lock.log"
+    let result = runRcGate(fixture, rcDir, @[
+      ("FAKE_CI_BODY", ciSuccessBody),
+      ("FAKE_PODMAN_LOG", podmanLog),
+      ("FAKE_BUILD_LOCK_LOG", lockLog),
+    ])
+    let lockCalls = readFile(lockLog)
+    check lockCalls.contains("badminton-match-rc -- podman build")
+    check lockCalls.contains("-f apps/api/Dockerfile")
+    check result.stdout.contains("build lock:")
+    # The build still reaches podman, and podman still gets its memory bound.
+    check readFile(podmanLog).contains("--memory 3g")
+
+  test "a build lock timeout fails the deploy instead of reporting a compile error":
+    let fixture = newFixture("rc-build-lock-timeout")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let podmanLog = fixture.root / "podman.log"
+    let result = runRcGate(fixture, rcDir, @[
+      ("FAKE_CI_BODY", ciSuccessBody),
+      ("FAKE_PODMAN_LOG", podmanLog),
+      ("FAKE_BUILD_LOCK_EXIT", "75"),
+    ])
+    check result.exitCode == 1
+    check result.stdout.contains("another build still holds")
+    # The lock exits 75 without running its command, so nothing was compiled.
+    check not readFile(podmanLog).contains("-f apps/api/Dockerfile")
+
+  test "a missing build lock fails closed and says how to override":
+    let fixture = newFixture("rc-build-lock-missing")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let podmanLog = fixture.root / "podman.log"
+    let result = runRcGate(fixture, rcDir, @[
+      ("FAKE_CI_BODY", ciSuccessBody),
+      ("FAKE_PODMAN_LOG", podmanLog),
+      ("MAJADU_BUILD_LOCK", "/nonexistent/qouver-build-lock"),
+    ])
+    check result.exitCode == 1
+    check result.stdout.contains("is missing or not executable")
+    check result.stdout.contains("MAJADU_RC_ALLOW_UNLOCKED_BUILD=1")
+    check not readFile(podmanLog).contains("-f apps/api/Dockerfile")
+
+  test "the documented override builds without the lock and says so":
+    let fixture = newFixture("rc-build-lock-override")
+    defer: removeDir(fixture.root)
+    let rcDir = rcGateFixture(fixture)
+    let podmanLog = fixture.root / "podman.log"
+    let lockLog = fixture.root / "build-lock.log"
+    let result = runRcGate(fixture, rcDir, @[
+      ("FAKE_CI_BODY", ciSuccessBody),
+      ("FAKE_PODMAN_LOG", podmanLog),
+      ("FAKE_BUILD_LOCK_LOG", lockLog),
+      ("MAJADU_RC_ALLOW_UNLOCKED_BUILD", "1"),
+    ])
+    check result.stdout.contains("building without the host build lock")
+    check readFile(podmanLog).contains("--memory 3g")
+    check not fileExists(lockLog)
 
   test "the web deploy passes no token on a command line":
     let script = readFile(opsScriptsDir / "deploy-vps-rc.sh")

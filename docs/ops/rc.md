@@ -188,6 +188,22 @@ Emergency bypass: run the deploy by hand with
 records `"ci":"bypassed"` in `last-release.json`. Use it only when CI is broken
 and the commit has been verified another way.
 
+### 4.2.1 The build lock
+
+`BM-04`: the build was the one step on this host that could run beside another
+app's build. The per-app `.deploy.lock` in this script only serialises deploys of
+the same app, and the host rule is one build at a time (2 vCPU), so the RC build
+goes through `/srv/qouver/bin/qouver-build-lock <app> -- podman build ...`. The
+lock is resolved as `MAJADU_BUILD_LOCK`, then `qouver-build-lock` on `PATH`, then
+`/srv/qouver/bin/qouver-build-lock`; the app name is
+`MAJADU_RC_LOCK_APP` (default `badminton-match-rc`). Its own wait is 900 s and a
+timeout exits 75, which the deploy reports as "another build still holds the
+lock" rather than as a compile failure.
+
+A host without the lock fails the deploy instead of building unserialised. The
+documented override for a rehearsal host is `MAJADU_RC_ALLOW_UNLOCKED_BUILD=1`,
+which logs a `WARNING` before building.
+
 The first deploy after merging a change to `deploy-vps-rc.sh` still runs the
 previously installed copy in `/srv/qouver/apps/majadu-rc/scripts/`; the new
 version is installed during that run and is used from the next one.
