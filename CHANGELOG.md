@@ -5,6 +5,22 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.0.5] - 2026-11-18
+
+### Changed
+- docs: drop em dashes from CONTRIBUTING (f2e6984; CONTRIBUTING.md)
+- docs(security): document the osv-scanner exception contract and guard it (3880a8f; docs/handbook/deps-format.md, osv-scanner.toml, tools/shelltests/tests/osv_exception_test.nim)
+- docs(security): name a channel that works while private reporting is off (5bb58fd; SECURITY.md)
+- docs(readme): reorder the README to the repository documentation standard (3454a6c; README.md)
+- ci(contract): accept a static-host frontend and never plan an empty shard (0a8314b; ops/scripts/cicd-standard-check.sh, task.d/lib.sh, tools/shelltests/tests/lib_guards_test.nim)
+- docs(ops): record what a CI wall number does not say (933fb95; docs/ops/operations.md, task.d/test-costs.sh)
+- ci(standard): drop the coverage poll, guard Dependabot PRs, run the static rules (b0f5778; .github/workflows/ci.yml, docs/handbook/current-status.md, ops/scripts/cicd-standard-check.sh (+1 more))
+
+### Fixed
+- fix(dev): reach Postgres through the pg18 container on a host without psql (222728b; CONTRIBUTING.md, README.md, e2e/global-setup.ts (+4 more))
+- fix(deploy): serialise the RC build and use one lock-wait constant (797563a; docs/ops/rc.md, ops/scripts/deploy-vps-rc.sh, ops/scripts/deploy-vps.sh (+1 more))
+- perf(ci): split the test shards by measured cost (147bea9; task.d/lib.sh, task.d/test-costs.sh, task.d/test.sh (+1 more))
+
 ## [2.0.4] - 2026-11-18
 
 ### Changed
