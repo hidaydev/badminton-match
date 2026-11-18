@@ -424,24 +424,23 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('deps.lock') }}
       - name: "E2E: install"
         run: pnpm install --frozen-lockfile
-      # The system libraries a browser needs come from apt, and a slow mirror is
-      # what spends this job's budget. Same shape as ci.yml: the binaries are
-      # installed first and each engine the suite drives is started once; only a
-      # launch that fails pays for `--with-deps`. Every pinned browser is
+      # The system libraries come from the pinned list in e2e/system-deps.txt
+      # through `./task browser-deps`, never from `install --with-deps`: that
+      # call let apt resolve Recommends: and spent 13m47s of a 15-minute job on
+      # 2026-11-18 before the cap cancelled it. Every pinned browser is still
       # downloaded, not just the two the suite runs, because `deps.lock` pins
       # firefox as well and a cold cache has to produce all of them.
       - name: "E2E: install browsers"
-        run: |
-          # Each apt request is bounded so a stalled mirror fails over or fails
-          # fast and names itself instead of eating this job's budget.
-          printf 'Acquire::http::Timeout "15";\nAcquire::Retries "3";\n' |
-            sudo tee /etc/apt/apt.conf.d/99-majadu-timeout >/dev/null
-          pnpm exec playwright install
-          if ! pnpm --filter badminton-pair-tmp exec node -e \
-            "const {chromium,webkit}=require('playwright');(async()=>{for(const engine of [chromium,webkit]){const browser=await engine.launch();await browser.close()}})()"; then
-            echo "a cached browser could not start; installing the system dependencies"
-            pnpm exec playwright install --with-deps
-          fi
+        run: pnpm exec playwright install
+      # Each apt request is bounded and the whole run is capped inside the
+      # target, so a stalled mirror fails fast here and names itself instead of
+      # eating this job's budget.
+      - name: "E2E: system libraries"
+        run: ./task browser-deps
+      # A browser that will not start names the missing shared library, so a red
+      # release run says why before the suite is attempted.
+      - name: "E2E: browsers start"
+        run: ./task browser-check
       - name: "Database: provision"
         env:
           MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env
