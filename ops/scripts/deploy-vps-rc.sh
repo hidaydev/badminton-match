@@ -437,12 +437,42 @@ fi
 # bound that applies on the deploy host: the cpu flag on `podman build` does not
 # exist in 5.8.2, and `--cpu-quota` fails too because only the memory and pids
 # controllers are delegated to the user slice, so a cpu limit cannot be set here.
-podman build -f apps/api/Dockerfile \
+#
+# BM-04: the per-app .deploy.lock above cannot see another app's build, and the
+# host runs one build at a time. `qouver-build-lock` holds one flock for the
+# whole host, so a production build and this RC build queue instead of compiling
+# at the same time. Its own 900 s timeout exits 75, which is reported as itself
+# rather than as a compile failure. Resolved by name first (a rehearsal host
+# installs it on PATH), then at the host path; a missing lock fails the deploy
+# instead of quietly running unserialised, unless the operator says so.
+BUILD_LOCK="${MAJADU_BUILD_LOCK:-}"
+if [ -z "$BUILD_LOCK" ]; then
+  if command -v qouver-build-lock >/dev/null 2>&1; then
+    BUILD_LOCK=$(command -v qouver-build-lock)
+  else
+    BUILD_LOCK=/srv/qouver/bin/qouver-build-lock
+  fi
+fi
+build_cmd=(podman build)
+if [ "${MAJADU_RC_ALLOW_UNLOCKED_BUILD:-0}" = "1" ]; then
+  log "WARNING: MAJADU_RC_ALLOW_UNLOCKED_BUILD=1: building without the host build lock"
+else
+  [ -x "$BUILD_LOCK" ] ||
+    fail "build lock $BUILD_LOCK is missing or not executable; set MAJADU_BUILD_LOCK, or MAJADU_RC_ALLOW_UNLOCKED_BUILD=1 to build unserialised"
+  log "build lock: $BUILD_LOCK (one build at a time on this host)"
+  build_cmd=("$BUILD_LOCK" "${MAJADU_RC_LOCK_APP:-badminton-match-rc}" -- podman build)
+fi
+build_rc=0
+"${build_cmd[@]}" -f apps/api/Dockerfile \
   --memory 3g \
   --build-arg APP_VERSION="$VERSION" \
   --build-arg APP_COMMIT="$COMMIT" \
-  -t "$LOCAL_IMAGE:local" . >>"$LOG" 2>&1 ||
-  fail "podman build failed; :local was not replaced"
+  -t "$LOCAL_IMAGE:local" . >>"$LOG" 2>&1 || build_rc=$?
+if [ "$build_rc" -eq 75 ]; then
+  fail "another build still holds $BUILD_LOCK after its wait; :local was not replaced"
+elif [ "$build_rc" -ne 0 ]; then
+  fail "podman build failed (exit $build_rc); :local was not replaced"
+fi
 # From here on the new build owns :local, so a later failure has to hand it
 # back to :prev.
 RESTORE_LOCAL=1

@@ -256,9 +256,12 @@ fi
 # Concurrency: wait up to 15 minutes for the running deploy, never silently drop
 # a release.
 # ---------------------------------------------------------------------------
+# BM-07: one value, used by both the wait and the line that reports it. The two
+# were 1200 and 900, so a timeout claimed a shorter wait than it performed.
+DEPLOY_LOCK_WAIT=1200
 exec 9>"$LOCK_FILE"
-if ! flock -w 1200 9; then
-  log "another deploy still holds the lock after 900s; giving up"
+if ! flock -w "$DEPLOY_LOCK_WAIT" 9; then
+  log "another deploy still holds the lock after ${DEPLOY_LOCK_WAIT}s; giving up"
   exit 1
 fi
 

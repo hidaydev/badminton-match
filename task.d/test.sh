@@ -8,7 +8,8 @@ usage() {
 usage: ./task test [--timing] [--shard I/N] [--reverse]
 
   --timing     record per-suite wall time in .cache/<worktree>/timing/test.tsv
-  --shard I/N  run slice I of N of the sorted suite list (1-based)
+  --shard I/N  run slice I of N of the sorted suite list (1-based), split by
+               measured cost when task.d/test-costs.tsv exists, else by position
   --reverse    run the list back to front; the next run then names every file
                whose result depends on the order its neighbours ran in
 
@@ -199,11 +200,19 @@ if [ "$reverse" = "1" ]; then
     awk '{ line[NR] = $0 } END { for (i = NR; i > 0; i--) print line[i] }')
 fi
 
+# BM-03: a cost table turns the positional slice into a cost-aware one; the
+# positional path stays the fallback for a checkout without the table.
+planned=0
+if [ -s "$TEST_COST_FILE" ] && [ "$shard_total" -ge 2 ]; then
+  files=$(printf '%s\n' "$files" | shard_plan "$shard_total" "$shard_index")
+  planned=1
+fi
+
 index=0
 ran=0
 for file in $files; do
   index=$((index + 1))
-  shard_keeps "$index" "$shard_total" "$shard_index" || continue
+  [ "$planned" = "1" ] || shard_keeps "$index" "$shard_total" "$shard_index" || continue
   ran=$((ran + 1))
   rel=${file#"$REPO_ROOT"/}
 

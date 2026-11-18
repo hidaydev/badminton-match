@@ -47,13 +47,16 @@ suite "workflow contract":
     check result.exitCode == 1
     check result.stderr.contains(".github/workflows/ci.yml:web has no 'timeout-minutes: 15'")
 
-  test "ci.yml keeps concurrency, the Nim cache and the coverage gate":
+  test "ci.yml keeps concurrency, the Nim cache and no cross-workflow poll":
     let text = readFile(repoDir / ".github" / "workflows" / "ci.yml")
     check text.contains("cancel-in-progress: ${{ github.event_name == 'pull_request' }}")
     check text.contains("nimcache-${{ runner.os }}-")
-    check text.contains("coverage-gate:")
-    # `image` waits for the gate and `coverage-gate` reports as its own check, so
-    # neither can be a dependency of the gate without a cycle or a 12-minute hold.
+    # W9 (QOUVER_CICD_STANDARD §11.2): a Class A workflow may not wait on another
+    # workflow's run. The check that used to poll coverage.yml held the CI wall for
+    # up to 12 minutes; `Coverage: ratchet` reports on its own instead.
+    check not text.contains("actions/workflows/coverage.yml/runs")
+    check not text.contains("  coverage-gate:")
+    # `image` waits for the gate, so the gate's needs stay the in-repo quality jobs.
     check text.contains(
       "needs: [api-check, api-test, contract, supply-chain, web, e2e, mutation]")
 

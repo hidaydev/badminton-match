@@ -95,3 +95,31 @@ junit_finish""")
     expectedAll.sort()
     check withIntegration.exitCode == 0
     check withIntegration.stdout == expectedAll.join("\n") & "\nEND"
+  test "shard_plan balances by measured cost and keeps every suite once":
+    # BM-03 / W8: positional slicing is uncorrelated with cost, so the two shards
+    # drifted to 63 % on 2026-11-18. With a cost table the slice is LPT: 300 goes
+    # to shard 1, 200 and 100 to shard 2, 50 back to shard 1 (350 vs 300).
+    let fixture = newFixture("lib-shard-plan")
+    defer: removeDir(fixture.root)
+    writeFile(fixture.root / "task.d" / "test-costs.tsv",
+      "a\t300\nb\t200\nc\t100\nd\t50\n")
+    let body = """. "$1"
+printf '%s\n' "$REPO_ROOT/a" "$REPO_ROOT/b" "$REPO_ROOT/c" "$REPO_ROOT/d" |
+  shard_plan 2 """
+    let first = fixture.runLib(body & "1")
+    let second = fixture.runLib(body & "2")
+    check first.exitCode == 0
+    check first.stdout == fixture.root / "a" & "\n" & fixture.root / "d" & "\n"
+    check second.stdout == fixture.root / "b" & "\n" & fixture.root / "c" & "\n"
+
+  test "shard_plan gives an unknown suite the median cost, not zero":
+    let fixture = newFixture("lib-shard-plan-unknown")
+    defer: removeDir(fixture.root)
+    writeFile(fixture.root / "task.d" / "test-costs.tsv",
+      "a\t300\nb\t200\nc\t100\nd\t50\n")
+    # median of 50, 100, 200, 300 is 100, so `e` costs the same as `c` and the
+    # greedy pass must still place it by load instead of treating it as free.
+    let result = fixture.runLib(""". "$1"
+printf '%s\n' "$REPO_ROOT/a" "$REPO_ROOT/b" "$REPO_ROOT/e" | shard_plan 2 2""")
+    check result.exitCode == 0
+    check result.stdout == fixture.root / "b" & "\n" & fixture.root / "e" & "\n"
