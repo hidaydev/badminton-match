@@ -7,6 +7,9 @@ REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 ADMIN_DSN=${MAJADU_PG_ADMIN_DSN:-postgres}
 DB=${MAJADU_V1_DB:-bm_v1_dev}
 
+# shellcheck source=../db-client.sh
+. "$REPO_ROOT/ops/dev/db-client.sh"
+
 fail() {
   printf 'error: %s\n' "$*" >&2
   exit 1
@@ -26,8 +29,8 @@ psql -v ON_ERROR_STOP=1 -d "$ADMIN_DSN" \
   -c "DROP DATABASE IF EXISTS $DB WITH (FORCE)" >/dev/null
 psql -v ON_ERROR_STOP=1 -d "$ADMIN_DSN" -c "CREATE DATABASE $DB" >/dev/null
 
-psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$REPO_ROOT/ops/dev/v1/schema.sql" >/dev/null
-psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$REPO_ROOT/ops/dev/v1/seed.sql" >/dev/null
+majadu_apply_sql_stdin "$DB" "$REPO_ROOT/ops/dev/v1/schema.sql" -q >/dev/null
+majadu_apply_sql_stdin "$DB" "$REPO_ROOT/ops/dev/v1/seed.sql" -q >/dev/null
 
 players=$(psql -d "$DB" -tAc "select count(*) from bm.players")
 sessions=$(psql -d "$DB" -tAc "select count(*) from bm.sessions")

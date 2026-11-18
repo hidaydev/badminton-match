@@ -101,8 +101,11 @@ export MAJADU_PG_DSN="postgresql://$USER@127.0.0.1:5432/bm2_dev"
 pnpm dev                           # web on http://localhost:5173
 ```
 
-`./task dev-db` needs `psql` and writes the generated development role passwords to `.env.local`,
-which is gitignored.
+`./task dev-db` needs a Postgres client: the host `psql` when one is installed, otherwise
+`docker exec` into the `pg18` container. Set `MAJADU_DB_CLIENT=host|docker` to pick one
+explicitly, and `MAJADU_PG_CONTAINER` / `MAJADU_PG_SUPERUSER` when the container is not
+`pg18` or its superuser is not `postgres`. It writes the generated development role passwords to
+`.env.local`, which is gitignored.
 
 ## Configuration
 

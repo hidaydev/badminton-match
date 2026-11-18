@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execSync, execFileSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -19,6 +19,29 @@ import type { E2eState, WritableSession } from './visual.routes'
  * the address the API was booted with, so the first login is the platform owner.
  */
 const here = __dirname
+
+/**
+ * psql through the host client or the `pg18` container, whichever this machine
+ * has. `task.d/e2e.sh` already decided the route into MAJADU_DB_CLIENT and the
+ * rest of that helper does not, so the same two-branch decision is repeated
+ * here; the alternative is a client binary that is absent on the dev host.
+ */
+function psqlish(): (args: string[]) => void {
+  const container = process.env.MAJADU_PG_CONTAINER || 'pg18'
+  const viaContainer = (args: string[]) =>
+    execFileSync('docker', ['exec', '-i', '-e', 'PGUSER=postgres', container, 'psql', ...args], {
+      encoding: 'utf8',
+    })
+  if (process.env.MAJADU_DB_CLIENT === 'docker') return viaContainer
+  try {
+    execSync('command -v psql', { stdio: 'ignore' })
+  } catch {
+    // The dev host has no psql and keeps Postgres in a container. Throwing here
+    // would abort the run at the first pin instead of using the client it has.
+    return viaContainer
+  }
+  return (args: string[]) => execFileSync('psql', args, { encoding: 'utf8' })
+}
 
 /**
  * The fixture handoff is per run: `.state/run-<id>.json`, plus a `current`
@@ -149,7 +172,8 @@ export default async function globalSetup(config: FullConfig) {
     // midnight. The DSN is the one `task.d/e2e.sh` already migrated.
     const dsn = process.env.MAJADU_PG_DSN
     if (!dsn) throw new Error('MAJADU_PG_DSN is required to pin the fixture dates')
-    execFileSync('psql', [
+    const psql = psqlish()
+    psql([
       dsn,
       '-v',
       'ON_ERROR_STOP=1',
@@ -165,7 +189,7 @@ export default async function globalSetup(config: FullConfig) {
     const memberToken = randomBytes(32).toString('hex')
     const memberHash = (value: string) =>
       createHash('sha256').update(value).digest('hex')
-    execFileSync('psql', [
+    psql([
       dsn,
       '-v',
       'ON_ERROR_STOP=1',

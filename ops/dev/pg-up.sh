@@ -6,12 +6,13 @@ REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 ENV_FILE=${MAJADU_DEV_ENV:-"$REPO_ROOT/.env.local"}
 ADMIN_DSN=${MAJADU_PG_ADMIN_DSN:-postgres}
 
+# shellcheck source=db-client.sh
+. "$REPO_ROOT/ops/dev/db-client.sh"
+
 fail() {
   printf 'error: %s\n' "$*" >&2
   exit 1
 }
-
-command -v psql >/dev/null 2>&1 || fail "psql not found"
 
 read_var() {
   [ -f "$ENV_FILE" ] || return 0
@@ -57,8 +58,7 @@ SQL
 # Passing the bare database name to -d would fall back to the local socket and
 # fail on a host where PostgreSQL only listens on the network.
 for db in bm2_dev bm2_template; do
-  psql -v ON_ERROR_STOP=1 -d "$ADMIN_DSN" -v db="$db" \
-    -c "\\connect $db" -f "$REPO_ROOT/ops/dev/roles.sql" >/dev/null
+  majadu_apply_sql_file "$ADMIN_DSN" "$db" "$REPO_ROOT/ops/dev/roles.sql" >/dev/null
 done
 
 psql -v ON_ERROR_STOP=1 -d "$ADMIN_DSN" -c \

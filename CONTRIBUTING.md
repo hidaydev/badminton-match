@@ -21,8 +21,9 @@ Pin the same versions the project uses. They are recorded in `deps.lock`,
 | Node.js | 26 | `.github/workflows/ci.yml` |
 | pnpm | 12.17.0 | `packageManager` in `package.json` |
 
-You also need a POSIX shell and `psql`. Nim packages are installed by hand into
-`~/.nimble/pkgs2`; `./task deps-check` verifies what is installed against
+You also need a Postgres client: the host `psql` or, on a machine that runs Postgres in a
+container, `docker exec` into it (`MAJADU_DB_CLIENT=host|docker`, default detected). Nim packages
+are installed by hand into `~/.nimble/pkgs2`; `./task deps-check` verifies what is installed against
 `deps.lock`.
 
 ## Local setup
@@ -34,9 +35,10 @@ export MAJADU_PG_DSN="postgresql://$USER@127.0.0.1:5432/bm2_dev"
 ./task bootstrap --sub <google-sub> [--email <address>]
 ```
 
-`./task dev-db` needs `psql`; it writes the generated development role passwords
-to `.env.local` (gitignored). `./task bootstrap` applies migrations, seeds the L1
-platform config, and creates the first platform owner and a default community.
+`./task dev-db` needs a Postgres client (host `psql` or `docker exec` into the container); it
+writes the generated development role passwords to `.env.local` (gitignored). `./task bootstrap`
+applies migrations, seeds the L1 platform config, and creates the first platform owner and a default
+community.
 
 Day-to-day commands:
 

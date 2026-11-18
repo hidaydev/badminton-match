@@ -6,6 +6,9 @@ suffix=${1:-worker}
 ADMIN_DSN=${MAJADU_PG_ADMIN_DSN:-postgres}
 name="bm2_$suffix"
 
+# shellcheck source=db-client.sh
+. "$(dirname "$0")/db-client.sh"
+
 fail() {
   printf 'error: %s\n' "$*" >&2
   exit 1
