@@ -138,6 +138,7 @@ holey output must not be copied silently.
   every recorded entry.
 - `pnpm-lock.yaml` covers the npm universe: `./task osv-scan` reads it against OSV and
   fails on HIGH or CRITICAL, so `deps.lock` does not repeat that query for `npm:` entries.
+  Section 8 is the only way to accept one of those findings.
 - The two base images are pinned by manifest digest, and `deps-check` reads each digest back
   out of `apps/api/Dockerfile`.
 - OSV has no Nimble ecosystem, so a `nimble:` entry cannot be matched by package and
@@ -169,3 +170,30 @@ advisory nim:<name> <commit> <verdict>
   together, so recording one is the same copy-out as every other entry. A new advisory id
   is a triage decision, not a mechanical update: bump the package, or date the exception
   under `docs/handbook/`, before the new verdict is recorded.
+
+## 8. Dated exceptions (`osv-scanner.toml`)
+
+The npm side is gated by the advisory database, not by a hand-written list, so the only
+way to accept a finding is to tell the scanner about it. `osv-scanner.toml` at the
+repository root, next to `pnpm-lock.yaml`, is that channel:
+
+```toml
+[[IgnoredVulns]]
+id = "GHSA-…"
+ignoreUntil = 2026-12-18   # a TOML date; the entry stops applying after it
+reason = "why this is acceptable, and what reopens it"
+```
+
+- The file is discovered by the scan itself: no flag, no `task.d/` change. `osv-scanner`
+  reads the config that sits in the directory of the lockfile it parses, so the root
+  `pnpm-lock.yaml` picks up the root file.
+- The key is `ignoreUntil`, not the `effectiveUntil` the upstream docs show. This repo
+  pins `osv-scanner` 2.7.0, which rejects `effectiveUntil` as an unknown key; the entry
+  then silently does not apply. Verify an entry by removing the advisory from the report
+  (`./task osv-scan` on a machine with the scanner), never by reading the file back.
+- An exception is id-scoped and dated, never package-scoped and never open-ended. When
+  `ignoreUntil` passes, the finding returns on its own; a stale exception is a red build,
+  not a forgotten one.
+- A new entry is a security decision: it needs a reason that names the dependency path
+  and whether the package can reach the shipped bundle. `osvgate` still blocks everything
+  the scanner reports, so an exception written here is the one place a HIGH can pass.
