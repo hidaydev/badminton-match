@@ -1,280 +1,175 @@
-<div align="center">
+# Majadu
 
-# 🏸 Majadu
+Run a badminton club from one screen: sessions, scores, tournaments, and rank points.
 
-**Run a badminton club from one screen: sessions, scores, tournaments, and rank points.**
+## What this is
 
-[![CI](https://github.com/hidaydev/badminton-match/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hidaydev/badminton-match/actions/workflows/ci.yml)
-[![Coverage gate](https://github.com/hidaydev/badminton-match/actions/workflows/coverage.yml/badge.svg?branch=main)](https://github.com/hidaydev/badminton-match/actions/workflows/coverage.yml)
-![Release](https://img.shields.io/badge/Release-2.0.3-brightgreen?style=flat-square)
-![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.8%20%2F%206-3178C6?style=flat-square&logo=typescript&logoColor=white)
-![Nim](https://img.shields.io/badge/Nim-2.4-FFE953?style=flat-square&logo=nim&logoColor=black)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?style=flat-square&logo=postgresql&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-38BDF8?style=flat-square&logo=tailwindcss&logoColor=white)
-![License](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square)
+Majadu is a mobile-first, multi-community progressive web app for recreational and club badminton.
+It handles the whole life of a badminton community: planning match nights, allocating courts,
+recording scores with optimistic concurrency, running knockout and team tournaments, and computing
+rolling 12-week rank points.
 
-<p align="center">
-  <a href="#-overview">Overview</a> •
-  <a href="#-key-features">Features</a> •
-  <a href="#%EF%B8%8F-architecture--stack">Architecture</a> •
-  <a href="#-repository-layout">Layout</a> •
-  <a href="#-local-development">Quickstart</a> •
-  <a href="#-quality-gates--testing">Gates</a> •
-  <a href="#%EF%B8%8F-versioning--release-sop">Release SOP</a> •
-  <a href="#-deployment">Deployment</a> •
-  <a href="#-documentation">Docs</a>
-</p>
+The backend is written in Nim (`apps/api`, `modules/`, `shared/platform-lib`) and the web client is
+React 19 with Vite and Tailwind CSS 4 (`apps/web`), plus a courtside scoring kiosk (`apps/scoreboard`).
+All three live in one pnpm workspace behind a single task runner, `./task`.
 
-</div>
+What it does not do: it is not a general tournament platform or a booking system for venues. It
+assumes one deployment serves several clubs, each with slugged routes, its own settings, and its own
+members.
 
----
+## Status
 
-## ⚡ Overview
+Version `VERSION` at the root is the current release line, 2.x. Version 1.x is unsupported.
 
-**Majadu** is a mobile-first, multi-community Progressive Web App designed specifically for recreational and club badminton. It handles the entire lifecycle of a badminton community: planning match nights, allocating courts, recording scores with optimistic concurrency, running knockout and team tournaments, and automatically computing rolling 12-week rank points.
+Shipped and in production: sessions and courts, tournaments (classic draws and team tournaments),
+ratings, achievements, player management with claim and merge, multi-tenancy, sealed share links,
+the social canvas, and live updates over WebSocket with an HTTP fallback.
 
-| Metric | Specification |
-|---|---|
-| **Contract** | **76 operations** defined in OpenAPI, generating type-safe Nim server routes and TypeScript web clients |
-| **Database** | **56 migrations** on PostgreSQL 18, strictly keyed and scoped by `community_id` |
-| **Domain Architecture** | 9 cohesive modules: account, community, player, session, tournament, rating, achievement, share, platform |
-| **Test Quality Gates** | 1,524 Nim test cases across 140 suites, 144 parity replays, 170 end-to-end browser scenarios |
-| **Security Baseline** | First-party `HttpOnly` session cookies, signed Cosign container images, zero credentials in client state |
+The contract is 76 operations across an OpenAPI definition, backed by 56 migrations on PostgreSQL 18
+keyed and scoped by `community_id`. `./task docs-check` fails the build when a document quotes a
+different number.
 
----
+## Architecture
 
-## ✨ Key Features
-
-| Domain | Capabilities |
-|---|---|
-| **🏸 Sessions & Courts** | Real-time courtside management, participant check-in, dynamic scheduling, per-game scoring, absent/skip/swap mechanics, and match lock/unlock. All mutations enforce `If-Match` (OCC) and `Idempotency-Key`. |
-| **🏆 Tournaments** | Classic draws (16 pairs → 4 groups → knockout) and team tournaments (6 teams × 6 tiers → group stages + finals, 3 rubbers per match), computed and rendered client-side. |
-| **📈 Dynamic Ratings** | Rolling 12-week window calculation based on a player's best 10 entries per session or tournament, weighted by opponent tier ratings across 8 sticky skill tiers. |
-| **🎖️ Achievements** | Automated, idempotent badge evaluation computed from historic match records and tournament achievements. |
-| **👥 Player Management** | Canonical player identities, alias registries, gender categorization, sticky skill tiers, and verified claim/merge workflows with audit logging. |
-| **🏢 Multi-Tenancy** | Single deployment serving multiple clubs with slugged routes, hierarchical roles (`member`, `host`, `admin`), join requests, and per-club configuration overrides. |
-| **🔗 Safe Sharing** | Cryptographically sealed share links (HMAC + encrypted payload), public spectator views, and automatic share-code redaction in server access logs. |
-| **🎨 Social Canvas** | Client-side generation of high-resolution Instagram feed posts (1080×1350) and stories (1080×1920) for session summaries and tournament podiums. |
-| **⚡ Live Updates** | Low-latency in-memory WebSocket multiplexing per session and share ticket, with automated 5s HTTP fallback. |
-
----
-
-## 🏗️ Architecture & Stack
-
-Majadu follows Clean Architecture principles with strict boundary enforcement:
+Majadu follows clean architecture with strict boundary enforcement.
 
 ```text
- ┌────────────────────────────────────────────────────────┐
- │                   Client Layer (PWA)                   │
- │   React 19 • TypeScript • Tailwind CSS 4 • Vite 8      │
- └───────────────────────────┬────────────────────────────┘
-                             │  HTTP / OpenAPI & WebSocket
- ┌───────────────────────────▼────────────────────────────┐
- │                  Delivery & API Layer                  │
- │          Nim 2.4 • Mummy HTTP & WebSocket Server       │
- ├────────────────────────────────────────────────────────┤
- │                      Domain Core                       │
- │  9 Pure Domain Modules (Rules, Entities, Invariants)   │
- ├────────────────────────────────────────────────────────┤
- │                 Shared Platform Library                │
- │    DB Binder • Clock • Logger • Metrics • UUIDv7       │
- └───────────────────────────┬────────────────────────────┘
-                             │  SQL / Transactions
- ┌───────────────────────────▼────────────────────────────┐
- │                     Data Layer                         │
- │        PostgreSQL 18 (Multi-tenant Schemas)            │
- └────────────────────────────────────────────────────────┘
+ Client layer (PWA)          React 19, TypeScript, Tailwind CSS 4, Vite 8
+ Delivery and API layer      Nim 2.4, Mummy HTTP and WebSocket server
+ Domain core                 9 pure modules: rules, entities, invariants
+ Shared platform library     DB binder, clock, logger, metrics, UUIDv7
+ Data layer                  PostgreSQL 18, multi-tenant schemas
 ```
 
-- **Domain Isolation**: Modules inside `modules/<domain>/` hold business logic and database access. Modules never import HTTP, React, or delivery concerns.
-- **Contract-Driven**: `packages/contracts/openapi` is the single source of truth. Generated routes (`routes_gen.nim`) and client interfaces (`packages/web-client/src/api.ts`) are generated via `./task contract-gen`.
-- **Zero Hardcoded Configuration**: Business numbers, limits, and scoring parameters reside in `platform.config` and `community.settings`. The static architectural checker (`tools/archcheck`) enforces this continuously.
+- Domain isolation: modules under `modules/<domain>/` hold business logic and database access, and
+  never import HTTP, React or delivery concerns. `tools/archcheck` enforces that continuously.
+- Contract driven: `packages/contracts/openapi` is the single source of truth. Generated routes
+  (`routes_gen.nim`) and client interfaces (`packages/web-client/src/api.ts`) come from
+  `./task contract-gen`.
+- No hardcoded configuration: business numbers, limits and scoring parameters live in
+  `platform.config` and `community.settings`.
 
----
+| Part | Language | Version |
+|---|---|---|
+| API | Nim (Mummy) | 2.4 |
+| Web and scoreboard | React + TypeScript | React 19, Vite, Tailwind 4 |
+| Database | PostgreSQL | 18 |
+| Migrations | SQL | 56, append-only |
 
-## 📂 Repository Layout
+## Repository layout
 
 ```text
-majadu/
-├── apps/
-│   ├── web/                 # Primary React 19 PWA (Vite, Tailwind 4)
-│   ├── scoreboard/          # Dedicated courtside scoring kiosk PWA
-│   └── api/                 # High-performance Nim API server
-├── modules/                 # Pure domain logic:
-│                            #   account, community, player, session,
-│                            #   tournament, rating, achievement, share, platform
-├── shared/platform-lib/     # Core primitives: db, clock, log, metrics, uuidv7
-├── packages/
-│   ├── contracts/openapi/   # OpenAPI contract definitions (core.yaml + community.yaml)
-│   └── web-client/          # Auto-generated TypeScript API client
-├── db/                      # 56 append-only migrations, seeds, platform config
-├── ops/                     # Podman Quadlet, Caddy reverse-proxy, backup, restore
-├── tools/                   # dbtools, contract-gen, archcheck, parity, release
-├── e2e/                     # Playwright test suites (a11y, visual, multi-browser)
-├── testdata/                # Parity test corpora (v1 golden, v2 live)
-├── docs/                    # Architecture, data model, runbooks, design system
-├── task                     # Single unified project dispatcher (`./task help`)
-└── package.json             # Root pnpm monorepo configuration
+apps/web/                  Primary React PWA (Vite, Tailwind 4)
+apps/scoreboard/           Courtside scoring kiosk PWA
+apps/api/                  Nim API server
+modules/                   Domain logic: account, community, player, session,
+                           tournament, rating, achievement, share, platform
+shared/platform-lib/       Core primitives: db, clock, log, metrics, uuidv7
+packages/contracts/openapi/  OpenAPI definitions (core.yaml + community.yaml)
+packages/web-client/       Generated TypeScript API client
+db/                        56 append-only migrations, seeds, platform config
+ops/                       Podman quadlet, Caddy, backup, restore
+tools/                     dbtools, contract-gen, archcheck, parity, release
+e2e/                       Playwright suites (a11y, visual, multi-browser)
+testdata/                  Parity corpora (v1 golden, v2 live)
+docs/                      Architecture, data model, runbooks, design system
+task                       Single project dispatcher (`./task help`)
 ```
 
----
-
-## 🚀 Local Development
+## Local development
 
 ### Prerequisites
-- **Nim** 2.4+
-- **Node.js** 22+ & **pnpm** 10+
-- **PostgreSQL** 18 (e.g. containerized on `127.0.0.1:5432`)
+
+| Tool | Version | Source |
+|---|---|---|
+| Nim | 2.4.0 | `deps.lock`, `.github/workflows/ci.yml` |
+| PostgreSQL | 18 | CI uses `postgres:18.6`; a container on `127.0.0.1:5432` is enough |
+| Node.js | 26 | `.github/workflows/ci.yml` |
+| pnpm | 12.17.0 | `packageManager` in `package.json` |
+
+Nim packages are installed into `~/.nimble/pkgs2` and checked against `deps.lock` by
+`./task deps-check`.
 
 ### Quickstart
-1. **Prepare the database:**
-   ```bash
-   ./task dev-db     # Create dev roles and databases
-   ```
-2. **Start the API server:**
-   ```bash
-   ./task dev        # API on http://127.0.0.1:8080 (pass --watch for hot rebuild)
-   ```
-3. **Start the frontend web application:**
-   ```bash
-   pnpm dev          # Web on http://localhost:5173
-   ```
-4. **Bootstrap seed administrator (first-time setup):**
-   ```bash
-   MAJADU_PG_DSN=postgresql://$(whoami)@127.0.0.1:5432/bm2_dev \
-     ./task bootstrap --sub stub-user-1 --email stub@example.com
-   ```
 
----
+```sh
+pnpm install                       # workspace dependencies
+./task dev-db                      # create bm2_dev, bm2_template and the bm2 roles
+export MAJADU_PG_DSN="postgresql://$USER@127.0.0.1:5432/bm2_dev"
+./task bootstrap --sub stub-user-1 --email stub@example.com
+./task dev                         # API on http://127.0.0.1:8080, --watch for hot rebuild
+pnpm dev                           # web on http://localhost:5173
+```
 
-## ✅ Quality Gates & Testing
+`./task dev-db` needs `psql` and writes the generated development role passwords to `.env.local`,
+which is gitignored.
+
+## Configuration
+
+The API reads `MAJADU_*` variables: `MAJADU_ENV`, `MAJADU_PORT`, `MAJADU_PG_DSN`,
+`MAJADU_METRICS_PORT`, the DB timeouts, `MAJADU_TRUSTED_PROXIES`, `PUBLIC_BASE_URL`,
+`CORS_ALLOWED_ORIGINS`, the `SHARE_CODE_KEYS` map plus `SHARE_CODE_ACTIVE_KEY_ID`, and the
+`OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_REDIRECT_URI` trio. The complete list with defaults is
+in [`ops/env/prod.env.example`](ops/env/prod.env.example) and the RC variant beside it; the web client
+takes one variable, `VITE_API_BASE` ([`apps/web/.env.local.example`](apps/web/.env.local.example)).
+
+Every value in those files marked `CHANGE_ME` is a secret and belongs only in the deployment
+environment. Nothing in this repository carries a real credential.
+
+## Quality gates
 
 All validation runs through the single `./task` dispatcher.
 
-| Command | Target & Description |
+| Command | Guards |
 |---|---|
-| `./task check` | Static analysis: `nim check`, architectural boundary check (`archcheck`), and unit test suites (database-free). |
-| `./task test` | Full integration tests against isolated PostgreSQL databases. Supports `--timing` and parallel sharding via `WORKERS=N`. |
-| `./task ci` | Composite gate: linting, contract parity, builds, and integration tests. |
-| `./task coverage` | Line coverage verification per module, ratcheted against committed baseline JSON metrics. |
-| `./task docs-check` | Verifies documentation count parity (**56 migrations**, **76 operations**), link integrity, and release order rules. |
-| `./task parity v2 verify` | Golden contract replay: 144 test fixtures confirming binary and payload parity against frozen and live corpora. |
-| `./task e2e` | Multi-browser end-to-end tests (iPhone 17 WebKit, POCO F5 Chromium, desktop, and WebSocket). |
-| `pnpm check:web` | Web frontend checks: TypeScript compilation, ESLint, Tailwind token validation, and Vitest unit coverage. |
+| `./task check` | `nim check`, architectural boundary check (`archcheck`), and the database-free unit suites |
+| `./task test` | integration tests against isolated PostgreSQL databases (`--timing`, `WORKERS=N` to shard) |
+| `./task ci` | composite gate: linting, contract parity, builds and integration tests |
+| `./task coverage` | per-module line coverage, ratcheted against the committed baseline JSON |
+| `./task docs-check` | documentation counts (56 migrations, 76 operations), link and path integrity, release order, pinned tool versions, design-system review age |
+| `./task parity v2 verify` | golden contract replay: 144 fixtures against the frozen and live corpora |
+| `./task e2e` | multi-browser end-to-end (iPhone 17 WebKit, POCO F5 Chromium, desktop, WebSocket) |
+| `pnpm check:web` | TypeScript, ESLint, Tailwind token validation, Vitest coverage |
 
----
+CI runs the same targets; `docs-check` is part of the CI chain, so a stale count fails the build.
 
-## 🏷️ Versioning & Release SOP
+## Deployment
 
-Majadu adheres strictly to **SemVer 2.0** derived automatically from **Conventional Commits** via `tools/release`.
+- Web: deployed automatically to Vercel from `apps/web` on pushes to `main`.
+- API: rootless Podman with a systemd quadlet on the VPS, behind Caddy.
+- Image provenance: every release image is pulled by digest and verified against `env/cosign.pub`
+  before the `:local` container is swapped.
+- Rollback: the previous image is kept as `:prev`, so a failed smoke check falls back instantly.
 
-### Release Workflow (`./task release`)
+A release follows `./task release`, then a signed tag, then the tag pushed before `main`: the tag
+builds and signs the image, `main` triggers the deploy webhook that polls for it. The full runbook,
+including the order and why it matters, is [`docs/ops/release.md`](docs/ops/release.md).
 
-```text
- ┌──────────────┐     ┌──────────────────────┐     ┌────────────────────────┐
- │ Commit fixes │ ──> │ ./task release       │ ──> │ ./task release --apply │
- │  feat / fix  │     │ (dry-run inspection) │     │ (sync VERSION & pins)  │
- └──────────────┘     └──────────────────────┘     └───────────┬────────────┘
-                                                               │
- ┌─────────────────────────────────────────────────────────────┘
- │
- ├──> 1. git commit -m "chore(release): vX.Y.Z"
- ├──> 2. git push origin HEAD:refs/heads/release/vX.Y.Z (wait for green CI + Coverage)
- ├──> 3. git tag -s vX.Y.Z (SSH-signed & verified)
- └──> 4. PUSH ORDER:
-         a) git push origin refs/tags/vX.Y.Z   <-- TAG FIRST (builds & signs GHCR image)
-         b) git push origin HEAD:main         <-- MAIN SECOND (triggers VPS deploy)
-```
+## Documentation
 
-#### Step-by-Step Release Commands
+[`docs/README.md`](docs/README.md) is the index. The documents a reader lands on first:
 
-1. **Ensure Clean Working Tree & Verify Conventional Commits:**
-   The release tool evaluates commit subjects since the last tag. At least one `feat:` (minor) or `fix:`/`perf:` (patch) commit is required.
+- [`docs/handbook/current-status.md`](docs/handbook/current-status.md): operational stack, contracts, gates, infrastructure.
+- [`docs/handbook/architecture.md`](docs/handbook/architecture.md): layers, execution pipeline, module boundaries.
+- [`docs/handbook/data-model.md`](docs/handbook/data-model.md): schemas, multi-tenancy, platform config registry.
+- [`docs/handbook/features-and-routes.md`](docs/handbook/features-and-routes.md): frontend routes and the 76 API operations.
+- [`docs/ops/operations.md`](docs/ops/operations.md): production operations, log rotation, access, incident SOPs.
+- [`docs/ops/release.md`](docs/ops/release.md): release runbook, gate criteria, rollback.
+- [`docs/decisions.md`](docs/decisions.md): architecture decision records.
 
-2. **Dry Run:**
-   ```bash
-   ./task release
-   ```
-   Inspect the computed SemVer bump and generated changelog preview.
+## Security
 
-3. **Apply Version Bump:**
-   ```bash
-   ./task release --apply
-   ```
-   *Automatically updates:*
-   - `VERSION`
-   - `CHANGELOG.md`
-   - `.cache/release/v<version>.md` (release tag notes)
-   - `testdata/parity/v2/version.json` (version fixture)
-   - `testdata/parity/v2/MANIFEST.sha256` (fixture checksum)
+Do not open a public issue for a vulnerability. Reporting channel, what to include and what is in
+scope are in [`SECURITY.md`](SECURITY.md); GitHub private vulnerability reporting is the channel it
+names.
 
-4. **Commit the Release:**
-   ```bash
-   git add VERSION CHANGELOG.md testdata/parity/v2/
-   git commit -m "chore(release): v<version>"
-   ```
+## Contributing
 
-5. **Push Pre-release Branch to Verify Gates:**
-   ```bash
-   git push origin HEAD:refs/heads/release/v<version>
-   ```
-   Wait for GitHub Actions `CI` and `Coverage` jobs to turn green. Release tag verification refuses any commit without a recorded, passing Coverage run (QA-15).
+Fork, branch, pull request against `main`; large changes start as an issue. Build steps, the branch
+and commit convention, and what a change must pass before review are in
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-6. **Create and Verify SSH-Signed Tag:**
-   ```bash
-   git -c gpg.format=ssh -c user.signingkey=~/.ssh/id_ed25519.pub \
-     tag -s -F .cache/release/v<version>.md v<version>
+## License
 
-   # Verify the signature against the repository trust anchor:
-   git -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=.github/allowed_signers \
-     verify-tag v<version>
-   ```
-
-7. **Push to Remote (CRITICAL ORDER):**
-   ```bash
-   # 1. Push the tag FIRST:
-   git push origin refs/tags/v<version>
-
-   # 2. Push main SECOND:
-   git push origin HEAD:main
-   ```
-
-> [!CAUTION]
-> **Why Tag Must Precede Main:**
-> Pushing the tag triggers `.github/workflows/release.yml`, which compiles, signs (via `cosign`), and publishes the container image to GHCR. Pushing `main` triggers the VPS deploy webhook (`deploy-vps.sh`), which immediately polls for the signed image. If `main` is pushed first, the VPS polling window will expire before the image finishes building, causing an avoidable deployment timeout.
-
----
-
-## 🚢 Deployment
-
-- **Web Frontend**: Deployed automatically to Vercel from `apps/web` on pushes to `main`.
-- **API Server**: Managed by rootless Podman with systemd Quadlet on the VPS behind Caddy.
-- **Image Provenance**: Every release image is pulled by cryptographic digest and validated against `env/cosign.pub` before swapping the `:local` container.
-- **Zero-Downtime Rollback**: The previous operational image is preserved as `:prev`, allowing instant fallback on smoke check failures.
-
----
-
-## 📚 Documentation
-
-Detailed technical documentation lives under [`docs/`](docs/README.md):
-
-| Document | Purpose |
-|---|---|
-| [`docs/handbook/current-status.md`](docs/handbook/current-status.md) | Living system status: operational stack, contracts, gates, infrastructure |
-| [`docs/handbook/architecture.md`](docs/handbook/architecture.md) | Architectural layers, execution pipeline, modules, and domain boundaries |
-| [`docs/handbook/data-model.md`](docs/handbook/data-model.md) | Database schemas, multi-tenancy models, and the platform config registry |
-| [`docs/handbook/features-and-routes.md`](docs/handbook/features-and-routes.md) | Catalog of frontend routes and 76 backend API operations |
-| [`docs/ops/operations.md`](docs/ops/operations.md) | Production operations, log rotation, security access, incident SOPs |
-| [`docs/ops/release.md`](docs/ops/release.md) | Comprehensive release runbook, gate criteria, and rollback instructions |
-| [`docs/ops/cutover.md`](docs/ops/cutover.md) | Historic migration runbook from v1 Go to v2 Nim |
-| [`docs/decisions.md`](docs/decisions.md) | Architectural Decision Records (ADRs) |
-| [`docs/privacy.md`](docs/privacy.md) | User data retention, privacy policy, and anonymization procedures |
-| [`docs/design-system.md`](docs/design-system.md) | Design tokens, typography, component standards, and dark mode rules |
-| [`apps/api/README.md`](apps/api/README.md) · [`apps/web/README.md`](apps/web/README.md) | Per-application developer guides and environment specifications |
-
----
-
-## 📄 License
-
-Code and original graphics in `apps/web/public` are licensed under the [MIT License](LICENSE). Third-party fonts and assets are subject to their respective licenses detailed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Code and original graphics in `apps/web/public` are MIT; see [`LICENSE`](LICENSE). Third-party fonts
+and assets keep their own licenses, listed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
