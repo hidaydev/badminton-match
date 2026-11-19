@@ -1,5 +1,5 @@
 {
-  "ignoreCommand": "git diff HEAD^ HEAD --quiet -- . ../../VERSION ../../packages",
+  "ignoreCommand": "[ -n \"$VERCEL_GIT_PREVIOUS_SHA\" ] && git diff \"$VERCEL_GIT_PREVIOUS_SHA\" HEAD --quiet -- . ../../VERSION ../../packages",
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://api.qouver.com/majadu/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }

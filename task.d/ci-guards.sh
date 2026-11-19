@@ -86,6 +86,15 @@ $missing_timeout
 EOF
 fi
 
+# The web deploy's skip rule must compare against the previous successful
+# deployment, not HEAD^. A release commit is usually followed on main by a
+# CI-only commit, and `HEAD^..HEAD` then sees neither VERSION nor apps/web, so
+# the release is skipped and the SPA keeps serving the old build (v2.0.6 did).
+web_vercel="$REPO_ROOT/apps/web/vercel.json"
+if [ -f "$web_vercel" ] && ! grep -q 'VERCEL_GIT_PREVIOUS_SHA' "$web_vercel"; then
+  report "apps/web/vercel.json must diff VERCEL_GIT_PREVIOUS_SHA against HEAD, not HEAD^"
+fi
+
 # The RC branch points the SPA at the RC backend through apps/web/vercel.json.
 # That line must be reverted before a tag: a tag built with it ships production
 # against the RC API and the RC database. Only a release run enforces this; a

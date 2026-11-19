@@ -81,9 +81,13 @@ client uses the same-origin `/api` path. Copy `.env.local.example` to
   `VERSION`**, because `build-info.mjs` bakes the version into the bundle at
   build time. Without it a release that only bumps `VERSION` is skipped as
   "no web change" and the login footer keeps reporting the previous version
-  (v2.0.1 shipped that way). It overrides the project's Ignored Build Step in the
-  dashboard; a non-zero exit, including a shallow clone without `HEAD^`, builds
-  instead of skipping.
+  (v2.0.1 shipped that way). The comparison starts at `VERCEL_GIT_PREVIOUS_SHA`
+  (the last successful deployment on this branch), not `HEAD^`: a release commit
+  is often followed on `main` by a CI-only commit, and `HEAD^..HEAD` then sees
+  neither `VERSION` nor `apps/web` and skips the release — v2.0.6 shipped that
+  way. An empty `VERCEL_GIT_PREVIOUS_SHA` (first build on a branch) exits
+  non-zero and builds. It overrides the project's Ignored Build Step in the
+  dashboard.
 
 ### Not verifiable from this repo
 
