@@ -121,13 +121,26 @@ suite "task target guards":
     createDir(fixture.root / "apps" / "web")
     createDir(fixture.root / ".github" / "workflows")
     writeFile(fixture.root / "apps" / "web" / "vercel.json",
-      "{\"rewrites\":[{\"source\":\"/api/:path*\",\"destination\":" &
+      "{\"ignoreCommand\":\"[ -n \\\"$VERCEL_GIT_PREVIOUS_SHA\\\" ]\",\"rewrites\":[{\"source\":\"/api/:path*\",\"destination\":" &
       "\"https://api.qouver.com/majadu-rc/:path*\"}]}\n")
     let normal = fixture.runTask(@["ci-guards"])
     check normal.exitCode == 0
     let release = fixture.runTask(@["ci-guards", "--release"])
     check release.exitCode == 1
     check release.stderr.contains("still rewrites /api to the RC backend")
+
+  test "ci-guards rejects a web skip rule that diffs HEAD^":
+    ## v2.0.6: the release commit was followed on main by a CI-only commit, so
+    ## `HEAD^..HEAD` saw no web change and the SPA kept the old build.
+    let fixture = newFixture("ci-guards-vercel-ignore")
+    defer: removeDir(fixture.root)
+    createDir(fixture.root / "apps" / "web")
+    createDir(fixture.root / ".github" / "workflows")
+    writeFile(fixture.root / "apps" / "web" / "vercel.json",
+      "{\"ignoreCommand\":\"git diff HEAD^ HEAD --quiet -- . ../../VERSION\"}\n")
+    let result = fixture.runTask(@["ci-guards"])
+    check result.exitCode == 1
+    check result.stderr.contains("VERCEL_GIT_PREVIOUS_SHA")
 
   test "ci-guards rejects a mutable action tag":
     let fixture = newFixture("ci-guards-tag")
