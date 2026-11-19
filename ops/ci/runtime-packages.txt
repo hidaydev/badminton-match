@@ -1,0 +1,10 @@
+# System packages a Nim or coverage job needs before it can run anything.
+# Installed by `./task runtime-deps`, one entry per line, `#` starts a comment.
+#
+# Nim's `re` binds to the PCRE 1 library at run time and the runner image ships
+# PCRE 2 only. lcov 2.6 (pinned in deps.lock) loads these three Perl modules at
+# startup; LCOV_NO_XS=1 skips the XS ones, not the pure Perl ones.
+libpcre3
+libcapture-tiny-perl
+libdatetime-perl
+libdevel-stacktrace-perl

@@ -45,18 +45,22 @@ jobs:
       # must install them before anything compiles.
       # Nim's `re` binds to the system PCRE 1 library at run time, and the
       # runner image does not ship it.
+      # W28 (QOUVER_CICD_STANDARD §12.2) / B-02: the packages are provisioned
+      # once per cache key and installed from disk by every later job. The step
+      # measured 30 to 44s per job across the last ten main runs, and 87 to 186s
+      # when the mirror was slow (main 44478153535).
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/majadu-runtime-debs
+          key: runtime-debs-${{ runner.os }}-${{ hashFiles('ops/ci/runtime-packages.txt') }}
       - name: "Dependencies: install the runtime C libraries"
+        env:
+          MAJADU_RUNTIME_DEPS_CACHE: ${{ runner.temp }}/majadu-runtime-debs
         run: |
-          # A warm runner already has the package, and skipping apt is what
-          # keeps a slow mirror from spending this job's budget: on 2026-11-10 a
-          # coverage shard sat in this step for fourteen minutes, past its cap,
-          # with nothing to install. When it is missing, each request is bounded
-          # so a stalled mirror fails fast and names itself instead.
-          if ! dpkg -s libpcre3 >/dev/null 2>&1; then
-            apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=15)
-            sudo apt-get update "${apt_opts[@]}"
-            sudo apt-get install -y "${apt_opts[@]}" libpcre3
-          fi
+          mkdir -p "$MAJADU_RUNTIME_DEPS_CACHE"
+          cp -a "$HOME/.cache/majadu-runtime-debs/." "$MAJADU_RUNTIME_DEPS_CACHE/" 2>/dev/null || true
+          ./task runtime-deps
+          cp -a "$MAJADU_RUNTIME_DEPS_CACHE/." "$HOME/.cache/majadu-runtime-debs/" 2>/dev/null || true
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       - name: "Database: provision and create the test database"
@@ -195,18 +199,22 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # W28 (QOUVER_CICD_STANDARD §12.2) / B-02: the packages are provisioned
+      # once per cache key and installed from disk by every later job. The step
+      # measured 30 to 44s per job across the last ten main runs, and 87 to 186s
+      # when the mirror was slow (main 44478153535).
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/majadu-runtime-debs
+          key: runtime-debs-${{ runner.os }}-${{ hashFiles('ops/ci/runtime-packages.txt') }}
       - name: "Dependencies: install the runtime C libraries"
+        env:
+          MAJADU_RUNTIME_DEPS_CACHE: ${{ runner.temp }}/majadu-runtime-debs
         run: |
-          # A warm runner already has the package, and skipping apt is what
-          # keeps a slow mirror from spending this job's budget: on 2026-11-10 a
-          # coverage shard sat in this step for fourteen minutes, past its cap,
-          # with nothing to install. When it is missing, each request is bounded
-          # so a stalled mirror fails fast and names itself instead.
-          if ! dpkg -s libpcre3 >/dev/null 2>&1; then
-            apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=15)
-            sudo apt-get update "${apt_opts[@]}"
-            sudo apt-get install -y "${apt_opts[@]}" libpcre3
-          fi
+          mkdir -p "$MAJADU_RUNTIME_DEPS_CACHE"
+          cp -a "$HOME/.cache/majadu-runtime-debs/." "$MAJADU_RUNTIME_DEPS_CACHE/" 2>/dev/null || true
+          ./task runtime-deps
+          cp -a "$MAJADU_RUNTIME_DEPS_CACHE/." "$HOME/.cache/majadu-runtime-debs/" 2>/dev/null || true
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1

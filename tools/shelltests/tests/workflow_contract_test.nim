@@ -82,14 +82,32 @@ suite "workflow contract":
   # the next push.
   test "coverage.yml measures with the locked tools and cannot be cancelled on main":
     let text = readFile(repoDir / ".github" / "workflows" / "coverage.yml")
-    check text.contains("gcovr==8.8")
-    check text.contains("--branch v2.6")
+    # B-02 moved the install out of the workflow and into `./task
+    # coverage-tools`, so the pin lives in the script and the workflow names it.
+    # A version bump is one edit in one place instead of three workflows.
+    let tools = readFile(repoDir / "task.d" / "coverage-tools.sh")
+    check tools.contains("want_lcov=2.6")
+    check tools.contains("want_gcovr=8.8")
+    check text.contains("./task coverage-tools")
     check text.contains("./task deps-check")
     check text.contains("cancel-in-progress: ${{ github.event_name == 'pull_request' }}")
     check not text.contains("apt-get install -y lcov gcovr")
+    check not text.contains("python3 -m pip install --break-system-packages gcovr")
     # A rewritten PR history has no merge base, and the workflow refuses it
     # instead of inheriting the skip in task.d/coverage.sh.
     check text.contains("git merge-base HEAD \"origin/$BASE_REF\"")
+
+  # B-02 / W28 (QOUVER_CICD_STANDARD §12.2): the runtime packages and the pinned
+  # coverage tools are provisioned once per cache key. An inline apt block pays
+  # the mirror in every job that needs one shared library, which measured 30 to
+  # 44s per job across ten main runs and 186s in the worst one. nightly.yml is
+  # exempt on purpose: it is scheduled for deletion (§11.7).
+  test "no workflow installs the runtime packages or the coverage tools inline":
+    for workflow in ["ci.yml", "coverage.yml", "release.yml"]:
+      let text = readFile(repoDir / ".github" / "workflows" / workflow)
+      check text.contains("./task runtime-deps")
+      check not text.contains("apt-get install -y \"${apt_opts[@]}\" libpcre3")
+      check not text.contains("git clone --depth 1 --branch v2.6")
 
   # OPS-22: an e2e job that installs browser dependencies through apt has spent
   # the whole 15-minute budget there three times (14m24s on 2026-11-10, 13m47s
