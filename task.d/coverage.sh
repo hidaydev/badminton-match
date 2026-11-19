@@ -824,11 +824,25 @@ else
   if [ "$INTEGRATION" -eq 1 ]; then
     isolation_begin coverage
   fi
+  # The instrumented build is the most expensive thing this repository runs, so a
+  # shard plans against the measured cost table the same way `./task test` does.
+  # Positional would hand shard 1 every first file of a path-sorted list, which
+  # is uncorrelated with cost: on 2026-11-19 the four measure shards landed at
+  # 487, 564, 451 and 607 s while the cost table projects 262 s each. A shard
+  # keeps only its slice, so the same plan function is the only thing that
+  # decides which files it measures.
+  planned=0
+  files=$(list_test_files)
+  if [ -s "$TEST_COST_FILE" ] && [ "$shard_total" -ge 2 ]; then
+    files=$(printf '%s\n' "$files" | shard_plan "$shard_total" "$shard_index")
+    planned=1
+  fi
   index=0
   ran=0
-  for file in $(list_test_files); do
+  for file in $files; do
     index=$((index + 1))
-    shard_keeps "$index" "$shard_total" "$shard_index" || continue
+    [ "$planned" = "1" ] || shard_keeps "$index" "$shard_total" "$shard_index" ||
+      continue
     ran=$((ran + 1))
     name=$(printf '%s' "$file" | sed "s|$REPO_ROOT/||" | tr '/.' '__')
     if [ "$INTEGRATION" -eq 1 ]; then
@@ -891,8 +905,11 @@ else
   done
 
   if [ "$shard_total" -gt 1 ]; then
+    # The total is the whole suite list, not this shard's slice: a planned shard
+    # only ever sees its own files.
     printf 'coverage: shard %s/%s measured %s of %s suite(s)\n' \
-      "$shard_index" "$shard_total" "$ran" "$index"
+      "$shard_index" "$shard_total" "$ran" \
+      "$(list_test_files | wc -l | tr -d ' ')"
   fi
 
   if [ -z "$(ls "$PARTS_DIR"/*.info 2>/dev/null)" ]; then
