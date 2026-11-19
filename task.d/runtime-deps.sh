@@ -56,6 +56,11 @@ missing=$(printf '%s' "$missing" | sed -e 's/^ *//')
 budget=${MAJADU_RUNTIME_DEPS_TIMEOUT:-180}
 apt_opts="-o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15"
 apt_get="apt-get -y -qq $apt_opts"
+# Seeding is opportunistic, so it retries once instead of four times: a
+# throttled mirror then costs about fifteen seconds before the job installs
+# online, not the whole cap.
+seed_opts="-o Acquire::Retries=1 -o Acquire::http::Timeout=10 -o Acquire::https::Timeout=10"
+apt_get_seed="apt-get -y -qq $seed_opts"
 cache=${MAJADU_RUNTIME_DEPS_CACHE:-}
 
 # 0. Nothing to do: every pinned package is on disk and there is no cache to
@@ -82,6 +87,27 @@ run_apt() {
   fail "$_step failed with exit $_code (apt output above); the pinned packages were: $(printf '%s' "$packages" | tr '\n' ' ')"
 }
 
+# The same cap, but a miss is not fatal: `try_apt` is for steps that only save
+# time later. On a cold run every job seeds the same cache key at once, the
+# mirror throttles the burst, and failing the job there would turn a cache that
+# was supposed to be an optimisation into a hard dependency. PR #82 paid that:
+# five jobs of one run died on the 180s cap while the mirror was answering
+# other jobs normally.
+try_apt() {
+  _step=$1
+  shift
+  _code=0
+  # shellcheck disable=SC2086 # option lists on purpose
+  timeout "$budget" "$@" || _code=$?
+  [ "$_code" -eq 0 ] && return 0
+  if [ "$_code" -eq 124 ]; then
+    printf 'runtime-deps: %s hit the %ss cap; leaving the cache alone and installing online\n' "$_step" "$budget"
+  else
+    printf 'runtime-deps: %s failed with exit %s; leaving the cache alone and installing online\n' "$_step" "$_code"
+  fi
+  return 1
+}
+
 # 1. A cache hit installs from disk. `--no-download` refuses to reach a mirror;
 #    when the cached set cannot satisfy the current lists apt exits fast and we
 #    fall through instead of failing the job.
@@ -97,17 +123,34 @@ if [ -n "$cache" ] &&
 fi
 
 # 2. The online path. `apt-get update` is only paid when the cache could not
-#    answer, and the download step fills the cache for next time.
+#    answer, and the download step fills the cache for next time. Seeding stays
+#    best effort: a capped or failed download drops the partial .deb set and the
+#    job still installs online below, because the cache is an optimisation and
+#    never a prerequisite for the job to pass.
 run_apt "apt-get update" sudo apt-get update -qq $apt_opts
 
+installed=0
 if [ -n "$cache" ]; then
   mkdir -p "$cache"
+  # apt downloads as `_apt`, which cannot write into a 0700 runner directory;
+  # without this it falls back to an unsandboxed root download or stays silent.
+  chmod 0777 "$cache" 2>/dev/null || true
   printf 'runtime-deps: seeding the .deb cache in %s\n' "$cache"
-  run_apt "downloading the runtime package set" \
-    sudo $apt_get -o Dir::Cache::archives="$cache" install --download-only $packages
-  run_apt "installing the runtime package set" \
-    sudo $apt_get -o Dir::Cache::archives="$cache" --no-download install $packages
-else
+  # shellcheck disable=SC2086 # option lists on purpose
+  if try_apt "downloading the runtime package set" \
+      sudo $apt_get_seed -o Dir::Cache::archives="$cache" install --download-only $packages &&
+    # shellcheck disable=SC2086 # option lists on purpose
+    try_apt "installing the runtime package set from the seeded cache" \
+      sudo $apt_get -o Dir::Cache::archives="$cache" --no-download install $packages; then
+    installed=1
+  else
+    # A half-filled cache is worse than none: apt would treat the set as met and
+    # then fail on the .deb that never arrived.
+    find "$cache" -maxdepth 1 -name '*.deb' -delete 2>/dev/null || true
+  fi
+fi
+
+if [ "$installed" -eq 0 ]; then
   run_apt "installing the runtime package set" sudo $apt_get install $packages
 fi
 
