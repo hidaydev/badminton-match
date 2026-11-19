@@ -353,6 +353,7 @@ jobs:
             .cache/*/timing/*.tsv
           include-hidden-files: true
           if-no-files-found: warn
+          retention-days: 14
 
   web:
     name: "Release: web"
@@ -626,6 +627,7 @@ jobs:
             .cache/*/timing/*.tsv
           include-hidden-files: true
           if-no-files-found: warn
+          retention-days: 14
       # Only a successful shard uploads, so a failed measurement is never
       # presented as a complete slice.
       - name: "Coverage: upload this shard's parts"
@@ -637,6 +639,7 @@ jobs:
           # paths unless this is set.
           include-hidden-files: true
           if-no-files-found: error
+          retention-days: 7
 
   # The merge is the only job that judges. It needs the locked lcov 2.6: a
   # report written by 2.0 and merged by 2.6 is not the same measurement. The

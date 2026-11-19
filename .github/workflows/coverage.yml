@@ -47,10 +47,23 @@ env:
   NIM_VERSION: "2.4.2"
 
 jobs:
+  # W26 (§12.1): four measure shards at ~590 s each are the most expensive thing
+  # this repository starts, so they wait for a gate that costs seconds. It reads
+  # files only: no Nim, no database, no cache to warm.
+  preflight:
+    name: "Preflight: standard"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "CI standard: static rules"
+        run: ./ops/scripts/cicd-standard-check.sh .
+
   measure:
     name: "Coverage: measure shard ${{ matrix.shard }} of 4"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    needs: [preflight]
     strategy:
       fail-fast: false
       matrix:
@@ -198,6 +211,7 @@ jobs:
             .cache/*/timing/*.tsv
           include-hidden-files: true
           if-no-files-found: warn
+          retention-days: 14
       # Only a successful shard uploads. The condition is omitted, so the step
       # inherits the default `success()`: a failed measurement is not presented
       # as a complete slice, and `if-no-files-found: error` still catches a
@@ -211,6 +225,7 @@ jobs:
           # paths unless this is set.
           include-hidden-files: true
           if-no-files-found: error
+          retention-days: 7
 
   ratchet:
     name: "Coverage: ratchet"
@@ -272,3 +287,4 @@ jobs:
           name: coverage-baseline-linux
           path: coverage-baseline-linux.json
           if-no-files-found: error
+          retention-days: 30
