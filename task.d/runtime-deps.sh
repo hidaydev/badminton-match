@@ -19,8 +19,9 @@
 #    never open a mirror, so a slow mirror costs one run instead of every job of
 #    every run. A cache apt cannot satisfy falls back to a bounded online
 #    install instead of failing the job.
-# 3. Each request is bounded by MAJADU_RUNTIME_DEPS_TIMEOUT, and a cap is
-#    reported as a cap rather than as apt's exit code.
+# 3. Each request is bounded (MAJADU_RUNTIME_DEPS_TIMEOUT for the install the
+#    job depends on, MAJADU_RUNTIME_DEPS_SEED_TIMEOUT for the opportunistic
+#    seed), and a cap is reported as a cap rather than as apt's exit code.
 set -eu
 
 # `./task runtime-deps` provides REPO_ROOT and the shared helpers.
@@ -50,10 +51,15 @@ for pkg in $packages; do
 done
 missing=$(printf '%s' "$missing" | sed -e 's/^ *//')
 
-# 180s is a sixth of the job's 15 minutes: enough for a cold download on a
-# working mirror, small enough that a stuck one fails here instead of eating the
-# budget the job was started for.
-budget=${MAJADU_RUNTIME_DEPS_TIMEOUT:-180}
+# The install the job actually needs and the seed that only saves time later get
+# separate caps, because the shared 180s was paid twice in shard 1 of PR #82 run
+# 44486003562 (08:16:12 to 08:22:12) and the packages never arrived: the seed
+# spent the whole cap, then the install started with nothing left. 300s is a
+# third of the job's 15 minutes, enough for a slow but live runner to fetch four
+# small packages; 90s bounds what an opportunistic seed may cost before the
+# install it is supposed to precede.
+budget=${MAJADU_RUNTIME_DEPS_TIMEOUT:-300}
+seed_budget=${MAJADU_RUNTIME_DEPS_SEED_TIMEOUT:-90}
 apt_opts="-o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15"
 apt_get="apt-get -y -qq $apt_opts"
 # Seeding is opportunistic, so it retries once instead of four times: a
@@ -87,21 +93,21 @@ run_apt() {
   fail "$_step failed with exit $_code (apt output above); the pinned packages were: $(printf '%s' "$packages" | tr '\n' ' ')"
 }
 
-# The same cap, but a miss is not fatal: `try_apt` is for steps that only save
-# time later. On a cold run every job seeds the same cache key at once, the
-# mirror throttles the burst, and failing the job there would turn a cache that
-# was supposed to be an optimisation into a hard dependency. PR #82 paid that:
-# five jobs of one run died on the 180s cap while the mirror was answering
-# other jobs normally.
+# The seed and the install-from-cache caps, but a miss is not fatal: `try_apt`
+# is for steps that only save time later. On a cold run every job seeds the same
+# cache key at once, the mirror throttles the burst, and failing the job there
+# would turn a cache that was supposed to be an optimisation into a hard
+# dependency. PR #82 paid that: five jobs of one run died on the 180s cap while
+# the mirror was answering other jobs normally.
 try_apt() {
   _step=$1
   shift
   _code=0
   # shellcheck disable=SC2086 # option lists on purpose
-  timeout "$budget" "$@" || _code=$?
+  timeout "$seed_budget" "$@" || _code=$?
   [ "$_code" -eq 0 ] && return 0
   if [ "$_code" -eq 124 ]; then
-    printf 'runtime-deps: %s hit the %ss cap; leaving the cache alone and installing online\n' "$_step" "$budget"
+    printf 'runtime-deps: %s hit the %ss cap; leaving the cache alone and installing online\n' "$_step" "$seed_budget"
   else
     printf 'runtime-deps: %s failed with exit %s; leaving the cache alone and installing online\n' "$_step" "$_code"
   fi
