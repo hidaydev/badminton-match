@@ -360,11 +360,37 @@ jobs:
     needs: [preflight]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # `./task parity` compiles tools/dbtools to lint every recorded case
+      # against the generated routes, so this job keeps the Nim toolchain. The
+      # first attempt at this split dropped it and failed in five seconds.
+      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
+        with:
+          nim-version: ${{ env.NIM_VERSION }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nimble
+          key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cache/*/check
+            .cache/*/build
+          key: nimcache-${{ runner.os }}-${{ hashFiles('deps.lock', 'config.nims', 'majadu.nimble', 'apps/**/*.nim', 'modules/**/*.nim', 'shared/**/*.nim', 'tools/**/*.nim') }}
+          restore-keys: |
+            nimcache-${{ runner.os }}-
+      - name: "Dependencies: install the runtime C libraries"
+        run: |
+          if ! dpkg -s libpcre3 >/dev/null 2>&1; then
+            apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=15)
+            sudo apt-get update "${apt_opts[@]}"
+            sudo apt-get install -y "${apt_opts[@]}" libpcre3
+          fi
+      - name: "Dependencies: install pinned Nim packages"
+        run: ./task deps-install
       # Offline: both corpora are hashed against their MANIFEST.sha256 and every
       # case is linted against the generated routes. The recorded cases are the
       # only per-route behaviour record, so a fixture edit that skips the
-      # manifest update fails here instead of on a replay. Nothing here compiles
-      # Nim, which is why it no longer shares a job with the fingerprint check.
+      # manifest update fails here instead of on a replay.
       - name: "Parity: corpus manifest and lint"
         run: ./task parity verify && ./task parity v2 lint
 
