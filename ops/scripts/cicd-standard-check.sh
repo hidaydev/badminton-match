@@ -24,6 +24,11 @@
 #         concurrency: block; class A and B never cancel in progress on main
 #     W15 one push runs one gate graph: two class A files may not run the same
 #         gate command
+#     W19 third-party actions pinned to a full commit SHA (actions/* may keep a
+#         major tag); warn while the conversion is in progress
+#     W20 no runs-on: *-latest
+#     W22 every upload-artifact declares retention-days
+#     W24 actionlint over the workflows, when the binary is installed
 #     D1  deploy script exists and is reachable from the documented path
 #     D2  fail-closed ref guard, exact form: if [ "$REF" != "refs/heads/main" ]
 #     D3  flock concurrency lock
@@ -460,6 +465,18 @@ check_workflow_class() {
   esac
 }
 
+check_preflight() { # W26
+  local f="$1" cls has
+  cls=$(wf_class "$f")
+  [ "$cls" = "A" ] || return 0
+  has=$(job_lines "$f" | awk -F'\t' '/^JOB\t/ { j=substr($0,5); if (j=="preflight") print j }')
+  if [ -n "$has" ]; then
+    ok "$(basename "$f"): W26 preflight ada"
+  else
+    warn "$(basename "$f"): W26 belum ada job preflight (merah ketahuan di akhir, bukan menit pertama)"
+  fi
+}
+
 check_cross_file_gates() {
   local d="$1" wf pairs dup
   wf=$(ls "$d"/.github/workflows/*.y*ml 2>/dev/null)
@@ -488,6 +505,64 @@ EOF
   [ -z "$dup" ] && ok "W15 satu graf gate per push (tidak ada gate ganda antar file)"
 }
 
+# ------------------------------------------------- W19/W20/W22/W24 (v1.5) ---
+# 19 a third-party action is pinned to a full commit SHA; actions/* may keep a
+#    major tag. A moving tag on a third-party action is unreviewed code inside
+#    the pipeline that builds the image the host deploys.
+# 20 a runner label carries its version: `ubuntu-latest` moves under the build.
+# 22 an uploaded artifact declares its retention; the default is 90 days.
+# 24 actionlint parses the workflow, when the binary is installed. Reported, not
+#    gated: no repo installs it yet, so a red here would be an unverified verdict.
+unpinned_third_party() { # <file> -> "owner/action@ref" per line
+  awk '
+    /^[[:space:]]*(-[[:space:]]*)?uses:[[:space:]]*/ {
+      l=$0
+      sub(/^[[:space:]]*(-[[:space:]]*)?uses:[[:space:]]*/,"",l)
+      sub(/[[:space:]]+#.*$/,"",l); sub(/[[:space:]]+$/,"",l)
+      if (l ~ /^\.\//) next
+      n=split(l, a, "@"); if (n < 2) next
+      if (a[2] ~ /^[0-9a-f]{40}$/) next
+      if (a[1] ~ /^actions\//) next
+      print a[1] "@" a[2]
+    }' "$1" | sort -u
+}
+
+check_action_pinning() { # W19 (warn), W20 (fail), W22 (warn), W24 (warn)
+  local f="$1" unpinned lax uploads retentions missing lint
+  unpinned=$(unpinned_third_party "$f")
+  if [ -n "$unpinned" ]; then
+    warn "$(basename "$f"): W19 action pihak ketiga tidak dipin ke SHA -> $(printf '%s ' $unpinned)"
+  else
+    ok "$(basename "$f"): W19 semua action pihak ketiga dipin ke SHA"
+  fi
+
+  lax=$(grep -nE 'runs-on:.*-latest[[:space:]]*$' "$f" | sed 's/^[0-9]*://; s/^[[:space:]]*//')
+  [ -n "$lax" ] && bad "$(basename "$f"): W20 runner label -latest -> $(echo $lax | tr '\n' ' ')" ||
+    ok "$(basename "$f"): W20 tidak ada runner -latest"
+
+  # counting steps, not blocks: every upload-artifact step should own a
+  # retention-days line. A file may pair them any way it likes as long as the
+  # count matches, which is enough to catch the 90-day default.
+  uploads=$(grep -cE 'uses:[[:space:]]*[^ ]*upload-artifact' "$f")
+  retentions=$(grep -cE '^[[:space:]]+retention-days:' "$f")
+  if [ "${uploads:-0}" -gt "${retentions:-0}" ]; then
+    missing=$((uploads - retentions))
+    warn "$(basename "$f"): W22 $missing dari $uploads upload-artifact tanpa retention-days (default 90 hari)"
+  elif [ "${uploads:-0}" -gt 0 ]; then
+    ok "$(basename "$f"): W22 semua upload-artifact punya retention-days"
+  else
+    note "$(basename "$f"): W22 tidak ada upload-artifact"
+  fi
+
+  if command -v actionlint >/dev/null 2>&1; then
+    lint=$(actionlint -no-color -shellcheck= "$f" 2>&1 | head -5)
+    [ -z "$lint" ] && ok "$(basename "$f"): W24 actionlint bersih" ||
+      warn "$(basename "$f"): W24 actionlint -> $(echo "$lint" | tr '\n' ' | ')"
+  else
+    note "$(basename "$f"): W24 actionlint tidak terpasang, dilewati"
+  fi
+}
+
 # -------------------------------------------------------------- per project ---
 check_repo() {
   local d="$1" name stacks wf deploy
@@ -508,7 +583,7 @@ check_repo() {
       check_timeouts "$f"; check_injection "$f"; check_paths_filter "$f"
       check_gate_skips "$f"; check_build_call "$f"
       check_cross_workflow_poll "$f"; check_duplicate_gates "$f"
-      check_workflow_class "$f"
+      check_workflow_class "$f"; check_action_pinning "$f"; check_preflight "$f"
     done
     check_cross_file_gates "$d"
     check_dependabot_guard "$d"

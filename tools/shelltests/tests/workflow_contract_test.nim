@@ -56,9 +56,27 @@ suite "workflow contract":
     # up to 12 minutes; `Coverage: ratchet` reports on its own instead.
     check not text.contains("actions/workflows/coverage.yml/runs")
     check not text.contains("  coverage-gate:")
-    # `image` waits for the gate, so the gate's needs stay the in-repo quality jobs.
+    # `image` waits for the gate, so the gate's needs stay the in-repo quality
+    # jobs. W26 (§12.1) put `preflight` in front of them; the fan-in keeps its
+    # name, because `Gate` is the required status check.
     check text.contains(
-      "needs: [api-check, api-test, contract, supply-chain, web, e2e, mutation]")
+      "needs: [preflight, api-check, api-test, contract, supply-chain, web, e2e, mutation]")
+
+  # W26 (QOUVER_CICD_STANDARD §12.1): the cheap gate has to exist and sit in
+  # front of every expensive job. Measured on main 75a029cb: `preflight` costs
+  # ~81 s, the run wall is 653 s, and three of the five red main runs since
+  # 5 Nov failed in the checks it owns. A cheap job that nothing waits for is
+  # the old shape with a new name.
+  test "every expensive job waits for preflight":
+    let text = readFile(repoDir / ".github" / "workflows" / "ci.yml")
+    check text.contains("  preflight:")
+    for job in ["api-check", "api-test", "contract", "supply-chain", "web",
+                "e2e", "mutation"]:
+      let body = text.split("  " & job & ":")[1]
+      check body.split("\n\n")[0].contains("needs: [preflight]")
+    # `gate` is a fan-in and must stay one: moving the required check onto the
+    # cheap job would let main merge on a gate that only read the contract.
+    check text.contains("  gate:\n    name: \"Gate\"")
 
   # OPS-20: the coverage gate used the distro tools and could be cancelled by
   # the next push.
