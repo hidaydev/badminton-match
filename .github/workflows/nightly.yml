@@ -7,10 +7,10 @@ name: Nightly
 # 2026-11-20: this file used to run a second full `./task ci` in one 15-minute
 # job. `./task ci` is `check` + `build` + `test` + `contract-check` + `docs-check`
 # with a release build, which measured 20 to 29 minutes per run on main, so the
-# job was cancelled at the cap before producing a verdict in all five of the last
-# five runs (2 cancelled, 2 failed, 1 cancelled again). Every test in it already
-# runs in `ci.yml` on every push, so the second copy only bought the nightly a
-# red name. What is left is what a push does not do.
+# job was cancelled at the cap before producing a verdict in each of the last
+# five runs (three cancelled, two failed). Every test in it already runs in
+# `ci.yml` on every push, so the second copy only bought the nightly a red name.
+# What is left is what a push does not do.
 
 on:
   schedule:
