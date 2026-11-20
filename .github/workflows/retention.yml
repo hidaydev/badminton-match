@@ -1,0 +1,80 @@
+# class: C
+name: Registry retention
+
+# U3 (docs/CICD_SIMPLIFY_PLAN.md): this repository published `:main` and `:sha-<short>`
+# on every push to main and `:vX.Y.Z` on every release, with nothing ever deleting an
+# old manifest. This caps the package at the 10 newest versions, the same class C file
+# the other five publishing repositories carry.
+#
+# Why a script and not a marketplace action: a container version is named by its
+# manifest digest (`sha256:...`), so an `ignore-versions` regex never matches the
+# `main` / `vX.Y.Z` tag it is supposed to protect. The selection below reads the
+# tags of each version instead, so a release tag can never be deleted.
+#
+# The host never reads GHCR for a rollback (`:local` and `:prev` live on the VPS), so
+# the cap only limits how far back a manual re-deploy of an old commit reaches.
+#
+# No secret: `GITHUB_TOKEN` carries `packages: write` for the repository that owns the
+# package. A pull request never reaches this job, and `main` is untouched.
+on:
+  schedule:
+    # Sunday 04:41 UTC (Sunday 11:41 WIB), outside the deploy window.
+    - cron: '41 4 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Print what would be deleted and delete nothing'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: retention-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: "GHCR: keep the 10 newest versions"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    env:
+      OWNER: ${{ github.repository_owner }}
+      KEEP: '10'
+      PACKAGES: 'badminton-match'
+    steps:
+      - name: "Prune"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+        run: |
+          set -eu
+          for pkg in $PACKAGES; do
+            echo "== $pkg"
+            # Newest first, with the tags of every version. Release-tagged versions
+            # are removed from the candidate list before the cap is applied, so a
+            # `main` or `vX.Y.Z` manifest is never deleted however old it is.
+            gh api --paginate "user/packages/container/$pkg/versions?per_page=100" \
+              --jq '[.[] | {id: .id, created: .created_at, tags: (.metadata.container.tags // [])}] | .[]' |
+              jq -s -r --argjson keep "$KEEP" '
+                sort_by(.created) | reverse
+                | map(. + {release: ([.tags[] | select(. == "main" or test("^v[0-9]"))] | length > 0)})
+                | ([.[] | select(.release)], ([.[] | select(.release | not)][$keep:]))
+                | .[]
+                | "\(.id)\t\(.release)\t\(.tags | join(","))"
+              ' |
+              while IFS="$(printf '\t')" read -r id release tags; do
+                if [ "$release" = "true" ]; then
+                  echo "   keep  $id ($tags): release tag"
+                elif [ -n "${DRY_RUN:-}" ]; then
+                  echo "   would delete $id ($tags)"
+                else
+                  gh api -X DELETE "user/packages/container/$pkg/versions/$id" >/dev/null
+                  echo "   deleted $id ($tags)"
+                fi
+              done
+          done
