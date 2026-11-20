@@ -5,7 +5,7 @@
 # drops: every job keeps the 15-minute cap, and ci.yml keeps its concurrency
 # group, its compiler cache and no cross-workflow poll in the gate.
 
-import std/[os, strutils, unittest]
+import std/[os, sequtils, strutils, unittest]
 import ../harness
 
 proc installWorkflows(fixture: Fixture): string =
@@ -95,12 +95,55 @@ suite "workflow contract":
   # the mirror in every job that needs one shared library, which measured 30 to
   # 44s per job across ten main runs and 186s in the worst one. nightly.yml is
   # exempt on purpose: it is scheduled for deletion (§11.7).
+  #
+  # 2026-11-20: no CI job installs the coverage tools any more. The graph that
+  # read their reports is gone, `./task coverage` is a local target, and the step
+  # that installed lcov and gcovr per shard was pure setup cost. A workflow that
+  # starts calling `./task coverage-tools` again is a second graph reappearing
+  # through the back door.
   test "no workflow installs the runtime packages or the coverage tools inline":
+    # Only executable lines count: the comments name the old call to explain why
+    # it left, and a guard that reads prose fails on its own documentation.
     for workflow in ["ci.yml", "release.yml"]:
-      let text = readFile(repoDir / ".github" / "workflows" / workflow)
+      var text = ""
+      for line in readFile(repoDir / ".github" / "workflows" / workflow).splitLines():
+        if line.strip().startsWith("#"):
+          continue
+        text.add(line & "\n")
       check text.contains("./task runtime-deps")
       check not text.contains("apt-get install -y \"${apt_opts[@]}\" libpcre3")
       check not text.contains("git clone --depth 1 --branch v2.6")
+      check not text.contains("./task coverage-tools")
+      check not text.contains("lcov --version")
+      check not text.contains("gcovr --version")
+
+  # W8 (QOUVER_CICD_STANDARD §11.2): the shard count is a single decision, and
+  # the matrix, the job name and the `--shard I/N` argument are three places that
+  # can drift apart. A matrix of three with `--shard "$SHARD/2"` runs two thirds
+  # of the suites twice and skips the rest, which no exit code reports.
+  test "every sharded job runs the shard count its matrix declares":
+    var seen = 0
+    for workflow in ["ci.yml", "release.yml"]:
+      let lines = readFile(repoDir / ".github" / "workflows" / workflow).splitLines()
+      var declared = ""
+      for line in lines:
+        let stripped = line.strip()
+        if stripped.startsWith("shard: [") and declared == "":
+          declared = stripped
+      check declared != ""
+      inc seen
+      let n = declared.count('"') div 2
+      check n >= 2
+      check lines.anyIt(it.contains("--shard \"$SHARD/" & $n & "\""))
+      # The two name styles in use: `(shard 1/3)` in ci.yml and `shard 1 of 3`
+      # in release.yml. Either one has to carry the matrix count.
+      check lines.anyIt(it.contains("shard ${{ matrix.shard }}/" & $n) or
+        it.contains("shard ${{ matrix.shard }} of " & $n))
+      # `./task test-costs` projects the split it writes, so its default has to
+      # be the count the workflows run or the printed projection is fiction.
+      let costs = readFile(repoDir / "task.d" / "test-costs.sh")
+      check costs.contains("shards=" & $n)
+    check seen == 2
 
   # OPS-22: an e2e job that installs browser dependencies through apt has spent
   # the whole 15-minute budget there three times (14m24s on 2026-11-10, 13m47s

@@ -45,7 +45,7 @@ Day-to-day commands:
 | Command | What it does |
 |---|---|
 | `./task check` | Fast gate: `nim check`, the architecture checker and the unit suites. No database; `./task test` adds the integration layer. |
-| `./task test` | Unit and integration tests. Integration tests need `MAJADU_PG_DSN`; the runner builds one seed database from `bm2_template` and gives every suite a fresh copy of it, so a suite can no longer lean on the order its neighbours ran in. `--timing` records per-suite wall time in `.cache/<worktree>/timing/test.tsv`, `--shard I/N` runs one slice of the sorted suite list (`--reverse` runs it back to front and the next run names any file whose verdict changed), `WORKERS=N` uses `<db>_1 .. <db>_N` for the slices, and `ISOLATION=0` restores the shared-database behaviour. CI uses two shards. |
+| `./task test` | Unit and integration tests. Integration tests need `MAJADU_PG_DSN`; the runner builds one seed database from `bm2_template` and gives every suite a fresh copy of it, so a suite can no longer lean on the order its neighbours ran in. `--timing` records per-suite wall time in `.cache/<worktree>/timing/test.tsv`, `--shard I/N` runs one slice of the sorted suite list (`--reverse` runs it back to front and the next run names any file whose verdict changed), `WORKERS=N` uses `<db>_1 .. <db>_N` for the slices, and `ISOLATION=0` restores the shared-database behaviour. CI uses three shards. |
 | `./task build` | Release build of the API binary into `.cache/<worktree>/bin/majadu-api`. |
 | `./task ci` | `check` + `build` + `test` + `contract-check`. |
 | `./task contract-gen` | Regenerate the merged OpenAPI document, Nim route skeletons, and TypeScript client. |

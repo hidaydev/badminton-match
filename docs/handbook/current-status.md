@@ -109,7 +109,7 @@ communities) is still used; v2 pages that were never mounted in the router
 | Suite | Command | Note |
 |---|---|---|
 | `nim check`, archcheck, unit suites | `./task check` | no database; 76 unit suites (`./task check` prints the counts it will run) |
-| Unit + integration | `./task test` | needs `MAJADU_PG_DSN`; 148 suites (76 unit, 72 integration; 2026-11-16), each suite on its own database; `--timing` and `--shard I/N` feed the two CI shards, which took 439 s and 575 s including runner setup on `3afaa78e` |
+| Unit + integration | `./task test` | needs `MAJADU_PG_DSN`; 148 suites (76 unit, 72 integration; 2026-11-16), each suite on its own database; `--timing` and `--shard I/N` feed the three CI shards, which took 439 s and 575 s at two shards on `3afaa78e` and plan at 350 s each from the cost table |
 | One module | `./task verify <module\|api>` | integration when the DB is present |
 | Contract | `./task contract-check` | fingerprint + generated output |
 | Parity | `./task parity verify` / `./task parity v2 verify` | frozen v1 71 cases/48 routes; v2 144 cases |
@@ -125,7 +125,7 @@ E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
 ## 6. CI
 
 - `.github/workflows/ci.yml`: 10 jobs defined, 8 of them run on a push:
-  `api-check`, `api-test` in two shards (Postgres 18.6), `contract`, `web`,
+  `api-check`, `api-test` in three shards (Postgres 18.6), `contract`, `web`,
   `e2e`, `image`, `supply-chain`, then `gate`; `mutation` runs on pull requests
   only and `notify` pages only when main goes red. No job waits on another
   workflow (QOUVER_CICD_STANDARD §11.2, W9).

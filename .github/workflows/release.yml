@@ -166,19 +166,19 @@ jobs:
       - name: "Release: docs claims"
         run: ./task docs-check
 
-  # The suite half, sharded two ways exactly as `ci.yml` shards it: the sorted
-  # suite list is split by position, each shard gets its own database service on
-  # its own runner, and `./task test --timing` records per-suite wall time. No
-  # suite is skipped and the allowlist is empty, so a shard that cannot run its
-  # slice fails the release.
+  # The suite half, sharded exactly as `ci.yml` shards it: the sorted suite list
+  # is split against the measured cost table, each shard gets its own database
+  # service on its own runner, and `./task test --timing` records per-suite wall
+  # time. No suite is skipped and the allowlist is empty, so a shard that cannot
+  # run its slice fails the release.
   test:
-    name: "Release: test shard ${{ matrix.shard }} of 2"
+    name: "Release: test shard ${{ matrix.shard }} of 3"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        shard: ["1", "2"]
+        shard: ["1", "2", "3"]
     services:
       postgres:
         image: postgres:18.6
@@ -290,7 +290,7 @@ jobs:
           MAJADU_IMPORT_TEST_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
           MAJADU_IMPORT_BULK_TARGET_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_target_test
           MAJADU_IMPORT_BULK_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_source_test
-        run: ./task test --timing --shard "$SHARD/2"
+        run: ./task test --timing --shard "$SHARD/3"
       - name: "Release: timing report"
         if: always()
         run: |

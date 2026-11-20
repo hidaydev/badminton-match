@@ -76,7 +76,7 @@ timing_summary() {
   fi
 }
 
-# `--shard 1/2` keeps one slice of the sorted test list. The slice is positional
+# `--shard 1/3` keeps one slice of the sorted test list. The slice is positional
 # so two jobs with different cache states still run the same files.
 shard_keeps() {
   # $1 index (1-based), $2 total shards, $3 wanted shard
@@ -85,18 +85,18 @@ shard_keeps() {
 
 # BM-03: measured cost per suite, written by `./task test-costs` from a CI run's
 # uploaded timing table. The table is the only input that makes the split
-# cost-aware, and it is committed because both shards must plan against the same
+# cost-aware, and it is committed because every shard must plan against the same
 # numbers: a table read from the runner's own cache would differ per shard.
 TEST_COST_FILE="$REPO_ROOT/task.d/test-costs.tsv"
 
-# W8 (QOUVER_CICD_STANDARD §11.2) asks the two shards to stay within 25 %. A
-# positional slice hands one shard every second file of a path-sorted list, which
-# is uncorrelated with cost: on 2026-11-18 the two shards differed by 63 % and one
-# of them owned 75-90 % of the CI wall. With the cost table present the slice is
-# longest-processing-time-first, each suite to the shard that is currently
-# lighter, which balances within one suite of the best possible split. Without
-# the table the split stays positional, so a checkout without it still runs every
-# suite exactly once.
+# W8 (QOUVER_CICD_STANDARD §11.2) asks the shards to stay within 25 % of each
+# other. A positional slice hands one shard every second file of a path-sorted
+# list, which is uncorrelated with cost: on 2026-11-18 the two shards differed by
+# 63 % and one of them owned 75-90 % of the CI wall. With the cost table present
+# the slice is longest-processing-time-first, each suite to the shard that is
+# currently lighter, which balances within one suite of the best possible split.
+# Without the table the split stays positional, so a checkout without it still
+# runs every suite exactly once.
 shard_plan() {
   # $1 total shards, $2 wanted shard; the suite list on stdin.
   _total=$1

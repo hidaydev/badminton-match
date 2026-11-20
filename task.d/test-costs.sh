@@ -19,16 +19,27 @@ set -eu
 
 usage() {
   cat <<'EOF'
-usage: ./task test-costs <timing.tsv> [<timing.tsv> ...]
+usage: ./task test-costs [--shards N] <timing.tsv> [<timing.tsv> ...]
 
   Merge the timing tables of a CI run into task.d/test-costs.tsv, which is the
-  table `./task test --shard` plans against, and print the split it projects.
+  table `./task test --shard` plans against, and print the split it projects
+  for N shards (3 by default, the count ci.yml and release.yml run).
 EOF
 }
 
+shards=3
 case "${1:-}" in
   -h|--help) usage; exit 0 ;;
+  --shards)
+    [ "$#" -ge 2 ] || { usage >&2; exit 2; }
+    shards=$2
+    shift 2
+    ;;
 esac
+case "$shards" in
+  ''|*[!0-9]*) usage >&2; fail "--shards needs a number, got '$shards'" ;;
+esac
+[ "$shards" -ge 1 ] || fail "--shards must be at least 1"
 [ "$#" -ge 1 ] || { usage >&2; exit 2; }
 for table in "$@"; do
   [ -f "$table" ] || fail "no such timing table: $table"
@@ -62,23 +73,35 @@ projection=$(printf '%s\n' "$list" |
     $0 != "" { printf "%s\t%s\n", ($0 in cost) ? cost[$0] : default, $0 }' \
     "$merged" - |
   sort -t"$(printf '\t')" -k1,1nr -k2,2 |
-  awk -F'\t' '
-    { best = (load[2] < load[1]) ? 2 : 1; load[best] += $1; files[best]++ }
+  awk -F'\t' -v total="$shards" '
+    {
+      best = 1
+      for (s = 2; s <= total; s++) if (load[s] < load[best]) best = s
+      load[best] += $1
+      files[best]++
+    }
     END {
-      fast = (load[1] < load[2]) ? load[1] : load[2]
-      slow = (load[1] < load[2]) ? load[2] : load[1]
-      printf "%d %d %d %d %d\n", load[1], load[2], files[1], files[2], \
-        (fast > 0) ? (slow - fast) * 100 / fast : 0
+      fast = 0
+      slow = 0
+      for (s = 1; s <= total; s++) {
+        if (s == 1 || load[s] < fast) fast = load[s]
+        if (load[s] > slow) slow = load[s]
+      }
+      printf "%d", (fast > 0) ? (slow - fast) * 100 / fast : 0
+      for (s = 1; s <= total; s++) printf " %d %d", load[s], files[s] + 0
     }')
 
 set -- $projection
+gap=$1
+shift
 printf 'test-costs: %s suite(s) from %s table(s), median %s s\n' \
   "$rows" "$tables" "$(awk -v d="$default" 'BEGIN { printf "%.1f", d / 1000 }')"
-printf 'projected shard 1: %d s across %s suite(s)\n' \
-  "$(($1 / 1000))" "${3:-0}"
-printf 'projected shard 2: %d s across %s suite(s)\n' \
-  "$(($2 / 1000))" "${4:-0}"
-gap=${5:-0}
+s=1
+while [ "$#" -ge 2 ]; do
+  printf 'projected shard %s: %d s across %s suite(s)\n' "$s" "$(($1 / 1000))" "$2"
+  shift 2
+  s=$((s + 1))
+done
 printf 'projected gap: %s %% (W8 ceiling 25 %%)\n' \
   "$(awk -v g="$gap" 'BEGIN { printf "%.1f", g }')"
 [ "$unknown" -eq 0 ] ||

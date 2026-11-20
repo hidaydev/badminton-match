@@ -1,6 +1,9 @@
 #!/bin/sh
-# The system packages a Nim or coverage job needs: the PCRE 1 runtime Nim's `re`
-# binds to, and the Perl modules lcov 2.6 loads at startup.
+# The system packages a Nim job needs: the PCRE 1 runtime Nim's `re` binds to.
+#
+# Until 2026-11-20 this list also carried lcov 2.6's three Perl modules, because
+# the coverage graph installed lcov in every job that measured. That graph is
+# gone, so the list is one library and the step is one `dpkg -i`.
 #
 # This came from `./task browser-deps`, because it is the same problem measured
 # in a cheaper-looking step. The apt block it replaces ran in five jobs with
@@ -15,10 +18,10 @@
 # 1. The set is pinned in ops/ci/runtime-packages.txt, so the list is reviewable
 #    and the workflow cannot drift from it.
 # 2. The downloaded .deb set is cached through MAJADU_RUNTIME_DEPS_CACHE. A cold
-#    run fills it; later runs install from those files with `--no-download` and
-#    never open a mirror, so a slow mirror costs one run instead of every job of
-#    every run. A cache apt cannot satisfy falls back to a bounded online
-#    install instead of failing the job.
+#    run fills it; later runs install those files with `dpkg -i` and never open a
+#    mirror, so a slow mirror costs one run instead of every job of every run. A
+#    cache dpkg cannot install falls back to a bounded online install instead of
+#    failing the job.
 # 3. Each request is bounded (MAJADU_RUNTIME_DEPS_TIMEOUT for the install the
 #    job depends on, MAJADU_RUNTIME_DEPS_SEED_TIMEOUT for the opportunistic
 #    seed), and a cap is reported as a cap rather than as apt's exit code.
@@ -114,9 +117,34 @@ try_apt() {
   return 1
 }
 
-# 1. A cache hit installs from disk. `--no-download` refuses to reach a mirror;
-#    when the cached set cannot satisfy the current lists apt exits fast and we
-#    fall through instead of failing the job.
+# 1. A cache hit installs from disk. `dpkg` comes first because apt cannot
+#    resolve a package *name* without its lists, and a fresh runner starts with
+#    `/var/lib/apt/lists` empty: `--no-download install` then fails in a second
+#    and the job pays `apt-get update` plus the online install even though every
+#    byte was already in the cache. That is the 8 to 33s this step measured in
+#    each job of main 44499396531, where the cache was warm in all of them.
+if [ -n "$cache" ] && [ -n "$missing" ]; then
+  cached_debs=""
+  for pkg in $missing; do
+    deb=$(find "$cache" -maxdepth 1 -name "${pkg}_*.deb" -print -quit 2>/dev/null)
+    if [ -z "$deb" ]; then
+      cached_debs=""
+      break
+    fi
+    cached_debs="$cached_debs $deb"
+  done
+  if [ -n "$cached_debs" ]; then
+    # shellcheck disable=SC2086 # the .deb paths are a list on purpose
+    if timeout "$budget" sudo dpkg -i $cached_debs >/dev/null 2>&1; then
+      printf 'runtime-deps: ok (%s packages installed from the cached .deb set)\n' "$total"
+      exit 0
+    fi
+    printf 'runtime-deps: dpkg could not install the cached set; falling back to apt\n'
+  fi
+fi
+
+# `--no-download` refuses to reach a mirror; when the cached set cannot satisfy
+# the current lists apt exits fast and we fall through instead of failing the job.
 if [ -n "$cache" ] &&
   [ -n "$(find "$cache" -maxdepth 1 -name '*.deb' -print -quit 2>/dev/null)" ]; then
   printf 'runtime-deps: trying the cached .deb set in %s\n' "$cache"

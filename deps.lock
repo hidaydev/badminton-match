@@ -1,7 +1,7 @@
 # deps.lock — pinned toolchain, Nim packages, and gate tools.
 # Format: docs/handbook/deps-format.md. Verify with ./task deps-check.
 # tree = sha256 over the sorted entry lines below (comments excluded).
-tree 7f0b9378ff865cef73d131333b22bcac84ad32a211086094286c7eb76cf4a000
+tree 8bd0b5df094a001d841c1269ab83ff2f7e7ffbc5a3d6c38277ebcde22908aade
 
 # Nim toolchain
 nim 2.4.2 toolchain:nim -
@@ -11,9 +11,10 @@ nim 2.4.2 toolchain:nim -
 nim-base 2.4.0 docker:docker.io/nimlang/nim:2.4.0 sha256:e35e49da9bb8a5d4562f9c4f8afc1945c9cdeb525b2a9b3e76431d0556ac0c8f
 debian-base bookworm-slim docker:docker.io/library/debian:bookworm-slim sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc
 
-# Coverage gate prerequisites (T-109).
-gcovr 8.8 toolchain:gcovr -
-lcov 2.6 toolchain:lcov -
+# The coverage tools (T-109) left the pipeline with the instrumented graph on
+# 2026-11-20: `./task coverage` is a local target, and `./task coverage-tools`
+# pins lcov 2.6 and gcovr 8.8 itself, so no CI job installs them any more and a
+# runner without them is not a failure.
 
 # Nim packages under ~/.nimble/pkgs2 (sha256 of installed file content)
 crunchy 0.1.11 nimble:https://github.com/guzba/crunchy@98eb6526982bb8aae8eec6e8781f4539fa19e049 897de1f35ef9fe22d56d9e28014350a5d9c5af281e998d613d8627c12a113355
