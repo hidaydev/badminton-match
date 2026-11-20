@@ -345,25 +345,13 @@ jobs:
           cp -a "$MAJADU_RUNTIME_DEPS_CACHE/." "$HOME/.cache/majadu-runtime-debs/" 2>/dev/null || true
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
-      # Fails when the two source specs, the merged document, the generated Nim
-      # routes, or the generated TS client no longer match
-      # packages/contracts/openapi/CONTRACT.sha256. A spec edit must land with a
-      # regenerated fingerprint so the contract change is reviewable.
-      - name: "Contract: fingerprint and generated files must match the specs"
-        run: ./task contract-check
-      # ISO-11: a quoted migration or operation count is a claim. Compare it with
-      # the directory and CONTRACT.sha256 instead of maintaining a second copy.
-      - name: "Docs: quoted counts match the artefacts"
-        run: ./task docs-check
-      # QOUVER_CICD_STANDARD §11: the static rules a pipeline cannot feel at run
-      # time. W9 no cross-workflow poll in a Class A workflow, W10 Dependabot
-      # guard, W11 one gate command per run, W19 pinning, W20 no `-latest`
-      # runner, W22 artifact retention, W26 this job, plus the universal
-      # contract (timeout, caching-independent job shape, deploy invariants).
-      # Byte-identical copy of the standard's checker, so a refresh here is a
-      # `cp` and a diff of nothing.
-      - name: "CI standard: static rules"
-        run: ./ops/scripts/cicd-standard-check.sh .
+      # The one gate a laptop runs, run here unchanged: the golden CI/CD contract, a shell
+      # syntax pass over every script this repo ships, the secret scan, then the repo's own
+      # static checks (`task.d/gate.local.sh`: the contract fingerprint and the quoted counts).
+      # The toolchain above is installed for those two, so this job runs the same file a
+      # developer runs rather than a copy of its steps.
+      - name: "Preflight: ./task gate"
+        run: ./task gate
 
   contract:
     name: "Contract: corpora"

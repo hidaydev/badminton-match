@@ -18,6 +18,8 @@ Targets:
   typescript   the web gate: types, lint, tailwind, touch targets, docs and unit tests
   verify       build and test one module: ./task verify <module>
   ci           check + build + test + contract check
+  gate         golden contract + shell syntax + secret scan + repo static checks (no installs)
+  gate-full    gate, then the whole ci suite (needs a local database)
   parity       v1 golden corpus and the v2 per-operation corpus
   bootstrap    migrate, seed config, first platform owner + default community
   dev          run the API against bm2_dev (+ --watch to rebuild on change)
@@ -77,6 +79,9 @@ case "$target" in
     usage
     exit 0
     ;;
+  # Standard CI/CD v2.1: one gate implementation, shared byte-identically with every other
+  # repo. `gate-full` is the same file in its release mode.
+  gate|gate-full) exec sh "$REPO_ROOT/task.d/gate.sh" "$target" "$@" ;;
 esac
 
 script="$REPO_ROOT/task.d/$target.sh"

@@ -142,14 +142,18 @@ E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
   fifteen minute job is a latent timeout: on 2026-11-10 one coverage shard and one
   e2e job each spent fourteen minutes in apt and were reported as `cancelled`
   before a single test ran.
-- `ops/scripts/cicd-standard-check.sh`: the static half of
-  `QOUVER_CICD_STANDARD` v1.2 §11, run as a step in the `contract` job. It fails on
-  W9 (a job polling another workflow), W10 (a Dependabot guard that is not limited
-  to pull requests) and W11 (the same gate command in two jobs), plus the universal
-  contract: timeout, a secret scan, Dependabot coverage and the deploy invariants.
-  It is a byte-identical copy of the standard's checker; the file is named
-  differently here because `./task contract-check` already means the generated-file
-  fingerprint.
+- `./task gate`: the same golden CI/CD contract the other seven repositories run, plus a
+  shell syntax pass, the secret scan and the repo's own static checks
+  (`task.d/gate.local.sh`: the contract fingerprint and the quoted counts). The
+  `preflight` job runs this file, so "green on my machine" and "green in CI" are one
+  claim. `./task gate-full` adds the whole `./task ci` suite and needs a database.
+- `ops/scripts/contract-check.sh`: the static half of `QOUVER_CICD_STANDARD`
+  v2.1 §11. It fails on W9 (a job polling another workflow), W10 (a Dependabot
+  guard that is not limited to pull requests), W11 (the same gate command in two
+  jobs) and W19 (an action not pinned to a full SHA), plus the universal contract:
+  timeout, a secret scan, Dependabot coverage and the deploy invariants. It is a
+  byte-identical copy of the standard's checker under the name the other seven use;
+  `task.d/gate.sh` calls it.
 
 ## 7. Infrastructure
 

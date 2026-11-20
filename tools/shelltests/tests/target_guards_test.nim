@@ -215,7 +215,12 @@ suite "task target guards":
       check installed
       if not installed:
         checkpoint(path.extractFilename & " runs Nim without ./task runtime-deps")
-    check checked >= 4
+    # Three is every workflow left that installs the Nim packages: `ci`, `nightly` and
+    # `release`. Four until 2026-11-20, when `coverage.yml` was deleted (no other repo
+    # carried one). The floor is what fails if a workflow starts using Nim without the
+    # library, so it moves with the file set and not with the count of `deps-install`
+    # lines.
+    check checked >= 3
 
   # QA-17: `--local` creates and drops its own database, so a typo in the name
   # is a database this harness can no longer drop. Both refusals happen before

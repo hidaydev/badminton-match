@@ -36,6 +36,8 @@ explicit `--nimcache` does not add a suffix.
 | `docs-check` | fail when a document quotes a stale migration or operation count, when a path in `requirements.md` does not exist, when `CONTRIBUTING.md` drifts from the pinned Node and pnpm versions, or when the design system document loses its version or its review goes past 90 days | no |
 | `loadtest` | committed HTTP/watcher load test for the capacity statement; needs a live API | no |
 | `ci` | check + build + test + contract check | same as `test` |
+| `gate` | golden CI/CD contract, shell syntax, secret scan, the repo's static checks (`task.d/gate.local.sh`) | no |
+| `gate-full` | `gate`, then `./task ci` (`task.d/gate-full.local.sh`) | yes |
 | `coverage` | line coverage per module, ratcheted against `coverage-baseline-<platform>.json`; `--update` rewrites the baseline | no |
 | `deps-check` | compare the installed toolchain and Nim packages with `deps.lock` | no |
 | `coverage-debt` | fail on a low-coverage file with no dated exception | no |
