@@ -124,15 +124,23 @@ E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
 
 ## 6. CI
 
-- `.github/workflows/ci.yml`: 10 jobs defined, 8 of them run on a push:
-  `api-check`, `api-test` in three shards (Postgres 18.6), `contract`, `web`,
-  `e2e`, `image`, `supply-chain`, then `gate`; `mutation` runs on pull requests
-  only and `notify` pages only when main goes red. No job waits on another
+- `.github/workflows/ci.yml`: 9 jobs defined, 8 of them run on a push:
+  `api-check` (which now also lints both parity corpora), `api-test` in three
+  shards (Postgres 18.6), `web`, `e2e`, `image`, `supply-chain`, then `gate`;
+  `mutation` runs on pull requests only. `gate` pages the webhook itself when
+  main goes red, so there is no separate `notify` job. No job waits on another
   workflow (QOUVER_CICD_STANDARD §11.2, W9).
 - No coverage workflow: the instrumented graph was removed on 2026-11-20, since
   no other repository carries one. `./task coverage` stays for a local run and
   `./task check` keeps the per-file floor through `coverage-debt.sh`.
-- `.github/workflows/nightly.yml`: full `./task ci` with a database service, plus `./task mutation` so a mutant that survives without an allowlist entry fails the night.
+- `.github/workflows/nightly.yml`: only the gates a push cannot afford, one job
+  each so a cap on one does not swallow the others: the full mutation manifest
+  (`./task mutation`, while `ci.yml` mutates only the changed prefixes), the whole
+  parity corpus (`./task parity v2 canary` and `verify` on disposable databases),
+  a repeated e2e for order dependence (`--repeat-each=3`), and the advisory
+  scan. It used to run a second `./task ci` in one job; that command takes 20 to
+  29 minutes on this runner, so the job was cancelled at the 15-minute cap before
+  producing a verdict in each of the last five runs.
 - `.github/workflows/release.yml`: triggered by a `v*` tag, builds the image once and
   writes the digest to the GitHub Release.
 - All jobs use `timeout-minutes: 15`, use caching, and do not interpolate

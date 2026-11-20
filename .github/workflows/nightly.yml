@@ -1,8 +1,20 @@
 # class: C
 name: Nightly
 
+# The gates a push cannot afford, on one timer: the full mutation manifest, the
+# whole parity corpus, and a repeated e2e to catch order dependence.
+#
+# 2026-11-20: this file used to run a second full `./task ci` in one 15-minute
+# job. `./task ci` is `check` + `build` + `test` + `contract-check` + `docs-check`
+# with a release build, which measured 20 to 29 minutes per run on main, so the
+# job was cancelled at the cap before producing a verdict in all five of the last
+# five runs (2 cancelled, 2 failed, 1 cancelled again). Every test in it already
+# runs in `ci.yml` on every push, so the second copy only bought the nightly a
+# red name. What is left is what a push does not do.
+
 on:
   schedule:
+    # 01:00 WIB, after the deploy window and before the working day.
     - cron: "0 18 * * *"
   workflow_dispatch:
 
@@ -19,36 +31,23 @@ env:
   NIM_VERSION: "2.4.2"
 
 jobs:
-  full:
-    name: "Nightly: full suite"
+  # QA-05: line coverage cannot prove an assertion would fail, and this is the
+  # one gate no push runs in full (`ci.yml` mutates only the changed prefixes).
+  # It needs the toolchain and no database, so it owns a runner and its whole
+  # 15 minutes.
+  mutation:
+    name: "Nightly: mutation (full manifest)"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    services:
-      postgres:
-        image: postgres:18.6
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready --health-interval 5s
-          --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
         with:
-          nim-version: "2.4.2"
+          nim-version: ${{ env.NIM_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
-      # The packages in deps.lock are not vendored: a cold `~/.nimble` cache
-      # must install them before anything compiles.
-      # Nim's `re` binds to the system PCRE 1 library at run time, and the
-      # runner image does not ship it.
-      # W28 (QOUVER_CICD_STANDARD §12.2) / B-02: the packages are provisioned
-      # once per cache key and installed from disk by every later job. The step
-      # measured 30 to 44s per job across the last ten main runs, and 87 to 186s
-      # when the mirror was slow (main 44478153535).
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/majadu-runtime-debs
@@ -63,112 +62,82 @@ jobs:
           cp -a "$MAJADU_RUNTIME_DEPS_CACHE/." "$HOME/.cache/majadu-runtime-debs/" 2>/dev/null || true
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
-      - name: "Database: provision and create the test database"
-        env:
-          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env
-        run: |
-          ./task dev-db
-          # `dev-db` only creates bm2_dev and bm2_template, and `./task ci`
-          # refuses a DSN whose database name does not contain "test".
-          psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 <<'SQL'
-          SELECT 'CREATE DATABASE bm2_test OWNER bm2_owner'
-          WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'bm2_test') \gexec
-          SQL
-      # `dev-db` only creates empty databases; `./task ci` runs the integration
-      # suites, so they need the schema and the reference rows.
-      - name: "Database: migrate and seed"
-        env:
-          MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
-        run: |
-          mkdir -p .cache/ci
-          nim c --hints:off -d:release -o:.cache/ci/dbtools tools/dbtools/main.nim
-          .cache/ci/dbtools migrate --dir db/migrations
-          .cache/ci/dbtools seed --dir db/seeds
-      # TL-07: `./task ci` runs the import suite, which now refuses to skip
-      # (QA-10). The source is the captured v1 schema plus the small fixture
-      # and the production-shaped fixture, each with its own migrated target.
-      - name: "Import: provision the v1 source and the v2 target"
-        env:
-          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          IMPORT_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
-          BULK_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_source_test
-        run: |
-          psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
-            -c "CREATE DATABASE bm2_import_source_test" \
-            -c "CREATE DATABASE bm2_import_target_test OWNER bm2_owner TEMPLATE bm2_test" \
-            -c "CREATE DATABASE bm2_import_bulk_source_test" \
-            -c "CREATE DATABASE bm2_import_bulk_target_test OWNER bm2_owner TEMPLATE bm2_test"
-          psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
-            -f ops/dev/v1/schema.sql
-          psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
-            -f ops/dev/v1/fixtures/v1-fixtures.sql
-          psql -v ON_ERROR_STOP=1 -q -d "$BULK_SOURCE_DSN" \
-            -f ops/dev/v1/schema.sql
-          psql -v ON_ERROR_STOP=1 -q -d "$BULK_SOURCE_DSN" \
-            -f testdata/import/production-shaped.sql
-          # A source without the bm schema would import nothing and still read
-          # as clean, so the job fails before the suite can run.
-          for dsn in "$IMPORT_SOURCE_DSN" "$BULK_SOURCE_DSN"; do
-            loaded=$(psql -d "$dsn" -tAc "select to_regnamespace('bm')")
-            if [ "$loaded" != "bm" ]; then
-              echo "$dsn has no bm schema" >&2
-              exit 1
-            fi
-          done
-      - name: "Nightly: full"
-        env:
-          MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
-          MAJADU_IMPORT_TEST_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_target_test
-          MAJADU_IMPORT_TEST_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
-          MAJADU_IMPORT_BULK_TARGET_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_target_test
-          MAJADU_IMPORT_BULK_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_source_test
-        run: ./task ci
-      # QA-05: line coverage cannot prove an assertion would fail. Mutation
-      # testing is slow enough that it belongs in the nightly run, and a
-      # survivor that is not allowlisted fails the job.
       - name: "Mutation: every mutant is killed or allowlisted"
         run: ./task mutation
-      # QA-12: the v2 corpus is recorded by the code under test, so it is a
-      # change detector, not an oracle. The canary proves replay rejects a body
-      # that is deliberately wrong; if the comparator ever stops comparing, the
-      # canary stops being rejected and the step fails.
+      - name: "Mutation: upload the run"
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nightly-mutation
+          path: .cache/*/mutation/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 30
+
+  # QA-12: the v2 corpus is recorded by the code under test, so it is a change
+  # detector, not an oracle. `verify` replays the whole corpus on a disposable
+  # database; no push does that, so it stays here. The canary proves replay
+  # rejects a deliberately wrong body: if the comparator ever stops comparing,
+  # the canary stops being rejected and this job fails.
+  parity:
+    name: "Nightly: parity (canary and full replay)"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
+        with:
+          nim-version: ${{ env.NIM_VERSION }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nimble
+          key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/majadu-runtime-debs
+          key: runtime-debs-${{ runner.os }}-${{ hashFiles('ops/ci/runtime-packages.txt') }}
+      - name: "Dependencies: install the runtime C libraries"
+        env:
+          MAJADU_RUNTIME_DEPS_CACHE: ${{ runner.temp }}/majadu-runtime-debs
+        run: |
+          mkdir -p "$MAJADU_RUNTIME_DEPS_CACHE"
+          cp -a "$HOME/.cache/majadu-runtime-debs/." "$MAJADU_RUNTIME_DEPS_CACHE/" 2>/dev/null || true
+          ./task runtime-deps
+          cp -a "$MAJADU_RUNTIME_DEPS_CACHE/." "$HOME/.cache/majadu-runtime-debs/" 2>/dev/null || true
+      - name: "Dependencies: install pinned Nim packages"
+        run: ./task deps-install
+      - name: "Database: provision the template"
+        env:
+          MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env
+        run: ./task dev-db
       - name: "Parity: the canary must be rejected"
         env:
           PARITY_V2_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_parity_canary_test
-          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
         run: |
           psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
             -c "CREATE DATABASE bm2_parity_canary_test OWNER bm2_owner"
           ./task parity v2 canary
-      # The full corpus replay on its own disposable database. This is the run
-      # that would surface drift after a change; the PR job only lints.
       - name: "Parity: v2 verify"
         env:
           PARITY_V2_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_parity_verify_test
-          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
         run: |
           psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
             -c "CREATE DATABASE bm2_parity_verify_test OWNER bm2_owner"
           ./task parity v2 verify
-      # QA-11: the nightly log is not the only place a failure should land.
-      # QA-20: the report is uploaded on every run, not only on failure, because
-      # a flake is diagnosed by comparing durations across green runs.
       - name: "Nightly: report the slowest suites"
         if: always()
         run: ./task flakereport
-      - name: "Nightly: upload test results"
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: nightly-results
-          path: |
-            .cache/*/failures.tsv
-            .cache/*/junit/junit.xml
-            .cache/*/timing/*.tsv
-          include-hidden-files: true
-          if-no-files-found: warn
-          retention-days: 30
 
   # QA-20: a test that passes once proves it passes in the order the runner
   # happened to choose. Repeating the functional and axe suites on a schedule is
@@ -314,7 +283,7 @@ jobs:
     name: "Notify: red nightly"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    needs: [full, supply-chain]
+    needs: [mutation, parity, e2e-repeat, supply-chain]
     if: failure()
     steps:
       - name: "Notify: post the failure"

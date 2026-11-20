@@ -60,7 +60,7 @@ suite "workflow contract":
     # jobs. W26 (§12.1) put `preflight` in front of them; the fan-in keeps its
     # name, because `Gate` is the required status check.
     check text.contains(
-      "needs: [preflight, api-check, api-test, contract, supply-chain, web, e2e, mutation]")
+      "needs: [preflight, api-check, api-test, supply-chain, web, e2e, mutation]")
 
   # W26 (QOUVER_CICD_STANDARD §12.1): the cheap gate has to exist and sit in
   # front of every expensive job. Measured on main 75a029cb: `preflight` costs
@@ -70,7 +70,7 @@ suite "workflow contract":
   test "every expensive job waits for preflight":
     let text = readFile(repoDir / ".github" / "workflows" / "ci.yml")
     check text.contains("  preflight:")
-    for job in ["api-check", "api-test", "contract", "supply-chain", "web",
+    for job in ["api-check", "api-test", "supply-chain", "web",
                 "e2e", "mutation"]:
       let body = text.split("  " & job & ":")[1]
       check body.split("\n\n")[0].contains("needs: [preflight]")

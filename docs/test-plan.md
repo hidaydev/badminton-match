@@ -116,7 +116,7 @@ block every pull request.
 
 | Check | Workflow | Covers |
 |---|---|---|
-| `Gate` | `ci.yml` | check, test, contract, supply chain, web, e2e, mutation, image |
+| `Gate` | `ci.yml` | check (with the parity corpora), test, supply chain, web, e2e, mutation, image |
 
 A pull request may merge only when it is green. Verify the setting with:
 

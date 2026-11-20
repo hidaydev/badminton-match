@@ -59,15 +59,10 @@ jobs:
           key: nimcache-${{ runner.os }}-${{ hashFiles('deps.lock', 'config.nims', 'majadu.nimble', 'apps/**/*.nim', 'modules/**/*.nim', 'shared/**/*.nim', 'tools/**/*.nim') }}
           restore-keys: |
             nimcache-${{ runner.os }}-
-      # QA-11: `./task check` runs the TypeScript coverage gate, so this job
-      # needs the workspace installed as well as Nim.
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: pnpm
-      - name: "Web: install"
-        run: pnpm install --frozen-lockfile
+      # No pnpm or Node here: `--static` skips `task.d/typescript.sh` along with
+      # the suites (see the QA-27 note below), and every other gate this job runs
+      # is shell or awk. Installing the workspace cost 11 s per run for a tree
+      # nothing read. The web gates keep their own job.
       # The packages in deps.lock are not vendored: a cold `~/.nimble` cache
       # must install them before anything compiles.
       # Nim's `re` binds to the system PCRE 1 library at run time, and the
@@ -98,6 +93,14 @@ jobs:
       # same tree in the same run. The web gates run in the `web` job.
       - name: "API: check"
         run: ./task check --static
+      # Contract QA-14: both corpora are hashed against their MANIFEST.sha256 and
+      # every case is linted against the generated routes. The recorded cases are
+      # the only per-route behaviour record, so a fixture edit that skips the
+      # manifest update fails here instead of on a replay. Offline, and the same
+      # Nim toolchain this job already installed, so it ran as a second job only
+      # to pay 40 s of runner setup for 34 s of work.
+      - name: "Parity: corpus manifest and lint"
+        run: ./task parity verify && ./task parity v2 lint
       # QA-11: a red check leaves the per-suite JUnit report, the failure list
       # and the timing table on the runner; this makes them downloadable.
       - name: "API: upload failure reports"
@@ -355,56 +358,6 @@ jobs:
       # developer runs rather than a copy of its steps.
       - name: "Preflight: ./task gate"
         run: ./task gate
-
-  contract:
-    name: "Contract: corpora"
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    needs: [preflight]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # `./task parity` compiles tools/dbtools to lint every recorded case
-      # against the generated routes, so this job keeps the Nim toolchain. The
-      # first attempt at this split dropped it and failed in five seconds.
-      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
-        with:
-          nim-version: ${{ env.NIM_VERSION }}
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.nimble
-          key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            .cache/*/check
-            .cache/*/build
-          key: nimcache-${{ runner.os }}-${{ hashFiles('deps.lock', 'config.nims', 'majadu.nimble', 'apps/**/*.nim', 'modules/**/*.nim', 'shared/**/*.nim', 'tools/**/*.nim') }}
-          restore-keys: |
-            nimcache-${{ runner.os }}-
-      # W28 (QOUVER_CICD_STANDARD §12.2) / B-02: the packages are provisioned
-      # once per cache key and installed from disk by every later job. The step
-      # measured 30 to 44s per job across the last ten main runs, and 87 to 186s
-      # when the mirror was slow (main 44478153535).
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/majadu-runtime-debs
-          key: runtime-debs-${{ runner.os }}-${{ hashFiles('ops/ci/runtime-packages.txt') }}
-      - name: "Dependencies: install the runtime C libraries"
-        env:
-          MAJADU_RUNTIME_DEPS_CACHE: ${{ runner.temp }}/majadu-runtime-debs
-        run: |
-          mkdir -p "$MAJADU_RUNTIME_DEPS_CACHE"
-          cp -a "$HOME/.cache/majadu-runtime-debs/." "$MAJADU_RUNTIME_DEPS_CACHE/" 2>/dev/null || true
-          ./task runtime-deps
-          cp -a "$MAJADU_RUNTIME_DEPS_CACHE/." "$HOME/.cache/majadu-runtime-debs/" 2>/dev/null || true
-      - name: "Dependencies: install pinned Nim packages"
-        run: ./task deps-install
-      # Offline: both corpora are hashed against their MANIFEST.sha256 and every
-      # case is linted against the generated routes. The recorded cases are the
-      # only per-route behaviour record, so a fixture edit that skips the
-      # manifest update fails here instead of on a replay.
-      - name: "Parity: corpus manifest and lint"
-        run: ./task parity verify && ./task parity v2 lint
 
   supply-chain:
     name: "Supply chain: scan"
@@ -861,29 +814,6 @@ jobs:
           fi
           cosign sign --yes --key env://COSIGN_PRIVATE_KEY "$IMAGE@$DIGEST"
 
-  notify:
-    name: "Notify: red main build"
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    needs: [gate]
-    # Only a red push to main pages someone; a red pull request is already
-    # visible to its author. The webhook is the same one majadu-alert@ posts to.
-    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - name: "Notify: post the failure"
-        env:
-          WEBHOOK: ${{ secrets.MAJADU_ALERT_WEBHOOK }}
-          SHA: ${{ github.sha }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          if [ -z "$WEBHOOK" ]; then
-            echo "::warning::MAJADU_ALERT_WEBHOOK is not configured; the red main build is only in GitHub"
-            exit 0
-          fi
-          curl -fsS -m 10 -H "Content-Type: application/json" \
-            --data "{\"text\":\"majadu: main CI failed at $SHA $RUN_URL\"}" \
-            "$WEBHOOK"
-
   # W9 (QOUVER_CICD_STANDARD §11.2): a job that waits on another workflow's run
   # does not live in a Class A workflow. The poll this replaced could hold the CI
   # wall for 12 minutes and turned a green CI red whenever the other workflow was
@@ -896,7 +826,7 @@ jobs:
     timeout-minutes: 15
     # Only the in-repo quality jobs. `image` waits for this job instead of the other
     # way round, so a tag is published only for a commit whose checks are green.
-    needs: [preflight, api-check, api-test, contract, supply-chain, web, e2e, mutation]
+    needs: [preflight, api-check, api-test, supply-chain, web, e2e, mutation]
     if: always()
     steps:
       - name: "Gate: require every job"
@@ -914,3 +844,23 @@ jobs:
               .value.result == "success" or
               (.key == "mutation" and .value.result == "skipped") or
               ($dep == "1" and .key == "e2e" and .value.result == "skipped"))'
+      # The page used to be its own job that waited on the gate and posted. As the
+      # gate's last step it costs nothing extra (a separate runner spent ~10 s on
+      # setup for one curl) and it can only fire when the step above failed, which
+      # is exactly the condition the job's `if:` tested.
+      # Only a red push to main pages someone; a red pull request is already
+      # visible to its author. The webhook is the same one majadu-alert@ posts to.
+      - name: "Notify: red main build"
+        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          WEBHOOK: ${{ secrets.MAJADU_ALERT_WEBHOOK }}
+          SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "::warning::MAJADU_ALERT_WEBHOOK is not configured; the red main build is only in GitHub"
+            exit 0
+          fi
+          curl -fsS -m 10 -H "Content-Type: application/json" \
+            --data "{\"text\":\"majadu: main CI failed at $SHA $RUN_URL\"}" \
+            "$WEBHOOK"

@@ -281,8 +281,9 @@ v1 leftover.
 | `pnpm check:web` | TypeScript, ESLint, Tailwind, Vitest | no |
 | `./task e2e` | Playwright: a11y, visual, compatibility | yes (DB `bm2_e2e`) |
 
-CI runs the jobs `api-check`, `api-test` (Postgres 18.6 service), `contract`, `web`,
-`e2e`, `image`, then `gate`, which requires every job to succeed
+CI runs the jobs `api-check` (which also lints both parity corpora), `api-test`
+(Postgres 18.6 service), `web`, `e2e`, `image`, then `gate`, which requires every
+job to succeed
 (`.github/workflows/ci.yml`). The instrumented coverage graph was removed on
 2026-11-20: no other repository carries one, and the per-file floor is the debt
 check `./task check` runs on every push. E2E uses two real devices: `iphone-17`
