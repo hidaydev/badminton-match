@@ -117,25 +117,27 @@ jobs:
           retention-days: 14
 
   api-test:
-    name: "API: integration (shard ${{ matrix.shard }}/3)"
+    name: "API: integration (shard ${{ matrix.shard }}/4)"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     # W26: waits for the cheap gate, and restores the nimble and nimcache entries
     # that `preflight` already warmed.
     needs: [preflight]
-    # Three shards of the suite list. The split is planned against
+    # Four shards of the suite list. The split is planned against
     # task.d/test-costs.tsv (measured on this runner, written by
     # `./task test-costs`), so every job runs the same files every time and the
     # slowest shard stays inside the W8 ceiling; without the table it falls back
-    # to a positional split. Three shards is the measured point where the extra
-    # runner buys wall time: the table plans 524 s at two, 350 s at three and
-    # 262 s at four, and the two-shard pair measured 487 s and 506 s on main
-    # 2026-11-19. Each shard has its own database service on its own runner.
-    # `./task test --timing` records per-suite wall time.
+    # to a positional split. The table plans 524 s at two, 350 s at three and 262
+    # s at four; the three-shard set measured 406/328/312 s on main 2026-11-20.
+    # Three shards were no longer the tail once `E2E: browser` was split, but
+    # they left the run wall at ~600 s against the class A budget: the fourth
+    # shard is what buys the headroom rather than the last 40 s of a job that
+    # also owns the gate behind it. Each shard has its own database service on
+    # its own runner. `./task test --timing` records per-suite wall time.
     strategy:
       fail-fast: false
       matrix:
-        shard: ["1", "2", "3"]
+        shard: ["1", "2", "3", "4"]
     services:
       postgres:
         image: postgres:18.6
@@ -253,7 +255,7 @@ jobs:
           MAJADU_IMPORT_BULK_TARGET_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_target_test
           MAJADU_IMPORT_BULK_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_bulk_source_test
           SHARD: ${{ matrix.shard }}
-        run: ./task test --timing --shard "$SHARD/3"
+        run: ./task test --timing --shard "$SHARD/4"
       - name: "API: timing report"
         if: always()
         run: |
@@ -490,7 +492,7 @@ jobs:
           retention-days: 14
 
   e2e:
-    name: "E2E: browser"
+    name: "E2E: browser (${{ matrix.group }})"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     # W10 (QOUVER_CICD_STANDARD §11.2): a Dependabot PR proves that a dependency
@@ -501,6 +503,22 @@ jobs:
     # W26: the browser suite is the longest job in the run, so it is the one that
     # most needs a cheap gate in front of it.
     needs: [preflight]
+    # The suite is 200 tests across four projects, and on main f5b4b45 the single
+    # job ended 459 s in, two seconds before the gate: it owned the run's tail.
+    # The measured split of that log is iphone-17 128 s / poco-f5 76 s / desktop
+    # 48 s / api 1 s, so pairing iphone-17 against the other three balances the
+    # two halves to within three seconds while each half keeps paying the same
+    # setup (browsers, system libraries, web build). Two jobs finish ~230 s
+    # earlier than one; the alternative, more workers in one job, would put four
+    # browser processes, the API and a Vite preview on the same four cores.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: "iphone-17"
+            projects: "--project=iphone-17"
+          - group: "poco-f5-desktop-api"
+            projects: "--project=poco-f5 --project=desktop --project=api"
     services:
       postgres:
         image: postgres:18.6
@@ -631,7 +649,12 @@ jobs:
       - name: "E2E: run"
         env:
           PGPASSWORD: postgres
-        run: ./task e2e
+          PROJECTS: ${{ matrix.projects }}
+        # Two jobs, split by the cost measured on main f5b4b45 (iphone-17 128 s,
+        # poco-f5 76 s, desktop 48 s, api 1 s). The comment on the matrix says why
+        # a matrix beats more workers inside one job: four browser processes, the
+        # API and a Vite preview would all share the runner's four cores.
+        run: ./task e2e $PROJECTS
       # QA-11: traces, failure screenshots, videos, the JSON report and the
       # HTML report all live under the config directory, which the runner would
       # otherwise delete with the job.
@@ -639,7 +662,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: playwright-failure-artifacts
+          name: playwright-failure-artifacts-${{ matrix.group }}
           path: |
             apps/web/test-results/
             apps/web/playwright-report/

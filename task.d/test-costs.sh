@@ -23,11 +23,11 @@ usage: ./task test-costs [--shards N] <timing.tsv> [<timing.tsv> ...]
 
   Merge the timing tables of a CI run into task.d/test-costs.tsv, which is the
   table `./task test --shard` plans against, and print the split it projects
-  for N shards (3 by default, the count ci.yml and release.yml run).
+  for N shards (4 by default, the count ci.yml and release.yml run).
 EOF
 }
 
-shards=3
+shards=4
 case "${1:-}" in
   -h|--help) usage; exit 0 ;;
   --shards)
