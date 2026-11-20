@@ -283,10 +283,11 @@ v1 leftover.
 
 CI runs the jobs `api-check`, `api-test` (Postgres 18.6 service), `contract`, `web`,
 `e2e`, `image`, then `gate`, which requires every job to succeed
-(`.github/workflows/ci.yml`). Coverage has its own workflow
-(`.github/workflows/coverage.yml`) so the instrumented build does not share a cache
-with the fast gate. E2E uses two real devices: `iphone-17` (WebKit, 402×874,
-DPR 3) and `poco-f5` (Chromium, 393×873, DPR 2.75) (`e2e/browsers.ts`).
+(`.github/workflows/ci.yml`). The instrumented coverage graph was removed on
+2026-11-20: no other repository carries one, and the per-file floor is the debt
+check `./task check` runs on every push. E2E uses two real devices: `iphone-17`
+(WebKit, 402×874, DPR 3) and `poco-f5` (Chromium, 393×873, DPR 2.75)
+(`e2e/browsers.ts`).
 
 ## 14. Principles
 

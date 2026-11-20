@@ -35,7 +35,7 @@ Out of scope, on purpose:
 | Contract | the specs, the generated routes and the TS client agree | `./task contract-check`, `packages/contracts/openapi/CONTRACT.sha256` | seconds |
 | Parity | recorded v1/v2 responses still match | `./task parity verify`, `./task parity v2 verify` | minutes |
 | E2E | router, server gate and UI visibility together | `e2e/*.spec.ts`, the four Playwright projects in `e2e/browsers.ts`: `iphone-17` (WebKit), `poco-f5` (Chromium), `desktop` (Chromium) and `api` (the socket spec, run once) | minutes |
-| Gates | coverage ratchet, mutation, deps, docs, architecture | `./task check`, `coverage.yml`, `nightly.yml` | varies |
+| Gates | coverage debt, mutation, deps, docs, architecture | `./task check`, `nightly.yml` | varies |
 
 `./task check` runs the unit layer and the static gates; `./task test` adds the
 database-backed and integration layers. A suite under `tests/integration/` is
@@ -109,16 +109,16 @@ or work that needs an environment this repository cannot provide.
 
 ## 7. Required status checks
 
-GitHub cannot express a dependency between two workflows, so the aggregate
-`Gate` job in `ci.yml` cannot require the `Coverage` workflow. The branch
-protection rule on `main` therefore has to require both checks:
+`Gate` is the one required check on `main`: it aggregates every in-repo job in
+`ci.yml`. The `Coverage: ratchet` check was dropped with the instrumented
+workflow on 2026-11-20, so a branch protection rule that still requires it would
+block every pull request.
 
 | Check | Workflow | Covers |
 |---|---|---|
 | `Gate` | `ci.yml` | check, test, contract, supply chain, web, e2e, mutation, image |
-| `Coverage: ratchet` | `coverage.yml` | the per-file, domain and total ratchet plus diff coverage |
 
-A pull request may merge only when both are green. Verify the setting with:
+A pull request may merge only when it is green. Verify the setting with:
 
 ```sh
 ./task branch-protection

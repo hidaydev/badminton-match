@@ -1,11 +1,10 @@
 #!/bin/sh
 # Verify the required status checks on a protected branch (QA-22).
 #
-# The aggregate "Gate" job in ci.yml does not depend on the Coverage workflow:
-# GitHub cannot express a cross-workflow `needs`. Unless branch protection also
-# requires "Coverage: ratchet", a pull request can merge with the ratchet red,
-# and the ratchet is the only defence against the web threshold and the frozen
-# files. This target reads the repository setting instead of trusting the doc.
+# `Gate` is the one required check: it aggregates every in-repo job, and the
+# instrumented coverage graph that used to report separately was removed on
+# 2026-11-20 (no other repository carries one). The per-file coverage floor is
+# still enforced by `./task check` through coverage-debt.sh.
 #
 #   ./task branch-protection [--branch main]
 . "$(dirname "$0")/lib.sh"
@@ -39,7 +38,7 @@ contexts=$(gh api "repos/$repo/branches/$branch/protection/required_status_check
   --jq '.contexts[]' 2>/dev/null) || fail "no required status checks on $branch, or the token cannot read branch protection"
 
 status=0
-for required in "Gate" "Coverage: ratchet"; do
+for required in "Gate"; do
   if printf '%s\n' "$contexts" | grep -qx "$required"; then
     printf 'branch-protection: %s requires %s\n' "$branch" "$required"
   else

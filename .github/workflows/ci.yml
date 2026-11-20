@@ -913,11 +913,10 @@ jobs:
             "$WEBHOOK"
 
   # W9 (QOUVER_CICD_STANDARD §11.2): a job that waits on another workflow's run
-  # does not live in a Class A workflow. `Coverage: ratchet` reports as its own
-  # check on the same commit, and branch protection decides whether it is
-  # required. The poll this replaced could hold the CI wall for 12 minutes and
-  # turned a green CI red whenever Coverage was slow, so the dependency is the
-  # check-run, not a job inside ci.yml.
+  # does not live in a Class A workflow. The poll this replaced could hold the CI
+  # wall for 12 minutes and turned a green CI red whenever the other workflow was
+  # slow. The instrumented coverage graph was removed on 2026-11-20 (no other
+  # repository carries one), so the gate now depends on in-repo jobs only.
 
   gate:
     name: "Gate"

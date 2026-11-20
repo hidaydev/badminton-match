@@ -128,9 +128,10 @@ E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
   `api-check`, `api-test` in two shards (Postgres 18.6), `contract`, `web`,
   `e2e`, `image`, `supply-chain`, then `gate`; `mutation` runs on pull requests
   only and `notify` pages only when main goes red. No job waits on another
-  workflow: `Coverage: ratchet` reports on its own check (QOUVER_CICD_STANDARD §11.2, W9).
-- `.github/workflows/coverage.yml`: instrumented build + ratchet, a separate
-  workflow so the cache does not mix with the fast gate.
+  workflow (QOUVER_CICD_STANDARD §11.2, W9).
+- No coverage workflow: the instrumented graph was removed on 2026-11-20, since
+  no other repository carries one. `./task coverage` stays for a local run and
+  `./task check` keeps the per-file floor through `coverage-debt.sh`.
 - `.github/workflows/nightly.yml`: full `./task ci` with a database service, plus `./task mutation` so a mutant that survives without an allowlist entry fails the night.
 - `.github/workflows/release.yml`: triggered by a `v*` tag, builds the image once and
   writes the digest to the GitHub Release.

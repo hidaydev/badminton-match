@@ -3,7 +3,7 @@
 # The workflows are read as files, because a checkout on macOS cannot run
 # GitHub Actions. The cases cover the two properties a future edit silently
 # drops: every job keeps the 15-minute cap, and ci.yml keeps its concurrency
-# group, its compiler cache and the Coverage dependency in the gate.
+# group, its compiler cache and no cross-workflow poll in the gate.
 
 import std/[os, strutils, unittest]
 import ../harness
@@ -53,7 +53,7 @@ suite "workflow contract":
     check text.contains("nimcache-${{ runner.os }}-")
     # W9 (QOUVER_CICD_STANDARD §11.2): a Class A workflow may not wait on another
     # workflow's run. The check that used to poll coverage.yml held the CI wall for
-    # up to 12 minutes; `Coverage: ratchet` reports on its own instead.
+    # up to 12 minutes; the instrumented graph is gone since 2026-11-20.
     check not text.contains("actions/workflows/coverage.yml/runs")
     check not text.contains("  coverage-gate:")
     # `image` waits for the gate, so the gate's needs stay the in-repo quality
@@ -78,24 +78,17 @@ suite "workflow contract":
     # cheap job would let main merge on a gate that only read the contract.
     check text.contains("  gate:\n    name: \"Gate\"")
 
-  # OPS-20: the coverage gate used the distro tools and could be cancelled by
-  # the next push.
-  test "coverage.yml measures with the locked tools and cannot be cancelled on main":
-    let text = readFile(repoDir / ".github" / "workflows" / "coverage.yml")
-    # B-02 moved the install out of the workflow and into `./task
-    # coverage-tools`, so the pin lives in the script and the workflow names it.
-    # A version bump is one edit in one place instead of three workflows.
+  # OPS-20 / 2026-11-20: the instrumented graph left the pipeline, so the tools
+  # are only used by `./task coverage` and the per-file floor is the debt check
+  # that `./task check` runs on every push. A workflow file reappearing here
+  # would be a second graph for the same push, which is what was removed.
+  test "no coverage workflow, and the per-file floor stays in ./task check":
+    check not fileExists(repoDir / ".github" / "workflows" / "coverage.yml")
     let tools = readFile(repoDir / "task.d" / "coverage-tools.sh")
     check tools.contains("want_lcov=2.6")
     check tools.contains("want_gcovr=8.8")
-    check text.contains("./task coverage-tools")
-    check text.contains("./task deps-check")
-    check text.contains("cancel-in-progress: ${{ github.event_name == 'pull_request' }}")
-    check not text.contains("apt-get install -y lcov gcovr")
-    check not text.contains("python3 -m pip install --break-system-packages gcovr")
-    # A rewritten PR history has no merge base, and the workflow refuses it
-    # instead of inheriting the skip in task.d/coverage.sh.
-    check text.contains("git merge-base HEAD \"origin/$BASE_REF\"")
+    let checkScript = readFile(repoDir / "task.d" / "check.sh")
+    check checkScript.contains("coverage-debt.sh")
 
   # B-02 / W28 (QOUVER_CICD_STANDARD §12.2): the runtime packages and the pinned
   # coverage tools are provisioned once per cache key. An inline apt block pays
@@ -103,7 +96,7 @@ suite "workflow contract":
   # 44s per job across ten main runs and 186s in the worst one. nightly.yml is
   # exempt on purpose: it is scheduled for deletion (§11.7).
   test "no workflow installs the runtime packages or the coverage tools inline":
-    for workflow in ["ci.yml", "coverage.yml", "release.yml"]:
+    for workflow in ["ci.yml", "release.yml"]:
       let text = readFile(repoDir / ".github" / "workflows" / workflow)
       check text.contains("./task runtime-deps")
       check not text.contains("apt-get install -y \"${apt_opts[@]}\" libpcre3")

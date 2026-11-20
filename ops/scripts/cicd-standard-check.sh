@@ -24,8 +24,8 @@
 #         concurrency: block; class A and B never cancel in progress on main
 #     W15 one push runs one gate graph: two class A files may not run the same
 #         gate command
-#     W19 third-party actions pinned to a full commit SHA (actions/* may keep a
-#         major tag); warn while the conversion is in progress
+#     W19 every action pinned to a full-length commit SHA, with its tag in a
+#         trailing comment (Dependabot reads the comment and bumps the SHA)
 #     W20 no runs-on: *-latest
 #     W22 every upload-artifact declares retention-days
 #     W24 actionlint over the workflows, when the binary is installed
@@ -506,14 +506,19 @@ EOF
 }
 
 # ------------------------------------------------- W19/W20/W22/W24 (v1.5) ---
-# 19 a third-party action is pinned to a full commit SHA; actions/* may keep a
-#    major tag. A moving tag on a third-party action is unreviewed code inside
-#    the pipeline that builds the image the host deploys.
+# 19 every action is pinned to a full commit SHA, and the tag it came from sits
+#    in a trailing comment. GitHub's secure-use reference is the source: a tag
+#    "can be moved or deleted if a bad actor gains access to the repository
+#    storing the action", and a full-length SHA is the mitigation it names for
+#    repositories without a workflow dependency lockfile. No exception for
+#    actions/*: the rule was one shape for eight repositories, so it is one shape
+#    for every `uses:` line. Dependabot still maintains the pins, because it
+#    updates `owner/action@<commit>` and rewrites the same-line tag comment.
 # 20 a runner label carries its version: `ubuntu-latest` moves under the build.
 # 22 an uploaded artifact declares its retention; the default is 90 days.
 # 24 actionlint parses the workflow, when the binary is installed. Reported, not
 #    gated: no repo installs it yet, so a red here would be an unverified verdict.
-unpinned_third_party() { # <file> -> "owner/action@ref" per line
+unpinned_actions() { # <file> -> "owner/action@ref" per line
   awk '
     /^[[:space:]]*(-[[:space:]]*)?uses:[[:space:]]*/ {
       l=$0
@@ -522,18 +527,17 @@ unpinned_third_party() { # <file> -> "owner/action@ref" per line
       if (l ~ /^\.\//) next
       n=split(l, a, "@"); if (n < 2) next
       if (a[2] ~ /^[0-9a-f]{40}$/) next
-      if (a[1] ~ /^actions\//) next
       print a[1] "@" a[2]
     }' "$1" | sort -u
 }
 
-check_action_pinning() { # W19 (warn), W20 (fail), W22 (warn), W24 (warn)
+check_action_pinning() { # W19 (fail), W20 (fail), W22 (warn), W24 (warn)
   local f="$1" unpinned lax uploads retentions missing lint
-  unpinned=$(unpinned_third_party "$f")
+  unpinned=$(unpinned_actions "$f")
   if [ -n "$unpinned" ]; then
-    warn "$(basename "$f"): W19 action pihak ketiga tidak dipin ke SHA -> $(printf '%s ' $unpinned)"
+    bad "$(basename "$f"): W19 action tidak dipin ke SHA -> $(printf '%s ' $unpinned)"
   else
-    ok "$(basename "$f"): W19 semua action pihak ketiga dipin ke SHA"
+    ok "$(basename "$f"): W19 semua action dipin ke SHA"
   fi
 
   lax=$(grep -nE 'runs-on:.*-latest[[:space:]]*$' "$f" | sed 's/^[0-9]*://; s/^[[:space:]]*//')
