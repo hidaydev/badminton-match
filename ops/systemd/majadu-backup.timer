@@ -1,6 +1,11 @@
 # One dump per day, off the janitor's hour so two jobs never hold the database
-# container at once. Persistent=true catches up after downtime, and the script
-# itself verifies each dump with `pg_restore --list` before it keeps the file.
+# container at once, and the script itself verifies each dump with
+# `pg_restore --list` before it keeps the file.
+#
+# No Persistent=true on purpose: a missed 02:15 would then fire at boot, which is
+# exactly when PostgreSQL is still coming up and the dump would fail (the same
+# boot race the API unit has). A missed day is covered by the host-wide
+# qouver-postgres-backup timer, which already dumps bm2 at 02:00.
 #
 # Enabled by the operator, not by deploy-vps.sh (the deploy only installs unit
 # files). See docs/ops/cutover.md for when to enable it.
@@ -10,7 +15,6 @@ Description=Run the Majadu database dump daily
 [Timer]
 OnCalendar=*-*-* 02:15:00
 RandomizedDelaySec=15m
-Persistent=true
 
 [Install]
 WantedBy=timers.target

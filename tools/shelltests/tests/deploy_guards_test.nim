@@ -2167,7 +2167,7 @@ suite "systemd units":
       for key in ["ReadOnly=true", "Tmpfs=/tmp:size=64m",
                   "Tmpfs=/run:size=8m", "PidsLimit=256",
                   "PodmanArgs=--log-opt=max-size=10m",
-                  "MemoryHigh=400M", "LimitNOFILE=8192",
+                  "MemoryHigh=400M", "LimitNOFILE=8192", "StopTimeout=40",
                   "HealthCmd=", "OnFailure=majadu-alert@%N.service"]:
         check text.contains(key)
       # Bare words, not `key=`: the rejected keys must not come back in a

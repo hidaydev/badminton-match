@@ -41,6 +41,11 @@ Tmpfs=/run:size=8m
 # A fork bomb in the container stops at the pid limit instead of starving the
 # host, and the descriptor limit keeps a leak from exhausting the system table.
 PidsLimit=256
+# The API's own shutdown is a 5 s drain plus a 30 s hard bound, so podman must
+# wait longer than that before it SIGKILLs: the default (10 s on this host) cuts
+# a request that is still finishing, and the client sees a dropped socket
+# instead of the 503 the drain would have sent. 40 s covers 35 s of budget.
+StopTimeout=40
 # Quadlet 5.8.2, the version on the deploy host, rejects the device policy and
 # per-container log size keys outright: the generator refuses the whole unit and
 # the service is never created. Rotation is a podman argument instead, and

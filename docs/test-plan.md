@@ -72,7 +72,7 @@ instead of implying the whole tree.
 | Concurrency | two writers, one winner | `integration/session_concurrency_http_test.nim`, `e2e/session-occ.spec.ts` |
 | Migration | schema reachable, upgrade from N-1 preserves rows | `tools/dbtools/tests/integration/migrations_test.nim` |
 | Cutover | v1 data arrives intact | `tools/import/tests/integration/import_test.nim` (including the verify canary) |
-| Coverage | the ratchet, per file and total | `./task coverage`, `task.d/fixtures/coverage/` models |
+| Coverage | the ratchet, per file and total (local only since `bf84905b`; the per-file 80 % floor still gates through `./task check`) | `./task coverage`, `task.d/fixtures/coverage/` models |
 | Accessibility | WCAG A/AA on every route | `e2e/a11y.spec.ts` + `e2e/a11y-exemptions.json` |
 | Reflow | 320 CSS pixels without horizontal scroll | `e2e/reflow.spec.ts` |
 | Visual | reviewed baselines on both platforms | `e2e/visual.spec.ts`, `e2e/nav.spec.ts` |

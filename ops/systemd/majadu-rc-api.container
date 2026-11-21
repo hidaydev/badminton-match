@@ -52,6 +52,9 @@ HealthStartPeriod=20s
 # must stay stopped.
 Restart=on-failure
 RestartSec=3
+# Same as production: the unit must outwait the API's 5 s drain plus 30 s hard
+# bound, or a stop SIGKILLs a request that is still finishing.
+StopTimeout=40
 MemoryHigh=400M
 MemoryMax=512M
 LimitNOFILE=8192

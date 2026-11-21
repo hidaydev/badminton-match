@@ -19,4 +19,8 @@ OnFailure=majadu-alert@%N.service
 
 [Service]
 Type=oneshot
+# A hung pg_dump never exits, so without this the unit sits `activating` forever:
+# it never fails, never pages, and the timer's next fire is skipped as "still
+# running". 30 minutes is far above a real dump of this database (16 s at 1.4 GB).
+TimeoutStartSec=1800
 ExecStart=/bin/bash /srv/qouver/apps/majadu/scripts/backup.sh
