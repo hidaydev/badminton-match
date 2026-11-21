@@ -332,6 +332,32 @@ suite "ranking read":
     check statements(proc() = discard rankOf(database, query(),
       players[0])) == projectionOnly
 
+  test "a board read costs the same with more tournaments in the window":
+    ## REL-BE-11: `tournamentEntries` read one tournament's games per pooled
+    ## checkout, so a board cost 6 + 2T statements and /players/{id}/stats paid
+    ## it on every call. The games are now read in bulk behind one `db.read`, so
+    ## the count is a constant and must not move when T grows.
+    let a = @[newPlayer("Bulk A1"), newPlayer("Bulk A2")]
+    let b = @[newPlayer("Bulk B1"), newPlayer("Bulk B2")]
+    discard addClassicTournament(21, withLevel = false, winnerScore = 21,
+      loserScore = 12, a, b)
+    discard addClassicTournament(22, withLevel = false, winnerScore = 21,
+      loserScore = 12, a, b)
+    let twoTournaments = statements(proc() = discard projection.project(
+      database, communityId, asOf, params()))
+    # Six more tournaments, same window and same shape as the first two.
+    for age in 23 .. 28:
+      discard addClassicTournament(age, withLevel = false, winnerScore = 21,
+        loserScore = 12, a, b)
+    let eightTournaments = statements(proc() = discard projection.project(
+      database, communityId, asOf, params()))
+    check eightTournaments == twoTournaments
+    # And the batch really did read them: the points move when the tournaments
+    # are added, so an equal statement count cannot mean an empty read.
+    let entry = boardEntry(database, queryAll(), a[0])
+    check entry.isSome
+    check entry.get.entriesAvailable >= 8
+
   test "the board reads its candidates and keeps the same places":
     let whole = board(database, queryAll())
     let capped = board(database, BoardQuery(communityId: communityId,

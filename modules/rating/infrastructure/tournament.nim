@@ -34,6 +34,12 @@ type
     scoreA*, scoreB*: int
     sideA*, sideB*: seq[string]
 
+const
+  ## A match key is only unique inside its tournament, so the team bulk read
+  ## keys its partai grouping by (tournament, match key). The separator cannot
+  ## appear in a uuid or a match key.
+  keySeparator = "\x00"
+
 proc classicTarget(phase: string): int =
   if phase in ["sf", "3rd", "final"]: 42 else: 30
 
@@ -148,6 +154,114 @@ proc gamesFor*(conn: DbConn, communityId, tournamentId,
   ## ledger.
   if format == "team": teamGames(conn, communityId, tournamentId)
   else: classicGames(conn, communityId, tournamentId)
+
+proc classicGamesBulk(conn: DbConn, communityId: string,
+                      tournamentIds: seq[string]):
+    Table[string, seq[TournamentGame]] =
+  ## Every classic tournament's games behind one matches query and one pairs
+  ## query, whatever the number of tournaments. `classicGames` per tournament is
+  ## what made a board read cost a pool checkout per event.
+  var rowsByTournament = initTable[string, seq[Row]]()
+  var pairIds: seq[string] = @[]
+  for row in conn.query(
+    """select m.tournament_id::text as tournament_id,
+              m.match_key, m.phase, m.score_a, m.score_b,
+              m.pair_a_id, m.pair_b_id
+       from tournament.matches m
+       where m.community_id = $1::uuid and m.tournament_id = any($2::uuid[])
+         and m.score_a is not null and m.score_b is not null
+         and m.pair_a_id is not null and m.pair_b_id is not null
+       order by m.tournament_id, m.match_order, m.match_key""",
+    @[textParam(communityId), textParam(textArray(tournamentIds))]):
+    rowsByTournament.mgetOrPut(row.getUuid("tournament_id"), @[]).add(row)
+    for column in ["pair_a_id", "pair_b_id"]:
+      let pairId = row.get(column)
+      if pairId notin pairIds:
+        pairIds.add(pairId)
+  let pairs = pairPlayers(conn, communityId, pairIds)
+  for tournamentId, rows in rowsByTournament:
+    var games: seq[TournamentGame] = @[]
+    for row in rows:
+      games.add(TournamentGame(
+        key: row.get("match_key"),
+        phase: row.get("phase"),
+        target: classicTarget(row.get("phase")),
+        scoreA: row.getInt("score_a"),
+        scoreB: row.getInt("score_b"),
+        sideA: pairs.getOrDefault(row.getUuid("pair_a_id")),
+        sideB: pairs.getOrDefault(row.getUuid("pair_b_id"))))
+    result[tournamentId] = games
+
+proc teamGamesBulk(conn: DbConn, communityId: string,
+                   tournamentIds: seq[string]):
+    Table[string, seq[TournamentGame]] =
+  ## The team half of `classicGamesBulk`: three statements for every tournament
+  ## in the window, not three per tournament. A match key is only unique inside
+  ## its tournament, so the partai index is keyed by (tournament, match key).
+  var matchesByTournament = initTable[string, seq[Row]]()
+  var teamIds: seq[string] = @[]
+  for match in conn.query(
+    """select tournament_id::text as tournament_id, match_key, phase,
+              team_a_id, team_b_id
+       from tournament.team_matches
+       where community_id = $1::uuid and tournament_id = any($2::uuid[])
+         and team_a_id is not null and team_b_id is not null
+       order by tournament_id, match_order, match_key""",
+    @[textParam(communityId), textParam(textArray(tournamentIds))]):
+    matchesByTournament.mgetOrPut(match.getUuid("tournament_id"), @[]).add(match)
+    for column in ["team_a_id", "team_b_id"]:
+      let teamId = match.get(column)
+      if teamId notin teamIds:
+        teamIds.add(teamId)
+  let teams = teamPlayers(conn, communityId, teamIds)
+  var partais = initTable[string, seq[Row]]()
+  for partai in conn.query(
+    """select tm.tournament_id::text as tournament_id,
+              tm.match_key as match_key, p.partai_index, p.score_a, p.score_b
+       from tournament.team_partai p
+       join tournament.team_matches tm
+         on tm.community_id = p.community_id and tm.id = p.team_match_id
+       where p.community_id = $1::uuid and tm.tournament_id = any($2::uuid[])
+         and p.score_a is not null and p.score_b is not null
+       order by tm.tournament_id, tm.match_order, tm.match_key, p.partai_index""",
+    @[textParam(communityId), textParam(textArray(tournamentIds))]):
+    partais.mgetOrPut(partai.getUuid("tournament_id") & keySeparator &
+      partai.get("match_key"), @[]).add(partai)
+  for tournamentId, matches in matchesByTournament:
+    var games: seq[TournamentGame] = @[]
+    for match in matches:
+      for partai in partais.getOrDefault(tournamentId & keySeparator &
+          match.get("match_key")):
+        let index = partai.getInt("partai_index")
+        let teamA = teams.getOrDefault(match.getUuid("team_a_id"))
+        let teamB = teams.getOrDefault(match.getUuid("team_b_id"))
+        games.add(TournamentGame(
+          key: match.get("match_key") & ":" & $index,
+          phase: match.get("phase"),
+          target: teamTarget(match.get("phase")),
+          scoreA: partai.getInt("score_a"),
+          scoreB: partai.getInt("score_b"),
+          sideA: sideForPartai(teamA, index),
+          sideB: sideForPartai(teamB, index)))
+    result[tournamentId] = games
+
+proc gamesForBulk*(conn: DbConn, communityId: string,
+                   formats: Table[string, string]):
+    Table[string, seq[TournamentGame]] =
+  ## The scored games of every tournament named in `formats` (id -> format), in
+  ## the same shape `gamesFor` returns. A format with no tournament in the set
+  ## costs no statement, so a board of classic events reads them in two queries.
+  var classicIds: seq[string] = @[]
+  var teamIds: seq[string] = @[]
+  for tournamentId, format in formats:
+    if format == "team": teamIds.add(tournamentId)
+    else: classicIds.add(tournamentId)
+  if classicIds.len > 0:
+    for tournamentId, games in classicGamesBulk(conn, communityId, classicIds):
+      result[tournamentId] = games
+  if teamIds.len > 0:
+    for tournamentId, games in teamGamesBulk(conn, communityId, teamIds):
+      result[tournamentId] = games
 
 proc awardTournamentSide(conn: DbConn, communityId: string,
                          game: TournamentGame, teamA: bool): int =
