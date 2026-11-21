@@ -146,3 +146,47 @@ printf '%s\n' "$REPO_ROOT/a" "$REPO_ROOT/b" "$REPO_ROOT/c" "$REPO_ROOT/d" |
 printf '%s\n' "$REPO_ROOT/a" "$REPO_ROOT/b" "$REPO_ROOT/e" | shard_plan 2 2""")
     check result.exitCode == 0
     check result.stdout == fixture.root / "b" & "\n" & fixture.root / "e" & "\n"
+  # REL-QA-09: one hung suite used to eat the whole 15-minute job, and a job
+  # cancelled at the cap uploads no junit report, so every result the shard had
+  # already produced went with it. The cap is per suite and names itself.
+  test "run_deadline reports 124 when the suite outlives SUITE_TIMEOUT_S":
+    let fixture = newFixture("lib-deadline")
+    defer: removeDir(fixture.root)
+    discard fixture.installFake("slowsuite", "#!/bin/sh\nsleep 30\n")
+    let result = fixture.runLib(""". "$1"
+SUITE_TIMEOUT_S=1
+run_deadline "$SUITE_TIMEOUT_S" "$SLOW"
+printf 'status=%s\n' "$deadline_status"
+""", extraEnv = @[("SLOW", "slowsuite")])
+    check result.stdout.contains("status=124")
+
+  test "a suite that hits the deadline is a named timeout, not a bare failure":
+    let fixture = newFixture("lib-deadline-name")
+    defer: removeDir(fixture.root)
+    discard fixture.installFake("slowsuite", "#!/bin/sh\nsleep 30\n")
+    let result = fixture.runLib(""". "$1"
+mkdir -p "$REPO_ROOT/.cache/$WORKTREE"
+SUITE_TIMEOUT_S=1
+run_deadline "$SUITE_TIMEOUT_S" "$SLOW"
+handle_suite_status "$deadline_status" "apps/api/tests/slow_test.nim"
+printf 'reached\n'
+""", extraEnv = @[("SLOW", "slowsuite")])
+    check result.exitCode == 124
+    check result.stderr.contains("timeout 1s: apps/api/tests/slow_test.nim")
+    check not result.stdout.contains("reached")
+    let failures = readFile(
+      fixture.root / ".cache" / "tl18-wt" / "failures.tsv")
+    check failures.contains("TIMEOUT\tapps/api/tests/slow_test.nim\t124")
+
+  test "run_deadline leaves a suite that finishes inside the cap alone":
+    let fixture = newFixture("lib-deadline-fast")
+    defer: removeDir(fixture.root)
+    let result = fixture.runLib(""". "$1"
+SUITE_TIMEOUT_S=30
+run_deadline "$SUITE_TIMEOUT_S" sh -c 'exit 0'
+printf 'status=%s\n' "$deadline_status"
+run_deadline "$SUITE_TIMEOUT_S" sh -c 'exit 3'
+printf 'second=%s\n' "$deadline_status"
+""")
+    check result.stdout == "status=0\nsecond=3\n"
+

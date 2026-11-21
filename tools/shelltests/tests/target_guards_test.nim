@@ -75,6 +75,31 @@ suite "task target guards":
     check result.exitCode == 0
     check result.stdout.contains("check: ok (static gates only")
 
+  # REL-QA-06: the hook used to print a line and exit 0, so `./task gate`
+  # reported green on a machine that had checked nothing. `--no-hook` is the
+  # documented way to skip the hook, and gate.sh already skips the call.
+  test "gate.local.sh fails instead of reporting green without nim":
+    let fixture = newFixture("gate-local-nonim")
+    defer: removeDir(fixture.root)
+    removeFile(fixture.binDir / "nim")
+    # gate.sh runs the hook as `sh <path>`; the file is not executable on
+    # purpose, so the test invokes it the same way.
+    let result = fixture.runShell("/bin/sh",
+      @[fixture.root / "task.d" / "gate.local.sh"])
+    check result.exitCode == 1
+    check result.stderr.contains("nim not on PATH")
+    check result.stderr.contains("./task gate --no-hook")
+
+  test "gate.local.sh no longer reports green by itself when nim is missing":
+    ## The old file printed "static checks skipped here" and exited 0, which is
+    ## why the probe that used to pass now fails.
+    let fixture = newFixture("gate-local-old")
+    defer: removeDir(fixture.root)
+    removeFile(fixture.binDir / "nim")
+    let result = fixture.runShell("/bin/sh",
+      @[fixture.root / "task.d" / "gate.local.sh"])
+    check not result.stdout.contains("static checks skipped here")
+
   test "verify.sh refuses a module with no tests directory":
     let fixture = newFixture("verify-missing")
     defer: removeDir(fixture.root)
@@ -122,6 +147,27 @@ suite "task target guards":
     let result = fixture.runTask(@["audit-retention"])
     check result.exitCode != 0
     check result.stderr.contains("MAJADU_AUDIT_DSN is required")
+  test "e2e.sh pins both previews and bounds readiness once":
+    ## REL-QA-11: without `--strictPort` vite answers on the next free port, so a
+    ## preview left over from an earlier run keeps 5173 and the suite drives the
+    ## wrong build. REL-QA-12: four independent 20s loops per server added up to
+    ## a worst case the 15-minute job could not absorb.
+    let script = readFile(repoDir / "task.d" / "e2e.sh")
+    var previews = 0
+    for line in script.splitLines:
+      if "vite preview" in line:
+        inc previews
+    check previews == 2
+    # Both previews pin their port: the flag sits on the same wrapped line as
+    # each `--port`.
+    check script.contains("--port \"$WEB_PORT\" --strictPort")
+    check script.contains("--port \"$SCOREBOARD_PORT\" --strictPort")
+    check script.contains("READY_DEADLINE=")
+    check script.contains("wait_for_url")
+    # One budget, not one per probe: the deadline is computed once and every
+    # probe compares against it.
+    check script.count("READY_DEADLINE=$(( ") == 1
+
   test "docs-check refuses a stale migration count":
     let fixture = newFixture("docs-check-stale")
     defer: removeDir(fixture.root)

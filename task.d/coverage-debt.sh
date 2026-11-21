@@ -23,9 +23,13 @@ tmp="$REPO_ROOT/.cache/$WORKTREE/coverage-debt.$$"
 mkdir -p "$REPO_ROOT/.cache/$WORKTREE"
 : >"$tmp.low"
 : >"$tmp.entries"
+: >"$tmp.raw"
 
-# The manifest is one flat object per line, like the quarantine register, so it
-# is read with awk instead of a JSON library.
+# The entries are read structurally by `json_array_objects` (REL-QA-05). The
+# per-line match this gate used before lost an entry that wrapped onto a second
+# physical line, and reported its file as having no exception at all.
+json_array_objects "$manifest" entries "$tmp.raw" || status=1
+
 awk -v out="$tmp.entries" '
   function stringField(line, key,   pattern, start, rest) {
     pattern = "\"" key "\"[[:space:]]*:[[:space:]]*\""
@@ -35,19 +39,20 @@ awk -v out="$tmp.entries" '
     if (!match(rest, /"/)) return ""
     return substr(rest, 1, RSTART - 1)
   }
-  /\{[[:space:]]*"path"[[:space:]]*:/ {
+  {
+    if ($0 ~ /^[[:space:]]*$/) next
     path = stringField($0, "path")
     owner = stringField($0, "owner")
     expires = stringField($0, "expires")
     if (path == "" || owner == "" || expires == "") {
-      printf "coverage-debt: malformed entry at line %d (path, owner and expires are required)\n", NR > "/dev/stderr"
+      printf "coverage-debt: malformed entry %d in docs/handbook/coverage-debt.json (path, owner and expires are required)\n", NR > "/dev/stderr"
       bad = 1
       next
     }
     printf "%s\t%s\t%s\n", path, owner, expires > out
   }
   END { exit bad ? 1 : 0 }
-' "$manifest" || status=1
+' "$tmp.raw" || status=1
 
 for baseline in "$REPO_ROOT"/coverage-baseline-*.json; do
   [ -f "$baseline" ] || continue
@@ -94,7 +99,7 @@ while IFS="$(printf '\t')" read -r path owner expires; do
   fi
 done <"$tmp.entries"
 
-rm -f "$tmp.low" "$tmp.entries"
+rm -f "$tmp.low" "$tmp.entries" "$tmp.raw"
 
 if [ "$status" -ne 0 ]; then
   printf 'coverage-debt: failed\n' >&2
