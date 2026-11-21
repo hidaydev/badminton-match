@@ -939,6 +939,10 @@ suite "release rollback":
     defer: removeDir(fixture.root)
     fixture.installFake("podman", releaseRollbackPodman)
     fixture.installFake("curl", releaseRollbackCurl)
+    # REL-CI-03: the script now takes the shared .deploy.lock every sibling
+    # takes, so the fixture has to answer flock like the restore and cutover
+    # cases do.
+    fixture.installFake("flock", flockFake)
     let log = fixture.root / "systemctl.log"
     fixture.installFake("systemctl", systemctlLogFake)
     let state = fixture.root / "deploy"
@@ -964,6 +968,7 @@ suite "release rollback":
     let fixture = newFixture("release-rollback-noprev")
     defer: removeDir(fixture.root)
     fixture.installFake("podman", "#!/bin/sh\ncase \"$*\" in \"image exists \"*) exit 1 ;; esac\nexit 0\n")
+    fixture.installFake("flock", flockFake)
     let log = fixture.root / "systemctl.log"
     fixture.installFake("systemctl", systemctlLogFake)
     touch(fixture.root / "deploy" / "last-release.json",
