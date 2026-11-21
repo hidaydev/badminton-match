@@ -729,11 +729,15 @@ suite "problem-code reachability: config, rating and tournaments":
       "NOT_FOUND", "rating event not found")
 
   test "share refusals":
-    # SEC-09: a code may only name an approved session, and the refusal names
-    # the status instead of minting a link for an unfinished session.
+    # SEC-09 as amended 2026-11-21: a draft is shareable (the host hands the
+    # link out on the day), so the only refused status left is a finished
+    # season, and the refusal still names the status instead of minting a code.
+    discard database.execUpdate(
+      "update session.sessions set status = 'archived' where id = $1::uuid",
+      @[textParam(sessDraft)])
     requireRow("draftshare", "POST", "/c/" & slug & "/sessions/" & sessDraft &
       "/share", adminCookie, "", 409, "SESSION_NOT_SHAREABLE",
-      "session status is draft; only an approved session is shareable")
+      "session status is archived; an archived session is not shareable")
 
   test "tournament refusals":
     requireRow("invalid", "POST", "/c/" & slug & "/tournaments", hostCookie,

@@ -227,7 +227,7 @@ are written, so an unknown zone is rejected as `400`, not stored.
 | Realtime | `ws.max_watchers_per_session` (`50`), `ws.max_watchers_per_ip` (`20`), `ws.max_watchers_process` (`500`), `ws.ticket_ttl_seconds` (`60`) |
 | Login sessions | `session.absolute_days` (`30`), `session.idle_days` (`7`), `session.slot_minutes_default` (`30`), `auth.flow_ttl_minutes` (`10`) |
 | Scoring format | `session.scoring_presets` (three presets, below), `session.default_scoring_preset` (`majadu30`) |
-| Public links | `share.link_ttl_days` (`30`) |
+| Public links | `share.link_ttl_days` (`30`, but a link minted while the session is still a draft is capped at 48 hours) |
 | Retention | `janitor.retention_days` (`30`), `audit.retention_days` (`365`) |
 
 The table lists all 36 keys in `allKeys`; `session.scoring_presets` holds the selectable

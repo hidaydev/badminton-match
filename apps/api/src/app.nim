@@ -1181,22 +1181,27 @@ proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
   if status.isNone:
     problem(request, 404, "NOT_FOUND", "session not found")
     return
-  # A code hands the session to anyone holding it, so it may only name a
-  # session the community has approved. A draft would publish an unfinished
-  # schedule and standings for the whole TTL.
+  # A code hands the session to anyone holding it. A session still in draft is
+  # shareable now, because the host hands the link out on the day and fills the
+  # scores in while people watch; a finished season (`archived`) is not, since a
+  # code would keep publishing it for the rest of its TTL.
   if not shareStore.shareable(status.get):
     problem(request, 409, "SESSION_NOT_SHAREABLE",
       "session status is " & status.get &
-      "; only an approved session is shareable")
+      "; an archived session is not shareable")
     return
+  # A link minted while the session is a draft is capped short: the schedule it
+  # serves is still being edited, so the code must not outlive the day it was
+  # handed out. Once the session is approved the configured TTL applies.
+  let configuredTtl = snapshot.intValue(%*{}, keyShareLinkTtlDays)
+  let ttlDays = shareStore.linkTtlDays(status.get, configuredTtl)
   # Issuing a link revokes the previous one in the same transaction, so its
   # watchers and their tickets go too.
   let previous = shareStore.unrevokedLinks(database(), ctx.communityId, sessionId)
   var code = ""
   auditedWrite(proc(tx: Db, conn: DbConn) =
     code = shareStore.issue(tx, application.keyring,
-      ctx.communityId, sessionId, user.id,
-      snapshot.intValue(%*{}, keyShareLinkTtlDays))
+      ctx.communityId, sessionId, user.id, ttlDays)
     auditConn(conn, "share.issue", ctx, user, "session", sessionId,
       %*{"sessionId": sessionId}))
   for linkId in previous:

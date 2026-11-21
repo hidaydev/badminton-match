@@ -232,8 +232,8 @@ suite "security: IDOR":
     check foreignRow.get.get("canonical_name") == "Bravo Player"
 
   test "positive control: a share link issued for A's session resolves":
-    # A share link is minted only for an approved session (SEC-09), so the
-    # control gets one of its own instead of reusing the draft fixture.
+    # The control gets a locked session of its own instead of reusing the draft
+    # fixture, so the share path is exercised on a finished session (SEC-09).
     let sharedSession = newSession(database, clubId, "Alpha Shared",
       status = "locked", approved = true)
     let issued = call(baseUrl, HttpPost,

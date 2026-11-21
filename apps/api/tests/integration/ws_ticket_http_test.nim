@@ -83,8 +83,9 @@ proc bootstrap() =
   newMember(database, communityId, hostUserId, "host")
   for index, name in ["Watcher One", "Watcher Two", "Watcher Three", "Watcher Four"]:
     players[index] = newPlayer(database, communityId, name)
-  # A share link names an approved session (SEC-09), so the session the share
-  # code below belongs to is locked from the start.
+  # A share link names a session, and a draft now qualifies too (SEC-09 as
+  # amended); this one is locked from the start because the cases below revoke
+  # it and expect the finished shape.
   sessionId = newSession(database, communityId, "Session", "2026-11-03",
     status = "locked", approved = true)
   foreignSessionId = newSession(database, otherCommunityId, "Foreign",

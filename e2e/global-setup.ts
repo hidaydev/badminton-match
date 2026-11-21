@@ -248,10 +248,10 @@ export default async function globalSetup(config: FullConfig) {
     version = await playGame(api, 'e2e-club', sessionId, '0-0', { scoreA: 30, scoreB: 24 }, version)
     if (version !== 3) throw new Error(`pinned session version: ${version}`)
 
-    // SEC-09 shares only an approved session, and approval is the lock, so the
-    // spectator fixture is its own session: locking the pinned one would take
-    // the continue-card off the home screen and freeze every baseline that
-    // expects a draft. The same games keep the shared page worth looking at.
+    // The spectator fixture is its own session: the shared page wants a code
+    // that outlives the day, and this one is locked so it shows a finished
+    // session. Locking the pinned one would take the continue-card off the home
+    // screen and freeze every baseline that expects a draft.
     const shareSession = await api.post('/api/c/e2e-club/sessions', {
       data: {
         title: 'E2E Approved Wednesday',

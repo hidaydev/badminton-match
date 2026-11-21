@@ -621,3 +621,34 @@ limit in the tool's header comment instead of pretending the gap is closed.
 **Reopener:** the dispatch table becomes declarative (each route names its
 operation in one place the request path also reads). Then binding is mechanical
 and this ADR's limit stops applying.
+
+## ADR-021 · A draft session is shareable, for 48 hours
+
+**Date:** 2026-11-21
+**Audit finding:** none; found in production on the day of play
+**Status:** Accepted
+
+**Decision:** `shareable` now accepts `draft`, and only `archived` is refused.
+A code minted while the session is still a draft expires after
+`share.store.draftLinkTtlDays` (2 days) regardless of `share.link_ttl_days`; a
+code minted after approval keeps the configured TTL.
+
+**Reason:** SEC-09 read "only an approved session is shareable" as a security
+rule, and it was one only because approval and the lock are the same write. The
+cost landed on the product: a host could not hand the link out on the day, fill
+scores in while the squad watched, because the link only existed after Finish,
+which is the step that also rates the session and freezes it. The schedule a
+spectator reads is the schedule as it stands, live from the database, so a draft
+link shows scores as they are entered, which is what a club actually wants from
+it.
+
+The public payload is unchanged: `/s/{code}` is a GET, it carries no ids, and
+the page renders read-only for anyone without a membership. The risk the old
+rule bounded was a code forwarding an unfinished schedule for a month, so the
+cap bounds it by time instead: 48 hours, which is longer than any session and
+shorter than a season.
+
+**Reopener:** a share link that must survive past its session, for example a
+season page, gets its own object with its own TTL rather than borrowing this
+one. If a draft link leaks and the community wants it dead before the TTL, the
+existing revoke path (`DELETE /c/{slug}/sessions/{id}/share`) is unchanged.

@@ -44,7 +44,8 @@ proc bootstrap() =
   let hostId = newUser(database, "sharekey-host", hostEmail, "Host")
   newMember(database, communityId, hostId, "host")
   hostCookie = cookieFor(database, hostId)
-  # Only an approved session carries a share link (SEC-09).
+  # A share link may name a locked session (SEC-09), which is the case this
+  # suite pins so the key problem is the only thing under test.
   sessionId = newSession(database, communityId, "Share Key Session",
     status = "locked", approved = true)
   liveCode = shareStore.issue(database, loadKeyring(twoKeys, "2"), communityId,

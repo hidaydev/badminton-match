@@ -59,23 +59,22 @@ suite "share links":
     check found.get.sessionId == sessionId
     check found.get.slug == "share-test"
 
-  test "only an approved session resolves through its code":
-    ## SEC-09: a code minted while the session was approved must stop answering
-    ## as soon as the session leaves the shareable set, without waiting for the
-    ## TTL. `resolve` is the single gate every public read shares.
+  test "a draft resolves through its code; only an archived session stops it":
+    ## SEC-09 as amended 2026-11-21: a draft is shareable, so a code minted
+    ## against it answers. What must stop at once is a session that leaves the
+    ## shareable set, which is now `archived` alone. `resolve` is the single
+    ## gate every public read shares.
+    check shareable("draft")
     check shareable("locked")
     check shareable("published")
     check shareable("completed")
-    check not shareable("draft")
     check not shareable("archived")
     let code = issue(db, keyring, communityId, sessionId, userId, 30)
     check resolve(db, keyring, code).isSome
-    for status in ["draft", "archived"]:
-      checkpoint(status)
-      discard db.execUpdate(
-        "update session.sessions set status = $2 where id = $1::uuid",
-        @[textParam(sessionId), textParam(status)])
-      check resolve(db, keyring, code).isNone
+    discard db.execUpdate(
+      "update session.sessions set status = 'archived' where id = $1::uuid",
+      @[textParam(sessionId)])
+    check resolve(db, keyring, code).isNone
 
 
   test "the same code cannot be resolved across communities":

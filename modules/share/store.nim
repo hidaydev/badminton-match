@@ -37,16 +37,30 @@ proc keyProblem(linkId: string): ref ShareKeyProblem =
 ## free the index.
 const liveLinkSql = "revoked_at is null and (expires_at is null or expires_at > now())"
 
-const shareableStatusSql* = "('locked', 'published', 'completed')"
-  ## What a link may serve: an approved session that is still in play. `locked`
-  ## is the status approval writes, so it is the normal case; `draft` is
-  ## unfinished and `archived` means the season is over, and neither keeps
-  ## answering through a code minted earlier.
+const shareableStatusSql* = "('draft', 'locked', 'published', 'completed')"
+  ## What a link may serve: a session that is still in play, whether or not it
+  ## has been approved yet. `draft` was excluded until 2026-11-21, which left a
+  ## host unable to hand out the link on the day and fill scores in while people
+  ## watched; the board a draft shows is still moving, so `draftLinkTtlDays`
+  ## bounds how long such a link lives. `archived` means the season is over and
+  ## keeps answering through no code.
 
 proc shareable*(status: string): bool =
   ## The Nim form of `shareableStatusSql`, so minting and resolving read one
   ## list instead of two.
-  status in ["locked", "published", "completed"]
+  status in ["draft", "locked", "published", "completed"]
+
+const draftLinkTtlDays* = 2
+  ## 48 hours, the cap for a link minted while the session is a draft. The
+  ## configured `share.link_ttl_days` (30) is the TTL of a link minted once the
+  ## session is approved; a draft's schedule is still being edited, so the code
+  ## must not outlive the day it was handed out. Finishing the session does not
+  ## extend it: rotate the link to get the full TTL.
+
+proc linkTtlDays*(status: string, configuredDays: int): int =
+  ## The one place the cap is decided, so a test can hold it without a database.
+  if status == "draft": min(configuredDays, draftLinkTtlDays)
+  else: configuredDays
 
 proc aadFor(communityId, linkId: string): string =
   ## Binds a ciphertext to the exact row and community it was minted for.

@@ -393,9 +393,9 @@ suite "session schedule HTTP":
     let memberItems = parseJson(boardBody)["items"]
     check memberItems.len == 3
 
-    # A code may only name an approved session (SEC-09). This case is about the
-    # public board matching the member board, so it stamps the approval the host
-    # performs after scoring instead of driving the rating gate again.
+    # This case is about the public board matching the member board, so it
+    # stamps the approval the host performs after scoring instead of driving the
+    # rating gate again (a draft would be shareable too, SEC-09 as amended).
     discard database.execUpdate(
       """update session.sessions set status = 'locked', approved_at = now()
          where id = $1::uuid""", @[textParam(sessionId)])

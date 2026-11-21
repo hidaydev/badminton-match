@@ -15,8 +15,8 @@ export type E2eState = {
   playerId: string
   playerName: string
   /**
-   * A live share link. SEC-09 only shares an approved session, so this code
-   * belongs to its own locked session rather than the draft the visuals pin.
+   * A live share link. This code belongs to its own locked session rather than
+   * the draft the visuals pin, so the shared page shows a finished session.
    */
   shareCode: string
   shareTitle: string
