@@ -13,8 +13,8 @@
 # request-serving secrets the API unit loads.
 [Unit]
 Description=Majadu daily rank snapshot
-Wants=network-online.target
-After=network-online.target majadu-api.service
+Wants=network-online.target qouver-postgres.service
+After=network-online.target qouver-postgres.service majadu-api.service
 OnFailure=majadu-alert@%N.service
 
 [Service]

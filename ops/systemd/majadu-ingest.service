@@ -10,8 +10,8 @@
 # so it must not be able to see them.
 [Unit]
 Description=Majadu rating ingest tick
-Wants=network-online.target
-After=network-online.target majadu-api.service
+Wants=network-online.target qouver-postgres.service
+After=network-online.target qouver-postgres.service majadu-api.service
 OnFailure=majadu-alert@%N.service
 
 [Service]

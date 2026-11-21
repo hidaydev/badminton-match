@@ -13,8 +13,8 @@
 # unit instead of a silently missing dump.
 [Unit]
 Description=Majadu nightly database dump
-Wants=network-online.target
-After=network-online.target
+Wants=network-online.target qouver-postgres.service
+After=network-online.target qouver-postgres.service
 OnFailure=majadu-alert@%N.service
 
 [Service]

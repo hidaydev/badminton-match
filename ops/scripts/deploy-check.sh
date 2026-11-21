@@ -63,9 +63,57 @@ deployed=""
 [ -f "$STATE_DIR/deployed-version" ] &&
   deployed=$(tr -d '[:space:]' <"$STATE_DIR/deployed-version")
 
+# REL-DEP-01: the version string alone cannot tell whether the running commit is
+# the release. A hotfix merged after the tag keeps VERSION unchanged, so this
+# check used to report "matches" while the host served code the release never
+# contained -- and a rollback decided from /version would pick the wrong tree.
+# The comparison is "at or after the tag", not equality: this repo deploys
+# `main`, so a deployed revision ten commits past the tag is normal. Anything
+# that is not a descendant (diverged, or older than the tag) is drift.
+gh_get() {
+  if [ "${#auth[@]}" -gt 0 ]; then
+    curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" "${auth[@]}" \
+      "https://api.github.com/repos/$GITHUB_REPO/$1" <<EOF 2>/dev/null || true
+header = "Authorization: Bearer $token"
+EOF
+  else
+    curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
+      "https://api.github.com/repos/$GITHUB_REPO/$1" 2>/dev/null || true
+  fi
+}
+
+rev_status="unknown"
+deployed_rev=""
+[ -f "$STATE_DIR/deployed-rev" ] &&
+  deployed_rev=$(tr -d '[:space:]' <"$STATE_DIR/deployed-rev")
+
+if [ "$deployed" = "$latest" ] && [ -n "$deployed_rev" ]; then
+  tag_commit=$(gh_get "commits/v$(printf '%s' "$latest")" |
+    sed -n 's/.*"sha":[[:space:]]*"\([0-9a-f]\{40\}\)".*/\1/p' | head -1 || true)
+  if [ -n "$tag_commit" ]; then
+    rev_status=$(gh_get "compare/${tag_commit}...${deployed_rev}" |
+      sed -n 's/.*"status":[[:space:]]*"\([a-z]*\)".*/\1/p' | head -1 || true)
+  fi
+fi
+
 if [ "$deployed" = "$latest" ]; then
-  log "deployed version $deployed matches the latest release"
-  exit 0
+  case "$rev_status" in
+    ahead|identical)
+      log "deployed version $deployed matches the latest release; rev $deployed_rev is $rev_status of the v$latest tag"
+      exit 0
+      ;;
+    diverged|behind)
+      log "ERROR: latest release is v$latest but the deployed rev $deployed_rev is $rev_status the tag, not at or after it"
+      alert
+      exit 1
+      ;;
+    *)
+      # The comparison is best effort: an API hiccup must not page, or a rate
+      # limit would look like drift. The version match alone is the gate.
+      log "deployed version $deployed matches the latest release (rev comparison unavailable: ${rev_status})"
+      exit 0
+      ;;
+  esac
 fi
 
 # A webhook delivery is in flight until one hour has passed since the last

@@ -8,8 +8,12 @@
 # (deploy-vps.sh refuses to run when it can be read by anyone else).
 [Unit]
 Description=Majadu API (prod, schema bm2 after the cutover)
-After=network-online.target
-Wants=network-online.target
+# network-online.target says the network is up, not that PostgreSQL is listening.
+# Without this ordering the API dies on the first query after every reboot, is
+# restarted ~4 s later by Restart=on-failure, and serves 502 in between (measured
+# on the 2026-11-20 22:06 and 2026-11-21 09:19 boots).
+Wants=network-online.target qouver-postgres.service
+After=network-online.target qouver-postgres.service
 # A crash loop must page someone instead of filling the disk quietly. The limit
 # is on the unit, so Restart=on-failure stops retrying after five attempts in
 # five minutes instead of spinning forever.

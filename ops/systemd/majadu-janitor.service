@@ -10,12 +10,16 @@
 # keyring are not in its environment.
 [Unit]
 Description=Majadu janitor (expired temporary rows)
-Wants=network-online.target
-After=network-online.target
+Wants=network-online.target qouver-postgres.service
+After=network-online.target qouver-postgres.service
 OnFailure=majadu-alert@%N.service
 
 [Service]
 Type=oneshot
+# A hung janitorcli never exits, so without this the unit sits `activating`
+# forever: it never fails, never pages, and the timer's next fire is skipped
+# as "still running".
+TimeoutStartSec=1800
 # --entrypoint selects the tool: the image ENTRYPOINT is the API.
 ExecStart=/usr/bin/podman run --rm --pull=never --network=qouver \
   --env-file=/srv/qouver/apps/majadu/env/majadu-tools.env \
