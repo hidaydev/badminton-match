@@ -170,7 +170,11 @@ If the rollback itself fails, do not rerun the cutover: recover by hand from
 - [ ] The last `bm2` dump was restored into a scratch database, `bm2_app` read
       `select 1 from platform.community`, `select count(*) from
       dbtools.schema_migrations` matched the file count, and `dbtools verify`
-      exited 0.
+      exited 0. `restore.sh` now re-applies `ops/db/roles.sql` and refuses to
+      report success when `pg_default_acl` is empty, so this checkbox cannot
+      pass on a database that only works until the next migration. Take the dump
+      as `bm2_owner`: a dump's `alter default privileges for role ...` only
+      applies when the restoring role is the role that took the dump.
 - [ ] The first session created by a real user shows up on the leaderboard.
 - [ ] `rating.snapshots` gained yesterday's date
       (`select max(taken_on) from rating.snapshots`), and the arrows on the
