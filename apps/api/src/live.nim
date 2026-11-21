@@ -259,6 +259,16 @@ proc revokeShare*(hub: LiveHub, linkId: string) =
   discard ws_ticket.revokeShare(hub.db, linkId)
   hub.closeChannel(channelShare(linkId), revokedFrame)
 
+proc revokeSharesAfterCommit*(hub: LiveHub, linkIds: seq[string]) =
+  ## REL-BE-09: the delete already removed the links and their tickets in one
+  ## transaction, so this only closes the sockets. No pooled checkout happens
+  ## here: the tickets are gone with the rows, and a crash between the commit and
+  ## this loop costs a watcher a 401 on its next frame, never a live ticket for a
+  ## link that no longer exists.
+  for linkId in linkIds:
+    if linkId.len > 0:
+      hub.closeChannel(channelShare(linkId), revokedFrame)
+
 proc dispatch*(hub: LiveHub, ws: WebSocket, event: WebSocketEvent,
                message: Message) =
   case event

@@ -176,6 +176,13 @@ proc recordShareKeyProblem*() =
   withLock registryLock:
     registry.inc("share_key_problems_total")
 
+proc recordRatingJobFailed*() =
+  ## REL-BE-05: one rating rebuild attempt raised. Counted per attempt, so a
+  ## rebuild that fails and then succeeds on its retry still shows as instability
+  ## instead of a healthy silence; the give-up case has its own log line.
+  withLock registryLock:
+    registry.inc("rating_jobs_failed")
+
 proc renderServerLog*(level: mummy.LogLevel,
                       args: openArray[string]): string =
   ## mummy's own lines ("Handler exception", "Dropped connection, body too

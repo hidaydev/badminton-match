@@ -67,7 +67,7 @@ suite "session store":
   test "list marks the current session":
     let keep = createSession(db, userId, 30)
     discard createSession(db, userId, 30)
-    let rows = listSessions(db, userId, keep)
+    let rows = listSessions(db, userId, keep, 500)
     check rows.len == 2
     var current = 0
     for row in rows:

@@ -800,7 +800,12 @@ proc listAuthSessions(request: Request, snapshot: Snapshot) =
   let user = requireUser(request, snapshot)
   if user.isNone: return
   var items = newJArray()
-  for row in listSessions(database(), user.get.id, user.get.token):
+  # REL-BE-10: the same configured cap `pageParams` applies to every other list
+  # route. A device past the cap drops off this page; it is still a live session
+  # and still listed by `revoke others`, which is the only action this route
+  # offers.
+  let cap = snapshot.intValue(%*{}, keyApiPageSizeMax)
+  for row in listSessions(database(), user.get.id, user.get.token, cap):
     items.add(%*{"id": row.id, "createdAt": row.createdAt,
       "lastSeenAt": row.lastSeenAt, "current": row.current})
   jsonResponse(request, 200, %*{"items": items})
@@ -2324,20 +2329,30 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
   if ratingIngest.sourceFinalized(database(), ctx.communityId, sessionId):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
-  # The links go with the session, so their watchers have to be told before the
-  # rows they point at are gone.
-  let links = shareStore.liveLinks(database(), ctx.communityId, sessionId)
+  # The links go with the session, so their ids are collected inside the delete's
+  # own transaction (REL-BE-09): nothing is checked out before it, and the ticket
+  # cleanup joins the same commit.
   # Delete and revert in one transaction. The ledger replay that follows is a
   # worker job, because holding this transaction open for it is what made a
   # delete as expensive as the community's whole history.
   var outcome = sessionWrite.dsDeleted
   var removed = 0
+  var links: seq[string] = @[]
   database().tx(proc(conn: DbConn) =
+    # REL-BE-09: the link ids are read on this transaction's connection, inside
+    # the same statement set that removes them, so the set is exactly what the
+    # delete took and the ticket cleanup is one statement on one round trip.
+    # Revoking them here (not after the commit) is what stops a crash from
+    # leaving valid tickets for links that no longer exist; only closing the
+    # sockets has to wait for the commit.
+    links = shareStore.liveLinks(database().boundTo(conn), ctx.communityId,
+      sessionId)
     outcome = sessionWrite.removeConn(conn, ctx.communityId, sessionId,
       ctx.role == rAdmin)
     if outcome == sessionWrite.dsDeleted:
       removed = ratingIngest.revertSourceConn(conn, ctx.communityId, sessionId)
       discard ratingIngest.dropSourceConn(conn, ctx.communityId, sessionId)
+      discard wsTicket.revokeShares(database().boundTo(conn), links)
       auditConn(conn, "session.delete", ctx, user, "session", sessionId,
         %*{"removedDeltas": removed}))
   case outcome
@@ -2351,8 +2366,9 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
     if removed > 0:
       discard application.ratingJobs.enqueue(ratingJobs.jkRebuild,
         ctx.communityId)
-  for linkId in links:
-    application.hub.revokeShare(linkId)
+    # Only a delete that landed closed the watchers: a refusal leaves the links
+    # live, and their tickets were never revoked.
+    application.hub.revokeSharesAfterCommit(links)
   send(request, 204)
 
 proc patchRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
@@ -3846,7 +3862,12 @@ proc secureCookies(oidc: OidcConfig): bool =
 
 proc newApp*(db: Db, oidc: OidcConfig, keyring: Keyring,
              config: ConfigCache): App =
-  let jobs = newRatingJobs(db)
+  # REL-BE-05: the worker hands a failed rebuild to the process registry, so the
+  # failure reaches `rating_jobs_failed` instead of only the journal. The
+  # callback keeps that dependency pointing the right way: the rating module
+  # never imports the API edge's metrics.
+  let jobs = newRatingJobs(db, proc(_: ratingJobs.JobKind, _: string) =
+    recordRatingJobFailed())
   result = App(db: db, oidc: oidc, keyring: keyring, config: config,
       limiter: newLimiter(),
       identityCache: newIdentityCache(),
