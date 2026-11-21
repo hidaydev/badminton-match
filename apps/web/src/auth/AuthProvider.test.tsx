@@ -96,6 +96,66 @@ describe('AuthProvider session lifecycle', () => {
     expect(window.localStorage.getItem('badminton-store') ?? '').not.toContain('Host One draft')
   })
 
+  // REL-FE-05: the suite above never reached the retry ladder's failure arm.
+  // Without a network, an installed app used to show the sign-in screen after
+  // 12s, telling a signed-in player to sign in to a button that cannot work.
+  it('stays loading offline and signs in only on the browser online event', async () => {
+    vi.useFakeTimers()
+    try {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      let online = false
+      mockFetch({
+        'GET /api/auth/me': () => {
+          // A transport failure: no response arrived at all.
+          if (!online) throw new TypeError('Failed to fetch')
+          return { body: FIRST_HOST }
+        },
+        'GET /api/communities': () => {
+          if (!online) throw new TypeError('Failed to fetch')
+          return { body: MEMBERSHIPS }
+        },
+      })
+
+      renderAuth(client)
+      // Walk past the whole backoff ladder (1s + 3s + 8s).
+      await act(async () => { await vi.advanceTimersByTimeAsync(20_000) })
+
+      // Still the shell's loading state, not the sign-in screen.
+      expect(screen.getByText('loading')).toBeInTheDocument()
+      expect(screen.queryByText('signed out')).not.toBeInTheDocument()
+
+      // The browser comes back; the shell decides again without a reload.
+      online = true
+      await act(async () => {
+        window.dispatchEvent(new Event('online'))
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(screen.getByText('Host One')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // The 401 branch has to stay first: a genuinely expired cookie is a
+  // definitive answer even when the network is fine.
+  it('still reaches the sign-in screen on a 401', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    mockFetch({
+      'GET /api/auth/me': () => ({
+        status: 401,
+        body: { status: 401, code: 'UNAUTHENTICATED', detail: 'no cookie' },
+      }),
+      'GET /api/communities': () => ({
+        status: 401,
+        body: { status: 401, code: 'UNAUTHENTICATED', detail: 'no cookie' },
+      }),
+    })
+
+    renderAuth(client)
+
+    expect(await screen.findByText('signed out')).toBeInTheDocument()
+  })
+
   it('drops the origin-wide image cache when the session ends', async () => {
     const remove = vi.fn(async () => true)
     const original = Object.getOwnPropertyDescriptor(globalThis, 'caches')
