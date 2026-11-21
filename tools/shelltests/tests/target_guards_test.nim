@@ -49,6 +49,81 @@ suite "task target guards":
     check result.stderr.contains("no test suite matched under apps modules shared tools")
     check not result.stdout.contains("test: ok")
 
+  # REL-QA-08: order dependence had no detector that could fire. The comparison
+  # needed a second file from a second job in a cache no workflow shared, and the
+  # caller swallowed its exit status. `--order-check` runs both orderings here
+  # and fails on the difference.
+  test "test.sh --order-check names a suite that only passes in one order":
+    let fixture = newFixture("test-order-check")
+    defer: removeDir(fixture.root)
+    # A `nim` that makes the binary's behaviour depend on the suite's name, so
+    # the fixture has a real order dependence without a compiler: `b` leaves a
+    # marker, `a` fails only when the marker is already there.
+    writeExecutable(fixture.binDir / "nim", orderDependenceNim)
+    let marker = fixture.root / "order-marker"
+    touch(fixture.root / "apps" / "api" / "tests" / "a_test.nim")
+    touch(fixture.root / "apps" / "api" / "tests" / "b_test.nim")
+    let shared = @[("ALLOW_SHARED_DB", "1"),
+      ("MAJADU_PG_DSN", "postgresql://u@127.0.0.1:5432/bm2_test"),
+      ("ORDER_MARKER", marker)]
+
+    # The old behaviour, and the regression guard: a plain forward run is green,
+    # because `a` runs before `b` and nothing has leaked yet.
+    removeFile(marker)
+    let forward = fixture.runTask(@["test"], extraEnv = shared)
+    check forward.exitCode == 0
+    check forward.stdout.contains("test: ok")
+
+    # The same tree, asked for the order check: both orderings run, and the
+    # reversed one starts with `b`, so `a` then fails on the marker.
+    removeFile(marker)
+    let checked = fixture.runTask(@["test", "--order-check"], extraEnv = shared)
+    check checked.exitCode == 1
+    check checked.stderr.contains(
+      "apps/api/tests/a_test.nim (passed in the sorted order, failed reversed)")
+    check checked.stderr.contains("order dependence: apps/api/tests/a_test.nim")
+    check not checked.stdout.contains("test: ok")
+
+  test "test.sh --order-check passes when every suite is independent":
+    let fixture = newFixture("test-order-clean")
+    defer: removeDir(fixture.root)
+    writeExecutable(fixture.binDir / "nim", orderDependenceNim)
+    let marker = fixture.root / "order-marker"
+    touch(fixture.root / "apps" / "api" / "tests" / "b_test.nim")
+    let result = fixture.runTask(@["test", "--order-check"], extraEnv = @[
+      ("ALLOW_SHARED_DB", "1"),
+      ("MAJADU_PG_DSN", "postgresql://u@127.0.0.1:5432/bm2_test"),
+      ("ORDER_MARKER", marker),
+    ])
+    check result.exitCode == 0
+    check result.stdout.contains(
+      "isolation: no suite changes its result when the run order is reversed")
+    check result.stdout.contains("test: ok")
+
+  test "test.sh --order-check still reports a suite broken in both orders":
+    let fixture = newFixture("test-order-broken")
+    defer: removeDir(fixture.root)
+    # `c` exits 3 whatever the order is: that is an ordinary failure, not an
+    # order dependence, and the message must not blame the ordering.
+    writeExecutable(fixture.binDir / "nim", alwaysFailingNim)
+    touch(fixture.root / "apps" / "api" / "tests" / "c_test.nim")
+    let result = fixture.runTask(@["test", "--order-check"], extraEnv = @[
+      ("ALLOW_SHARED_DB", "1"),
+      ("MAJADU_PG_DSN", "postgresql://u@127.0.0.1:5432/bm2_test"),
+    ])
+    check result.exitCode == 1
+    check result.stderr.contains("c_test.nim failed (exit 3) in both run orders")
+    check not result.stderr.contains("order dependence:")
+
+  test "test.sh refuses --reverse together with --order-check":
+    let fixture = newFixture("test-order-conflict")
+    defer: removeDir(fixture.root)
+    let result = fixture.runTask(@["test", "--reverse", "--order-check"],
+      extraEnv = @[("ALLOW_SHARED_DB", "1"),
+        ("MAJADU_PG_DSN", "postgresql://u@127.0.0.1:5432/bm2_test")])
+    check result.exitCode == 1
+    check result.stderr.contains("--reverse and --order-check")
+
   test "check.sh rejects an unknown argument":
     let fixture = newFixture("check-arg")
     defer: removeDir(fixture.root)

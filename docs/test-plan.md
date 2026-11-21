@@ -42,6 +42,13 @@ database-backed and integration layers. A suite under `tests/integration/` is
 only run when a DSN is present, and the runner says how many suites it ran
 instead of implying the whole tree.
 
+Suites are run in sorted order by default. `./task test --order-check` runs the
+same list forward and then back to front inside one invocation and fails when a
+suite changes its result between the two; that is the only thing that finds a
+suite leaning on a neighbour, and `nightly.yml` runs it. The forward walk inside
+that check is not a second gate: `--order-check` is opt-in, and a plain
+`./task test` is unchanged.
+
 ## 3. Risk register
 
 | Module | Risk | Why | Primary suites |

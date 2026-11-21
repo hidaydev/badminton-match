@@ -29,6 +29,49 @@ const execOk* = """#!/bin/sh
 exit 0
 """
 
+const orderDependenceNim* = """#!/bin/sh
+# REL-QA-08: a stand-in `nim` whose binaries depend on the suite's name, so a
+# fixture can hold a real order dependence without a compiler. `b_test.nim`
+# leaves a marker; `a_test.nim` fails only when the marker is already there,
+# which happens exactly when it runs after `b`.
+out=
+src=
+for arg in "$@"; do
+  case "$arg" in
+    -o:*) out=${arg#-o:} ;;
+    *_test.nim) src=$arg ;;
+  esac
+done
+[ -n "$out" ] || exit 0
+mkdir -p "$(dirname "$out")"
+case "$(basename "$src")" in
+  a_test.nim)
+    printf '#!/bin/sh\nif [ -f "$ORDER_MARKER" ]; then\n  echo "leaked state from an earlier suite" >&2\n  exit 1\nfi\nexit 0\n' >"$out" ;;
+  b_test.nim)
+    printf '#!/bin/sh\n: >"$ORDER_MARKER"\nexit 0\n' >"$out" ;;
+  *)
+    printf '#!/bin/sh\nexit 0\n' >"$out" ;;
+esac
+chmod +x "$out"
+exit 0
+"""
+
+const alwaysFailingNim* = """#!/bin/sh
+# A suite that fails whatever order it runs in: the control for the "broken
+# everywhere" message, which must not be reported as an order dependence.
+out=
+for arg in "$@"; do
+  case "$arg" in
+    -o:*) out=${arg#-o:} ;;
+  esac
+done
+[ -n "$out" ] || exit 0
+mkdir -p "$(dirname "$out")"
+printf '#!/bin/sh\nexit 3\n' >"$out"
+chmod +x "$out"
+exit 0
+"""
+
 type
   ShellResult* = object
     exitCode*: int
