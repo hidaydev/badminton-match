@@ -33,6 +33,10 @@ LOCAL_IMAGE="${MAJADU_IMAGE:-localhost/majadu-api}"
 HEALTH_URL="${MAJADU_HEALTH_URL:-http://127.0.0.1:8080}"
 STATE_DIR="${MAJADU_STATE_DIR:-$APP_DIR/deploy}"
 SYSTEMCTL="${MAJADU_SYSTEMCTL_CMD:-systemctl --user}"
+# REL-CI-03: the same lock file every sibling takes (deploy-vps.sh, rollback.sh,
+# restore.sh, cutover.sh, deploy-vps-rc.sh). A rollback that ran beside a deploy
+# retagged :local, restarted the unit and rewrote the state files underneath it.
+LOCK_FILE="$APP_DIR/.deploy.lock"
 LOG="$APP_DIR/logs/release-rollback.log"
 
 install -d -m 700 "$APP_DIR/logs" "$STATE_DIR"
@@ -69,6 +73,11 @@ esac
 
 command -v podman >/dev/null 2>&1 || fail "podman is required"
 command -v curl >/dev/null 2>&1 || fail "curl is required"
+
+exec 9>"$LOCK_FILE"
+if ! flock -w 900 9; then
+  fail "another deploy or cutover holds the lock"
+fi
 
 STATE_FILE="$STATE_DIR/last-release.json"
 [ -f "$STATE_FILE" ] || fail "$STATE_FILE is missing; refusing to guess what is running"

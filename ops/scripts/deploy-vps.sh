@@ -174,11 +174,32 @@ trap 'fail "command failed at line $LINENO"' ERR
 
 # One-shot tool from the image that was just pulled, not from :local: :local may
 # still be the previous release until the rotation step runs.
+#
+# REL-CI-02: every call is bounded. `dbtools migrate` takes
+# `pg_advisory_xact_lock`, which waits forever while another session holds it,
+# and this runs while holding `.deploy.lock`, so an unbounded call turned one
+# wedged lock into a deploy that hung until the next one gave up after 1200 s
+# with no line saying why. `timeout` turns that into a named failure at the call
+# site instead.
+TOOL_TIMEOUT="${MAJADU_TOOL_TIMEOUT:-900}"
+
 run_tool() {
   local entry="$1" dsn="$2"
   shift 2
-  podman run --rm --network "$NETWORK" -e MAJADU_PG_DSN="$dsn" \
+  timeout --signal=TERM --kill-after=30 "$TOOL_TIMEOUT" \
+    podman run --rm --network "$NETWORK" -e MAJADU_PG_DSN="$dsn" \
     --entrypoint "$entry" "$PULLED_ID" "$@"
+}
+
+# 124 is `timeout`'s own exit code for "the command ran out of time". It is
+# reported as its own sentence, because "the migration did not finish in 900 s"
+# (a lock held elsewhere, or a long DDL) reads differently from "the migration
+# failed", and the operator's next move differs.
+tool_timed_out() {
+  local what="$1" status="$2"
+  if [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; then
+    fail "$what did not finish within ${TOOL_TIMEOUT}s and was stopped; $SHORT is not deployed and the running release was left alone (a lock held by another session, or a migration this schema cannot run inside ${TOOL_TIMEOUT}s)"
+  fi
 }
 
 # Fail closed: anything that is not a push to main must not deploy. An empty ref
@@ -194,6 +215,36 @@ if [ "$REPO_NAME" != "badminton-match" ]; then
 fi
 
 log "deploy trigger for $REPO_NAME"
+
+# ---------------------------------------------------------------------------
+# Concurrency: wait up to 15 minutes for the running deploy, never silently drop
+# a release.
+# ---------------------------------------------------------------------------
+# REL-CI-01: the lock is taken before the checkout, not after it. Two deliveries
+# that land close together used to run `git reset --hard` concurrently, so the
+# second one could move the tree between the first one's `git rev-parse` and its
+# read of VERSION and db/migrations; the first deploy then recorded a revision
+# from A next to a schema from B. Everything below this point reads one tree that
+# no other deploy can move.
+#
+# BM-07: one value, used by both the wait and the line that reports it. The two
+# were 1200 and 900, so a timeout claimed a shorter wait than it performed.
+DEPLOY_LOCK_WAIT=1200
+# The self re-exec below replaces this process with the newer copy of this
+# script, and fd 9 survives that `exec` with the lock still attached to the open
+# file description. Re-opening and re-flocking the same file in the new process
+# would block against the lock it inherited, so the re-exec is told the lock is
+# already held and skips the acquisition. The lock therefore spans A -> B
+# without a gap: a second delivery waits on the same flock the whole time.
+if [ "${MAJADU_DEPLOY_LOCK_HELD:-0}" != "1" ]; then
+  exec 9>"$LOCK_FILE"
+  if ! flock -w "$DEPLOY_LOCK_WAIT" 9; then
+    log "another deploy still holds the lock after ${DEPLOY_LOCK_WAIT}s; giving up"
+    exit 1
+  fi
+  MAJADU_DEPLOY_LOCK_HELD=1
+  export MAJADU_DEPLOY_LOCK_HELD
+fi
 
 # ---------------------------------------------------------------------------
 # Checkout: fetch + reset survives a force-push; the old revision is kept only
@@ -226,7 +277,9 @@ fi
 
 # ---------------------------------------------------------------------------
 # Self re-exec: a push that changes this script must deploy with the new logic
-# on that same push. The lock is taken after the new copy is in place.
+# on that same push. The lock was taken above, before the checkout, and it is
+# handed to the new process through MAJADU_DEPLOY_LOCK_HELD rather than
+# re-acquired (see the comment on the lock block).
 # ---------------------------------------------------------------------------
 SELF="$APP_DIR/scripts/deploy-vps.sh"
 REPO_SCRIPT="$MONO_DIR/ops/scripts/deploy-vps.sh"
@@ -250,19 +303,6 @@ if [ "${MAJADU_SKIP_GIT_SYNC:-0}" != "1" ] && [ -f "$REPO_SCRIPT" ] && ! cmp -s 
   fi
   rm -f "$TMP"
   log "WARNING: repository deploy script did not pass bash -n; keeping the current one"
-fi
-
-# ---------------------------------------------------------------------------
-# Concurrency: wait up to 15 minutes for the running deploy, never silently drop
-# a release.
-# ---------------------------------------------------------------------------
-# BM-07: one value, used by both the wait and the line that reports it. The two
-# were 1200 and 900, so a timeout claimed a shorter wait than it performed.
-DEPLOY_LOCK_WAIT=1200
-exec 9>"$LOCK_FILE"
-if ! flock -w "$DEPLOY_LOCK_WAIT" 9; then
-  log "another deploy still holds the lock after ${DEPLOY_LOCK_WAIT}s; giving up"
-  exit 1
 fi
 
 # ---------------------------------------------------------------------------
@@ -525,8 +565,11 @@ fi
 if [ -n "$RELEASE_TAG" ]; then
   log "commit $SHORT carries release $RELEASE_TAG; applying migrations"
   STEP="migrate"
-  if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
-    migrate --dir /app/db/migrations >>"$LOG" 2>&1; then
+  tool_status=0
+  run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
+    migrate --dir /app/db/migrations >>"$LOG" 2>&1 || tool_status=$?
+  tool_timed_out "dbtools migrate" "$tool_status"
+  if [ "$tool_status" -ne 0 ]; then
     fail "dbtools migrate failed; $SHORT is not deployed and the running release was left alone"
   fi
   # DB-06: a registry key with no seeded row boots into a container that cannot
@@ -537,8 +580,11 @@ if [ -n "$RELEASE_TAG" ]; then
   # ordered release step: a missing seed aborts before the deploy claims the
   # database is at the committed schema.
   STEP="seed"
-  if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
-    seed --dir /app/db/seeds >>"$LOG" 2>&1; then
+  tool_status=0
+  run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
+    seed --dir /app/db/seeds >>"$LOG" 2>&1 || tool_status=$?
+  tool_timed_out "dbtools seed" "$tool_status"
+  if [ "$tool_status" -ne 0 ]; then
     fail "dbtools seed failed; $SHORT is not deployed and the running release was left alone"
   fi
   log "applied the seed files"
@@ -546,8 +592,11 @@ else
   log "commit $SHORT carries no release tag; the schema is verified, not migrated"
 fi
 STEP="verify-schema"
-if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
-  verify --dir /app/db/migrations >>"$LOG" 2>&1; then
+tool_status=0
+run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
+  verify --dir /app/db/migrations >>"$LOG" 2>&1 || tool_status=$?
+tool_timed_out "dbtools verify" "$tool_status"
+if [ "$tool_status" -ne 0 ]; then
   fail "dbtools verify failed; the database is not at the schema of $SHORT, so $SHORT is not deployed (a commit that adds a migration needs a release: ./task release)"
 fi
 # The last migration file is the schema this release expects. An empty name is
