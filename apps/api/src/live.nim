@@ -42,12 +42,21 @@ type
     byUser: Table[string, HashSet[WebSocket]]
     byIp: Table[string, int]
     channelVisits: int
+    queued: Table[WebSocket, int]
 
 const
   readyFrame* = """{"type":"ready"}"""
   fullFrame* = """{"type":"full"}"""
   pongFrame* = """{"type":"pong"}"""
   revokedFrame* = """{"type":"revoked"}"""
+  ## REL-BE-07: mummy keeps one outbound queue per socket, and a watcher that
+  ## stops reading (a frozen tab, a throttled phone on hall wifi) never drains
+  ## it. Every session write fans out to up to `ws.max_watchers_process` (500)
+  ## sockets, so an unbounded queue is what used to walk this process into the
+  ## 512 MB MemoryMax. One frame is well under 100 bytes, so the worst case a
+  ## stuck fan-out can hold is roughly 500 x 256 x 100 B ~ 12 MB, sized against
+  ## the same container budget as the worker stacks in `main.nim`.
+  maxQueuedFrames* = 256
 
 var installed {.global.}: LiveHub
 
@@ -65,6 +74,7 @@ proc newHub*(db: Db): LiveHub =
   result.byChannel = initTable[string, seq[WebSocket]]()
   result.byUser = initTable[string, HashSet[WebSocket]]()
   result.byIp = initTable[string, int]()
+  result.queued = initTable[WebSocket, int]()
 
 proc stats*(hub: LiveHub): RegistryStats =
   ## Taken under the lock so a suite never reads a half-updated index.
@@ -105,6 +115,7 @@ proc forget(hub: LiveHub, ws: WebSocket) =
     return
   let entry = hub.entries[ws]
   hub.entries.del(ws)
+  hub.queued.del(ws)
   inc hub.channelVisits
   if hub.byChannel.hasKey(entry.channel):
     let at = hub.byChannel[entry.channel].find(ws)
@@ -134,6 +145,9 @@ proc admit*(hub: LiveHub, ws: WebSocket, channel, userId, ip: string,
       return false
     hub.entries[ws] = SocketEntry(ws: ws, channel: channel, userId: userId,
       ip: ip)
+    # A fresh socket starts with an empty window; libpq has no socket identity,
+    # so mummy's `WebSocket` value can be rebuilt for a reused descriptor.
+    hub.queued[ws] = 0
     hub.byChannel.mgetOrPut(channel, @[]).add(ws)
     if userId.len > 0:
       hub.byUser.mgetOrPut(userId, initHashSet[WebSocket]()).incl(ws)
@@ -150,7 +164,43 @@ proc release*(hub: LiveHub, ws: WebSocket) =
   finally:
     release(hub.lock)
 
+proc reserveFrame*(hub: LiveHub, ws: WebSocket): bool =
+  ## Counts one outbound frame against this socket's window (REL-BE-07). Mummy
+  ## has no backpressure signal, so the counter means "frames queued since this
+  ## socket last proved it was reading"; any inbound message resets it. A frozen
+  ## tab or a throttled phone keeps receiving and stops sending, which is
+  ## exactly the state that used to grow the outbound queue without bound.
+  ## `false` means the socket may not be written to: either it is over the bound
+  ## and has just been dropped from every index, or it was released meanwhile.
+  acquire(hub.lock)
+  try:
+    if not hub.entries.hasKey(ws):
+      # A concurrent release already forgot it; re-creating the counter here
+      # would leak an entry and let a frame reach a closed socket.
+      return false
+    let queued = hub.queued.getOrDefault(ws)
+    if queued >= maxQueuedFrames:
+      hub.forget(ws)
+      return false
+    hub.queued[ws] = queued + 1
+    true
+  finally:
+    release(hub.lock)
+
+proc proofOfReading*(hub: LiveHub, ws: WebSocket) =
+  ## Any inbound frame (the board pings every 25s) proves the socket is draining,
+  ## so its queue window starts again.
+  acquire(hub.lock)
+  try:
+    if hub.queued.hasKey(ws):
+      hub.queued[ws] = 0
+  finally:
+    release(hub.lock)
+
 proc closeSockets(doomed: seq[WebSocket], frame: string) =
+  ## The one frame a doomed socket still gets before it closes. Its registry
+  ## entry is already gone, so it is sent directly instead of through the
+  ## per-socket window: there is exactly one frame and nothing to bound.
   for ws in doomed:
     if frame.len > 0:
       ws.send(frame)
@@ -181,7 +231,12 @@ proc closeUser(hub: LiveHub, userId, frame: string) =
 proc broadcast*(hub: LiveHub, channel, frame: string) =
   let targets = hub.watchers(channel)
   for ws in targets:
-    ws.send(frame)
+    if not hub.reserveFrame(ws):
+      # Over the bound: the entry is already gone, so the socket is closed here
+      # instead of letting mummy's queue grow into the container's MemoryMax.
+      ws.close()
+    else:
+      ws.send(frame)
 
 proc sessionChanged*(hub: LiveHub, sessionId: string, seq: int) =
   ## `seq` only lets a client detect a gap; it is not a replay log.
@@ -212,6 +267,9 @@ proc dispatch*(hub: LiveHub, ws: WebSocket, event: WebSocketEvent,
   of CloseEvent, ErrorEvent:
     hub.release(ws)
   of MessageEvent:
+    # Any inbound frame proves the socket is draining, so its queue window
+    # restarts before the reply below is queued (REL-BE-07).
+    hub.proofOfReading(ws)
     var accepted = false
     if message.kind == TextMessage:
       var frame: JsonNode
@@ -223,7 +281,13 @@ proc dispatch*(hub: LiveHub, ws: WebSocket, event: WebSocketEvent,
          frame["type"].kind == JString:
         case frame["type"].getStr()
         of "ping":
-          ws.send(pongFrame)
+          # A pong the window refuses means this socket is the stuck one, so it
+          # is closed here exactly as `broadcast` does; leaving it open and
+          # unregistered would keep a descriptor alive with no watcher.
+          if hub.reserveFrame(ws):
+            ws.send(pongFrame)
+          else:
+            ws.close()
           accepted = true
         of "subscribe":
           # `lastSeq` is read and discarded: no replay, no channel state.

@@ -194,3 +194,45 @@ suite "bootHandler":
         putEnv("MAJADU_TRUSTED_PROXIES", previousTrusted)
       else:
         delEnv("MAJADU_TRUSTED_PROXIES")
+
+suite "process sizing and drain exit":
+  test "the worker count is above the core count, so one slow read is not half":
+    ## REL-BE-06: `max(countProcessors(), 2)` gave the 2 vCPU host two workers,
+    ## and one 15s statement timeout took half the request capacity. Both the
+    ## thread count and the pool size come from the same derivation now.
+    check apiWorkerThreads(2) > 2
+    check apiWorkerThreads(1) > 1
+    check apiWorkerThreads(4) > 4
+    # A container that reports no CPU at all still gets a serving pool.
+    check apiWorkerThreads(0) > 0
+
+  test "the pool is the worker count plus the headroom, from one derivation":
+    ## REL-BE-06: the thread count and the pool size must not drift, so both
+    ## come from this module. One connection per worker would deadlock a `tx`
+    ## body that calls a `Db` helper.
+    check poolSizeFor(2) == 2 + 2
+    check poolSizeFor(apiWorkerThreads(2)) == apiWorkerThreads(2) + 2
+    check poolSizeFor(apiWorkerThreads(2)) > apiWorkerThreads(2)
+
+  test "the drain overrun exits 0, so a stop is not a crash":
+    ## REL-BE-08: `Restart=on-failure` plus `StartLimitBurst=5` turned five
+    ## overrun drains into a dead unit. The hard bound is reached only after a
+    ## signal asked for the stop, so it must not read as a failure.
+    check drainOverrunStatus() == 0
+
+suite "readiness under a busy pool":
+  ## REL-BE-03: the deploy gate polls `/readyz` for 60s. A busy pool is capacity,
+  ## not readiness, so it must not roll a good release back; a database that is
+  ## actually failing still keeps the process out of the rotation.
+  test "a pool timeout contributes no refusal":
+    let busy = newException(DbPoolTimeout, "no connection within 5000ms")
+    check readinessDetail(busy) == ""
+
+  test "any other database failure is still unreachable":
+    let down = newException(DbError, "could not connect to server")
+    check readinessDetail(down) == "database is unreachable"
+    # A `DbError` carrying a SQLSTATE is the same branch: the pool is fine and
+    # the server is not, which is exactly the case `/readyz` exists for.
+    let cancelled = newException(DbError, "canceling statement due to timeout")
+    cancelled.sqlState = "57014"
+    check readinessDetail(cancelled) == "database is unreachable"

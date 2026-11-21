@@ -2127,12 +2127,23 @@ const requiredRelations = [
   "rating.player_state", "auth.oauth_flows", "account.audit",
   "dbtools.schema_migrations"]
 
+proc readinessDetail*(error: ref DbError): string =
+  ## REL-BE-03: a busy pool is capacity, not readiness. The deploy gate polls
+  ## `/readyz` for 60s and used to roll a good release back because a club-night
+  ## burst had every connection checked out: `DbPoolTimeout` means the process is
+  ## up and the database is there, it just has no free connection this instant,
+  ## so it contributes no refusal (`""`). Any other `DbError` is the database
+  ## itself failing, which does keep the process out of the rotation.
+  if error of DbPoolTimeout: ""
+  else: "database is unreachable"
+
 proc readyz(request: Request) =
   ## Readiness answers "can this process serve traffic against this database":
   ## reachable, migrated, and holding the snapshot the operator expects. A
   ## process pointed at the wrong dump must not take traffic, so a recorded
   ## snapshot that disagrees with CUTOVER_SNAPSHOT_SHA256 is a refusal.
   var detail = ""
+  var poolBusy = false
   try:
     let missing = database().queryOne(
       """select count(*)::int as missing
@@ -2146,10 +2157,18 @@ proc readyz(request: Request) =
       @[textParam("{" & requiredRelations.join(",") & "}")])
     if parseInt(missing.get.get("missing")) > 0:
       detail = "schema is not migrated"
-  except DbError:
-    detail = "database is unreachable"
+  except DbError as error:
+    detail = readinessDetail(error)
+    poolBusy = detail.len == 0
 
-  if detail.len == 0:
+  if poolBusy:
+    # Nothing else can be learned without a connection, and the second read would
+    # spend another acquire deadline on top of the one just spent: the health
+    # check gives this route 5s, so waiting twice would report `unhealthy` for a
+    # process that is serving. Capacity is a metric, not readiness (REL-BE-03).
+    logWarn("readiness probe found no free connection",
+      [("request_id", currentRequestId())])
+  elif detail.len == 0:
     let expected = getEnv("CUTOVER_SNAPSHOT_SHA256")
     try:
       let row = database().queryOne(
@@ -2158,8 +2177,8 @@ proc readyz(request: Request) =
         let recorded = row.get["snapshot_sha256"]
         if recorded.isSome and recorded.get.len > 0 and recorded.get != expected:
           detail = "database holds a different snapshot"
-    except DbError:
-      detail = "database is unreachable"
+    except DbError as error:
+      detail = readinessDetail(error)
 
   if detail.len == 0:
     send(request, 200, """{"status":"ok"}""")
@@ -3340,7 +3359,14 @@ const
   ## `55P03` is lock_not_available: a rating rebuild holds the community
   ## advisory lock, so a lock/unlock caller must get a retryable 503 rather
   ## than a 500 that reads like a defect in the request.
-  busySqlStates = ["55P03"]
+  ##
+  ## REL-BE-04: three more conditions are retryable, not defects.
+  ## `57014` is query_canceled, which is what `statement_timeout` raises under
+  ## a club-night burst; `57P01` is admin_shutdown, a PostgreSQL restart or
+  ## failover; `08006` is connection_failure, the socket went away underneath
+  ## the query. Answering 500 for these alerted them as code defects and made
+  ## clients that retry on 503 give up instead.
+  busySqlStates = ["55P03", "57014", "57P01", "08006"]
 
 proc statusForSqlState*(state: string): int =
   ## One integrity violation, one status, decided once at the HTTP boundary.

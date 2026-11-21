@@ -16,6 +16,36 @@ import share/crypto
 
 var shutdownRequested {.global.}: Atomic[bool]
 
+const
+  ## REL-BE-06: a worker is mostly waiting on PostgreSQL, not burning a core, so
+  ## sizing the pool to `countProcessors` made one 15s statement timeout take
+  ## half the capacity of the 2 vCPU host. Four per core keeps other requests
+  ## moving while a slow statement holds one worker.
+  workersPerCore = 4
+  ## The pool is `workers + poolHeadroom` and both numbers come from this module,
+  ## so the thread count and the pool size cannot drift apart. A worker can need
+  ## a second connection while it already holds one (a `tx` body calling a `Db`
+  ## helper), so exactly one per worker deadlocks the nested call; the two spares
+  ## turn that into a short queue, and the pool stays per process, not per
+  ## request.
+  ##
+  ## RAM: Nim reserves 8192 KB of stack per thread, so the 2 vCPU host runs 8
+  ## workers and reserves 64 MB inside a container capped at MemoryMax=512M.
+  ## Connections: 10 per process, 20 across the prod and rc units, well under
+  ## PostgreSQL's default max_connections=100 and leaving room for a migration,
+  ## the janitor and a backup session.
+  poolHeadroom = 2
+
+proc apiWorkerThreads*(cores: int): int =
+  ## The one place the worker count is derived, so the pool `bootHandler` sizes
+  ## from it cannot drift from the thread count `newApiServer` starts.
+  max(cores, 1) * workersPerCore
+
+proc poolSizeFor*(workers: int): int =
+  ## The pool the API opens for that many workers. `bootHandler` calls this and
+  ## `main` calls `apiWorkerThreads`, so the two numbers share one derivation.
+  workers + poolHeadroom
+
 proc onSignal(sig: cint) {.noconv.} =
   shutdownRequested.store(true, moRelaxed)
 
@@ -25,17 +55,27 @@ type
     drainMs: int
     timeoutMs: int
 
+proc drainOverrunStatus*(): int =
+  ## REL-BE-08: the status the hard bound exits with. This path is only reached
+  ## after `onSignal` asked the process to stop, so it is a requested shutdown
+  ## that overran, not a crash: 0 leaves `Restart=on-failure` alone. It used to
+  ## be 1, and five such stops in five minutes tripped `StartLimitBurst` and left
+  ## the unit dead. A real fault still exits non-zero from `serve` failing.
+  ## Named here so a suite pins the decision instead of parsing an exit.
+  0
+
 proc shutdownWatcher(args: ShutdownArgs) {.thread.} =
   while not shutdownRequested.load(moRelaxed):
     sleep(50)
   # Let in-flight requests finish before the listening socket goes away.
   sleep(args.drainMs)
   args.server.close()
-  # Hard bound: if close() cannot finish, do not hang forever.
+  # Hard bound: if close() cannot finish, do not hang forever. The requested
+  # stop is what this branch reports, so it exits 0 (REL-BE-08).
   sleep(args.timeoutMs)
   {.cast(gcsafe).}:
-    logError("shutdown timed out")
-  quit(1)
+    logWarn("shutdown drain exceeded its bound; exiting after a requested stop")
+  quit(drainOverrunStatus())
 
 type
   MetricsArgs = object
@@ -104,16 +144,11 @@ proc bootHandler*(config: ServerConfig, threads: int): BootedApi =
   logInfo("identity source", [
     ("source", if trusted.len > 0: "header" else: "peer"),
     ("trustedProxies", $trusted.len)])
-  # A worker can need a second connection while it already holds one: a `tx`
-  # body that calls a `Db` helper. With exactly one connection per worker every
-  # worker can hold its only connection, and the nested call waits forever.
-  # Two spare connections bound the pool while turning that deadlock into a
-  # short queue; the pool is still per process, not per request.
-  const poolHeadroom = 2
-  # The web caps are applied only here, on the API pool. CLI tools call
-  # `openDb` without them so a deploy migration or a cutover ETL is not killed
-  # by a request timeout.
-  let database = openDb(dsn, threads + poolHeadroom,
+  # The pool size is derived from the worker count, so neither can drift from
+  # the other (REL-BE-06). The web caps are applied only here, on the API pool.
+  # CLI tools call `openDb` without them so a deploy migration or a cutover ETL
+  # is not killed by a request timeout.
+  let database = openDb(dsn, poolSizeFor(threads),
     statementTimeoutMs = timeoutFromEnv("MAJADU_DB_STATEMENT_TIMEOUT_MS",
       defaultStatementTimeoutMs),
     lockTimeoutMs = timeoutFromEnv("MAJADU_DB_LOCK_TIMEOUT_MS",
@@ -158,7 +193,7 @@ proc main() =
     config = loadConfig()
   except ValueError as error:
     refuseStartup(error.msg)
-  let threads = max(countProcessors(), 2)
+  let threads = apiWorkerThreads(countProcessors())
   # One line names every switch that changes behaviour, so a line pasted from a
   # test env file is visible at boot instead of in the symptoms.
   logInfo("startup flags", [
