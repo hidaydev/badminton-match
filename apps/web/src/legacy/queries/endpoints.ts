@@ -13,7 +13,7 @@ import type { AnyTournamentSnapshot } from '../utils/teamTournament'
 import { isPlaceholderName } from '../utils/placeholders'
 import { ApiError } from './retry'
 import { API_BASE, request as transport } from '../../api/request'
-import { collectPages } from '../../api/paged'
+import { API_PAGE_MAX, collectPages } from '../../api/paged'
 import type { Page } from '../../api/paged'
 import type { SessionPage as SessionPageWire } from '@majadu/web-client'
 
@@ -405,12 +405,10 @@ export async function getSession(
     try {
       await listPlayers(signal)
     } catch {
-      // An empty roster stamped with the community it was read for; a response
-      // that arrived after a switch must not mark the new community as empty.
-      if (slug === activeCommunitySlug()) {
-        playerCache = []
-        playerCacheSlug = slug
-      }
+      // Leave the cache unset. An empty roster stamped here would answer every
+      // later read for the life of the tab, so grades and mixed-double grouping
+      // would treat the whole community as anonymous; unset makes the next read
+      // try again.
     }
   }
   const detail = await detailPromise
@@ -791,25 +789,41 @@ export async function listPlayers(signal?: AbortSignal): Promise<PlayerSummary[]
   // Two owners ask for the roster on the first paint of a community screen:
   // the ambiguity badge (a query at the shell) and a session snapshot, which
   // needs gender and tier. One in-flight read is shared instead of issuing the
-  // same 1000-row request twice; whoever leaves first must not cancel a read
-  // the other one is still waiting on, which is why the shared promise follows
-  // the caller that started it rather than the caller that joined it.
+  // same roster request twice; whoever leaves first must not cancel a read the
+  // other one is still waiting on, so the shared read takes no caller's signal.
+  // Dropping the signal on the way in is what keeps that promise true: an
+  // abort from the caller that started it would reject every joiner too.
+  void signal
   if (playerRequest !== null && playerRequest.slug === slug) return playerRequest.promise
-  const promise = readPlayers(slug, signal).finally(() => {
+  const promise = readPlayers(slug).finally(() => {
     if (playerRequest !== null && playerRequest.promise === promise) playerRequest = null
   })
   playerRequest = { slug, promise }
   return promise
 }
 
-async function readPlayers(slug: string, signal?: AbortSignal): Promise<PlayerSummary[]> {
-  const body = await request<{ items: V2Player[] }>(
-    'GET',
-    communityPath('/players?limit=1000'),
-    undefined,
-    signal,
-  )
-  const rows = body?.items ?? []
+async function readPlayers(slug: string): Promise<PlayerSummary[]> {
+  // The roster route pages by keyset cursor and clamps `limit` to
+  // `api.page_size_max` (seeded 500), so a single request silently truncated the
+  // tail of the roster: every player past the cap rendered as a raw uuid on
+  // `tier 2`. Follow the cursor until a page comes back short, which is the
+  // route's own signal that there is nothing after it.
+  const rows: V2Player[] = []
+  let cursor = ''
+  for (;;) {
+    const body = await request<{ items: V2Player[] }>(
+      'GET',
+      communityPath(
+        `/players?limit=1000${cursor === '' ? '' : `&cursor=${enc(cursor)}`}`,
+      ),
+    )
+    const page = body?.items ?? []
+    rows.push(...page)
+    if (page.length < API_PAGE_MAX) break
+    const last = page[page.length - 1]
+    if (last?.id === undefined || last.id === cursor) break
+    cursor = last.id
+  }
   const summaries = rows.map(toPlayerSummary)
   // A response that lands after the community changed belongs to the old one:
   // stamping it with the current slug would hand A's roster to B.

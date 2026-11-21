@@ -247,6 +247,30 @@ describe('useSessionRealtime frames', () => {
     expect(FakeSocket.instances).toHaveLength(1)
     expect(issued()).toBe(1)
   })
+
+  // REL-FE-03: `connected` gates the page's 5s poll, so a half-open socket that
+  // kept reporting open froze the board while it looked live.
+  it('closes a socket that stops answering ping and lets the poll take over', async () => {
+    vi.useFakeTimers()
+    ticketMock()
+    const client = newClient(5)
+    const { result } = renderRealtime(client)
+    await flush()
+    const socket = FakeSocket.last
+    await act(async () => { socket.open() })
+    expect(result.current.connected).toBe(true)
+
+    // One ping goes out and is answered: the connection is healthy.
+    await act(async () => { await vi.advanceTimersByTimeAsync(25_000) })
+    socket.receive({ type: 'pong' })
+    expect(socket.closed).toBe(false)
+
+    // The server stops answering. Two further pings is the limit, so the third
+    // interval tick closes the socket and the reconnect path reports it down.
+    await act(async () => { await vi.advanceTimersByTimeAsync(50_000) })
+    expect(socket.closed).toBe(true)
+    expect(result.current.connected).toBe(false)
+  })
 })
 
 describe('useSessionRealtime reconnect schedule', () => {

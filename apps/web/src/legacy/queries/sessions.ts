@@ -283,6 +283,10 @@ export function useSessionRealtime(sessionId: string | undefined, enabled = true
     let pingTimer: ReturnType<typeof setInterval> | null = null
     let attempt = 0
     let opened = false
+    // The last frame the server was heard on, in ms since epoch. A socket that
+    // has been silently dropped keeps accepting `send` and never answers, so
+    // this is the only way to tell a live connection from a dead one.
+    let lastPong = 0
 
     const stopPing = () => {
       if (pingTimer !== null) {
@@ -326,8 +330,18 @@ export function useSessionRealtime(sessionId: string | undefined, enabled = true
             void queryClient.invalidateQueries({ queryKey: communityQueryKey('session', sessionId) })
           }
           opened = true
+          lastPong = Date.now()
           stopPing()
-          pingTimer = setInterval(() => send({ type: 'ping' }), PING_MS)
+          pingTimer = setInterval(() => {
+            // Two missed pings is a dead socket, not a slow one. Without this
+            // the half-open connection kept `connected` true, which kept the
+            // page's 5s poll off, and the board froze while looking live.
+            if (Date.now() - lastPong >= PING_MS * 2) {
+              socket?.close()
+              return
+            }
+            send({ type: 'ping' })
+          }, PING_MS)
         }
         socket.onmessage = (event) => {
           let frame: { type?: string; seq?: number }
@@ -336,6 +350,9 @@ export function useSessionRealtime(sessionId: string | undefined, enabled = true
           } catch {
             return
           }
+          // Any frame proves the connection is alive; `pong` is the one the
+          // server sends on its own schedule.
+          lastPong = Date.now()
           if (frame.type === 'session.changed') {
             // `seq` is the session version that produced the frame. Our own
             // write already brought that version into the cache, so the echo
@@ -452,12 +469,16 @@ export function usePublishSession(sessionId: string | undefined) {
         queryClient.setQueryData(communityQueryKey('session', sessionId), snap)
       }
       // The version this write produced only exists on the server side of the
-      // cache; a cached answer would hand back the pre-write snapshot.
-      await queryClient.fetchQuery<CloudSnapshot | null>({
-        queryKey: communityQueryKey('session', sessionId),
-        queryFn: () => getSession(sessionId),
-        staleTime: 0,
-      })
+      // cache; a cached answer would hand back the pre-write snapshot. A failed
+      // read-back must not turn a landed save into a failure: the mutation
+      // already returned the snapshot it wrote, and the poll will catch up.
+      try {
+        await queryClient.fetchQuery<CloudSnapshot | null>({
+          queryKey: communityQueryKey('session', sessionId),
+          queryFn: () => getSession(sessionId),
+          staleTime: 0,
+        })
+      } catch { /* the response snapshot stands */ }
       await invalidateSessionQueries(queryClient)
     },
     onError: async (error, _vars, context) => {

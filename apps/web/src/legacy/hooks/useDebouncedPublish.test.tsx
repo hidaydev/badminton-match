@@ -221,6 +221,27 @@ describe('useDebouncedPublish', () => {
     expect(publishMock()).not.toHaveBeenCalled()
   })
 
+  // REL-FE-08: `onSuccess` read back the snapshot to learn the version the
+  // write produced. When that read failed the mutation was reported as failed
+  // even though the server had already accepted the save.
+  it('keeps a landed save successful when the read-back fails', async () => {
+    const onError = vi.fn()
+    const onSaved = vi.fn()
+    const { api, client } = setup(onError, onSaved)
+    client.setQueryData(sessionKey(), snapshot(9))
+    getSessionMock().mockRejectedValue(new ApiError('offline', null, null))
+
+    act(() => api.publishToCloud())
+    await advance(300)
+    await flush()
+
+    expect(onError).not.toHaveBeenCalled()
+    expect(onSaved).toHaveBeenCalledTimes(1)
+    // The write's own response is what the cache keeps.
+    expect(client.getQueryData<CloudSnapshot>(sessionKey())?.version).toBe(10)
+    expect(useStore.getState().cloudVersion).toBe(10)
+  })
+
   it('records and reports a failed unmount flush instead of swallowing it', async () => {
     const onError = vi.fn()
     const { api, unmount } = setup(onError)
