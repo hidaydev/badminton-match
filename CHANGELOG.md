@@ -5,6 +5,11 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.1.1] - 2026-11-21
+
+### Fixed
+- fix(test): stop the two suites the release shards died on (94b6196; docs/decisions.md, modules/platform/tests/integration/idempotency_test.nim, modules/rating/tests/integration/read_test.nim)
+
 ## [2.1.0] - 2026-11-21
 
 ### Added
