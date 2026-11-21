@@ -396,6 +396,7 @@ export const en = {
   'admin.error.conflict': 'That change would break the community rules.',
   'admin.error.invalid': 'The server rejected those values.',
   'admin.error.failed': 'That change was not saved.',
+  'admin.section.failed': 'This list could not be loaded.',
 
   'players.title': 'Players',
   'players.subtitle': 'Everyone this community has on record.',

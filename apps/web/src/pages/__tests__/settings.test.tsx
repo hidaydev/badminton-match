@@ -439,4 +439,27 @@ describe('community settings', () => {
 
     expect(await screen.findByText(t('admin.claims.empty'))).toBeInTheDocument()
   })
+
+  // REL-FE-09: one refused read used to blank the whole admin screen, invite
+  // area included, behind a single generic "Failed".
+  it('keeps the sections that loaded when one of the three reads is refused', async () => {
+    base({
+      'GET /api/c/acme/claims': () => ({
+        status: 403,
+        body: { status: 403, code: 'FORBIDDEN', detail: 'claims are host-only' },
+      }),
+    })
+
+    renderAt('/c/acme/settings')
+
+    // The two lists that answered still render their rows.
+    expect(await screen.findByText('Ada')).toBeInTheDocument()
+    expect(screen.getByText('Budi')).toBeInTheDocument()
+    // The invite area survives, which is the part whose token is shown once.
+    expect(screen.getByLabelText(t('admin.invites.email'))).toBeInTheDocument()
+    // The refused list gets its own named row instead of one screen-wide error.
+    expect(screen.getByText(t('admin.claims'))).toBeInTheDocument()
+    expect(screen.getByText(t('admin.error.forbidden'))).toBeInTheDocument()
+    expect(screen.queryByText(t('admin.error.failed'))).not.toBeInTheDocument()
+  })
 })

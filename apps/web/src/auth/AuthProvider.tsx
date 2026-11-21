@@ -67,8 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // A dropped connection is not "signed out": the cookie may still be valid
     // and the installed app cannot sign in offline. Only a definitive answer
-    // (401, 410, another 4xx) ends the session; anything else is retried while
-    // the shell keeps showing its loading state (FE-49).
+    // (401) ends the session. Anything else keeps the shell on its loading
+    // state: the backoff ladder runs first, and once it is spent the shell
+    // waits for the browser's `online` event instead of showing a sign-in
+    // button that cannot work without a network (FE-49).
     const shouldRetry = (error: unknown) =>
       !(error instanceof ApiError) ||
       error.status === null ||
@@ -90,16 +92,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false)
       } catch (error) {
         if (!scope.live) return
-        if (shouldRetry(error) && attempt < BOOT_RETRY_MS.length) {
-          awaitingNetwork = true
-          timer = setTimeout(() => {
-            timer = null
-            awaitingNetwork = false
-            startLoad(attempt + 1)
-          }, BOOT_RETRY_MS[attempt])
+        if (!isUnauthenticated(error)) console.error('auth bootstrap failed', error)
+        // A 401 is the server's answer, so the sign-in screen is correct even
+        // offline: there is no session to keep.
+        if (isUnauthenticated(error)) {
+          setUser(null)
+          setMemberships([])
+          setLoading(false)
           return
         }
-        if (!isUnauthenticated(error)) console.error('auth bootstrap failed', error)
+        if (shouldRetry(error)) {
+          if (attempt < BOOT_RETRY_MS.length) {
+            awaitingNetwork = true
+            timer = setTimeout(() => {
+              timer = null
+              awaitingNetwork = false
+              startLoad(attempt + 1)
+            }, BOOT_RETRY_MS[attempt])
+            return
+          }
+          // The ladder is spent. `loading` stays true and `online` is the only
+          // thing that restarts it, so an installed app opened in a tunnel
+          // keeps its spinner instead of demanding a sign-in it cannot accept.
+          awaitingNetwork = true
+          return
+        }
+        // A definitive answer that is not 401 (a client the server refuses):
+        // retrying cannot help, so the shell reports it as signed out.
         setUser(null)
         setMemberships([])
         setLoading(false)

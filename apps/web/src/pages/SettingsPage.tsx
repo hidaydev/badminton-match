@@ -31,11 +31,34 @@ import { Field, Input, Select } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
 import { PageHeader } from '../components/PageHeader'
 
+/**
+ * A read failure, as opposed to a refused write. `describe` answers "that change
+ * was not saved", which is wrong copy for a list that could not be read.
+ */
+function describeRead(error: unknown): string {
+  if (error instanceof ApiError && error.status === 403) return t('admin.error.forbidden')
+  return t('admin.section.failed')
+}
+
 type Data = {
   slug: string
   members: Member[]
   requests: JoinRequest[]
   claims: PendingClaim[]
+}
+
+/**
+ * Which of the three lists could not be read. Each section renders its own row,
+ * so one refused read no longer blanks the rest of the screen — the invite area
+ * in particular, whose token is shown exactly once.
+ */
+type SectionFailure = { members?: string; requests?: string; claims?: string }
+
+type Loaded<T> = { ok: true; value: T } | { ok: false; message: string }
+
+function outcome<T>(result: PromiseSettledResult<T>): Loaded<T> {
+  if (result.status === 'fulfilled') return { ok: true, value: result.value }
+  return { ok: false, message: describeRead(result.reason) }
 }
 
 function describe(error: unknown): string {
@@ -66,21 +89,41 @@ export default function SettingsPage() {
   const timeZone = communityTimeZone(config)
 
   const [data, setData] = useState<Data | null>(null)
+  const [sectionFailures, setSectionFailures] = useState<SectionFailure>({})
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [busy, setBusy] = useState(false)
 
   useAsyncEffect((scope) => {
     if (slug === '') return
-    Promise.all([listMembers(slug), listJoinRequests(slug), listPendingClaims(slug)])
-      .then(([members, requests, claims]) => {
-        if (!scope.live) return
-        setFailure(null)
-        setData({ slug, members, requests, claims })
+    // Three independent lists. `all` used to blank the whole screen on one
+    // refused read, which also took the invite token area with it; `allSettled`
+    // keeps the sections that answered and gives each failure its own row.
+    Promise.allSettled([
+      listMembers(slug),
+      listJoinRequests(slug),
+      listPendingClaims(slug),
+    ]).then(([membersResult, requestsResult, claimsResult]) => {
+      if (!scope.live) return
+      const members = outcome(membersResult)
+      const requests = outcome(requestsResult)
+      const claims = outcome(claimsResult)
+      setFailure(null)
+      setSectionFailures({
+        ...(members.ok ? {} : { members: members.message }),
+        ...(requests.ok ? {} : { requests: requests.message }),
+        ...(claims.ok ? {} : { claims: claims.message }),
       })
-      .catch((problem: unknown) => {
-        if (scope.live) setFailure({ key: slug, message: describe(problem) })
+      setData({
+        slug,
+        members: members.ok ? members.value : [],
+        requests: requests.ok ? requests.value : [],
+        claims: claims.ok ? claims.value : [],
       })
+    }).catch(() => {
+      // `allSettled` only rejects if the array itself cannot be built, which
+      // cannot happen here; the guard is for the lint rule, not a real path.
+    })
   }, [slug, attempt])
 
   const reload = useCallback(() => setAttempt((count) => count + 1), [])
@@ -107,6 +150,28 @@ export default function SettingsPage() {
   const loading = slug !== '' && current === null && error === null
   const canEdit = can('settings.edit')
 
+  /**
+   * One row per list that could not be read, headed by the list it belongs to,
+   * so the rest of the screen still works and the failure is still named.
+   */
+  const sectionError = (
+    key: keyof SectionFailure,
+    heading: { as: 'h2' | 'h3'; title: string },
+  ) => {
+    const message = sectionFailures[key]
+    if (message === undefined) return null
+    return (
+      <section className="mt-6">
+        {heading.as === 'h2' ? (
+          <h2 className="text-sm font-semibold text-fg">{heading.title}</h2>
+        ) : (
+          <h3 className="text-sm font-semibold text-fg">{heading.title}</h3>
+        )}
+        <ErrorText className="mt-2">{message}</ErrorText>
+      </section>
+    )
+  }
+
   return (
     <section className="mx-auto w-full max-w-3xl">
       <PageHeader title={t('admin.title')} subtitle={membership?.name ?? slug} />
@@ -117,29 +182,33 @@ export default function SettingsPage() {
       )}
       {current !== null && (
         <>
-          <Members
-            slug={slug}
-            members={current.members}
-            busy={busy}
-            onRun={run}
-            timeZone={timeZone}
-          />
+          {sectionError('members', { as: 'h2', title: t('admin.members') }) ?? (
+            <Members
+              slug={slug}
+              members={current.members}
+              busy={busy}
+              onRun={run}
+              timeZone={timeZone}
+            />
+          )}
           <Invites slug={slug} busy={busy} onRun={run} />
-          <JoinRequests
-            slug={slug}
-            requests={current.requests}
-            busy={busy}
-            onRun={run}
-            timeZone={timeZone}
-          />
-          {canEdit && (
+          {sectionError('requests', { as: 'h3', title: t('admin.requests') }) ?? (
+            <JoinRequests
+              slug={slug}
+              requests={current.requests}
+              busy={busy}
+              onRun={run}
+              timeZone={timeZone}
+            />
+          )}
+          {canEdit && (sectionError('claims', { as: 'h3', title: t('admin.claims') }) ?? (
             <PendingClaims
               slug={slug}
               claims={current.claims}
               onReload={reload}
               timeZone={timeZone}
             />
-          )}
+          ))}
           <CommunitySettings
             key={slug}
             slug={slug}
