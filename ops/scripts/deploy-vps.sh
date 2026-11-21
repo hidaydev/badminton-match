@@ -621,6 +621,13 @@ if [ "$PULLED_ID" != "$CURRENT_ID" ] && [ -n "$CURRENT_ID" ]; then
   podman tag "$LOCAL_IMAGE:local" "$LOCAL_IMAGE:prev"
 fi
 podman tag "$PULLED_ID" "$LOCAL_IMAGE:local"
+# REL-CI-05: the pull left a `ghcr.io/...:sha-<7>` tag behind, and
+# `podman image prune -f` below only drops *untagged* images, so every deploy
+# added one full API image to the volume. Retention is :local and :prev only.
+# This runs after the :local retag above, so the tag being removed is a second
+# name for an image that :local and :prev already hold; nothing served depends
+# on it.
+podman untag "$TARGET_IMAGE" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Units come from the repository, not from whatever was left on the VPS.

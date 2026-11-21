@@ -568,15 +568,31 @@ jobs:
           IMAGE: ghcr.io/${{ github.repository }}
           COMMIT: ${{ github.sha }}
         run: |
+          # REL-CI-10: a red `image` job used to leave only the GitHub log, and
+          # the compile of ten Nim binaries is exactly what it truncates. The
+          # build output is kept in a file so the failure step can upload it.
+          # `pipefail` keeps the build's exit code: `tee` alone would report 0.
+          set -o pipefail
           docker build -f apps/api/Dockerfile \
             --build-arg APP_VERSION="${TAG#v}" \
             --build-arg APP_COMMIT="$COMMIT" \
-            -t "$IMAGE:$TAG" .
+            --label "org.opencontainers.image.revision=$COMMIT" \
+            -t "$IMAGE:$TAG" . 2>&1 | tee "$RUNNER_TEMP/image-build.log"
           docker push "$IMAGE:$TAG"
           digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$TAG")
           digest=${digest#*@}
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
           echo "published $IMAGE@$digest"
+      # REL-CI-10: the build log, only when the job fails, with a short
+      # retention. A green release uploads nothing.
+      - name: "Image: upload the build log"
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-image-build-log
+          path: ${{ runner.temp }}/image-build.log
+          if-no-files-found: warn
+          retention-days: 7
       # The digest is only as trustworthy as the job that produced it. The
       # signature is what deploy-vps.sh verifies with the public key installed
       # next to the env files; without it a registry write is enough to move
@@ -677,3 +693,16 @@ jobs:
             gh release create "$TAG" --title "$TAG" --notes-file "$notes" --verify-tag
           fi
           gh release upload "$TAG" majadu.image.cdx.json majadu.deps.cdx.json --clobber
+      # REL-CI-10: the two SBOMs and the notes file are the evidence this job
+      # produces, and a failure at `gh release upload` used to leave only the
+      # log. Uploaded only when the job fails.
+      - name: "Release: upload the release evidence"
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-publish-evidence
+          path: |
+            majadu.image.cdx.json
+            majadu.deps.cdx.json
+          if-no-files-found: warn
+          retention-days: 7
