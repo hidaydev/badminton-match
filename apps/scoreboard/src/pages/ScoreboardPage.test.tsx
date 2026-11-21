@@ -480,6 +480,30 @@ describe('ScoreboardPage', () => {
     expect(within(halfOf('Arya')).getByText('0')).toBeInTheDocument()
   })
 
+  // The read-only tab must not zero the match the other window is scoring
+  // (REL-FE-04): Reset is the one control that used to skip the writer guard.
+  it('does not reset the scores from the read-only tab', async () => {
+    Object.defineProperty(navigator, 'locks', {
+      value: {
+        request: (
+          _name: string,
+          _options: unknown,
+          callback: (lock: object | null) => unknown,
+        ) => Promise.resolve(callback(null)),
+      },
+      configurable: true,
+    })
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo', 'score-red': '7', 'score-blue': '3' })
+    expect(await screen.findByText('Another window is keeping score')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset scores' }))
+
+    expect(localStorage.getItem('score-red')).toBe('7')
+    expect(localStorage.getItem('score-blue')).toBe('3')
+    expect(within(halfOf('Arya')).getByText('7')).toBeInTheDocument()
+    expect(within(halfOf('Bowo')).getByText('3')).toBeInTheDocument()
+  })
+
   it('shows an offline indicator when the network drops', () => {
     renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
     expect(screen.queryByText(/Offline/)).not.toBeInTheDocument()

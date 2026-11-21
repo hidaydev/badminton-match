@@ -163,7 +163,13 @@ export default function ScoreboardPage() {
     triggerPop('blue')
   }, [isWriter, triggerPop])
 
-  const reset = useCallback(() => { setRed(0); setBlue(0) }, [])
+  const reset = useCallback(() => {
+    // Same guard as the increments: a read-only tab must not zero the match the
+    // other window is keeping score on.
+    if (!isWriter) return
+    setRed(0)
+    setBlue(0)
+  }, [isWriter])
 
   const exportMatch = useCallback(async () => {
     const text = serializeMatchSnapshot(readMatchSnapshot())
