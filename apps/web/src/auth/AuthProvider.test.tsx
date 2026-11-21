@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -179,5 +179,111 @@ describe('AuthProvider session lifecycle', () => {
       if (original) Object.defineProperty(globalThis, 'caches', original)
       else Reflect.deleteProperty(globalThis, 'caches')
     }
+  })
+})
+
+// REL-QA-07 (FE-49, and FE-05 for the offline arm): the bootstrap retry ladder
+// and the `online` listener had no case at all, so a regression there shows up
+// as a hall tablet stuck on a spinner or a signed-in player told to sign in.
+// One case per arm of `load`'s catch block.
+describe('AuthProvider bootstrap failures', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('keeps loading and retries when the failure is not definitive', async () => {
+    // FE-05: a 503 is a server that will come back, so the shell must keep the
+    // loading state rather than render sign-in while a retry is still pending.
+    // Fake timers are needed here because the ladder is 1s + 3s + 8s; the
+    // assertions use `getByText` rather than `findByText` because Testing
+    // Library's own polling runs on the timers this test has frozen.
+    //
+    // Scope: the two rungs that are a retry. The terminal arm (what happens
+    // once the ladder is spent) is FE-05's own change, so it is not asserted
+    // here; this case is the ladder, which had no test at all before.
+    vi.useFakeTimers()
+    let meCalls = 0
+    mockFetch({
+      'GET /api/auth/me': () => {
+        meCalls += 1
+        return { status: 503, body: { code: 'UNAVAILABLE' } }
+      },
+    })
+
+    renderAuth(new QueryClient({ defaultOptions: { queries: { retry: false } } }))
+
+    // First attempt fails and arms the backoff; nothing flips the screen.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(meCalls).toBe(1)
+    expect(screen.getByText('loading')).toBeInTheDocument()
+
+    // Rung one of BOOT_RETRY_MS = [1000, 3000, 8000] fires a second attempt.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(meCalls).toBe(2)
+    expect(screen.getByText('loading')).toBeInTheDocument()
+
+    // Rung two fires a third: the ladder keeps climbing instead of giving up
+    // after one failure.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000)
+    })
+    expect(meCalls).toBe(3)
+    expect(screen.getByText('loading')).toBeInTheDocument()
+  })
+
+  it('restarts the bootstrap at once when the browser comes back online', async () => {
+    // The listener is the other half of the ladder: a phone that walks back
+    // into signal should not wait out the 8s step. The timer is frozen and
+    // advanced by zero, so a retry here can only come from the listener.
+    vi.useFakeTimers()
+    let meCalls = 0
+    mockFetch({
+      'GET /api/auth/me': () => {
+        meCalls += 1
+        if (meCalls === 1) return { status: 503, body: { code: 'UNAVAILABLE' } }
+        return { body: FIRST_HOST }
+      },
+      'GET /api/communities': () => ({ body: MEMBERSHIPS }),
+    })
+
+    renderAuth(new QueryClient({ defaultOptions: { queries: { retry: false } } }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(meCalls).toBe(1)
+    expect(screen.getByText('loading')).toBeInTheDocument()
+
+    // No timer elapses: the event alone re-runs the load.
+    await act(async () => {
+      window.dispatchEvent(new Event('online'))
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(meCalls).toBe(2)
+    expect(screen.getByText('Host One')).toBeInTheDocument()
+  })
+
+  it('goes to sign-in on a 401 instead of retrying', async () => {
+    // The definitive answer stays first: no cookie means sign-in, and retrying
+    // it would only delay the one screen that can fix it.
+    let meCalls = 0
+    mockFetch({
+      'GET /api/auth/me': () => {
+        meCalls += 1
+        return { status: 401, body: { code: 'UNAUTHENTICATED' } }
+      },
+    })
+
+    renderAuth(new QueryClient({ defaultOptions: { queries: { retry: false } } }))
+
+    expect(await screen.findByText('signed out')).toBeInTheDocument()
+    // One attempt: a 401 on the first call is the answer, not a transient. The
+    // first rung of the ladder is 1s, so waiting past it would show a retry.
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    expect(meCalls).toBe(1)
   })
 })
