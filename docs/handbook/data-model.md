@@ -4,13 +4,13 @@ This document is the source of truth for the **v2 database** (`bm2`) and the dat
 used by the API. Everything below comes from the migration files in the repo; there are no
 claims from a VPS dump or the v1 schema.
 
-- Migrations: `db/migrations/0001_core.sql` … `0057_janitor_indexes.sql` (57 files;
+- Migrations: `db/migrations/0001_core.sql` … `0060_drop_removed_config_keys.sql` (60 files;
   `0036` records the share key that encrypted each OIDC flow,
   `0035` adds the `account.audit` occurred_at index, `0034` grants the ETL role,
   `0033` adds `session.links.legacy_id_ok`, `0032` adds default privileges
   for the application role, and `0030` grants access to `session.game_sets` and the
   `session.game_results` view).
-- The last nine migrations close the evidence gaps the audit findings named:
+- The last twelve migrations close the evidence gaps the audit findings named:
   - `0049_audit_append_only.sql`: a trigger refuses `UPDATE` and `DELETE` on
     `account.audit` for every role; the retention tool opts in for one transaction
     with `set_config('majadu.audit_maintenance', 'on', true)`.
@@ -35,6 +35,18 @@ claims from a VPS dump or the v1 schema.
     `session.links (revoked_at)` are indexed for the two janitor deletes that had
     no predicate-friendly index (the outbox index covered only pending rows, and
     0043's link index was partial on `revoked_at is null`).
+  - `0058_participants_absent_index.sql`: a partial index
+    `session.participants (community_id) where is_absent` serves the board read
+    and the achievement backfill, which filter on `community_id and is_absent`
+    and had no index carrying the flag.
+  - `0059_drop_duplicate_indexes.sql`: `courts_session_index_unique` and
+    `games_community_session_idx` are the two duplicate indexes 0041 left behind;
+    the three-column court key stays because the composite court foreign key must
+    name a unique constraint of its own.
+  - `0060_drop_removed_config_keys.sql`: `tournament.classic.pair_count` and
+    `ws.session_ttl_minutes`, removed from the registry and the seed in
+    23fc21df, are deleted from `platform.config` in every database. `specFor`
+    raises on a key the registry no longer holds.
 - Seeds: `db/seeds/platform_config.sql`, `db/seeds/achievement_definitions.sql`.
 - Ledger: `tools/dbtools/main.nim:35-47` creates `dbtools.schema_migrations` and
   `dbtools.seed_files` (checksum per file).
@@ -89,9 +101,9 @@ the working tree; `git log --all -- docs/backend` still has it.
 |---|---|---|
 | `session.sessions` | `community_id`, `title`, `session_date`, `start_time`, `slot_minutes > 0`, `status` ∈ `draft/locked/published/completed/archived`, `source` ∈ `manual/generator/legacy_snapshot`, `version > 0`, `approved_at`, `approved_by`; `scoring_preset` and `scoring_rules` JSONB (per-session format snapshot) | `0001:32-52`, `0006`, `0029` |
 | `session.links` | `id` filled by the application, unique `code_hash`, `code_enc`, `key_id`, `created_by`, `revoked_at`, `expires_at`, `legacy_id_ok`; a partial index guarantees one live link per session | `0001:54-75`, `0033` |
-| `session.courts` | `court_index >= 0`, unique `(community_id, session_id, court_index)`, `start_time <> end_time` (an end at or before the start means the next day, `0047`); `declared` marks a register the session ships with, and a game materialises a row for its own coordinate where the session has none; `games_court_fk` and `game_skips_court_fk` point here, deferred to commit | `0001:77-93`, `0047`, `0056` |
-| `session.games` | Unique `(session_id, round_no, court_no)` and `games_identity_unique` (0029) on `(community_id, session_id, round_no, court_no)`; status `scheduled/played/cancelled`; `version` bumped by the `session.bump_version()` trigger; `side_a1/a2/b1/b2` (0010) with composite FKs to `session.participants`; CHECK `games_distinct_sides` (0014); `games_court_fk` to `session.courts`, deferred (0056); the old `score_a`/`score_b` are only the backfill and rollback path, no longer written by the application | `0001:95-134`, `0010:32-61`, `0014`, `0029` |
-| `session.participants` | Unique `(session_id, player_id)`; `is_absent`; player FK `on delete restrict` | `0010:7-27` |
+| `session.courts` | `court_index >= 0`, unique `(community_id, session_id, court_index)` (`0059` dropped the narrower `courts_session_index_unique`), `start_time <> end_time` (an end at or before the start means the next day, `0047`); `declared` marks a register the session ships with, and a game materialises a row for its own coordinate where the session has none; `games_court_fk` and `game_skips_court_fk` point here, deferred to commit | `0001:77-93`, `0047`, `0056` |
+| `session.games` | Unique `(session_id, round_no, court_no)` and `games_identity_unique` (0029) on `(community_id, session_id, round_no, court_no)`; status `scheduled/played/cancelled`; `version` bumped by the `session.bump_version()` trigger; `side_a1/a2/b1/b2` (0010) with composite FKs to `session.participants`; CHECK `games_distinct_sides` (0014); `games_court_fk` to `session.courts`, deferred (0056); no `(community_id, session_id)` index (`0059`); the old `score_a`/`score_b` are only the backfill and rollback path, no longer written by the application | `0001:95-134`, `0010:32-61`, `0014`, `0029` |
+| `session.participants` | Unique `(session_id, player_id)`; `is_absent`, with a partial `(community_id) where is_absent` index for the board and backfill reads (`0058`); player FK `on delete restrict` | `0010:7-27`, `0058` |
 | `session.game_sets` | One row per set; `set_no` 1–9, `score_a`/`score_b` 0–99 and must not be a draw; unique `(session_id, round_no, court_no, set_no)`; composite FK to `session.games`, cascade; application grants in `0030` | `0029`, `0030` |
 | `session.game_skips` | PK `(community_id, session_id, round_no, court_no, player_id)`; players skipped in one game; cascade with session and player; `game_skips_court_fk` to `session.courts`, deferred | `0017`, `0056` |
 
@@ -274,7 +286,7 @@ Do not carry names from the v1 document into this one:
 
 | v1 | v2 |
 |---|---|
-| schema `bm`, migrations `000001`–`000023` | database `bm2`, migrations `0001`–`0057` |
+| schema `bm`, migrations `000001`–`000023` | database `bm2`, migrations `0001`–`0060` |
 | `scheduled_games`, `scheduled_game_players` | `session.games` + `session.participants` |
 | `rating_events`, `rating_deltas`, `rating_players` | `rating.events`, `rating.player_state` (the delta ledger has no counterpart) |
 | `player_achievements` | `achievement.earned` + `achievement.definitions` |

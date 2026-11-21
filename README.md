@@ -25,7 +25,7 @@ Shipped and in production: sessions and courts, tournaments (classic draws and t
 ratings, achievements, player management with claim and merge, multi-tenancy, sealed share links,
 the social canvas, and live updates over WebSocket with an HTTP fallback.
 
-The contract is 76 operations across an OpenAPI definition, backed by 57 migrations on PostgreSQL 18
+The contract is 76 operations across an OpenAPI definition, backed by 60 migrations on PostgreSQL 18
 keyed and scoped by `community_id`. `./task docs-check` fails the build when a document quotes a
 different number.
 
@@ -129,7 +129,7 @@ All validation runs through the single `./task` dispatcher.
 | `./task test` | integration tests against isolated PostgreSQL databases (`--timing`, `WORKERS=N` to shard) |
 | `./task ci` | composite gate: linting, contract parity, builds and integration tests |
 | `./task coverage` | per-module line coverage, ratcheted against the committed baseline JSON |
-| `./task docs-check` | documentation counts (57 migrations, 76 operations), link and path integrity, release order, pinned tool versions, design-system review age |
+| `./task docs-check` | documentation counts (60 migrations, 76 operations), link and path integrity, release order, pinned tool versions, design-system review age |
 | `./task parity v2 verify` | golden contract replay: 144 fixtures against the frozen and live corpora |
 | `./task e2e` | multi-browser end-to-end (iPhone 17 WebKit, POCO F5 Chromium, desktop, WebSocket) |
 | `pnpm check:web` | TypeScript, ESLint, Tailwind token validation, Vitest coverage |

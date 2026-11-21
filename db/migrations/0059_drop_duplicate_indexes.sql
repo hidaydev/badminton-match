@@ -1,0 +1,50 @@
+-- 0059: the two duplicate indexes 0041 left behind.
+--
+-- 0041 dropped `courts_community_session_idx`, `participants_community_session_idx`,
+-- `game_skips_community_session_idx` and `links_community_session_idx` for one
+-- reason: `session.sessions` is unique on `(community_id, id)`, so a `session_id`
+-- already determines its community and a second index that leads with
+-- `community_id, session_id` adds nothing. Two of the same shape survived.
+--
+-- 1. `session.courts`, `courts_session_index_unique (session_id, court_index)`
+--    versus `courts_community_session_index_unique (community_id, session_id,
+--    court_index)` added by 0056. 0056's own comment says the second "adds no new
+--    rejection"; the pair rejects exactly the same rows, because a session
+--    belongs to one community. The three-column one stays: `games_court_fk` and
+--    `game_skips_court_fk` are composite keys on `(community_id, session_id,
+--    court_no)` and PostgreSQL requires a foreign key to name a unique
+--    constraint of its own, so the wide key cannot go instead. That leaves the
+--    narrow one as the redundant object: it costs one more B-tree entry per court
+--    write and makes a duplicate court answer an ambiguous 23505 with two
+--    candidate constraints.
+--
+-- 2. `session.games`, `games_community_session_idx (community_id, session_id)`
+--    versus `games_identity_unique (community_id, session_id, round_no,
+--    court_no)` from 0029. The unique key leads with the same two columns, and
+--    PostgreSQL 18 can serve a community-only lookup from a longer key with a
+--    skip scan, which is 0041's own argument for dropping the four above.
+--
+-- The one caller that made the first drop unsafe is `tools/import/main.nim`: it
+-- upserts a court with `on conflict (session_id, court_index)`, and inference
+-- only considers unique indexes whose columns match the target exactly, so that
+-- statement needs a two-column arbiter. It now names
+-- `(community_id, session_id, court_index)`, which matches the constraint that
+-- stays. No other statement infers an arbiter on either table: the courts
+-- inserts in 0056 name the three columns, and the games import names
+-- `(community_id, session_id, round_no, court_no)` in
+-- `games_identity_unique`.
+--
+-- Down path: both objects are recreated from their original definitions. The
+-- constraint can always be restored, because the three-column key that stayed
+-- implies the two-column rule.
+--   alter table session.courts
+--     add constraint courts_session_index_unique unique (session_id, court_index);
+--   create index games_community_session_idx
+--     on session.games (community_id, session_id);
+-- Reverting also means putting the importer's `on conflict` back to
+-- `(session_id, court_index)`; without that the statement still resolves through
+-- the wide key, so the revert is safe either way.
+
+alter table session.courts drop constraint if exists courts_session_index_unique;
+
+drop index if exists session.games_community_session_idx;
