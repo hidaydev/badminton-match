@@ -73,7 +73,7 @@ suite "session store storage":
     discard db.execUpdate(
       """update account.sessions set last_seen_at = now() - interval '1 hour'
          where id = $1::uuid""", @[textParam(newestId)])
-    let ordered = listSessions(db, userId, middle)
+    let ordered = listSessions(db, userId, middle, 500)
     check ordered.len == 3
     check ordered[0].id == newestId
     check ordered[1].id == middleId

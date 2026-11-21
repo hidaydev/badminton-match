@@ -110,15 +110,22 @@ proc revokeOthers*(db: Db, userId, keepToken: string) =
     "delete from platform.ws_ticket where user_id = $1::uuid",
     @[textParam(userId)])
 
-proc listSessions*(db: Db, userId, currentToken: string): seq[SessionRow] =
+proc listSessions*(db: Db, userId, currentToken: string,
+                   limit: int): seq[SessionRow] =
+  ## REL-BE-10: bounded by the caller's configured page cap
+  ## (`api.page_size_max`, the same key `pageParams` clamps every list route
+  ## with). The newest sessions win: a person signing in from many devices gets
+  ## one page, not an ever-growing one, and the current session is usually at the
+  ## top because it was just touched.
   for row in db.query(
     """select id, created_at::text as created_at, last_seen_at::text as last_seen_at,
               (token_hash = decode($2,'hex')) as is_current
        from account.sessions
        where user_id = $1::uuid and revoked_at is null
          and absolute_expires_at > now()
-       order by last_seen_at desc""",
-    @[textParam(userId), textParam(sha256Hex(currentToken))]):
+       order by last_seen_at desc
+       limit $3""",
+    @[textParam(userId), textParam(sha256Hex(currentToken)), intParam(limit.int64)]):
     result.add(SessionRow(
       id: row.getUuid("id"),
       createdAt: row.get("created_at"),

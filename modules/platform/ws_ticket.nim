@@ -80,3 +80,20 @@ proc revokeShare*(db: Db, linkId: string): int =
     """delete from platform.ws_ticket
        where channel_kind = 'share' and channel_id = $1::uuid""",
     @[textParam(linkId)])
+
+const
+  revokeSharesSql* = """delete from platform.ws_ticket
+       where channel_kind = 'share' and channel_id = any($1::uuid[])"""
+    ## REL-BE-09: one statement for a whole set of links. Exported so a unit
+    ## suite can prove the shape without a database: one statement and one array
+    ## parameter, so deleting a session with N links is one round trip instead of
+    ## N pooled checkouts.
+
+proc revokeShares*(db: Db, linkIds: seq[string]): int =
+  ## Every ticket of a whole set of links in one statement. Called on the
+  ## delete's own transaction connection, so the tickets go away with the rows in
+  ## the same commit: a crash after it cannot leave a valid ticket for a link
+  ## that no longer exists.
+  if linkIds.len == 0:
+    return 0
+  db.execUpdate(revokeSharesSql, @[textParam(textArray(linkIds))])
