@@ -314,8 +314,15 @@ nim_compile_check() {
 
 list_test_files() {
   # Unit tests always run. Integration tests only when INTEGRATION=1.
+  # A root that is gone is named, never swallowed: `find` writes its complaint
+  # to stderr and the old `2>/dev/null` turned a moved tree into an empty list,
+  # which every caller then reported as a pass.
+  for _root in apps modules shared tools; do
+    [ -d "$REPO_ROOT/$_root" ] ||
+      fail "test roots: $REPO_ROOT/$_root is not a directory (expected apps modules shared tools)"
+  done
   find "$REPO_ROOT/apps" "$REPO_ROOT/modules" "$REPO_ROOT/shared" "$REPO_ROOT/tools" \
-    -name '*_test.nim' -type f 2>/dev/null | sort | while IFS= read -r file; do
+    -name '*_test.nim' -type f | sort | while IFS= read -r file; do
       case "$file" in
         */tests/integration/*)
           [ "${INTEGRATION:-0}" = "1" ] && printf '%s\n' "$file"

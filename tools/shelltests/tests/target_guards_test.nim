@@ -24,6 +24,9 @@ suite "task target guards":
   test "test.sh runs when ALLOW_SHARED_DB=1":
     let fixture = newFixture("test-shared-db")
     defer: removeDir(fixture.root)
+    # The runner refuses an empty suite list (REL-QA-01), so a fixture that
+    # means "the shared-database path works" needs one suite to run.
+    touch(fixture.root / "apps/api/tests/api_test.nim")
     let result = fixture.runTask(@["test"], extraEnv = @[
       ("MAJADU_PG_DSN", "postgresql://user@127.0.0.1:5432/bm2"),
       ("ALLOW_SHARED_DB", "1"),
@@ -31,6 +34,20 @@ suite "task target guards":
     check result.exitCode == 0
     check result.stdout.contains("test: ok")
     check result.stdout.contains("skips: 0 skipped")
+
+  test "test.sh refuses a checkout with no suite at all":
+    ## REL-QA-01: `suites: 0 unit, 0 integration` followed by `test: ok` is how
+    ## a tag ships with no API suite run. A tree the lister cannot see is a
+    ## failure, not a pass.
+    let fixture = newFixture("test-empty-list")
+    defer: removeDir(fixture.root)
+    let result = fixture.runTask(@["test"], extraEnv = @[
+      ("MAJADU_PG_DSN", "postgresql://user@127.0.0.1:5432/bm2"),
+      ("ALLOW_SHARED_DB", "1"),
+    ])
+    check result.exitCode == 1
+    check result.stderr.contains("no test suite matched under apps modules shared tools")
+    check not result.stdout.contains("test: ok")
 
   test "check.sh rejects an unknown argument":
     let fixture = newFixture("check-arg")
@@ -42,6 +59,9 @@ suite "task target guards":
   test "check.sh accepts --no-run":
     let fixture = newFixture("check-no-run")
     defer: removeDir(fixture.root)
+    # One suite, because the runner refuses an empty list (REL-QA-01) and this
+    # case is about the compile-only mode, not about an empty tree.
+    touch(fixture.root / "apps/api/tests/api_test.nim")
     let result = fixture.runTask(@["check", "--no-run"])
     check result.exitCode == 0
     check result.stdout.contains("check: ok (unit suites compiled, not run")
@@ -50,6 +70,7 @@ suite "task target guards":
     ## QA-27: api-check runs this mode; api-test is the job that compiles.
     let fixture = newFixture("check-static")
     defer: removeDir(fixture.root)
+    touch(fixture.root / "apps/api/tests/api_test.nim")
     let result = fixture.runTask(@["check", "--static"])
     check result.exitCode == 0
     check result.stdout.contains("check: ok (static gates only")

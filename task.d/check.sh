@@ -39,10 +39,16 @@ sh "$REPO_ROOT/task.d/proc-length.sh"
 junit_begin
 trap 'junit_finish' EXIT
 
+files=$(list_test_files)
+# An empty list is not a green run. `--static` and `--no-run` compile the same
+# list, so a tree the lister cannot see fails here instead of printing ok.
+[ -n "$files" ] ||
+  fail "no test suite matched under apps modules shared tools; refusing to report ok"
+
 if [ "$run_suites" = "1" ]; then
   timing_begin check
 fi
-for file in $(list_test_files); do
+for file in $files; do
   if [ "$run_suites" = "1" ]; then
     _start=$(now_ms)
     _code=0

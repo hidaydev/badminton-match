@@ -195,6 +195,10 @@ fi
 : >"$CACHE_DIR/failures.tsv"
 
 files=$(list_test_files)
+# An empty list is not a green run: `suites: 0 unit, 0 integration` followed by
+# `test: ok` is how a tag ships with no API suite executed.
+[ -n "$files" ] ||
+  fail "no test suite matched under apps modules shared tools; refusing to report ok"
 if [ "$reverse" = "1" ]; then
   files=$(printf '%s\n' "$files" |
     awk '{ line[NR] = $0 } END { for (i = NR; i > 0; i--) print line[i] }')
@@ -261,6 +265,10 @@ for file in $files; do
 done
 
 if [ "$shard_total" -gt 1 ]; then
+  # A shard that kept nothing is not a passing shard: it proves the slice
+  # arithmetic ran off the end of the list, not that the suites passed.
+  [ "$ran" -gt 0 ] ||
+    fail "shard $shard_index/$shard_total kept no suite; check --shard"
   printf 'test: shard %s/%s ran %s of %s suite(s)\n' "$shard_index" \
     "$shard_total" "$ran" "$index"
 fi

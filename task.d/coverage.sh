@@ -833,6 +833,10 @@ else
   # decides which files it measures.
   planned=0
   files=$(list_test_files)
+  # Measuring nothing is not a measurement: an empty list would produce no gcov
+  # data and a green readout for a tree the lister could not see.
+  [ -n "$files" ] ||
+    fail "no test suite matched under apps modules shared tools; refusing to measure nothing"
   if [ -s "$TEST_COST_FILE" ] && [ "$shard_total" -ge 2 ]; then
     files=$(printf '%s\n' "$files" | shard_plan "$shard_total" "$shard_index")
     planned=1
