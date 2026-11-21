@@ -58,8 +58,9 @@ Entrypoint: `apps/api/src/main.nim`.
    serve a 500.
 3. `newApp()` + `install()` keep a single process-wide `App`; Mummy handlers use the only
    `gcsafe` cast at the boundary (`apps/api/src/app.nim`).
-4. The server runs with `max(countProcessors(), 2)` worker threads; SIGTERM/SIGINT
-   trigger drain then close (`apps/api/src/main.nim`).
+4. The server runs with `max(cores, 1) * 4` worker threads (8 on the 2 vCPU host) and
+   a database pool of `workers + 2`; SIGTERM/SIGINT trigger drain then close
+   (`apps/api/src/main.nim`).
 
 Business configuration is **not** read from env. All numbers live in `platform.config`
 with a typed registry in `modules/platform/config/registry.nim`; the snapshot is cached per
