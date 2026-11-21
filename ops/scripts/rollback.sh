@@ -136,12 +136,21 @@ fi
 # The guard is unconditional. On the documented host psql is not installed, so
 # the count runs inside the PostgreSQL container; when neither client works the
 # script refuses rather than silently discarding rows the operator never saw.
+#
+# REL-CI-08: the owner DSN never becomes a command-line argument. `psql <dsn>`
+# expanded a full-DDL connection string into argv, where any user on the host can
+# read it from `ps` for the length of the query. `psql` connects through
+# PQconnectdbParams(keywords, values, expand_dbname=true), and PGDATABASE is the
+# envvar for the `dbname` keyword, so a complete URI in PGDATABASE is expanded
+# exactly like the positional argument was. Both paths read it from the
+# environment: the local psql inherits it, and `podman exec -e PGDATABASE` with
+# no `=value` copies it from podman's own environment into the container.
 psql_owner() {
   if command -v psql >/dev/null 2>&1; then
-    psql "$@"
+    PGDATABASE="$1" psql "${@:2}"
   else
     command -v podman >/dev/null 2>&1 || return 1
-    podman exec -i "$PG_CONTAINER" psql "$@"
+    PGDATABASE="$1" podman exec -i -e PGDATABASE "$PG_CONTAINER" psql "${@:2}"
   fi
 }
 
