@@ -43,7 +43,7 @@ Status as of **2026-11-16** (Release 2.0.3). The change history is in git histor
 | # | Item | Why |
 |---|---|---|
 | 1 | **`platform.outbox` producer** | Realtime is still in-memory → the API must be a single instance. For one VPS this is enough; an outbox only becomes necessary when replicas are added. |
-| 2 | **Raise coverage** | The ratchet only holds the line. The Linux baseline (2026-11-09) is the number CI judges: `tools` 80.55%, `modules/player` 88.29%, `modules/session` 90.31%, `shared` 90.38%, `apps/api` 91.34% (`app.nim` is 3,571 lines). |
+| 2 | **Raise coverage** | The ratchet only holds the line. The Linux baseline is the number `./task coverage` judges locally; no workflow runs it since `bf84905b`, the per-file floor is what `./task check` gates. Current Linux numbers live in `docs/handbook/current-status.md`, not here. |
 
 ## 🚧 Operations still open
 

@@ -215,9 +215,11 @@ The rewrite backlog is done; what remains is operations and measurement.
   unproven until it is archived), removal of `:v1-final` after 30 days (T-082),
   T-108 force-push postponed by owner decision.
 - **Gaps outside the plan:** `platform.outbox` producer (realtime is still
-  per-process). Coverage is measured after the gcov attribution fix, and CI
-  judges `coverage-baseline-linux.json` (89.14% of 21,295 lines on 2026-11-11;
-  every fall in covered lines was checked against the deletions that caused it).
+  per-process). Coverage is measured after the gcov attribution fix by
+  `./task coverage`, which is a local run: no workflow has judged
+  `coverage-baseline-linux.json` since `bf84905b` (89.14% of 21,295 lines on
+  2026-11-11; every fall in covered lines was checked against the deletions
+  that caused it).
   The lowest domains are `tools` 81.01%, `modules/player` 89.51% and `shared`
   91.55%.
 - **Known data differences (accepted):** Salma, Youri, Zaid, and Firda
