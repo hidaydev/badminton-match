@@ -320,13 +320,16 @@ proc importCourts(source, target: Db, communityId: string,
         continue
       let mapped = mapLookup(conn, communityId, "court", row.get("id"))
       let newId = if mapped.isSome: mapped.get else: uuidv7()
+      # 0059 dropped `courts_session_index_unique`, so the three-column key is
+      # the only arbiter left. A session_id already determines its community, so
+      # the extra column changes which rows conflict.
       discard conn.execUpdate(
         """insert into session.courts
              (id, community_id, session_id, court_index, court_name,
               start_time, end_time, declared)
            values ($1::uuid, $2::uuid, $3::uuid, $4::int, $5, $6::time, $7::time,
                    true)
-           on conflict (session_id, court_index) do update
+           on conflict (community_id, session_id, court_index) do update
              set court_name = excluded.court_name,
                  start_time = excluded.start_time,
                  end_time = excluded.end_time,

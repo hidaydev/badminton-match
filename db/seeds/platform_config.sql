@@ -1,6 +1,11 @@
 -- L1 defaults for every key in modules/platform/config/registry.nim.
 -- Values are the v1 business numbers frozen in TECH-SPEC §4A; changing them is a
 -- data change, not a deploy. `dbtools seed` records this file by name+checksum.
+--
+-- Removing a key from the registry and from this file is not enough: this file
+-- upserts with `on conflict (key) do nothing` and `dbtools seed` only inserts,
+-- so the row survives in every database that already had it. A removed key
+-- needs a delete migration (0028, 0060).
 
 insert into platform.config (key, value_type, value, min_value, max_value, scope, description) values
   ('community.join_requests_enabled', 'bool', 'false', null, null, 'community',

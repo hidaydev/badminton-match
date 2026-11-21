@@ -787,10 +787,13 @@ try:
       migrate(scratch, migrationsDir)
       let gone = @["games_round_court_unique", "courts_community_session_idx",
         "participants_community_session_idx",
-        "game_skips_community_session_idx", "links_community_session_idx"]
-      let kept = @["games_identity_unique", "courts_session_index_unique",
+        "game_skips_community_session_idx", "links_community_session_idx",
+        # 0059: the two 0041 left behind. The wide court key stays because the
+        # composite court foreign key must name a unique constraint of its own.
+        "courts_session_index_unique", "games_community_session_idx"]
+      let kept = @["games_identity_unique", "courts_community_session_index_unique",
         "participants_session_player_unique", "game_skips_game_unique",
-        "links_one_live"]
+        "links_one_live", "participants_absent_idx"]
       for name in gone:
         check scratch.queryOne(
           """select 1 as ok from pg_indexes

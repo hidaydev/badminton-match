@@ -1,0 +1,35 @@
+-- 0060: two config rows the registry no longer resolves.
+--
+-- `tournament.classic.pair_count` and `ws.session_ttl_minutes` left the registry
+-- and the seed in 23fc21df, because no code read either one. The seed upserts
+-- with `on conflict (key) do nothing` and `dbtools seed` only inserts, so the
+-- delete never reached a database: `bm2_dev` and `bm2_explore` still carry 37
+-- rows where the seed has 36.
+--
+-- The rows are harmless to the API, which reads `allKeys`, but not to anything
+-- that walks the table instead: `specFor` raises
+-- `ValueError: key is not in the registry` on either key
+-- (`modules/platform/config/registry.nim:118`), so an export or an operator
+-- query that starts from `platform.config` meets a row the process cannot
+-- answer.
+--
+-- Deleting is safe because no community override can exist for a platform-scope
+-- key: `config_routes.nim` refuses a write to a key whose spec is not
+-- `csCommunity`, so the only rows that could name these keys are the platform
+-- ones. `config_bump_version` (0024) bumps the version on the delete, so a
+-- running process reloads.
+--
+-- Down path: re-insert the two rows from their 0028-era definitions.
+--   insert into platform.config
+--     (key, value_type, value, min_value, max_value, scope, description)
+--   values
+--     ('tournament.classic.pair_count', 'int', '16', 2, 256, 'platform',
+--      'Pair count of a classic tournament'),
+--     ('ws.session_ttl_minutes', 'int', '60', 1, 1440, 'platform',
+--      'Idle lifetime of a websocket connection')
+--   on conflict (key) do nothing;
+-- The registry would still not resolve them, so a revert is only right together
+-- with a revert of 23fc21df.
+
+delete from platform.config
+ where key in ('tournament.classic.pair_count', 'ws.session_ttl_minutes');
