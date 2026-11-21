@@ -102,3 +102,59 @@ suite "socket registry":
     check hub.watchers("session:7").len == 2
     check hub.watchers("session:99").len == 2
     check hub.watchers("session:100").len == 0
+
+suite "queued-frame bound":
+  ## REL-BE-07: a watcher that stops reading must not grow mummy's outbound
+  ## queue into the container's MemoryMax. `reserveFrame` is the decision, and it
+  ## is pure arithmetic over the registry so it needs no handshake to test.
+  let caps = WatcherCaps(perSession: 100, perIp: 100, process: 600)
+
+  test "the Nth frame is accepted and the N+1th drops the socket":
+    let hub = newHub(Db())
+    discard hub.admit(fakeSocket(1), "session:a", "user-a", "ip-a", caps)
+    for _ in 0 ..< maxQueuedFrames:
+      check hub.reserveFrame(fakeSocket(1))
+    check not hub.reserveFrame(fakeSocket(1))
+    # The refused frame is also the disconnect: the socket leaves every index, so
+    # the next broadcast does not even find it.
+    check hub.stats.sockets == 0
+    check hub.watchers("session:a").len == 0
+
+  test "an inbound frame reopens the window":
+    let hub = newHub(Db())
+    discard hub.admit(fakeSocket(2), "session:b", "user-b", "ip-b", caps)
+    for _ in 0 ..< maxQueuedFrames:
+      check hub.reserveFrame(fakeSocket(2))
+    check not hub.reserveFrame(fakeSocket(2))
+    # `dispatch` proves reading before it answers a ping, so a board that keeps
+    # pinging is never dropped for a queue it is draining.
+    let fresh = newHub(Db())
+    discard fresh.admit(fakeSocket(3), "session:c", "user-c", "ip-c", caps)
+    for _ in 0 ..< maxQueuedFrames:
+      check fresh.reserveFrame(fakeSocket(3))
+    fresh.proofOfReading(fakeSocket(3))
+    check fresh.reserveFrame(fakeSocket(3))
+    check fresh.stats.sockets == 1
+
+  test "one stuck socket never takes its neighbours with it":
+    let hub = newHub(Db())
+    for id in 0 ..< 3:
+      discard hub.admit(fakeSocket(id), "session:d", "user-" & $id, "ip-" & $id,
+        caps)
+    for _ in 0 ..< maxQueuedFrames:
+      check hub.reserveFrame(fakeSocket(0))
+    check not hub.reserveFrame(fakeSocket(0))
+    # The other two keep their slots and their empty windows.
+    check hub.stats.sockets == 2
+    check hub.reserveFrame(fakeSocket(1))
+    check hub.reserveFrame(fakeSocket(2))
+
+  test "a released socket is never counted back into the registry":
+    ## A release can land between the target list and the write. Counting that
+    ## socket would leak a counter entry and let a frame reach a closed socket.
+    let hub = newHub(Db())
+    discard hub.admit(fakeSocket(4), "session:e", "user-e", "ip-e", caps)
+    hub.release(fakeSocket(4))
+    check not hub.reserveFrame(fakeSocket(4))
+    check hub.stats.sockets == 0
+    check hub.watchers("session:e").len == 0

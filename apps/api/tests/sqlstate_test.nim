@@ -12,9 +12,18 @@ suite "integrity violation status":
       checkpoint(state)
       check statusForSqlState(state) == status
 
+  test "a retryable condition is unavailable, not a defect":
+    ## REL-BE-04: statement_timeout, admin shutdown and a dropped connection are
+    ## conditions to retry, so they answer 503 instead of 500. This pair used to
+    ## pin 08006 to 500 and alerted a PostgreSQL restart as a code defect.
+    for state in ["57014", "57P01", "08006"]:
+      checkpoint(state)
+      check statusForSqlState(state) == 503
+      check codeForSqlState(state) == "UNAVAILABLE"
+
   test "everything else stays internal":
     check statusForSqlState("") == 500
-    check statusForSqlState("08006") == 500
+    check statusForSqlState("XX000") == 500
 
   test "a held lock is retryable, not a defect":
     check statusForSqlState("55P03") == 503
@@ -27,4 +36,4 @@ suite "integrity violation status":
     for state in ["23502", "23514", "54000", "22P02", "22007", "22008"]:
       checkpoint(state)
       check codeForSqlState(state) == "INVALID_INPUT"
-    check codeForSqlState("08006") == "INTERNAL"
+    check codeForSqlState("XX000") == "INTERNAL"
