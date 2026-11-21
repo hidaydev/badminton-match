@@ -5,6 +5,11 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.1.2] - 2026-11-21
+
+### Fixed
+- fix(ops): keep :local alive across the rotation, reset a latched unit (1ef0c84; apps/web/README.md, apps/web/vercel.json, ops/scripts/deploy-vps.sh (+3 more))
+
 ## [2.1.1] - 2026-11-21
 
 ### Fixed
