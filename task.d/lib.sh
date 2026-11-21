@@ -282,6 +282,42 @@ test_binary() {
   printf '%s\n' "$NIMCACHE_BUILD/bin/$_name"
 }
 
+# REL-DB-12: say out loud how far behind the local database is.
+#
+# A checkout that sat unused keeps a database many migrations behind, and the
+# caller's own `dbtools migrate` closes the gap in silence, so nobody learns the
+# schema they were reading was not the one in the tree. The count comes from
+# `dbtools verify`, which already names every pending file, so there is no
+# second ledger query to drift from it. Nothing is applied here, and nothing
+# returns non-zero: `verify` also fails on checksum drift and on a database that
+# was never initialised, and neither is this helper's to repair.
+#
+#   schema_lag_report <dbtools binary> <migrations dir>
+schema_lag_report() {
+  _tools=$1
+  _dir=$2
+  _log="$NIMCACHE_BUILD/verify.log"
+  mkdir -p "$NIMCACHE_BUILD"
+  if "$_tools" verify --dir "$_dir" >"$_log" 2>&1; then
+    printf 'dev: schema    up to date with %s\n' "${_dir#"$REPO_ROOT/"}"
+    return 0
+  fi
+  _pending=$(grep -c 'pending migration:' "$_log" 2>/dev/null || true)
+  case "${_pending:-0}" in
+    ''|0)
+      printf 'dev: schema    unknown (%s); run ./task dev-db if the database was never created\n' \
+        "$(head -1 "$_log" 2>/dev/null || true)"
+      ;;
+    *)
+      printf 'dev: schema    %s migration(s) behind %s; applying them now\n' \
+        "$_pending" "${_dir#"$REPO_ROOT/"}"
+      grep 'pending migration:' "$_log" |
+        sed 's/^dbtools: pending migration: /dev:   pending  /' || true
+      ;;
+  esac
+  return 0
+}
+
 # --- machine-readable results (QA-11) ----------------------------------------
 #
 # A red job that leaves only a scrolling log behind cannot be triaged without a

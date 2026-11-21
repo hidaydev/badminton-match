@@ -46,6 +46,13 @@ fi
 nim_build -o:"$bin_dir/dbtools" "$REPO_ROOT/tools/dbtools/main.nim"
 nim_build -o:"$bin_dir/oidc-stub" "$REPO_ROOT/tools/oidc-stub/main.nim"
 
+# REL-DB-12: a checkout that sat unused keeps a database several migrations
+# behind, and the migrate below used to close the gap in silence, so nobody
+# learned the schema they were reading was not the one in the tree.
+# `schema_lag_report` reads its answer from `dbtools verify`, applies nothing,
+# and never stops the run.
+schema_lag_report "$bin_dir/dbtools" "$REPO_ROOT/db/migrations"
+
 "$bin_dir/dbtools" migrate --dir "$REPO_ROOT/db/migrations" >/dev/null
 "$bin_dir/dbtools" seed --dir "$REPO_ROOT/db/seeds" >/dev/null
 

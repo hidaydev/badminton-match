@@ -178,6 +178,67 @@ printf 'reached\n'
       fixture.root / ".cache" / "tl18-wt" / "failures.tsv")
     check failures.contains("TIMEOUT\tapps/api/tests/slow_test.nim\t124")
 
+  test "schema_lag_report says the dev database is up to date":
+    ## REL-DB-12: the developer has to learn the schema they are reading is the
+    ## one in the tree, without `./task dev` stopping to prove it.
+    let fixture = newFixture("lib-schema-lag-ok")
+    defer: removeDir(fixture.root)
+    discard fixture.installFake("dbtools",
+      "#!/bin/sh\nprintf 'dbtools: verified 60 file(s)\\n'\nexit 0\n")
+    let result = fixture.runLib(""". "$1"
+schema_lag_report dbtools db/migrations
+printf 'reached\n'
+""")
+    check result.exitCode == 0
+    check result.stdout.contains("dev: schema    up to date with db/migrations")
+    check result.stdout.contains("reached")
+
+  test "schema_lag_report names each pending migration and still carries on":
+    ## The 24-behind case from the audit row, cut down to three files. The count
+    ## and the names both come from `dbtools verify`; the helper only formats
+    ## them, and it must not turn a stale database into a failed `./task dev`.
+    let fixture = newFixture("lib-schema-lag-behind")
+    defer: removeDir(fixture.root)
+    discard fixture.installFake("dbtools", """#!/bin/sh
+cat >&2 <<'EOF'
+dbtools: pending migration: 0033_links_legacy_id
+dbtools: pending migration: 0034_etl_grants
+dbtools: pending migration: 0035_audit_occurred_index
+dbtools: 3 problem(s); database is not at the committed schema
+EOF
+exit 1
+""")
+    let result = fixture.runLib(""". "$1"
+schema_lag_report dbtools db/migrations
+printf 'status=%s\n' "$?"
+""")
+    check result.exitCode == 0
+    check result.stdout.contains("dev: schema    3 migration(s) behind db/migrations")
+    check result.stdout.contains("dev:   pending  0033_links_legacy_id")
+    check result.stdout.contains("dev:   pending  0035_audit_occurred_index")
+    check result.stdout.contains("status=0")
+
+  test "schema_lag_report calls a database it cannot read unknown, not lagging":
+    ## A first checkout, or a dropped bm2_dev: `dbtools verify` fails with
+    ## something other than a pending migration, and `./task dev` must not
+    ## report "0 behind" as if the schema were current, nor stop.
+    let fixture = newFixture("lib-schema-lag-unknown")
+    defer: removeDir(fixture.root)
+    discard fixture.installFake("dbtools",
+      """#!/bin/sh
+printf 'dbtools: MAJADU_PG_DSN is required\n' >&2
+exit 1
+""")
+    let result = fixture.runLib(""". "$1"
+schema_lag_report dbtools db/migrations
+printf 'reached\n'
+""")
+    check result.exitCode == 0
+    check result.stdout.contains("dev: schema    unknown (dbtools: MAJADU_PG_DSN is required)")
+    check result.stdout.contains("./task dev-db")
+    check not result.stdout.contains("migration(s) behind")
+    check result.stdout.contains("reached")
+
   test "run_deadline leaves a suite that finishes inside the cap alone":
     let fixture = newFixture("lib-deadline-fast")
     defer: removeDir(fixture.root)
