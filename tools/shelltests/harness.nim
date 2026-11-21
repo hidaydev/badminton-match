@@ -60,9 +60,13 @@ proc newFixture*(name: string): Fixture =
   for dir in ["apps", "modules", "shared", "tools"]:
     createDir(root / dir)
   createDir(root / "docs" / "handbook")
+  # Same shape as the real register: a `note` and an `entries` array. The gate
+  # reads the array structurally (REL-QA-02), so a bare object here would test a
+  # file the gate is right to reject.
   writeFile(root / "docs" / "handbook" / "flaky-tests.json",
-    "{\"test\": \"example\", \"owner\": \"TL-18\", \"firstSeen\": \"2026-01-01\", " &
-    "\"expires\": \"2099-01-01\", \"issue\": \"https://example.invalid/1\"}\n")
+    "{\n  \"note\": \"fixture\",\n  \"entries\": [\n    {\"test\": \"example\", " &
+    "\"owner\": \"TL-18\", \"firstSeen\": \"2026-01-01\", " &
+    "\"expires\": \"2099-01-01\", \"issue\": \"https://example.invalid/1\"}\n  ]\n}\n")
   # `./task check` validates the low-coverage manifest too, and a fixture has no
   # baseline, so an empty entry list is the honest tree.
   writeFile(root / "docs" / "handbook" / "coverage-debt.json",

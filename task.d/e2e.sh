@@ -81,33 +81,43 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-ready=0
-for _ in $(seq 1 100); do
-  if curl -fsS --max-time 1 "http://127.0.0.1:$API_PORT/healthz" >/dev/null 2>&1; then
-    ready=1
-    break
-  fi
-  sleep 0.2
-done
+# REL-QA-12: one deadline for the whole readiness phase. Four independent loops
+# of up to 20s each meant the worst case was 80s of sleeping inside a
+# 15-minute job, and the fourth failure still reported only its own server. Every
+# probe below draws from the same budget, so the wall is bounded once and the
+# message names the deadline rather than one port.
+READY_DEADLINE=$(( $(date +%s) + ${E2E_READY_TIMEOUT_S:-120} ))
+
+wait_for_url() {
+  _url=$1
+  _what=$2
+  _log=$3
+  while :; do
+    if curl -fsS --max-time 1 "$_url" >/dev/null 2>&1; then
+      return 0
+    fi
+    if [ "$(date +%s)" -ge "$READY_DEADLINE" ]; then
+      fail "$_what did not answer $_url within ${E2E_READY_TIMEOUT_S:-120}s of the readiness deadline (log: $_log)"
+    fi
+    sleep 0.2
+  done
+}
+
 # Without this the suite runs against a dead API and Playwright reports a
 # timeout per spec instead of one actionable line.
-[ "$ready" = 1 ] || fail "API did not answer /healthz on :$API_PORT (log: /tmp/e2e-api.log)"
-
-ready=0
-for _ in $(seq 1 100); do
-  if curl -fsS --max-time 1 "http://127.0.0.1:$FLAG_PORT/healthz" >/dev/null 2>&1; then
-    ready=1
-    break
-  fi
-  sleep 0.2
-done
-[ "$ready" = 1 ] || fail "the test-route instance did not answer /healthz on :$FLAG_PORT (log: /tmp/e2e-api-flag.log)"
+wait_for_url "http://127.0.0.1:$API_PORT/healthz" "API" /tmp/e2e-api.log
+wait_for_url "http://127.0.0.1:$FLAG_PORT/healthz" \
+  "the test-route instance" /tmp/e2e-api-flag.log
 
 pnpm --filter badminton-pair-tmp build >/dev/null
 pnpm --filter majadu-score build >/dev/null
 
+# REL-QA-11: `--strictPort` on both previews. Without it vite answers on the next
+# free port, so a preview left over from an earlier run keeps 5173 and the suite
+# drives whatever process already owned it, against the wrong build.
 E2E_API_PROXY="http://127.0.0.1:$API_PORT" \
-  pnpm --filter badminton-pair-tmp exec vite preview --host 127.0.0.1 --port "$WEB_PORT" \
+  pnpm --filter badminton-pair-tmp exec vite preview --host 127.0.0.1 \
+  --port "$WEB_PORT" --strictPort \
   >/tmp/e2e-web.log 2>&1 &
 WEB_PID=$!
 
@@ -116,25 +126,9 @@ pnpm --filter majadu-score exec vite preview --host 127.0.0.1 \
   >/tmp/e2e-scoreboard.log 2>&1 &
 SCOREBOARD_PID=$!
 
-ready=0
-for _ in $(seq 1 100); do
-  if curl -fsS --max-time 1 "http://127.0.0.1:$WEB_PORT/" >/dev/null 2>&1; then
-    ready=1
-    break
-  fi
-  sleep 0.2
-done
-[ "$ready" = 1 ] || fail "web preview did not answer on :$WEB_PORT (log: /tmp/e2e-web.log)"
-
-ready=0
-for _ in $(seq 1 100); do
-  if curl -fsS --max-time 1 "http://127.0.0.1:$SCOREBOARD_PORT/" >/dev/null 2>&1; then
-    ready=1
-    break
-  fi
-  sleep 0.2
-done
-[ "$ready" = 1 ] || fail "scoreboard preview did not answer on :$SCOREBOARD_PORT (log: /tmp/e2e-scoreboard.log)"
+wait_for_url "http://127.0.0.1:$WEB_PORT/" "web preview" /tmp/e2e-web.log
+wait_for_url "http://127.0.0.1:$SCOREBOARD_PORT/" "scoreboard preview" \
+  /tmp/e2e-scoreboard.log
 
 E2E_BASE_URL="http://127.0.0.1:$WEB_PORT" \
   E2E_SCOREBOARD_BASE_URL="http://127.0.0.1:$SCOREBOARD_PORT" \

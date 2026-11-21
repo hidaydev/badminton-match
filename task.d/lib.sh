@@ -15,8 +15,124 @@ fail() {
   exit 1
 }
 
+# REL-QA-09: one hung suite would otherwise consume the whole 15-minute job, and
+# a cancelled job uploads no junit report, so every result the run already had is
+# lost with it. The cap is per suite, so the file that hangs names itself and the
+# rest of the shard still reports.
+SUITE_TIMEOUT_S=${SUITE_TIMEOUT_S:-300}
+# 124 is what a killed child reports; it is named as a timeout rather than left
+# to read as an assertion failure in a suite that never printed one.
+TIMEOUT_EXIT=124
+
+timeout_cmd() {
+  if command -v timeout >/dev/null 2>&1; then
+    printf 'timeout\n'
+  elif command -v gtimeout >/dev/null 2>&1; then
+    printf 'gtimeout\n'
+  else
+    return 1
+  fi
+}
+
+run_deadline() {
+  # Sets `deadline_status` instead of returning it: the callers are all in a
+  # `cmd || status=$?` shape that would otherwise read the echo of a number.
+  _limit=$1
+  shift
+  deadline_status=0
+  if _timeout=$(timeout_cmd) && [ -n "$_timeout" ]; then
+    "$_timeout" -k 10 "$_limit" "$@" || deadline_status=$?
+  else
+    "$@" || deadline_status=$?
+  fi
+}
+
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "required command not found: $1"
+}
+
+# One entry object per line from the JSON array named $2 in file $1, written to
+# file $3. Structural, not per-line (REL-QA-02, REL-QA-05): an object may span
+# several physical lines, and a `{`, `}` or `[` inside a string is not structure.
+# The per-line match both registers used skipped a wrapped entry outright, so a
+# quarantine that had expired passed the gate.
+json_array_objects() {
+  awk -v file="$1" -v key="$2" -v out="$3" '
+    { text = text $0 "\n" }
+    END {
+      n = length(text); i = 1; depth = 0
+      found = 0; closed = 0; target = 0; arrdepth = 0
+      opening = 0; obj = ""; pendkey = ""
+      while (i <= n) {
+        c = substr(text, i, 1)
+        if (c == " " || c == "\t" || c == "\n" || c == "\r") {
+          if (opening) obj = obj c
+          i++
+          continue
+        }
+        if (c == "\"") {
+          j = i + 1; esc = 0
+          while (j <= n) {
+            d = substr(text, j, 1)
+            if (esc) esc = 0
+            else if (d == "\\") esc = 1
+            else if (d == "\"") break
+            j++
+          }
+          tok = substr(text, i, j - i + 1)
+          k = j + 1
+          while (k <= n && substr(text, k, 1) ~ /[ \t\r\n]/) k++
+          if (opening) obj = obj tok
+          if (!target && depth == 1 && substr(text, k, 1) == ":") {
+            pendkey = substr(text, i + 1, j - i - 1)
+            i = k + 1
+          } else i = j + 1
+          continue
+        }
+        if (c == "[" || c == "{") {
+          depth++
+          if (opening) { obj = obj c; i++; continue }
+          if (!target && depth == 2 && c == "[" && pendkey == key) {
+            target = 1; arrdepth = depth; found = 1; pendkey = ""
+            i++
+            continue
+          }
+          if (target && depth == arrdepth + 1 && c == "{") {
+            opening = 1; obj = "{"
+          }
+          i++
+          continue
+        }
+        if (c == "]" || c == "}") {
+          depth--
+          if (opening) {
+            obj = obj c
+            if (c == "}" && depth == arrdepth) {
+              gsub(/\n/, " ", obj)
+              print obj > out
+              obj = ""; opening = 0
+            }
+            i++
+            continue
+          }
+          if (target && depth < arrdepth) { target = 0; closed = 1 }
+          i++
+          continue
+        }
+        if (opening) obj = obj c
+        i++
+      }
+      if (!found) {
+        printf "%s: no \"%s\" array found (expected {\"%s\": [...]})\n", file, key, key > "/dev/stderr"
+        exit 1
+      }
+      if (!closed) {
+        printf "%s: the \"%s\" array is not closed\n", file, key > "/dev/stderr"
+        exit 1
+      }
+      close(out)
+    }
+  ' "$1"
 }
 
 # Postgres client. This host keeps Postgres in a container and carries no psql,
@@ -244,6 +360,15 @@ handle_suite_status() {
   case "$1" in
     0) ;;
     77) record_skip "$2" ;;
+    "$TIMEOUT_EXIT")
+      # REL-QA-09: a cap, not a verdict. Saying which suite hit it is the whole
+      # point, because the alternative is a cancelled job with no report.
+      mkdir -p "$REPO_ROOT/.cache/$WORKTREE"
+      printf 'timeout %ss: %s\n' "$SUITE_TIMEOUT_S" "$2" >&2
+      printf 'TIMEOUT\t%s\t%s\n' "$2" "$1" \
+        >>"$REPO_ROOT/.cache/$WORKTREE/failures.tsv"
+      return "$1"
+      ;;
     *)
       mkdir -p "$REPO_ROOT/.cache/$WORKTREE"
       printf 'FAIL\t%s\t%s\n' "$2" "$1" \
@@ -283,9 +408,8 @@ nim_run() {
   fi
   # `_suite_status`, not `_status`: a caller that records the result in `_status`
   # would otherwise read this function's skip code (77) as its own.
-  _suite_status=0
-  "$_bin" "$@" || _suite_status=$?
-  handle_suite_status "$_suite_status" "$_file"
+  run_deadline "$SUITE_TIMEOUT_S" "$_bin" "$@"
+  handle_suite_status "$deadline_status" "$_file"
 }
 
 nim_run_check() {
@@ -297,9 +421,8 @@ nim_run_check() {
     printf 'compile failed: %s\n' "$_file" >&2
     return 1
   fi
-  _suite_status=0
-  "$_bin" "$@" || _suite_status=$?
-  handle_suite_status "$_suite_status" "$_file"
+  run_deadline "$SUITE_TIMEOUT_S" "$_bin" "$@"
+  handle_suite_status "$deadline_status" "$_file"
 }
 
 nim_compile_check() {
