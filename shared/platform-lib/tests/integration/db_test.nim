@@ -224,6 +224,36 @@ suite "database layer":
     released.store(1, moRelaxed)
     joinThread(thread)
 
+  test "a pooled connection the server closed is revalidated on acquire":
+    # BE-01: after a PostgreSQL restart/failover every pooled socket is dead, and
+    # the pool handed one back, so every route answered 500 until the API was
+    # restarted. Killing this pool's only backend reproduces the same state the
+    # pool sees after a restart: one fd libpq reports as CONNECTION_BAD.
+    let probe = openDb(dsn(), 1)
+    defer: probe.close()
+    let before = probe.queryOne("select pg_backend_pid() as pid").get.get("pid")
+    try:
+      discard probe.queryOne("select pg_terminate_backend(pg_backend_pid())")
+    except DbError:
+      # The kill can land as an error on the statement that asked for it; both
+      # orderings leave the same dead fd behind for the next acquire.
+      discard
+    var seen = ""
+    waitUntil(proc(): bool =
+        try:
+          seen = probe.queryOne("select pg_backend_pid() as pid").get.get("pid")
+          seen != before
+        except DbError:
+          # The dead handle is still being replaced; the pool retries next call.
+          false,
+      proc(): string = "the pool kept handing back a closed connection (pid " &
+        before & ")",
+      timeoutMs = 10000)
+    check seen != before
+    # The pool kept its size: a replaced handle is not an extra connection.
+    check probe.poolStats().size == 1
+    check probe.poolStats().available == 1
+
   test "a whole-second timestamptz has no fraction":
     let row = Row(names: @["earned_at"],
       values: @[some("2026-11-07 12:00:00+07")])

@@ -975,16 +975,23 @@ proc storageKey(w: WriteKey): string =
 
 proc release(w: WriteKey) =
   ## A failed attempt must not own the key: the retry with a corrected body
-  ## would otherwise answer 409 for the rest of the TTL.
+  ## would otherwise answer 409 for the rest of the TTL. It stays on the pool on
+  ## purpose: every caller decides a refusal only after the write's transaction
+  ## is finished, and a delete inside a transaction that is about to roll back
+  ## would be rolled back with it and leave the key owned.
   if w.key.len == 0:
     return
   idempotency.release(database(), w.userId, storageKey(w))
 
-proc complete(w: WriteKey, status: int, body: JsonNode) =
+proc complete(w: WriteKey, status: int, body: JsonNode, tx: Db) =
   ## Stores the response under the row the claim took, so a replay returns it.
+  ## `tx` must be the write's own transaction: bookkeeping on a second
+  ## connection leaves a window where the write committed and the key still reads
+  ## as in progress, and every retry then answers 409 for the rest of the TTL.
+  ## Bookkeeping and write therefore commit or roll back together.
   if w.key.len == 0:
     return
-  complete(database(), w.userId, storageKey(w), status, body)
+  complete(tx, w.userId, storageKey(w), status, body)
 
 proc claimWrite(request: Request, ctx: CommunityContext, user: AuthUser,
                 resource = ""): Option[WriteKey] =
@@ -1073,6 +1080,7 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser,
     return
   let w = claimed.get
   var row: Option[Row]
+  var created: JsonNode
   auditedWrite(proc(tx: Db, conn: DbConn) =
     row = sessionWrite.create(tx, ctx.communityId, title, date, startTime,
       slot, presetId, $sessionScoring.rulesJson(chosen.get))
@@ -1080,20 +1088,22 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser,
       auditConn(conn, "session.create", ctx, user, "session",
         row.get.get("id"),
         %*{"title": row.get.get("title"), "date": row.get.get("session_date"),
-            "status": row.get.get("status")}))
+            "status": row.get.get("status")})
+      created = %*{
+        "id": row.get.get("id"),
+        "title": row.get.get("title"),
+        "date": row.get.get("session_date"),
+        "status": row.get.get("status"),
+      }
+      # The key is settled on this transaction, so a crash right after the
+      # commit cannot leave the write applied and the key owned.
+      w.complete(201, created, tx))
   if row.isNone:
     # Nothing was written, so release the key instead of leaving it owned until
     # the TTL turns every retry into a 409.
     w.release()
     problem(request, 400, "INVALID_SESSION", "cannot create session")
     return
-  let created = %*{
-    "id": row.get.get("id"),
-    "title": row.get.get("title"),
-    "date": row.get.get("session_date"),
-    "status": row.get.get("status"),
-  }
-  w.complete(201, created)
   jsonResponse(request, 201, created)
 
 proc pageParams(request: Request, snapshot: Snapshot): tuple[limit, offset: int] =
@@ -1333,10 +1343,12 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
       version.get, patchBody)
     if result.status == wsOk:
       auditConn(conn, "session.patch", ctx, user, "session", sessionId,
-        result.record))
+        result.record)
+      # Settled with the write: a replay after a crash returns the same record
+      # instead of 409 for the rest of the TTL.
+      w.complete(200, result.record, tx))
   case result.status
   of wsOk:
-    w.complete(200, result.record)
     application.hub.sessionChanged(sessionId, result.record["version"].getInt())
     jsonResponse(request, 200, result.record,
       [("ETag", "\"" & $result.record["version"].getInt() & "\"")])
@@ -1375,18 +1387,18 @@ proc swapSession(request: Request, ctx: CommunityContext, user: AuthUser,
     w.release()
     return
   var result: sessionSwap.SwapOutcome
+  var record: JsonNode
   auditedWrite(proc(tx: Db, conn: DbConn) =
     result = sessionSwap.swapMembers(tx, ctx.communityId,
       sessionId, version.get, sessionSwap.parseSwap(body))
     if result.status == sessionSwap.swOk:
-      let record = %*{"version": result.version,
+      record = %*{"version": result.version,
         "status": result.sessionStatus}
       auditConn(conn, "session.swap", ctx, user, "session", sessionId,
-        record))
+        record)
+      w.complete(200, record, tx))
   case result.status
   of sessionSwap.swOk:
-    let record = %*{"version": result.version, "status": result.sessionStatus}
-    w.complete(200, record)
     application.hub.sessionChanged(sessionId, result.version)
     jsonResponse(request, 200, record,
       [("ETag", "\"" & $result.version & "\"")])
@@ -3093,7 +3105,8 @@ proc createTournamentRoute(request: Request, ctx: CommunityContext,
     if status == tournamentStore.svOk:
       let id = snapshot["id"].getStr()
       auditConn(conn, "tournament.create", ctx, user, "tournament", id,
-        %*{"id": id, "version": snapshot["version"]}))
+        %*{"id": id, "version": snapshot["version"]})
+      w.complete(201, snapshot, tx))
   if status == tournamentStore.svInvalid:
     w.release()
     invalidBodyResponse(request, "INVALID_TOURNAMENT",
@@ -3104,7 +3117,6 @@ proc createTournamentRoute(request: Request, ctx: CommunityContext,
     saveFailure(request, status)
     return
   let id = snapshot["id"].getStr()
-  w.complete(201, snapshot)
   sendSnapshot(request, 201, snapshot,
     [("Location", "/c/" & ctx.slug & "/tournaments/" & id)])
 
@@ -3136,10 +3148,10 @@ proc putTournamentRoute(request: Request, ctx: CommunityContext, user: AuthUser,
       ctx.communityId, id, user.id, body, version.get)
     if status == tournamentStore.svOk:
       auditConn(conn, "tournament.update", ctx, user, "tournament", id,
-        %*{"id": id, "version": snapshot["version"]}))
+        %*{"id": id, "version": snapshot["version"]})
+      w.complete(200, snapshot, tx))
   case status
   of tournamentStore.svOk:
-    w.complete(200, snapshot)
     sendSnapshot(request, 200, snapshot)
   of tournamentStore.svInvalid:
     w.release()
@@ -3243,10 +3255,10 @@ proc patchTournamentMatchRoute(request: Request, ctx: CommunityContext,
       ctx.communityId, id, matchId, body, version.get)
     if status == tournamentStore.ptOk:
       auditConn(conn, "tournament.match.patch", ctx, user, "tournament", id,
-        %*{"id": id, "matchId": matchId, "version": snapshot["version"]}))
+        %*{"id": id, "matchId": matchId, "version": snapshot["version"]})
+      w.complete(200, snapshot, tx))
   case status
   of tournamentStore.ptOk:
-    w.complete(200, snapshot)
     sendSnapshot(request, 200, snapshot)
   of tournamentStore.ptInvalid:
     w.release()

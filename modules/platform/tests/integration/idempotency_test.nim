@@ -92,6 +92,56 @@ suite "idempotency":
     check stored.get("body_hash") == newDigest
     check stored.get("live") == "t"
 
+  test "bookkeeping on the write's own connection commits with the write":
+    # REL-BE-02: `complete` used to run on a second pooled connection after the
+    # write committed, so a crash in that window left `status_code` null and every
+    # retry answered 409 IDEMPOTENCY_IN_PROGRESS for the whole TTL. Settled on the
+    # write's connection, the row is updated inside the same transaction: a reader
+    # on another connection must not see it, and a replay after the commit must
+    # answer the stored response.
+    let key = scopedKey("c1", "same-transaction")
+    let digest = bodyHash("""{"a":1}""")
+    db.tx(proc(conn: DbConn) =
+      let tx = db.boundTo(conn)
+      check claim(tx, userId, key, digest).status == idempotencyNew
+      complete(tx, userId, key, 201, %*{"id": "tx"})
+      let inTx = tx.queryOne(
+        """select status_code from platform.idempotency_keys
+           where user_id = $1::uuid and key = $2""",
+        @[textParam(userId), textParam(key)])
+      check inTx.get["status_code"].isSome
+      # A different connection is a different transaction: it cannot see it yet.
+      let outside = db.queryOne(
+        """select status_code from platform.idempotency_keys
+           where user_id = $1::uuid and key = $2""",
+        @[textParam(userId), textParam(key)])
+      check outside.get["status_code"].isNone)
+    let replay = claim(db, userId, key, digest)
+    check replay.status == idempotencyReplay
+    check replay.statusCode == 201
+    check replay.response["id"].getStr() == "tx"
+
+  test "bookkeeping rolls back with a write that did not land":
+    # The other half of the same contract: settling the key inside the
+    # transaction means a failed write cannot leave a stored response behind, so
+    # the corrected retry still owns the key instead of replaying a 500.
+    let key = scopedKey("c1", "rolled-back")
+    let digest = bodyHash("""{"a":1}""")
+    # Claimed before the transaction, exactly as the route claims it: the claim
+    # itself must survive the rollback, or the retry would be refused as a
+    # conflict for a body it never stored.
+    check claim(db, userId, key, digest).status == idempotencyNew
+    var caught = false
+    try:
+      db.tx(proc(conn: DbConn) =
+        let tx = db.boundTo(conn)
+        complete(tx, userId, key, 201, %*{"id": "ghost"})
+        raise newException(ValueError, "boom"))
+    except ValueError:
+      caught = true
+    check caught
+    check claim(db, userId, key, digest).status == idempotencyInProgress
+
   test "two parallel claims let exactly one through":
     let key = scopedKey("c1", "parallel")
     let digest = bodyHash("""{"a":1}""")

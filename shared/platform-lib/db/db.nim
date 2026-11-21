@@ -28,6 +28,10 @@ type
     lock: Lock
     cond: Cond
     available: seq[PPGconn]
+    ## The DSN the pool was opened with. A connection libpq reports as dead is
+    ## replaced from it, so the pool never hands back a handle whose socket a
+    ## server restart closed.
+    dsn: string
     ## Set only on a facade built by `boundTo`: the connection the caller is
     ## already inside a transaction with. Such a facade never takes a pooled
     ## connection and never opens a transaction of its own.
@@ -418,6 +422,23 @@ proc configureConn(conn: PPGconn, statementMs, lockMs, idleMs: int) =
   finally:
     pqclear(res)
 
+proc connectConfigured(dsn: string, statementMs, lockMs, idleMs: int): PPGconn =
+  ## One live connection with its session bounds applied. The pool is built from
+  ## this and rebuilds a handle from it when libpq reports one dead.
+  result = pqconnectdb(dsn.cstring)
+  if result == nil or pqstatus(result) != CONNECTION_OK:
+    let detail =
+      if result == nil: "cannot allocate connection"
+      else: $pqerrorMessage(result)
+    if result != nil:
+      pqfinish(result)
+    raise newException(DbError, "cannot connect to PostgreSQL: " & detail)
+  try:
+    configureConn(result, statementMs, lockMs, idleMs)
+  except CatchableError:
+    pqfinish(result)
+    raise
+
 proc openDb*(dsn: string, poolSize: int, statementTimeoutMs = 0,
              lockTimeoutMs = 0, acquireTimeoutMs = 0,
              idleTimeoutMs = 0): Db =
@@ -429,6 +450,7 @@ proc openDb*(dsn: string, poolSize: int, statementTimeoutMs = 0,
   if poolSize < 1:
     raise newException(ValueError, "pool size must be at least 1")
   result = Db(size: poolSize)
+  result.dsn = dsn
   result.acquireTimeoutMs = acquireTimeoutMs
   result.statementTimeoutMs = statementTimeoutMs
   result.lockTimeoutMs = lockTimeoutMs
@@ -439,19 +461,8 @@ proc openDb*(dsn: string, poolSize: int, statementTimeoutMs = 0,
   initLock(result.lock)
   initCond(result.cond)
   for _ in 0 ..< poolSize:
-    let conn = pqconnectdb(dsn.cstring)
-    if conn == nil or pqstatus(conn) != CONNECTION_OK:
-      let detail =
-        if conn == nil: "cannot allocate connection"
-        else: $pqerrorMessage(conn)
-      raise newException(DbError, "cannot connect to PostgreSQL: " & detail)
-    try:
-      configureConn(conn, result.statementTimeoutMs, result.lockTimeoutMs,
-        result.idleTimeoutMs)
-    except CatchableError:
-      pqfinish(conn)
-      raise
-    result.available.add(conn)
+    result.available.add(connectConfigured(dsn, result.statementTimeoutMs,
+      result.lockTimeoutMs, result.idleTimeoutMs))
 
 proc close*(db: Db) =
   acquire(db.lock)
@@ -481,6 +492,31 @@ when defined(posix):
       result.tv_nsec = cast[typeof(result.tv_nsec)](
         int(result.tv_nsec) - 1_000_000_000)
 
+proc revalidatedConn(db: Db, conn: PPGconn): Option[PPGconn] =
+  ## A pooled handle is only trusted after its status is read: a PostgreSQL
+  ## restart or failover closes every socket underneath the pool, and handing
+  ## that fd back used to fail every route until the API was restarted. A reset
+  ## reuses the handle; a handle the server still refuses is dropped and rebuilt
+  ## from the same DSN. `none` means the server is unreachable right now.
+  if pqstatus(conn) == CONNECTION_OK:
+    return some(conn)
+  pqreset(conn)
+  if pqstatus(conn) == CONNECTION_OK:
+    try:
+      # A reset opens a new session, so the bounds `configureConn` applied to
+      # the old one are gone; re-applying them is what keeps a reset connection
+      # from running unbounded.
+      configureConn(conn, db.statementTimeoutMs, db.lockTimeoutMs,
+        db.idleTimeoutMs)
+      return some(conn)
+    except DbError:
+      discard
+  try:
+    result = some(connectConfigured(db.dsn, db.statementTimeoutMs,
+      db.lockTimeoutMs, db.idleTimeoutMs))
+  except DbError:
+    result = none(PPGconn)
+
 proc acquireConn(db: Db): PPGconn =
   acquire(db.lock)
   when defined(posix):
@@ -500,8 +536,23 @@ proc acquireConn(db: Db): PPGconn =
   else:
     while db.available.len == 0:
       wait(db.cond, db.lock)
-  result = db.available.pop()
+  let checkedOut = db.available.pop()
   release(db.lock)
+  # Revalidation runs outside the lock: a `PQreset` on a server that is still
+  # down blocks for its whole connect timeout, and holding the pool lock across
+  # it would stop every other caller from even reaching their own deadline.
+  let live = revalidatedConn(db, checkedOut)
+  if live.isNone:
+    # The handle stays allocated and goes back, so an outage can neither hand
+    # back a dead socket nor shrink the pool by one connection per attempt.
+    acquire(db.lock)
+    db.available.add(checkedOut)
+    signal(db.cond)
+    release(db.lock)
+    raise newException(DbError, "cannot restore a pooled PostgreSQL connection")
+  if live.get != checkedOut:
+    pqfinish(checkedOut)
+  result = live.get
 
 proc poolStats*(db: Db): tuple[size, available, inUse: int] =
   ## The pool's state for the metrics gauge. `available` is what a checkout can
