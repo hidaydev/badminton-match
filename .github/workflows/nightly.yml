@@ -383,7 +383,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [mutation, parity, order-check, e2e-repeat, supply-chain]
-    if: failure()
+    # REL-CI-04: `failure()` is false for a job the 15-minute cap cancelled, so
+    # three of the last five nightlies died without paging anyone and the
+    # mutation manifest could stay broken behind a red list. A cancelled nightly
+    # is exactly the case this notify exists for.
+    if: failure() || cancelled()
     steps:
       - name: "Notify: post the failure"
         env:
