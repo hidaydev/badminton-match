@@ -183,11 +183,22 @@ trap 'fail "command failed at line $LINENO"' ERR
 # site instead.
 TOOL_TIMEOUT="${MAJADU_TOOL_TIMEOUT:-900}"
 
+# REL-CI-08: the owner DSN never becomes a command-line argument. It carries full
+# DDL rights, and `podman run -e MAJADU_PG_DSN="$dsn"` expanded it into podman's
+# argv, where any user on the host can read it from `ps` or
+# /proc/<pid>/cmdline for the length of a migration. Two facts make the fix
+# small: `dbtools` reads the DSN from its environment (`getEnv` in
+# shared/platform-lib/cli.nim:25), and `podman run -e VAR` with no `=value`
+# copies VAR from podman's own environment. So the value is set as an
+# environment prefix on the command and podman is told only the *name*. The
+# value is in the deploy process's environment (readable by its own uid) and
+# never in argv (readable by every user on the host).
 run_tool() {
   local entry="$1" dsn="$2"
   shift 2
-  timeout --signal=TERM --kill-after=30 "$TOOL_TIMEOUT" \
-    podman run --rm --network "$NETWORK" -e MAJADU_PG_DSN="$dsn" \
+  MAJADU_PG_DSN="$dsn" \
+    timeout --signal=TERM --kill-after=30 "$TOOL_TIMEOUT" \
+    podman run --rm --network "$NETWORK" -e MAJADU_PG_DSN \
     --entrypoint "$entry" "$PULLED_ID" "$@"
 }
 
