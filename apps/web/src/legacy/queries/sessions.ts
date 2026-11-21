@@ -51,9 +51,12 @@ function withGranularOptimisticLifecycle<TVars>(
       if (ctx?.previous !== undefined) queryClient.setQueryData(communityQueryKey('session', sessionId), ctx.previous)
       if (isVersionMismatch(error) || isLockedError(error) || isContentionError(error)) {
         try {
+          // Recovery reads must reach the server: a cached answer would carry
+          // the version that just lost the conflict.
           await queryClient.fetchQuery<CloudSnapshot | null>({
             queryKey: communityQueryKey('session', sessionId),
             queryFn: () => getSession(sessionId),
+            staleTime: 0,
           })
         } catch { /* ignore */ }
       }
@@ -91,6 +94,9 @@ async function withSnapshotVersionRetry<T>(
           const fresh = await queryClient.fetchQuery<CloudSnapshot | null>({
             queryKey: communityQueryKey('session', sessionId),
             queryFn: () => getSession(sessionId),
+            // The retry only helps if it carries the version another editor
+            // just wrote, so this read must not be answered from the cache.
+            staleTime: 0,
           })
           if (!opts?.requireFreshVersion || fresh?.version != null) continue
         } catch { /* ignore */ }
@@ -445,9 +451,12 @@ export function usePublishSession(sessionId: string | undefined) {
       if (snap) {
         queryClient.setQueryData(communityQueryKey('session', sessionId), snap)
       }
+      // The version this write produced only exists on the server side of the
+      // cache; a cached answer would hand back the pre-write snapshot.
       await queryClient.fetchQuery<CloudSnapshot | null>({
         queryKey: communityQueryKey('session', sessionId),
         queryFn: () => getSession(sessionId),
+        staleTime: 0,
       })
       await invalidateSessionQueries(queryClient)
     },
@@ -464,6 +473,9 @@ export function usePublishSession(sessionId: string | undefined) {
           await queryClient.fetchQuery<CloudSnapshot | null>({
             queryKey: communityQueryKey('session', sessionId),
             queryFn: () => getSession(sessionId),
+            // The user is about to retry by hand; the retry is only worth
+            // anything against the version the other editor just wrote.
+            staleTime: 0,
           })
         } catch {
           // ignore — stale cache is better than nothing
