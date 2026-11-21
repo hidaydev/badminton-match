@@ -658,3 +658,89 @@ shorter than a season.
 season page, gets its own object with its own TTL rather than borrowing this
 one. If a draft link leaks and the community wants it dead before the TTL, the
 existing revoke path (`DELETE /c/{slug}/sessions/{id}/share`) is unchanged.
+
+## ADR-023 · `podman untag` is called with the image id, never the name alone
+
+**Date:** 2026-11-21
+**Audit finding:** none; found while a production deploy was failing
+**Status:** Applied
+
+**Decision:** the rotation drops the registry name with
+`podman untag "$PULLED_ID" "$TARGET_IMAGE"`. The bare form, `podman untag
+<name>`, is banned in the deploy path, and a guard after the rotation fails the
+deploy if `:local` did not survive.
+
+**Reason:** REL-CI-05 wanted one image name left behind by the pull removed, on
+the reasoning that `:local` and `:prev` already held the image and only the extra
+name goes. That reasoning is false on podman 5.8.5: `untag <name>` removes the
+image from the store once it holds no names, and it does not stop at the name
+being dropped. The probe on `qouver1` reproduced it with throwaway images — a
+`:local` created milliseconds earlier went with the untag, and the image could
+no longer be named even by id. In production the unit then crash-looped on
+`localhost/majadu-api:local: image not known`, which is how the v2.1.1 deploy
+took the API down instead of shipping it.
+
+Naming the id first scopes the removal to exactly that tag: probe case E left
+`:local` in place, and case D (name only) did not.
+
+**Proof:** `tools/shelltests/tests/deploy_guards_test.nim`, "the rotation removes
+only the registry name, never the image" — it fails when the call goes back to
+the bare form.
+
+**Reopener:** a podman release where `untag <name>` only removes that name. Even
+then the id form stays, because it states the intent at the call site; the guard
+is what would be relaxed, not the call.
+
+## ADR-024 · A restart is preceded by `reset-failed`
+
+**Date:** 2026-11-21
+**Audit finding:** none; found in the same production outage
+**Status:** Applied
+
+**Decision:** the deploy runs `service reset-failed "$SERVICE"` before every
+restart — the normal one after the rotation and the one inside the rollback. A
+failure there is logged, not fatal; the readiness gate still decides.
+
+**Reason:** `majadu-api.container` sets `StartLimitIntervalSec=300` and
+`StartLimitBurst=5`. Five failed starts inside that window leave systemd
+answering `start request repeated too quickly` to a plain `start`, and nothing
+in the deploy cleared that state. When the missing-image crash loop above hit the
+limit, the rollback did exactly what it was written to do — retag `:prev` onto
+`:local` — and still could not bring the service back, so the outage outlived the
+rollback that was meant to end it. A rollback that cannot restart is not a
+rollback.
+
+**Proof:** "a crash-looping unit is reset before every restart" in
+`deploy_guards_test.nim`, which asserts the order of the two systemctl verbs.
+
+**Reopener:** if the unit ever sets `StartLimitIntervalSec=0` (no limit), the
+reset becomes a no-op rather than wrong; it can then be dropped, not before.
+
+## ADR-025 · The web skip rule verifies the commit before it diffs it
+
+**Date:** 2026-11-21
+**Audit finding:** none; every `badmin` production deploy failed silently
+**Status:** Applied
+
+**Decision:** `apps/web/vercel.json` diffs `VERCEL_GIT_PREVIOUS_SHA` against
+`HEAD`, but only after `git rev-parse --verify --quiet` confirms that commit
+exists locally, and it falls through to `exit 1` (build) in every other case.
+
+**Reason:** the rule is right to compare against the previous successful
+deployment rather than `HEAD^` — a release commit is usually followed on `main`
+by a CI-only commit, and `HEAD^..HEAD` then sees neither `VERSION` nor
+`apps/web`, which is how v2.0.1 and v2.0.6 shipped nothing. What was wrong was
+trusting the commit to be present. Vercel clones shallow, and it treats an
+ignore-command exit code other than `0` (skip) or `1` (build) as a *deployment
+error*: `git diff` against a commit the clone does not hold exits `128`, so the
+deploy died before the build with the tree and the build both fine. It started
+failing when the gap from the last successful deployment passed the clone depth
+(53 commits by 2026-11-21; the previous success was 6).
+
+**Five cases now, all `0` or `1`:** base exists and web unchanged `0`, base
+exists and web changed `1`, base missing `1`, base empty `1`, base unset `1`.
+`task.d/ci-guards.sh` rejects a `vercel.json` that diffs without verifying, or
+that goes back to `HEAD^`.
+
+**Reopener:** Vercel offering a real diff base it guarantees in the clone. Until
+then the verify stays.

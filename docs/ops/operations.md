@@ -72,6 +72,37 @@ readable.
 One incident, one note, five fields. There is no other format; a long report
 without these five fields cannot be acted on.
 
+### Incident 2026-11-21: the v2.1.1 deploy took the API down, and the rollback could not restart it
+
+- **Detection**: self-found at 23:03 WIB while checking production before
+  cutting the next release. The signal was `curl /majadu/version` answering
+  `Service temporarily unavailable`, then `systemctl --user is-active
+  majadu-api.service` → `failed` with `start request repeated too quickly`, and
+  `journalctl` full of `Error: localhost/majadu-api:local: image not known`.
+  SEV-1 (public API down).
+- **Impact**: the whole production API was down for about two minutes (23:03:41
+  to ~23:05), every user and every community. No data lost: the database was
+  untouched, scores already entered were safe, nothing was written by the failed
+  deploy. `majadu-ingest` and `majadu-deploy-check` also failed in that window
+  because they run the same missing image.
+- **Actions**: 1) restarted the unit by hand — it crash-looped, so
+  `systemctl --user reset-failed majadu-api.service` then `start`; 2) confirmed
+  `/readyz` 200 and `/version` answering before anything else; 3) read the
+  deploy log rather than guessing: the pull, the revision and the signature
+  had all succeeded, so the failure was after them; 4) reproduced `podman
+  untag` behaviour on the host with throwaway images (which briefly removed a
+  name from `qouver-api:local`; retagged by id and restarted that unit to prove
+  it came back); 5) fixed both defects, proved them with two shell tests, bumped
+  to v2.1.2 and deployed.
+- **Prevention**: ADR-023 (untag by id, plus a guard that refuses to restart
+  onto a missing `:local`) and ADR-024 (`reset-failed` before every restart,
+  including the rollback one). Both are covered by cases in
+  `tools/shelltests/tests/deploy_guards_test.nim` that fail if either is
+  reverted.
+- **Owner**: repository owner (solo). Follow-up closed in v2.1.2 (`fff26a8f`).
+
+### Template
+
 ```markdown
 ### Incident YYYY-MM-DD: <short title>
 

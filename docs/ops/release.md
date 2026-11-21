@@ -202,10 +202,14 @@ the sequence is:
    but only for a commit a release tag points at. A failure here = the release is
    not installed, `:local`/`:prev` are not touched, the old service keeps
    running.
-4. Tag rotation: `:local` → `:prev`, the new image → `:local`.
+4. Tag rotation: `:local` → `:prev`, the new image → `:local`. The registry
+   name the pull left behind is removed with `podman untag <id> <name>` — never
+   `untag <name>`, which on podman 5.8.5 drops the image from the store along
+   with every name it holds (ADR-023). The deploy refuses to restart if `:local`
+   did not survive.
 5. Sync the systemd units and operator scripts from the repo.
-6. Restart the unit, wait for `/readyz` (60 seconds). Failure → `:prev` is made
-   `:local` and restarted.
+6. Restart the unit (`reset-failed` first, ADR-024), wait for `/readyz` (60
+   seconds). Failure → `:prev` is made `:local` and restarted.
 7. Run `scripts/smoke.sh <health_url> <version>`, which pins `/version` to the
    version just pulled. Failure → the release is not recorded, so the next push
    repeats the same version.
