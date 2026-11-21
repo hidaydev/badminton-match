@@ -4,10 +4,18 @@ import db/db
 import platform/config/store
 import platform/janitor
 
-const program = "janitor"
+const
+  program = "janitor"
+  # The janitor deletes in bounded batches (`janitorPurgeBatch`), so the bound
+  # belongs to one statement, not to the whole backlog: the same value the API
+  # uses is enough, and a batch that cannot finish inside it leaves the rest for
+  # the next run, because the predicate is time-based. Zero (the pool default)
+  # would let one delete hold the nightly run open with no upper bound.
+  statementTimeoutMs = defaultStatementTimeoutMs
 
 proc main() =
-  let db = openDb(dsnOrFail(program), 1)
+  let db = openDb(dsnOrFail(program), 1,
+    statementTimeoutMs = statementTimeoutMs)
   defer: db.close()
   let days = loadSnapshot(db).intValue(%*{}, keyJanitorRetentionDays)
   var rows = newJArray()

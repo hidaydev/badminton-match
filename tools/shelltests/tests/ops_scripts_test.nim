@@ -19,6 +19,23 @@ exit 0
 
 const psqlLogFake = """#!/bin/sh
 printf '%s\n' "$*" >> "$FAKE_PSQL_LOG"
+for arg in "$@"; do
+  case "$arg" in
+    *pg_default_acl*) printf '%s\n' "${FAKE_DEFAULT_ACL:-20}"; exit 0 ;;
+  esac
+done
+exit 0
+"""
+
+# A privileged restore ends by re-applying ops/db/roles.sql and reading
+# `pg_default_acl`, so every case that reaches `restore: done` needs a psql that
+# answers that count. The role script itself arrives on stdin and is not read.
+const psqlAclFake = """#!/bin/sh
+for arg in "$@"; do
+  case "$arg" in
+    *pg_default_acl*) printf '%s\n' "${FAKE_DEFAULT_ACL:-20}"; exit 0 ;;
+  esac
+done
 exit 0
 """
 
@@ -188,6 +205,15 @@ suite "backup.sh":
     check result.exitCode == 0
     check readFile(dumpLog).contains("bm2_owner")
 
+proc installRestoreRoles(fixture: Fixture, psql = psqlAclFake) =
+  ## A privileged restore re-applies `ops/db/roles.sql` (found next to
+  ## `ops/scripts/`) and asserts the default-ACL count, so a fixture that
+  ## reaches `restore: done` needs both the file and a psql that answers.
+  let roles = fixture.root / "ops" / "db" / "roles.sql"
+  createDir(roles.parentDir)
+  writeFile(roles, "-- fixture role script\n")
+  fixture.installFake("psql", psql)
+
 suite "restore.sh":
   test "a target outside the allowlist exits 2":
     let fixture = newFixture("restore-target")
@@ -216,6 +242,7 @@ suite "restore.sh":
     defer: removeDir(fixture.root)
     fixture.installFake("pg_restore", okFake)
     fixture.installFake("flock", flockFake)
+    installRestoreRoles(fixture)
     let dump = fixture.root / "dump.bin"
     touch(dump, "dump")
     let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
@@ -223,6 +250,25 @@ suite "restore.sh":
     check result.exitCode == 0
     check result.stdout.contains("restore: writing " & dump & " into bm2")
     check result.stdout.contains("restore: done")
+
+  test "bm is restored with --force and keeps its own grants":
+    let fixture = newFixture("restore-bm-archive")
+    defer: removeDir(fixture.root)
+    fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
+    let psqlLog = fixture.root / "psql.log"
+    installRestoreRoles(fixture, psqlLogFake)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm", "--force",
+        "--dsn", "postgres://sachiel@db.example:5432/bm"],
+      appDir(fixture) & @[("FAKE_PSQL_LOG", psqlLog)])
+    check result.exitCode == 0
+    # roles.sql revokes PUBLIC's CONNECT on the database it is pointed at, so
+    # running it against the v1 archive would lock v1 out.
+    check not fileExists(psqlLog)
+    check result.stdout.contains("'bm' is the v1 archive; role script skipped")
 
   test "a --dsn that names another database is refused":
     let fixture = newFixture("restore-dsn-mismatch")
@@ -242,6 +288,7 @@ suite "restore.sh":
     defer: removeDir(fixture.root)
     fixture.installFake("pg_restore", okFake)
     fixture.installFake("flock", flockFake)
+    installRestoreRoles(fixture)
     let dump = fixture.root / "dump.bin"
     touch(dump, "dump")
     let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
@@ -310,6 +357,7 @@ suite "restore.sh":
     defer: removeDir(fixture.root)
     fixture.installFake("pg_restore", okFake)
     fixture.installFake("flock", flockFake)
+    installRestoreRoles(fixture)
     let dump = fixture.root / "dump.bin"
     touch(dump, "dump")
     let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
@@ -324,6 +372,7 @@ suite "restore.sh":
     defer: removeDir(fixture.root)
     fixture.installFake("pg_restore", okFake)
     fixture.installFake("flock", flockFake)
+    installRestoreRoles(fixture)
     let dump = fixture.root / "dump.bin"
     touch(dump, "dump")
     let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
@@ -340,6 +389,7 @@ suite "restore.sh":
     fixture.installFake("pg_restore",
       "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " & pgLog & "\nexit 0\n")
     fixture.installFake("flock", flockFake)
+    installRestoreRoles(fixture)
     let dump = fixture.root / "dump.bin"
     touch(dump, "dump")
     # The `?` is in the userinfo, before the path slash, so it is password text.
@@ -386,6 +436,7 @@ suite "restore.sh":
     defer: removeDir(fixture.root)
     fixture.installFake("pg_restore", okFake)
     fixture.installFake("flock", flockFake)
+    installRestoreRoles(fixture)
     let dump = fixture.root / "dump.bin"
     touch(dump, "dump")
     let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
@@ -399,6 +450,7 @@ suite "restore.sh":
     defer: removeDir(fixture.root)
     fixture.installFake("pg_restore", okFake)
     fixture.installFake("flock", flockFake)
+    installRestoreRoles(fixture)
     let dump = fixture.root / "dump.bin"
     touch(dump, "dump")
     let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
@@ -492,7 +544,7 @@ suite "restore.sh":
     fixture.installFake("pg_restore", okFake)
     fixture.installFake("flock", flockFake)
     let log = fixture.root / "psql.log"
-    fixture.installFake("psql", psqlLogFake)
+    installRestoreRoles(fixture, psqlLogFake)
     let dump = fixture.root / "dump.bin"
     touch(dump, "dump")
     let dsn = "postgres://bm2_owner@db.example:5432/bm_staging?sslmode=require"
@@ -501,13 +553,18 @@ suite "restore.sh":
       appDir(fixture) & @[("FAKE_PSQL_LOG", log)])
     check result.exitCode == 0
     let lines = parseLines(readFile(log))
-    check lines.len == 1
+    # The maintenance call, then the role script against the target, then the
+    # default-ACL count.
+    check lines.len == 3
     # The maintenance connection keeps the authority and the query string, and
     # replaces the target database with `postgres`.
     check lines[0].split(' ')[0] ==
       "postgres://bm2_owner@db.example:5432/postgres?sslmode=require"
     check lines[0].contains("drop database if exists \"bm_staging\" with (force)")
     check lines[0].contains("create database \"bm_staging\"")
+    check lines[1].split(' ')[0] == dsn
+    check lines[1].contains("-v db=bm_staging")
+    check lines[2].contains("select count(*) from pg_default_acl")
 
   test "--recreate refuses a unix-socket DSN":
     let fixture = newFixture("restore-socket")
@@ -536,6 +593,7 @@ suite "restore.sh":
     fixture.installFake("pg_restore",
       "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$FAKE_RESTORE_LOG\"\nprintf ''\n")
     fixture.installFake("flock", flockFake)
+    installRestoreRoles(fixture)
     let dump = fixture.root / "dump.bin"
     touch(dump, "dump")
     let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
@@ -555,14 +613,84 @@ suite "restore.sh":
     fixture.installFake("pg_restore",
       "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$FAKE_RESTORE_LOG\"\nprintf ''\n")
     fixture.installFake("flock", flockFake)
+    let psqlLog = fixture.root / "psql.log"
+    fixture.installFake("psql", psqlLogFake)
     let dump = fixture.root / "dump.bin"
     touch(dump, "dump")
     let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
       @["--file", dump, "--target", "bm_staging", "--no-privileges",
         "--dsn", "postgres://bm2_owner@db.example:5432/bm_staging"],
-      appDir(fixture) & @[("FAKE_RESTORE_LOG", restoreLog)])
+      appDir(fixture) & @[("FAKE_RESTORE_LOG", restoreLog),
+        ("FAKE_PSQL_LOG", psqlLog)])
     check result.exitCode == 0
     check readFile(restoreLog).contains("--no-privileges")
+    # A v1 staging copy keeps v1 grants: the bm2 role script must not run.
+    check not fileExists(psqlLog)
+    check result.stdout.contains("role script skipped")
+
+  test "a privileged restore pipes the role script and checks the default ACLs":
+    let fixture = newFixture("restore-roles")
+    defer: removeDir(fixture.root)
+    fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
+    let psqlLog = fixture.root / "psql.log"
+    let rolesIn = fixture.root / "roles.stdin"
+    # The role script arrives on stdin, so the fake copies it out; the ACL count
+    # is the one query it answers instead.
+    installRestoreRoles(fixture, """#!/bin/sh
+printf '%s\n' "$*" >> "$FAKE_PSQL_LOG"
+for arg in "$@"; do
+  case "$arg" in
+    *pg_default_acl*) printf '20\n'; exit 0 ;;
+  esac
+done
+cat >> "$FAKE_ROLES_STDIN"
+exit 0
+""")
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm2_test",
+        "--dsn", "postgres://bm2_owner@db.example:5432/bm2_test"],
+      appDir(fixture) & @[("FAKE_PSQL_LOG", psqlLog),
+        ("FAKE_ROLES_STDIN", rolesIn)])
+    check result.exitCode == 0
+    check readFile(psqlLog).contains("-v db=bm2_test")
+    check readFile(psqlLog).contains("select count(*) from pg_default_acl")
+    check readFile(rolesIn).contains("-- fixture role script")
+    check result.stdout.contains("restore: done")
+
+  test "a restore that leaves no default ACLs is refused":
+    let fixture = newFixture("restore-no-acl")
+    defer: removeDir(fixture.root)
+    fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
+    installRestoreRoles(fixture)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm2", "--force",
+        "--dsn", "postgres://bm2_owner@db.example:5432/bm2"],
+      appDir(fixture) & @[("FAKE_DEFAULT_ACL", "0")])
+    check result.exitCode == 1
+    check result.stderr.contains(
+      "'bm2' has no default ACLs after the restore")
+    check not result.stdout.contains("restore: done")
+
+  test "a restore without the role script refuses to finish":
+    let fixture = newFixture("restore-no-roles")
+    defer: removeDir(fixture.root)
+    fixture.installFake("pg_restore", okFake)
+    fixture.installFake("flock", flockFake)
+    let dump = fixture.root / "dump.bin"
+    touch(dump, "dump")
+    let result = fixture.runShell(fixture.installOpsScript("restore.sh"),
+      @["--file", dump, "--target", "bm2_test",
+        "--dsn", "postgres://bm2_owner@db.example:5432/bm2_test"],
+      appDir(fixture))
+    check result.exitCode == 1
+    check result.stderr.contains("ops/db/roles.sql is missing")
+    check not result.stdout.contains("restore: done")
 
 suite "rotate-log.sh":
   test "every log is renamed with a timestamp and forced mode 600":

@@ -29,6 +29,14 @@
 # cutover.sh passes MAJADU_CUTOVER_RESTORE_DSN here for the bm_staging restore.
 # That role has to own bm_staging or have CREATEDB because --recreate drops and
 # creates the database; it is not the ETL role, which may only write bm2.
+#
+# Roles are not in a dump, and a dump's `alter default privileges for role ...`
+# only applies when the restoring role is the role that took the dump. So a
+# privileged restore ends by re-applying `ops/db/roles.sql` (idempotent, grants
+# only) and refusing to report success when the target has no default ACLs: an
+# empty pg_default_acl means every object created afterwards is invisible to
+# bm2_app, and nothing else in the runbook notices. Take the dump as the role
+# that restores it, or run the role script by hand and restore again.
 set -euo pipefail
 
 APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"
@@ -289,6 +297,49 @@ pg_restore_file() {
   fi
 }
 
+# The role script is reachable two ways: the checkout this script was installed
+# from (ops/db/roles.sql next to ops/scripts/) and the monorepo clone the VPS
+# keeps for cutover.sh ($APP_DIR/monorepo). Both are the same file.
+roles_sql() {
+  local candidate
+  for candidate in "$APP_DIR/monorepo/ops/db/roles.sql" \
+    "$(dirname "$0")/../db/roles.sql"; do
+    if [ -f "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+apply_roles() {
+  local roles acl
+  roles=$(roles_sql) || {
+    echo "restore: ops/db/roles.sql is missing; refusing to finish '$TARGET' without the bm2 roles and default ACLs" >&2
+    echo "restore: the monorepo clone holds it ($APP_DIR/monorepo/ops/db/roles.sql)" >&2
+    exit 1
+  }
+  # The file goes in over stdin: in container mode a host path is not visible
+  # inside the PostgreSQL container, the same reason cutover.sh pipes it.
+  if ! psql_cmd "$DSN" -v ON_ERROR_STOP=1 -v db="$TARGET" <"$roles"; then
+    echo "restore: ops/db/roles.sql failed against '$TARGET'" >&2
+    echo "restore: the restoring role must be able to create roles and grant on the restored schemas (bm2_owner, not the application role)" >&2
+    exit 1
+  fi
+  acl=$(psql_cmd "$DSN" -tAc "select count(*) from pg_default_acl")
+  case "$acl" in
+    ''|*[!0-9]*)
+      echo "restore: cannot read the default-ACL count from '$TARGET'" >&2
+      exit 1
+      ;;
+  esac
+  if [ "$acl" -eq 0 ]; then
+    echo "restore: '$TARGET' has no default ACLs after the restore; objects created from now on would be unreadable for bm2_app" >&2
+    echo "restore: take the dump as the role that restores it, then restore again" >&2
+    exit 1
+  fi
+}
+
 if ! inherits_lock; then
   exec 9>"$LOCK_FILE"
   if ! flock -w 900 9; then
@@ -348,4 +399,17 @@ fi
 
 echo "restore: writing $FILE into $TARGET"
 pg_restore_file
+if [ "$NO_PRIVILEGES" -eq 1 ]; then
+  # A staging copy of a v1 dump: its grants name v1 roles, so there is no bm2
+  # role set to re-apply and no default ACL worth asserting.
+  echo "restore: privileges were dropped (--no-privileges); role script skipped"
+elif [ "$TARGET" = "bm" ]; then
+  # The v1 archive keeps its own grants; roles.sql revokes PUBLIC's CONNECT on
+  # the database it is pointed at and asserts bm2 stays out of `bm`, so applying
+  # it there would break a rollback instead of protecting one.
+  echo "restore: '$TARGET' is the v1 archive; role script skipped"
+else
+  echo "restore: re-applying the bm2 roles and default ACLs"
+  apply_roles
+fi
 echo "restore: done"

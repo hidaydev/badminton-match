@@ -4,13 +4,13 @@ This document is the source of truth for the **v2 database** (`bm2`) and the dat
 used by the API. Everything below comes from the migration files in the repo; there are no
 claims from a VPS dump or the v1 schema.
 
-- Migrations: `db/migrations/0001_core.sql` … `0056_court_foreign_keys.sql` (56 files;
+- Migrations: `db/migrations/0001_core.sql` … `0057_janitor_indexes.sql` (57 files;
   `0036` records the share key that encrypted each OIDC flow,
   `0035` adds the `account.audit` occurred_at index, `0034` grants the ETL role,
   `0033` adds `session.links.legacy_id_ok`, `0032` adds default privileges
   for the application role, and `0030` grants access to `session.game_sets` and the
   `session.game_results` view).
-- The last eight migrations close the evidence gaps the audit findings named:
+- The last nine migrations close the evidence gaps the audit findings named:
   - `0049_audit_append_only.sql`: a trigger refuses `UPDATE` and `DELETE` on
     `account.audit` for every role; the retention tool opts in for one transaction
     with `set_config('majadu.audit_maintenance', 'on', true)`.
@@ -31,6 +31,10 @@ claims from a VPS dump or the v1 schema.
   - `0056_court_foreign_keys.sql`: `session.courts.declared` separates the imported
     register from a materialised coordinate, a game materialises the court it
     names, and `games_court_fk` + `game_skips_court_fk` become real keys.
+  - `0057_janitor_indexes.sql`: `platform.outbox (processed_at)` and
+    `session.links (revoked_at)` are indexed for the two janitor deletes that had
+    no predicate-friendly index (the outbox index covered only pending rows, and
+    0043's link index was partial on `revoked_at is null`).
 - Seeds: `db/seeds/platform_config.sql`, `db/seeds/achievement_definitions.sql`.
 - Ledger: `tools/dbtools/main.nim:35-47` creates `dbtools.schema_migrations` and
   `dbtools.seed_files` (checksum per file).
@@ -270,7 +274,7 @@ Do not carry names from the v1 document into this one:
 
 | v1 | v2 |
 |---|---|
-| schema `bm`, migrations `000001`–`000023` | database `bm2`, migrations `0001`–`0056` |
+| schema `bm`, migrations `000001`–`000023` | database `bm2`, migrations `0001`–`0057` |
 | `scheduled_games`, `scheduled_game_players` | `session.games` + `session.participants` |
 | `rating_events`, `rating_deltas`, `rating_players` | `rating.events`, `rating.player_state` (the delta ledger has no counterpart) |
 | `player_achievements` | `achievement.earned` + `achievement.definitions` |
