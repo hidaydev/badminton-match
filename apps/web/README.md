@@ -50,7 +50,8 @@ cookie stays first-party:
   (`ops/caddy/site-v2.caddy`), so a rewrite to the bare host reaches nothing.
   The production value is `https://api.qouver.com/majadu/:path*`, which is what
   the committed file holds on `main`. The RC instance had its own value
-  (`/majadu-rc/*`); that exception is gone (`docs/ops/rc.md`).
+  (`/majadu-rc/*`); it was purged on 2026-11-21, so no rewrite may carry that
+  segment again (`task.d/ci-guards.sh` fails a tag that does).
 
 Set `VITE_API_BASE` to bypass both. It must carry the same prefix, for example
 `https://api.qouver.com/majadu`; without `/majadu` every call 404s. Unset, the

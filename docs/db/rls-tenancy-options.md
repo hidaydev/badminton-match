@@ -12,6 +12,11 @@ Register finding, as written:
 ADR-018 (`docs/decisions.md:518-559`) already records the deferral and names its
 reopener. This paper is the input for deciding whether to reopen it now.
 
+> **2026-11-21:** the RC instance and its database `bm2_rc` were purged by the
+> owner's order. Where this analysis uses `bm2_rc` as "the second environment",
+> read it as a database that no longer exists: the argument about separating
+> environments from tenants is unchanged, but there is now one Majadu database.
+
 ## 1. The tenancy shape the code and migrations actually express
 
 ### 1.1 The tenant column
@@ -82,7 +87,7 @@ Measured on the same database at head `0054`:
   `bm2_app` has `select/insert/update/delete` by grant and by default privilege;
   `bm2_etl` reads and writes `import.*`; `bm2_audit_prune` may only see and
   delete `account.audit`. The API connects as **`bm2_app`**, not the owner
-  (`ops/env/prod.env.example`, `ops/env/rc.env.example`), so `enable row level
+  (`ops/env/prod.env.example`), so `enable row level
   security` would bind the API without `force row level security`, and the owner
   and every tool would keep bypassing it.
 

@@ -257,7 +257,7 @@ suite "task target guards":
     check result.exitCode == 1
     check result.stderr.contains("README.md says 3 migrations")
 
-  test "ci-guards --release rejects an SPA rewrite to the RC API":
+  test "ci-guards --release rejects an SPA rewrite to the purged RC API":
     let fixture = newFixture("ci-guards-rc-spa")
     defer: removeDir(fixture.root)
     createDir(fixture.root / "apps" / "web")
@@ -269,7 +269,7 @@ suite "task target guards":
     check normal.exitCode == 0
     let release = fixture.runTask(@["ci-guards", "--release"])
     check release.exitCode == 1
-    check release.stderr.contains("still rewrites /api to the RC backend")
+    check release.stderr.contains("still rewrites /api to the purged RC backend")
 
   test "ci-guards rejects a web skip rule that diffs HEAD^":
     ## v2.0.6: the release commit was followed on main by a CI-only commit, so
@@ -319,17 +319,13 @@ suite "task target guards":
     check result.exitCode == 1
     check result.stderr.contains("entry differs: nim-base")
 
-  test "the Caddy handlers carry limits, timeouts and the RC allow-list":
+  test "the Caddy handlers carry limits and timeouts":
     for name in ["site-v1.caddy", "site-v2.caddy"]:
       let text = readFile(repoDir / "ops" / "caddy" / name)
       check text.contains("max_size 1MB")
       check text.contains("dial_timeout 3s")
       check text.contains("health_uri /readyz")
       check text.contains("handle_response @upstream_error")
-    let rc = readFile(repoDir / "ops" / "caddy" / "site-rc.caddy")
-    check rc.contains("@internal remote_ip")
-    check rc.contains("respond \"Forbidden\" 403")
-    check rc.contains("health_uri /readyz")
 
   test "every workflow that runs the Nim toolchain installs libpcre":
     ## Nim's `re` binds the system PCRE 1 library at run time. A workflow that

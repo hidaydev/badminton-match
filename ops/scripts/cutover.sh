@@ -255,12 +255,6 @@ log_matcher_problem() {
     { printf '%s skips /majadu/ws/* but not /majadu/s/* in the log matcher\n' "$1"; return 0; }
   grep -q '/majadu/ws/\*' "$config" ||
     { printf '%s skips /majadu/s/* but not /majadu/ws/* in the log matcher\n' "$1"; return 0; }
-  # Production and RC are served from the same site block and the same access
-  # log, so RC share codes and tickets leak the same way when they are skipped.
-  grep -q '/majadu-rc/s/\*' "$config" ||
-    { printf '%s does not keep /majadu-rc/s/* out of the access log\n' "$1"; return 0; }
-  grep -q '/majadu-rc/ws/\*' "$config" ||
-    { printf '%s does not keep /majadu-rc/ws/* out of the access log\n' "$1"; return 0; }
   grep -q 'log_skip @share' "$config" ||
     { printf '%s defines @share but never skips it; add log_skip @share\n' "$1"; return 0; }
   return 1

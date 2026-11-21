@@ -848,28 +848,17 @@ suite "deploy-dispatch.sh":
     check result.exitCode == 0
     check readFile(calls).strip == "badminton-match refs/heads/main"
 
-  test "the RC ref runs the RC script only when the env file exists":
-    let fixture = newFixture("dispatch-rc")
+  test "an RC ref has no target now that the instance is purged":
+    # The RC machine, its branch and its deploy script were removed on
+    # 2026-11-21. The webhook still fires for that branch, so the dispatch has
+    # to answer it with a clean skip instead of exiting non-zero.
+    let fixture = newFixture("dispatch-rc-gone")
     defer: removeDir(fixture.root)
-    let rcDir = fixture.root / "rc"
-    createDir(rcDir)
-    let calls = fixture.root / "rc.calls"
-    createDir(fixture.root / "rc" / "scripts")
-    writeExecutable(rcDir / "scripts" / "deploy-vps-rc.sh",
-      "#!/bin/sh\nprintf '%s\\n' \"$*\" > " & calls & "\n")
-    let dispatch = fixture.installOpsScript("deploy-dispatch.sh")
-    let env = appDir(fixture) & @[("MAJADU_RC_APP_DIR", rcDir)]
-    let unBootstrapped = fixture.runShell(dispatch,
-      @["badminton-match", "refs/heads/release/2.0.0-rc.1"], env)
-    check unBootstrapped.exitCode == 0
-    check unBootstrapped.stdout.contains(
-      "dispatch: " & rcDir & " is not bootstrapped yet; nothing to deploy")
-    check not fileExists(calls)
-    touch(rcDir / "env" / "majadu-rc.env", "MAJADU_OWNER_DSN=x\n")
-    let bootstrapped = fixture.runShell(dispatch,
-      @["badminton-match", "refs/heads/release/2.0.0-rc.1"], env)
-    check bootstrapped.exitCode == 0
-    check readFile(calls).strip == "badminton-match refs/heads/release/2.0.0-rc.1"
+    let result = fixture.runShell(
+      fixture.installOpsScript("deploy-dispatch.sh"),
+      @["badminton-match", "refs/heads/release/2.0.0-rc.1"], appDir(fixture))
+    check result.exitCode == 0
+    check result.stdout.contains("has no target; nothing to deploy")
 
   test "an unrelated ref exits 0 without running either script":
     let fixture = newFixture("dispatch-other")
@@ -878,33 +867,23 @@ suite "deploy-dispatch.sh":
     createDir(fixture.root / "ops" / "scripts")
     writeExecutable(fixture.root / "ops" / "scripts" / "deploy-vps.sh",
       "#!/bin/sh\nprintf '%s\\n' \"$*\" > " & prodCalls & "\n")
-    let rcDir = fixture.root / "rc"
-    createDir(rcDir / "scripts")
-    let rcCalls = fixture.root / "rc.calls"
-    touch(rcDir / "env" / "majadu-rc.env", "MAJADU_OWNER_DSN=x\n")
-    writeExecutable(rcDir / "scripts" / "deploy-vps-rc.sh",
-      "#!/bin/sh\nprintf '%s\\n' \"$*\" > " & rcCalls & "\n")
     let result = fixture.runShell(
       fixture.installOpsScript("deploy-dispatch.sh"),
-      @["badminton-match", "refs/heads/dev"],
-      appDir(fixture) & @[("MAJADU_RC_APP_DIR", rcDir)])
+      @["badminton-match", "refs/heads/dev"], appDir(fixture))
     check result.exitCode == 0
     check result.stdout.contains(
       "dispatch: ref 'refs/heads/dev' has no target; nothing to deploy")
     check not fileExists(prodCalls)
-    check not fileExists(rcCalls)
 
-  test "a routed ref with no target script exits 1":
+  test "a main ref with no target script exits 1":
     let fixture = newFixture("dispatch-missing")
     defer: removeDir(fixture.root)
-    let rcDir = fixture.root / "rc"
-    touch(rcDir / "env" / "majadu-rc.env", "MAJADU_OWNER_DSN=x\n")
     let result = fixture.runShell(
       fixture.installOpsScript("deploy-dispatch.sh"),
-      @["badminton-match", "refs/heads/release/2.0.0-rc.1"],
-      appDir(fixture) & @[("MAJADU_RC_APP_DIR", rcDir)])
+      @["badminton-match", "refs/heads/main"], appDir(fixture))
     check result.exitCode == 1
-    check result.stdout.contains("dispatch: " & rcDir & "/scripts/deploy-vps-rc.sh is missing")
+    check result.stdout.contains("dispatch: " & fixture.root &
+      "/ops/scripts/deploy-vps.sh is missing")
 
 const releaseTagCurl = """#!/bin/sh
 printf '%s' '{"tag_name":"v2.0.0","body":"digest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}'
@@ -1170,11 +1149,10 @@ exit 0
     check result.stderr.contains("unexpected answer")
 
 suite "single log destination":
-  test "no API unit mounts a log volume":
-    for unit in ["majadu-api.container", "majadu-rc-api.container"]:
-      let text = readFile(repoDir / "ops" / "systemd" / unit)
-      check not text.contains(":/logs")
-      check not text.contains("/logs:")
+  test "the API unit mounts no log volume":
+    let text = readFile(repoDir / "ops" / "systemd" / "majadu-api.container")
+    check not text.contains(":/logs")
+    check not text.contains("/logs:")
 
 suite "host-check.sh":
   test "a full volume pages through the disk alert":

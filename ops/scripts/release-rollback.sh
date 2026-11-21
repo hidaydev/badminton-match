@@ -34,8 +34,8 @@ HEALTH_URL="${MAJADU_HEALTH_URL:-http://127.0.0.1:8080}"
 STATE_DIR="${MAJADU_STATE_DIR:-$APP_DIR/deploy}"
 SYSTEMCTL="${MAJADU_SYSTEMCTL_CMD:-systemctl --user}"
 # REL-CI-03: the same lock file every sibling takes (deploy-vps.sh, rollback.sh,
-# restore.sh, cutover.sh, deploy-vps-rc.sh). A rollback that ran beside a deploy
-# retagged :local, restarted the unit and rewrote the state files underneath it.
+# restore.sh, cutover.sh). A rollback that ran beside a deploy retagged :local,
+# restarted the unit and rewrote the state files underneath it.
 LOCK_FILE="$APP_DIR/.deploy.lock"
 LOG="$APP_DIR/logs/release-rollback.log"
 

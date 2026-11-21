@@ -228,8 +228,8 @@ if [ -n "$QUERY" ]; then
 fi
 
 # The documented host has no psql/pg_restore. When either is absent the client
-# moves into the PostgreSQL container, the same way bootstrap-rc.sh runs; the
-# dump stays on the host and is piped, because the container cannot see it.
+# moves into the PostgreSQL container; the dump stays on the host and is piped,
+# because the container cannot see it.
 for tool in pg_restore psql; do
   command -v "$tool" >/dev/null 2>&1 || USE_CONTAINER=1
 done

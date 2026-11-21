@@ -19,13 +19,13 @@
 #    becomes
 #      import /srv/qouver/apps/majadu/caddy/active.caddy
 #
-# 2b. Keep the two Majadu handlers out of Caddy's default error page. The
+# 2b. Keep the Majadu handler out of Caddy's default error page. The
 #     per-handler `handle_response` covers a dead upstream; this site-level
 #     block covers a request that never reaches a handler. It is deliberately
 #     scoped to the Majadu paths so the other applications keep their pages:
 #
 #      handle_errors {
-#          @majadu path /majadu/* /majadu-rc/*
+#          @majadu path /majadu/*
 #          handle @majadu {
 #              respond "Service temporarily unavailable" 503
 #          }
@@ -42,17 +42,16 @@
 #
 #    The companion holds the three lines this step used to ask for by hand:
 #
-#      @share path /majadu/s/* /majadu/ws/* /majadu-rc/s/* /majadu-rc/ws/*
+#      @share path /majadu/s/* /majadu/ws/*
 #      log_skip @share
 #      log { import log_access }
 #
-#    All four prefixes matter: the share code and the one-use ticket are query
-#    parameters on the /s/* and /ws/* paths, production and RC share this site
-#    block and this log, and the log is shared with the other applications on
-#    the server. `cutover.sh --check` fails when the matcher names one prefix,
-#    when it is present but never skipped, when a prefix family is missing, and
-#    when it is missing altogether while the Majadu handler is imported, so a
-#    host that skipped this step cannot cut over.
+#    Both prefixes matter: the share code and the one-use ticket are query
+#    parameters on the /s/* and /ws/* paths, and the log is shared with the other
+#    applications on the server. `cutover.sh --check` fails when the matcher
+#    names one prefix, when it is present but never skipped, and when it is
+#    missing altogether while the Majadu handler is imported, so a host that
+#    skipped this step cannot cut over.
 #
 #    `log_skip` is site level and needs Caddy 2.8+ (the host runs 2.11). It
 #    cannot live inside the `log` block, which is why the companion keeps it on

@@ -21,7 +21,7 @@ frontend) that exists in the repo today.
 ## Related
 
 - [`../ops/`](../ops/): releases, operations, OAuth, cutover
-- [`../ops/rc.md`](../ops/rc.md): RC instance
+- RC instance doc: removed 2026-11-21 with the instance (see `current-status.md`)
 - [`../decisions.md`](../decisions.md): architecture decision records
 - Historical documents (rewrite plan, Go v1 ADRs, old design spec, RC handover) are in git
   history: `git log --all -- docs/`.

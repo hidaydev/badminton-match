@@ -95,11 +95,10 @@ if [ -f "$web_vercel" ] && ! grep -q 'VERCEL_GIT_PREVIOUS_SHA' "$web_vercel"; th
   report "apps/web/vercel.json must diff VERCEL_GIT_PREVIOUS_SHA against HEAD, not HEAD^"
 fi
 
-# The RC branch points the SPA at the RC backend through apps/web/vercel.json.
-# That line must be reverted before a tag: a tag built with it ships production
-# against the RC API and the RC database. Only a release run enforces this; a
-# normal pull request against the RC branch is expected to carry it.
-#
+# A version of apps/web/vercel.json once rewrote /api to the purged RC backend.
+# The instance is gone (2026-11-21), so this guard is now only a tripwire: if
+# that rewrite ever comes back, a tag would ship production against a hostname
+# nothing serves.
 # SEC-03: the tag signature needs a committed trust anchor. Without one the
 # release workflow falls back to asking GitHub whether any key registered on the
 # maintainer account signed the tag, which answers "whoever can add a signing
@@ -108,7 +107,7 @@ fi
 # this guard names it instead of letting the release discover it at tag time.
 if [ "$release" -eq 1 ]; then
   if grep -q 'majadu-rc' "$REPO_ROOT/apps/web/vercel.json" 2>/dev/null; then
-    report "apps/web/vercel.json still rewrites /api to the RC backend; revert it to /majadu/* before tagging"
+    report "apps/web/vercel.json still rewrites /api to the purged RC backend; it must be /majadu/*"
   fi
   signers="$REPO_ROOT/.github/allowed_signers"
   if [ ! -f "$signers" ]; then

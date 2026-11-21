@@ -7,11 +7,15 @@
 # instance the push belongs to.
 #
 #   refs/heads/main                 -> production (deploy-vps.sh, digest GHCR)
-#   refs/heads/release/2.0.0-rc.1   -> RC (deploy-vps-rc.sh, build on the VPS)
 #
-# Anything else exits 0 without touching either instance. Both target scripts
-# also guard their own ref, so a routing mistake here cannot deploy the wrong
-# branch: it can only skip a deploy.
+# Anything else exits 0 without deploying. The target script also guards its own
+# ref, so a routing mistake here cannot deploy the wrong branch: it can only
+# skip a deploy.
+#
+# The RC instance (release/2.0.0-rc.1, deploy-vps-rc.sh, /srv/qouver/apps/
+# majadu-rc, database bm2_rc) was purged on 2026-11-21 by the owner's order. Its
+# branch is no longer routed anywhere, which is the intended state: a push to it
+# exits 0 here instead of failing a webhook.
 #
 # Installed at /srv/qouver/apps/majadu/scripts/deploy-dispatch.sh and kept in
 # sync by deploy-vps.sh's script-sync step.
@@ -22,24 +26,11 @@ REF="${2:-}"
 
 HERE=$(dirname "$0")
 PROD_SCRIPT="$HERE/deploy-vps.sh"
-RC_APP_DIR="${MAJADU_RC_APP_DIR:-/srv/qouver/apps/majadu-rc}"
-RC_SCRIPT="$RC_APP_DIR/scripts/deploy-vps-rc.sh"
 
 case "$REF" in
   refs/heads/main)
     [ -x "$PROD_SCRIPT" ] || { echo "dispatch: $PROD_SCRIPT is missing"; exit 1; }
     exec "$PROD_SCRIPT" "$REPO_NAME" "$REF"
-    ;;
-  refs/heads/release/2.0.0-rc.1)
-    # Before bootstrap the instance does not exist. Skipping is the safe answer:
-    # the branch can be pushed before the database is prepared, and the deploy
-    # starts working on its own once the env file is in place.
-    if [ ! -f "$RC_APP_DIR/env/majadu-rc.env" ]; then
-      echo "dispatch: $RC_APP_DIR is not bootstrapped yet; nothing to deploy"
-      exit 0
-    fi
-    [ -x "$RC_SCRIPT" ] || { echo "dispatch: $RC_SCRIPT is missing"; exit 1; }
-    exec "$RC_SCRIPT" "$REPO_NAME" "$REF"
     ;;
   *)
     echo "dispatch: ref '${REF:-<empty>}' has no target; nothing to deploy"

@@ -47,16 +47,15 @@ rotation is a file replace plus the restart or re-login in the table.
 | Credential | File on the VPS | Rotate by | Verify after | Last rotated | Next due |
 |---|---|---|---|---|---|
 | GHCR read token | `env/ghcr-token` | issue a new `read:packages` token, replace the file, mode 600 | `podman login ghcr.io -u <user> --password-stdin < env/ghcr-token` | not recorded | not recorded |
-| GitHub CI token (RC) | `majadu-rc/env/github-token` | new fine-grained token, `actions: read`, replace the file, mode 600 | the file is read by the RC CI gate on the next push | not recorded | not recorded |
-| Vercel token | `majadu-rc/env/vercel-token` | new token in the Vercel account, replace the file, mode 600 | `VERCEL_TOKEN=$(cat majadu-rc/env/vercel-token) vercel whoami` | not recorded | not recorded |
-| Database passwords | `env/majadu-prod.env`, `env/majadu-tools.env`, `env/majadu-rc*.env` | `alter role ... password` for each role, then update every file that names it (`MAJADU_PG_DSN` is in both prod files) | `./task ci` against the DSN, or `curl /readyz` after `systemctl --user restart majadu-api` | not recorded | not recorded |
+| Vercel token | `env/vercel-token` | new token in the Vercel account, replace the file, mode 600 | `VERCEL_TOKEN=$(cat env/vercel-token) vercel whoami` | not recorded | not recorded |
+| Database passwords | `env/majadu-prod.env`, `env/majadu-tools.env` | `alter role ... password` for each role, then update every file that names it (`MAJADU_PG_DSN` is in both prod files) | `./task ci` against the DSN, or `curl /readyz` after `systemctl --user restart majadu-api` | not recorded | not recorded |
 | Alert webhook | `env/alert.env` | new webhook URL in the provider, replace the file, mode 600 | `systemctl --user start majadu-alert@rotation-test.service` and look for the delivery | not recorded | not recorded |
 | Cosign public key | `env/cosign.pub` | follows the signing key, not a secret | `cosign verify --key env/cosign.pub <image>` | not recorded | not recorded |
 
-Paths in the table are relative to the app dir. Everything except the two RC
-credentials sits under `/srv/qouver/apps/majadu/`; the RC CI and Vercel tokens
-are read by `deploy-vps-rc.sh` from `/srv/qouver/apps/majadu-rc/env/`
-(`deploy-vps-rc.sh:48`, `:553`), so rotating them there is what takes effect.
+Paths in the table are relative to the app dir, `/srv/qouver/apps/majadu/`. The
+RC instance and the two credentials it owned (`majadu-rc/env/github-token`,
+`majadu-rc/env/vercel-token`, read by the removed `deploy-vps-rc.sh`) were purged
+on 2026-11-21, so this is the only credential set left.
 
 The two date columns are the register, not a pointer to one: a credential whose
 row still says `not recorded` has no evidence that it was ever rotated, which is

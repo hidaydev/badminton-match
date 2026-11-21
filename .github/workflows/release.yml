@@ -153,9 +153,9 @@ jobs:
         run: ./task build
       - name: "Release: every action is pinned to a 40-hex SHA"
         run: ./task ci-guards
-      # OPS-15: the RC branch rewrites the SPA to /majadu-rc. A tag that still
-      # carries that line would ship production against the RC API, so the tag
-      # fails before the image is built.
+      # OPS-15: the RC branch rewrote the SPA to /majadu-rc. The instance is
+      # purged (2026-11-21), but a tag that carried that line would still ship a
+      # SPA pointing at a hostname nothing serves, so the tag fails first.
       - name: "Release: the SPA must not rewrite to the RC API"
         run: ./task ci-guards --release
       - name: "Release: contract fingerprint"

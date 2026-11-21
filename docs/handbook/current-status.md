@@ -175,9 +175,11 @@ E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
   **Cutover gate:** the script refuses to deploy unless the production env names
   `bm2`; production has run `bm2` since the cutover, and `bm` is the read-only v1
   archive the ETL reads.
-- **RC** (`ops/scripts/deploy-vps-rc.sh`): branch `release/2.0.0-rc.1`, Podman service
-  and database separate from production; all details are in
-  [`../ops/rc.md`](../ops/rc.md).
+- **RC: purged.** The release-candidate instance (`ops/scripts/deploy-vps-rc.sh`,
+  `bootstrap-rc.sh`, `site-rc.caddy`, `majadu-rc-api.container`, database `bm2_rc`,
+  `/srv/qouver/apps/majadu-rc`, branch `release/2.0.0-rc.1`) was removed on
+  2026-11-21 by the owner's order. Its docs page went with it; a push to that
+  branch now dispatches nowhere.
 - **Cutover** (`ops/scripts/cutover.sh`): 14 named steps with a resume marker
   (`--from`), `:v1-final` tagged before v1 is stopped, Caddy maintenance, dump →
   `bm_staging`, roles + migrations + seed + owner, ETL + verify, `cutover_state`,

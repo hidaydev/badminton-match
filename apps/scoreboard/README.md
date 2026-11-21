@@ -67,7 +67,8 @@ pnpm --filter majadu-score build
 and the cache policy; `scripts/check-headers.mjs` fails the build when the file
 drifts. The project's default domain is <https://majadu-score.vercel.app>; a
 custom domain configured in Vercel replaces it without a code change. The
-`main` branch deploys production (see `docs/ops/rc.md`).
+`main` branch is the only one that deploys: the RC instance was purged on
+2026-11-21.
 
 ## Known limit: iOS launch screen
 

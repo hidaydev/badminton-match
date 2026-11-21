@@ -1,11 +1,9 @@
 # Site-level log policy for the Majadu handlers on api.qouver.com.
 #
 # The share code and the one-use websocket ticket are query parameters, and this
-# access log is shared with every other application on the site. Production and
-# the RC API are served from the same site block and write to the same log, so
-# both families of prefixes have to be named: naming only /majadu/s/* writes
-# live tickets into a file that outlives the link. cutover.sh refuses a
-# Caddyfile, or an installed copy of this file, that names fewer.
+# access log is shared with every other application on the site, so naming only
+# the pages writes live tickets into a file that outlives the link. cutover.sh
+# refuses a Caddyfile, or an installed copy of this file, that names fewer.
 #
 # Install (cutover.sh does this in its preflight) as:
 #   /srv/qouver/apps/majadu/caddy/log-share.caddy
@@ -19,7 +17,11 @@
 # carries the old spelling is a Caddyfile that will not load. `log_access` is
 # the host's existing output and format snippet; keep its name so the other
 # applications log unchanged.
-@share path /majadu/s/* /majadu/ws/* /majadu-rc/s/* /majadu-rc/ws/*
+#
+# The RC instance (/majadu-rc/...) was purged on 2026-11-21, so its prefixes are
+# gone from this matcher. A host that still carries them is harmless: log_skip
+# on a path nothing serves skips nothing.
+@share path /majadu/s/* /majadu/ws/*
 log_skip @share
 log {
 	import log_access

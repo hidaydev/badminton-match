@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# Helpers shared by the two deploy scripts (SQ-16).
+# Helpers shared by the deploy scripts (SQ-16).
 #
-# `deploy-vps.sh` pulls a signed image by digest; `deploy-vps-rc.sh` builds the
-# RC branch on the host. The paths differ on purpose, but the logging, the
-# state-file reader, the service indirection, the alert trigger and the
-# readiness probe have to behave the same or the two records cannot be read the
-# same way. This file is sourced by both, so a fix lands in both.
+# `deploy-vps.sh` pulls a signed image by digest and is the only deploy left: the
+# RC script (`deploy-vps-rc.sh`) that also sourced this library went with the RC
+# instance on 2026-11-21. The logging, the state-file reader, the service
+# indirection, the alert trigger and the readiness probe live here so the deploy
+# and the operator scripts cannot drift apart.
 #
 # This is a library, not a program. It reads these globals from the sourcing
 # script and must not define them:
 #   LOG          the log file `log` appends to
 #   HEALTH_URL   the base URL `wait_ready` polls
 #   ALERT_UNIT   the `majadu-alert@<unit>.service` instance `alert` starts
-# It also relies on `set -Eeuo pipefail` being in force, which both scripts set
-# before sourcing.
+# It also relies on `set -Eeuo pipefail` being in force, which the sourcing
+# script sets before sourcing.
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"
