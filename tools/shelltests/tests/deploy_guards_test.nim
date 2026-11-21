@@ -766,6 +766,95 @@ suite "deploy-vps.sh":
     check not calls.contains("seed --dir /app/db/seeds")
     check calls.contains("verify --dir /app/db/migrations")
 
+  # REL-CI-05 hardening, 2026-11-21: production went down because the deploy
+  # untagged the registry name and podman 5.8.5 dropped the whole image with it,
+  # taking the `:local` created milliseconds earlier. The rotation must remove
+  # exactly one name, and it must name the image id to do it.
+  test "the rotation removes only the registry name, never the image":
+    let fixture = newFixture("deploy-rotate-untag")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    fixture.installFake("git", gitFakeNoRelease)
+    fixture.installFake("systemctl", systemctlLogFake)
+    let podmanLog = fixture.root / "podman.log"
+    let mono = fixture.root / "monorepo"
+    touch(mono / "VERSION", "2.0.0\n")
+    touch(mono / "db" / "migrations" / "0001_init.sql", "select 1;\n")
+    createDir(mono / "ops" / "systemd")
+    createDir(mono / "ops" / "scripts")
+    privateFile(fixture.root / "env" / "majadu-prod.env",
+      "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+    privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
+    privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+    discard fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("FAKE_PODMAN_LOG", podmanLog),
+      ])
+    let calls = readFile(podmanLog)
+    let registryName = "ghcr.io/hidaydev/badminton-match:sha-abc1234"
+    let imageId = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+    # The id comes first: `podman untag <name>` alone drops every name the image
+    # holds, which is what took production down.
+    check calls.contains("untag " & imageId & " " & registryName)
+    # And never the bare form, which is the one that destroys the image. The
+    # count is collected and asserted once, so the case has no unreachable
+    # `check false` (archcheck R-02).
+    var destructive: seq[string] = @[]
+    for line in calls.splitLines:
+      let trimmed = line.strip
+      if trimmed.startsWith("untag ") and not trimmed.startsWith("untag sha256:"):
+        destructive.add(trimmed)
+    checkpoint("destructive untag calls: " & $destructive)
+    check destructive.len == 0
+    # `:local` is named after the removal, so the served tag is never absent.
+    check calls.contains("tag " & imageId & " localhost/majadu-api:local")
+
+  test "a crash-looping unit is reset before every restart":
+    ## `start request repeated too quickly` latched the unit on 2026-11-21, so
+    ## both the deploy restart and the rollback restart failed to bring it back.
+    let fixture = newFixture("deploy-reset-failed")
+    defer: removeDir(fixture.root)
+    let systemctlLog = fixture.root / "systemctl.log"
+    var result: ShellResult
+    block:
+      simFakes(fixture)
+      fixture.installFake("git", gitFakeNoRelease)
+      fixture.installFake("systemctl", systemctlLogFake)
+      let mono = fixture.root / "monorepo"
+      touch(mono / "VERSION", "2.0.0\n")
+      touch(mono / "db" / "migrations" / "0001_init.sql", "select 1;\n")
+      createDir(mono / "ops" / "systemd")
+      createDir(mono / "ops" / "scripts")
+      privateFile(fixture.root / "env" / "majadu-prod.env",
+        "MAJADU_PG_DSN=postgres://bm2_app@127.0.0.1:5432/bm2\n")
+      privateFile(fixture.root / "env" / "majadu-tools.env", toolsEnvBody)
+      privateFile(fixture.root / "env" / "ghcr-token", "fake-token\n")
+      result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+        @["badminton-match", "refs/heads/main"], appDir(fixture) & @[
+          ("MAJADU_SKIP_GIT_SYNC", "1"),
+          ("FAKE_SYSTEMCTL_LOG", systemctlLog),
+        ])
+    let calls = readFile(systemctlLog)
+    # Every restart is preceded by a reset-failed for the same unit. The helper
+    # runs `systemctl --user <verb>`, so the verb is the second word.
+    var resetAt = -1
+    var restartAt = -1
+    var lineAt = 0
+    for line in calls.splitLines:
+      let words = line.strip.splitWhitespace
+      if words.len >= 2 and words[0] == "--user":
+        if words[1] == "reset-failed" and resetAt < 0:
+          resetAt = lineAt
+        elif words[1] == "restart" and restartAt < 0:
+          restartAt = lineAt
+      inc lineAt
+    check resetAt >= 0
+    check restartAt > resetAt
+    check result.exitCode >= 0
+    check result.exitCode >= 0
+
+
 suite "cutover.sh":
   test "--from an unknown step exits 2 and names it":
     let fixture = newFixture("cutover-step")

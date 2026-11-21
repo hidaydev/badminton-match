@@ -263,7 +263,7 @@ suite "task target guards":
     createDir(fixture.root / "apps" / "web")
     createDir(fixture.root / ".github" / "workflows")
     writeFile(fixture.root / "apps" / "web" / "vercel.json",
-      "{\"ignoreCommand\":\"[ -n \\\"$VERCEL_GIT_PREVIOUS_SHA\\\" ]\",\"rewrites\":[{\"source\":\"/api/:path*\",\"destination\":" &
+      "{\"ignoreCommand\":\"git rev-parse --verify --quiet \\\"$VERCEL_GIT_PREVIOUS_SHA^{commit}\\\"\",\"rewrites\":[{\"source\":\"/api/:path*\",\"destination\":" &
       "\"https://api.qouver.com/majadu-rc/:path*\"}]}\n")
     let normal = fixture.runTask(@["ci-guards"])
     check normal.exitCode == 0
@@ -283,6 +283,22 @@ suite "task target guards":
     let result = fixture.runTask(@["ci-guards"])
     check result.exitCode == 1
     check result.stderr.contains("VERCEL_GIT_PREVIOUS_SHA")
+
+  test "ci-guards rejects a skip rule that diffs a base it never checks":
+    ## 2026-11-21: `git diff "$VERCEL_GIT_PREVIOUS_SHA" HEAD` exits 128 when the
+    ## shallow clone does not hold that commit, and Vercel treats any exit code
+    ## but 0 (skip) or 1 (build) as a deployment error, so every production
+    ## deploy of `badmin` failed while the tree and the build were fine.
+    let fixture = newFixture("ci-guards-vercel-unverified")
+    defer: removeDir(fixture.root)
+    createDir(fixture.root / "apps" / "web")
+    createDir(fixture.root / ".github" / "workflows")
+    writeFile(fixture.root / "apps" / "web" / "vercel.json",
+      "{\"ignoreCommand\":\"[ -n \\\"$VERCEL_GIT_PREVIOUS_SHA\\\" ] && " &
+      "git diff \\\"$VERCEL_GIT_PREVIOUS_SHA\\\" HEAD --quiet -- . ../../VERSION\"}\n")
+    let result = fixture.runTask(@["ci-guards"])
+    check result.exitCode == 1
+    check result.stderr.contains("must verify VERCEL_GIT_PREVIOUS_SHA exists")
 
   test "ci-guards rejects a mutable action tag":
     let fixture = newFixture("ci-guards-tag")

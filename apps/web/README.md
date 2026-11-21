@@ -89,6 +89,12 @@ client uses the same-origin `/api` path. Copy `.env.local.example` to
   way. An empty `VERCEL_GIT_PREVIOUS_SHA` (first build on a branch) exits
   non-zero and builds. It overrides the project's Ignored Build Step in the
   dashboard.
+- The command verifies the base commit exists before it diffs. Vercel clones
+  shallow, and it treats an ignore-command exit code other than `0` (skip) or
+  `1` (build) as a deployment error: `git diff` against a commit the clone does
+  not hold exits `128`, which failed every production deploy of `badmin` after
+  the gap to the previous successful deployment grew past the clone depth
+  (2026-11-21). A missing or empty base now falls through to `1` and builds.
 
 ### Not verifiable from this repo
 

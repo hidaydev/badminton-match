@@ -632,13 +632,21 @@ if [ "$PULLED_ID" != "$CURRENT_ID" ] && [ -n "$CURRENT_ID" ]; then
   podman tag "$LOCAL_IMAGE:local" "$LOCAL_IMAGE:prev"
 fi
 podman tag "$PULLED_ID" "$LOCAL_IMAGE:local"
-# REL-CI-05: the pull left a `ghcr.io/...:sha-<7>` tag behind, and
-# `podman image prune -f` below only drops *untagged* images, so every deploy
-# added one full API image to the volume. Retention is :local and :prev only.
-# This runs after the :local retag above, so the tag being removed is a second
-# name for an image that :local and :prev already hold; nothing served depends
-# on it.
-podman untag "$TARGET_IMAGE" 2>/dev/null || true
+# REL-CI-05: the pull leaves a `ghcr.io/...:sha-<7>` name behind, and
+# `podman image prune -f` below only drops images with no name at all, so every
+# deploy added one full API image to the volume. Retention is :local and :prev.
+#
+# The form matters: `untag <id> <name>`, never `untag <name>`. On podman 5.8.5
+# `untag <name>` drops the image from the store once it holds no names, and the
+# probe on qouver1 (2026-11-21) showed the `:local` created milliseconds earlier
+# going with it. The unit then crash-looped on "localhost/majadu-api:local:
+# image not known", systemd latched into "start request repeated too quickly",
+# and the rollback below could not restart it either, so production stayed down
+# until it was started by hand.
+podman untag "$PULLED_ID" "$TARGET_IMAGE" 2>/dev/null || true
+if ! podman image exists "$LOCAL_IMAGE:local"; then
+  fail "the :local tag did not survive the rotation; refusing to restart onto a missing image"
+fi
 
 # ---------------------------------------------------------------------------
 # Units come from the repository, not from whatever was left on the VPS.
@@ -706,6 +714,13 @@ STEP="restart"
 # the deploy. Here the ERR trap calls fail(), which alerts and exits without
 # rolling back, so an unguarded restart left :local on an image that never
 # became ready and the readiness gate never ran.
+#
+# `reset-failed` first: after five failed starts systemd refuses a plain `start`
+# with "start request repeated too quickly" until the unit is reset. The crash
+# loop that follows a bad image therefore latched the unit, and both this
+# restart and the rollback below could not bring it back (2026-11-21).
+service reset-failed "$SERVICE" >>"$LOG" 2>&1 \
+  || log "WARNING: reset-failed $SERVICE returned non-zero; starting anyway"
 service restart "$SERVICE" >>"$LOG" 2>&1 \
   || log "WARNING: restart $SERVICE returned non-zero; unit may be crash-looping, checking the readiness gate anyway"
 
@@ -716,6 +731,7 @@ if ! wait_ready; then
     podman tag "$LOCAL_IMAGE:prev" "$LOCAL_IMAGE:local"
     # Same rule for the restore restart: it must not abort before the readiness
     # check below and the alert inside fail(); a failure here is logged instead.
+    service reset-failed "$SERVICE" >>"$LOG" 2>&1 || true
     service restart "$SERVICE" >>"$LOG" 2>&1 \
       || log "WARNING: ROLLBACK restart $SERVICE returned non-zero; unit may be crash-looping, checking readiness anyway"
     if wait_ready; then

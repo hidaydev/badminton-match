@@ -90,9 +90,18 @@ fi
 # deployment, not HEAD^. A release commit is usually followed on main by a
 # CI-only commit, and `HEAD^..HEAD` then sees neither VERSION nor apps/web, so
 # the release is skipped and the SPA keeps serving the old build (v2.0.6 did).
+#
+# Vercel treats an ignore-command exit code other than 0 (skip) or 1 (build) as
+# a deployment error. `git diff` against a base commit the shallow clone does
+# not hold exits 128, which failed every production deploy between the last
+# successful one and 2026-11-21. The rule must therefore verify the base commit
+# first and fall through to 1, never to git's own code.
 web_vercel="$REPO_ROOT/apps/web/vercel.json"
 if [ -f "$web_vercel" ] && ! grep -q 'VERCEL_GIT_PREVIOUS_SHA' "$web_vercel"; then
   report "apps/web/vercel.json must diff VERCEL_GIT_PREVIOUS_SHA against HEAD, not HEAD^"
+fi
+if [ -f "$web_vercel" ] && ! grep -q 'rev-parse --verify' "$web_vercel"; then
+  report "apps/web/vercel.json ignoreCommand must verify VERCEL_GIT_PREVIOUS_SHA exists before diffing, or a shallow clone exits 128 and Vercel fails the deploy"
 fi
 
 # A version of apps/web/vercel.json once rewrote /api to the purged RC backend.
