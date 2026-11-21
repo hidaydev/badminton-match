@@ -706,7 +706,7 @@ suite "rotate-log.sh":
       setFilePermissions(path, {fpUserRead, fpUserWrite, fpGroupRead,
         fpOthersRead})
     let result = fixture.runShell(fixture.installOpsScript("rotate-log.sh"),
-      @[], appDir(fixture) & @[("LOG_DIR", logs)])
+      @[], appDir(fixture) & @[("LOG_DIR", logs), ("MINSIZE", "1K")])
     check result.exitCode == 0
     check not fileExists(api)
     check not fileExists(worker)
@@ -726,8 +726,38 @@ suite "rotate-log.sh":
       check stamp.len == 15 and stamp[8] == '-'
     # A second run touches nothing, because no `*.log` is left.
     let again = fixture.runShell(fixture.installOpsScript("rotate-log.sh"),
-      @[], appDir(fixture) & @[("LOG_DIR", logs)])
+      @[], appDir(fixture) & @[("LOG_DIR", logs), ("MINSIZE", "1K")])
     check again.exitCode == 0
+
+  # REL-LOG-FLOOR: the timer runs every ten minutes, so "non-empty" is not the
+  # rotation condition: an idle app would write 144 tiny gzips a day.
+  test "a log below MINSIZE is left to grow and rotated once it passes":
+    let fixture = newFixture("rotate-minsize")
+    defer: removeDir(fixture.root)
+    let logs = fixture.root / "logs"
+    createDir(logs)
+    let quiet = logs / "api.log"
+    touch(quiet, "one line\n")
+    let first = fixture.runShell(fixture.installOpsScript("rotate-log.sh"),
+      @[], appDir(fixture) & @[("LOG_DIR", logs), ("MINSIZE", "8K")])
+    check first.exitCode == 0
+    check fileExists(quiet)
+    var gzips = 0
+    for kind, path in walkDir(logs):
+      if kind == pcFile and path.endsWith(".gz"):
+        gzips = gzips + 1
+    check gzips == 0
+    # Past the floor, the same file is rotated on the next tick.
+    writeFile(quiet, repeat('x', 16 * 1024))
+    let second = fixture.runShell(fixture.installOpsScript("rotate-log.sh"),
+      @[], appDir(fixture) & @[("LOG_DIR", logs), ("MINSIZE", "8K")])
+    check second.exitCode == 0
+    check not fileExists(quiet)
+    var after = 0
+    for kind, path in walkDir(logs):
+      if kind == pcFile and path.endsWith(".gz"):
+        after = after + 1
+    check after == 1
 
   # OPS-24: a rename bounds the age of a file, not its size.
   test "a log past MAXSIZE is rotated and gzipped on the next run":
@@ -739,7 +769,8 @@ suite "rotate-log.sh":
     # 2 MB of 'x' stands in for a burst between two rotations.
     writeFile(hot, repeat('x', 2 * 1024 * 1024))
     let result = fixture.runShell(fixture.installOpsScript("rotate-log.sh"),
-      @[], appDir(fixture) & @[("LOG_DIR", logs), ("MAXSIZE", "1M")])
+      @[], appDir(fixture) & @[("LOG_DIR", logs), ("MAXSIZE", "1M"),
+        ("MINSIZE", "1K")])
     check result.exitCode == 0
     check result.stderr.contains("past MAXSIZE=1M")
     check not fileExists(hot)

@@ -6,18 +6,27 @@
 #
 # A rename alone bounds the age of a file, not its size: a request flood or a
 # hot loop can fill the volume between two hourly runs, which takes PostgreSQL
-# and the API down with it. The timer therefore runs every ten minutes, every
-# closed file is gzipped, and a disk-usage guard pages someone before the
-# volume is full instead of after.
+# and the API down with it. The timer therefore runs every ten minutes, a closed
+# file is gzipped, and a disk-usage guard pages someone before the volume is
+# full instead of after.
+#
+# The timer runs every ten minutes, so a file that is merely non-empty must not
+# be rotated: an idle application then writes one `.gz` per tick, 144 a day,
+# ~2000 inside the 14-day window, and every one of them holds a few bytes. A
+# file is rotated once it reaches MINSIZE; below that it is left to grow, and
+# since it cannot exceed MINSIZE it cannot fill the volume either. MAXSIZE is
+# separate and only makes the run say out loud that a file grew past it.
 #
 #   /srv/qouver/apps/majadu/scripts/rotate-log.sh        # by majadu-rotate-log.timer
 #   KEEP_DAYS=30 rotate-log.sh                           # longer history
-#   MAXSIZE=100M rotate-log.sh                           # rotate a file past this size
+#   MINSIZE=16K rotate-log.sh                            # rotate below the default floor
+#   MAXSIZE=100M rotate-log.sh                           # alarm past this size
 #   DISK_MAX_PCT=80 rotate-log.sh                        # page past this usage
 set -euo pipefail
 
 LOG_DIR=${LOG_DIR:-/srv/qouver/apps/majadu/logs}
 KEEP_DAYS=${KEEP_DAYS:-14}
+MINSIZE=${MINSIZE:-64K}
 MAXSIZE=${MAXSIZE:-100M}
 DISK_MAX_PCT=${DISK_MAX_PCT:-80}
 
@@ -32,9 +41,11 @@ log_kb() {
   du -k "$1" 2>/dev/null | awk '{print $1 + 0; exit}'
 }
 
-maxsize_kb() {
-  local value=${MAXSIZE%[kKmMgG]}
-  case "$MAXSIZE" in
+# One parser for both thresholds, because MINSIZE and MAXSIZE accept the same
+# suffixes and two copies of this would drift.
+size_kb() {
+  local spec="$1" value=${1%[kKmMgG]}
+  case "$spec" in
     *[kK]) printf '%s\n' "$value" ;;
     *[mM]) printf '%s\n' "$((value * 1024))" ;;
     *[gG]) printf '%s\n' "$((value * 1024 * 1024))" ;;
@@ -42,7 +53,8 @@ maxsize_kb() {
   esac
 }
 
-MAX_KB=$(maxsize_kb)
+MIN_KB=$(size_kb "$MINSIZE")
+MAX_KB=$(size_kb "$MAXSIZE")
 
 for log in "$LOG_DIR"/*.log; do
   [ -f "$log" ] || continue
@@ -55,6 +67,10 @@ for log in "$LOG_DIR"/*.log; do
     printf 'rotate-log: %s reached %s KB, past MAXSIZE=%s\n' \
       "$log" "$size" "$MAXSIZE" >&2
   fi
+  # Below the floor the file is left to grow: it cannot pass MINSIZE without
+  # being rotated on a later tick, so leaving it costs at most MINSIZE of
+  # volume and saves one gzip per tick.
+  [ "$size" -ge "$MIN_KB" ] || continue
   # A rename, not a truncate: the writers append with >>, so the next line
   # lands in a fresh file and nothing is lost between the two steps. The file
   # is compressed immediately, so the closed copy is never a second unbounded
