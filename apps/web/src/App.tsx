@@ -358,7 +358,14 @@ function AuthedRoutes() {
 export default function App() {
   const { needRefresh: [needRefresh, setNeedRefresh], updateServiceWorker } = useRegisterSW({
     onRegisteredSW(_swUrl, registration) {
-      if (registration) installUpdateOnVisible(registration)
+      if (registration) {
+        installUpdateOnVisible(registration, {
+          // "Later" is not "never": the plugin raises its prompt once per
+          // waiting worker, so without this a tablet left open all day keeps
+          // the old bundle and its old precache until someone reloads by hand.
+          onWaiting: () => setNeedRefresh(true),
+        })
+      }
     },
   })
   const [sharedSnapshot] = useState<SharedSnapshot | null>(() =>

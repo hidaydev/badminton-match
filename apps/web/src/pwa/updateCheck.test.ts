@@ -69,4 +69,42 @@ describe('installUpdateOnVisible', () => {
 
     expect(update).not.toHaveBeenCalled()
   })
+
+  // REL-FE-10: the plugin raises its prompt once per waiting worker, so a
+  // dismissed banner never came back and the tablet kept the old precache.
+  it('re-raises the prompt when a check finds a worker still waiting', async () => {
+    setVisibility('visible')
+    now = 0
+    const onWaiting = vi.fn()
+    const registration = {
+      update: vi.fn(async () => {}),
+      waiting: { scriptURL: '/sw.js' },
+    }
+
+    const stop = installUpdateOnVisible(registration, { now: clock, onWaiting })
+    now = UPDATE_CHECK_INTERVAL_MS * 2
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.waitFor(() => expect(onWaiting).toHaveBeenCalledTimes(1))
+
+    // The next check, after the admin dismisses again, raises it again.
+    now += UPDATE_CHECK_INTERVAL_MS
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.waitFor(() => expect(onWaiting).toHaveBeenCalledTimes(2))
+    stop()
+  })
+
+  it('leaves the banner alone when no worker is waiting', async () => {
+    setVisibility('visible')
+    now = 0
+    const onWaiting = vi.fn()
+    const registration = { update: vi.fn(async () => {}), waiting: null }
+
+    const stop = installUpdateOnVisible(registration, { now: clock, onWaiting })
+    now = UPDATE_CHECK_INTERVAL_MS * 2
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.waitFor(() => expect(registration.update).toHaveBeenCalledTimes(1))
+
+    expect(onWaiting).not.toHaveBeenCalled()
+    stop()
+  })
 })
