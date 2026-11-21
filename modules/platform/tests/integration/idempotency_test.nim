@@ -24,7 +24,11 @@ suite "idempotency":
   setup:
     if dsn().len == 0:
       raise newException(ValueError, "MAJADU_PG_DSN is required")
-    db = openDb(dsn(), 1)
+    # Two connections, because one case below holds a transaction open and then
+    # reads from outside it. With a pool of one, that second read waits for the
+    # connection the transaction is holding and the runner kills the file on its
+    # timeout instead of reporting a failure: a deadlock, not a slow test.
+    db = openDb(dsn(), 2)
     discard db.execUpdate(
       "delete from platform.idempotency_keys where user_id in (select id from platform.user where google_sub = 'idem-test')")
     discard db.execUpdate("delete from platform.user where google_sub = 'idem-test'")
@@ -101,20 +105,25 @@ suite "idempotency":
     # answer the stored response.
     let key = scopedKey("c1", "same-transaction")
     let digest = bodyHash("""{"a":1}""")
+    # Claimed before the transaction, the way the route claims it: the key row is
+    # committed by then, so the read below can tell "not settled yet" apart from
+    # "no row at all".
+    check claim(db, userId, key, digest).status == idempotencyNew
     db.tx(proc(conn: DbConn) =
       let tx = db.boundTo(conn)
-      check claim(tx, userId, key, digest).status == idempotencyNew
       complete(tx, userId, key, 201, %*{"id": "tx"})
       let inTx = tx.queryOne(
         """select status_code from platform.idempotency_keys
            where user_id = $1::uuid and key = $2""",
         @[textParam(userId), textParam(key)])
       check inTx.get["status_code"].isSome
-      # A different connection is a different transaction: it cannot see it yet.
+      # A different connection is a different transaction: the settled status is
+      # not visible until the write it belongs to commits.
       let outside = db.queryOne(
         """select status_code from platform.idempotency_keys
            where user_id = $1::uuid and key = $2""",
         @[textParam(userId), textParam(key)])
+      check outside.isSome
       check outside.get["status_code"].isNone)
     let replay = claim(db, userId, key, digest)
     check replay.status == idempotencyReplay

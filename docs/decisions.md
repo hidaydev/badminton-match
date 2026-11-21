@@ -622,7 +622,7 @@ limit in the tool's header comment instead of pretending the gap is closed.
 operation in one place the request path also reads). Then binding is mechanical
 and this ADR's limit stops applying.
 
-## ADR-021 · A draft session is shareable, for 48 hours
+## ADR-022 · A draft session is shareable, for 48 hours
 
 **Date:** 2026-11-21
 **Audit finding:** none; found in production on the day of play

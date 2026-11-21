@@ -242,6 +242,23 @@ proc addClassicTournament(age: int, withLevel: bool, winnerScore,
 
 type TeamRosterEntry = tuple[name: string, playerId: string, cls: string]
 
+proc removeClassicTournament(tournamentId: string) =
+  ## Undoes `addClassicTournament`, in the order `cleanup` uses: matches and
+  ## pairs before the header, because `matches_pair_*_fk` is `on delete
+  ## restrict`. The rating event goes with the header (`0039` installs a
+  ## `before delete` trigger for it). A test that seeds tournaments of its own
+  ## must take them back out, or the next case in the suite reads a board it did
+  ## not set up.
+  for statement in [
+    """delete from tournament.matches
+         where community_id = $1::uuid and tournament_id = $2::uuid""",
+    """delete from tournament.pairs
+         where community_id = $1::uuid and tournament_id = $2::uuid""",
+    """delete from tournament.tournaments
+         where community_id = $1::uuid and id = $2::uuid"""]:
+    discard database.execUpdate(statement,
+      @[textParam(communityId), textParam(tournamentId)])
+
 proc addTeamTournament(age: int, name: string): string =
   ## A team-format header. Its partais live in the team tables, not the classic
   ## ones, which is why the read merges a second pass over them.
@@ -337,18 +354,23 @@ suite "ranking read":
     ## checkout, so a board cost 6 + 2T statements and /players/{id}/stats paid
     ## it on every call. The games are now read in bulk behind one `db.read`, so
     ## the count is a constant and must not move when T grows.
+    ##
+    ## The tournaments this case seeds are removed again at the end: every case
+    ## below reads the board, and a suite that only passes in one order is the
+    ## defect the `--order-check` gate exists for.
     let a = @[newPlayer("Bulk A1"), newPlayer("Bulk A2")]
     let b = @[newPlayer("Bulk B1"), newPlayer("Bulk B2")]
-    discard addClassicTournament(21, withLevel = false, winnerScore = 21,
-      loserScore = 12, a, b)
-    discard addClassicTournament(22, withLevel = false, winnerScore = 21,
-      loserScore = 12, a, b)
+    var seeded = @[
+      addClassicTournament(21, withLevel = false, winnerScore = 21,
+        loserScore = 12, a, b),
+      addClassicTournament(22, withLevel = false, winnerScore = 21,
+        loserScore = 12, a, b)]
     let twoTournaments = statements(proc() = discard projection.project(
       database, communityId, asOf, params()))
     # Six more tournaments, same window and same shape as the first two.
     for age in 23 .. 28:
-      discard addClassicTournament(age, withLevel = false, winnerScore = 21,
-        loserScore = 12, a, b)
+      seeded.add(addClassicTournament(age, withLevel = false, winnerScore = 21,
+        loserScore = 12, a, b))
     let eightTournaments = statements(proc() = discard projection.project(
       database, communityId, asOf, params()))
     check eightTournaments == twoTournaments
@@ -357,6 +379,8 @@ suite "ranking read":
     let entry = boardEntry(database, queryAll(), a[0])
     check entry.isSome
     check entry.get.entriesAvailable >= 8
+    for tournamentId in seeded:
+      removeClassicTournament(tournamentId)
 
   test "the board reads its candidates and keeps the same places":
     let whole = board(database, queryAll())
