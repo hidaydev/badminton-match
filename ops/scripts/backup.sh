@@ -12,6 +12,8 @@
 #                            MAJADU_OWNER_DSN in the tool env, then refuses)
 #   MAJADU_BACKUP_KEEP_DAYS  rotation for bm2 (default 7)
 #   MAJADU_BACKUP_KEEP_BM_DAYS rotation for bm (default 30)
+#   MAJADU_BACKUP_KEEP_WEEKS one bm2 dump per ISO week kept outside the daily
+#                            rotation, pruned at this many weeks (default 8)
 #
 # A dump is only moved into place after `pg_restore --list` has read it, so a
 # truncated file never looks like a backup. Files are mode 600.
@@ -21,6 +23,11 @@ APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"
 BACKUP_DIR="${MAJADU_BACKUP_DIR:-$APP_DIR/backups}"
 KEEP_DAYS="${MAJADU_BACKUP_KEEP_DAYS:-7}"
 KEEP_BM_DAYS="${MAJADU_BACKUP_KEEP_BM_DAYS:-30}"
+# The weekly tier (bm2 only): one dump per ISO week, kept outside the daily
+# rotation and pruned at 8 weeks, so day 8 through day 56 have something to
+# restore once the daily file is gone.
+KEEP_WEEKS="${MAJADU_BACKUP_KEEP_WEEKS:-8}"
+KEEP_WEEK_DAYS=$((KEEP_WEEKS * 7))
 TOOLS_ENV="${MAJADU_TOOLS_ENV:-$APP_DIR/env/majadu-tools.env}"
 PG_CONTAINER="${MAJADU_PG_CONTAINER:-qouver-postgres}"
 USE_CONTAINER=0
@@ -72,6 +79,35 @@ pg_restore_list_cmd() {
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 
+WEEKLY_DIR="$BACKUP_DIR/weekly"
+
+# REL-BKP-03: the daily tier deletes at 7 days, so a corruption noticed on day 8
+# had nothing to restore. Keep the first dump of each ISO week outside the
+# rotation. A hard link is the cheapest form that survives that prune: the bytes
+# are already on disk, the link adds a directory entry, and deleting the daily
+# name leaves the weekly one holding the same inode. The copy fallback covers a
+# BACKUP_DIR that is a mount point with a separate weekly filesystem.
+# bm and --tag dumps never reach here: the caller is the `legacy = 0` branch
+# inside the untagged block, so the 30-day bm tier and an operator's --tag
+# evidence are untouched.
+keep_weekly() {
+  local name="$1" file="$2" week dest
+  week=$(date -r "$file" '+%G-W%V')
+  dest="$WEEKLY_DIR/$name-$week.dump"
+  [ -e "$dest" ] && return 0   # this week's first dump is already kept
+  mkdir -p "$WEEKLY_DIR"
+  chmod 700 "$WEEKLY_DIR"
+  if ln "$file" "$dest" 2>/dev/null; then
+    log "kept $dest (hard link, ISO week $week)"
+  else
+    cp -p "$file" "$dest" && chmod 600 "$dest"
+    log "kept $dest (copy, ISO week $week)"
+  fi
+  find "$WEEKLY_DIR" -maxdepth 1 -type f -mtime "+$KEEP_WEEK_DAYS" \
+    -name "$name-[0-9][0-9][0-9][0-9]-W[0-9][0-9].dump" \
+    -print -delete | while read -r old; do log "removed $old (weekly tier, older than $KEEP_WEEKS weeks)"; done
+}
+
 stamp=$(date '+%Y%m%d-%H%M%S')
 
 dump_one() {
@@ -107,6 +143,12 @@ dump_one() {
     find "$BACKUP_DIR" -maxdepth 1 -type f -mtime "+$keep" \
       -name "$name-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9].dump" \
       -print -delete | while read -r old; do log "removed $old (older than $keep days)"; done
+    # bm2 only: the weekly tier, kept before the next run can prune it away.
+    # An `if` rather than `[ … ] && …` because the false branch of `&&` is the
+    # function's exit status, and `set -e` would abort the run right after bm.
+    if [ "$legacy" = "0" ]; then
+      keep_weekly "$name" "$file"
+    fi
   fi
 }
 
