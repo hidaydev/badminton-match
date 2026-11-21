@@ -8,7 +8,8 @@
 # Env:
 #   MAJADU_BACKUP_DIR        default /srv/qouver/apps/majadu/backups
 #   MAJADU_BACKUP_DSN_BM     v1 archive; skipped when unset
-#   MAJADU_BACKUP_DSN_BM2    v2 production; skipped when unset
+#   MAJADU_BACKUP_DSN_BM2    v2 production owner role; required (falls back to
+#                            MAJADU_OWNER_DSN in the tool env, then refuses)
 #   MAJADU_BACKUP_KEEP_DAYS  rotation for bm2 (default 7)
 #   MAJADU_BACKUP_KEEP_BM_DAYS rotation for bm (default 30)
 #
@@ -109,13 +110,11 @@ dump_one() {
   fi
 }
 
-dump_one bm "${MAJADU_BACKUP_DSN_BM:-}" 1
-
 # The bm2 dump must be taken as an owner, not as bm2_app. A dump taken as the
-# application role cannot see dbtools.schema_migrations (no USAGE), and a restore
-# of it produces a database with no migration ledger. The preferred source is
-# the tool env; MAJADU_PG_DSN remains a last-resort fallback so an existing host
-# keeps making a (degraded) backup instead of none.
+# application role cannot read the schema at all (`permission denied for schema
+# dbtools`), so `pg_dump` exits non-zero and `set -e` aborts the whole run: the
+# operator would get no backup and learn about it hours later. The DSN is
+# resolved before the first dump and its absence is a refusal, not a warning.
 BACKUP_DSN_BM2="${MAJADU_BACKUP_DSN_BM2:-}"
 if [ -z "$BACKUP_DSN_BM2" ] && [ -f "$TOOLS_ENV" ]; then
   BACKUP_DSN_BM2=$(sed -n 's/^MAJADU_BACKUP_DSN_BM2=//p' "$TOOLS_ENV" | tail -1)
@@ -124,9 +123,11 @@ if [ -z "$BACKUP_DSN_BM2" ] && [ -f "$TOOLS_ENV" ]; then
   fi
 fi
 if [ -z "$BACKUP_DSN_BM2" ]; then
-  log "WARNING: no owner DSN for bm2; falling back to MAJADU_PG_DSN, whose dump has no migration ledger"
-  BACKUP_DSN_BM2="${MAJADU_PG_DSN:-}"
+  echo "backup: no owner DSN for bm2: set MAJADU_BACKUP_DSN_BM2 (or MAJADU_OWNER_DSN in $TOOLS_ENV) to the bm2 owner role; refusing to dump the schema as the application role" >&2
+  exit 2
 fi
+
+dump_one bm "${MAJADU_BACKUP_DSN_BM:-}" 1
 dump_one bm2 "$BACKUP_DSN_BM2" 0
 
 log "backup done"

@@ -94,7 +94,7 @@ curl -fsS https://api.qouver.com/majadu/version
 ```
 
 Two facts from that window that still matter on a rerun: `ops/systemd/` holds
-nine timer units, and they may only be enabled once `MAJADU_PG_DSN` points at
+ten timer units, and they may only be enabled once `MAJADU_PG_DSN` points at
 `bm2` (the deploy installs unit files, it never enables timers);
 `majadu-rotate-log.timer` fires every ten minutes (`OnCalendar=*:0/10`), not
 hourly.
@@ -163,7 +163,10 @@ If the rollback itself fails, do not rerun the cutover: recover by hand from
 - [ ] `cutover_state.rows_imported` still matches the `bm_staging` count
       (checker cron or manual).
 - [ ] No `majadu-alert@` in the journal.
-- [ ] The daily `bm2` backup runs and can be read (`pg_restore --list`).
+- [ ] The daily `bm2` backup runs and can be read (`pg_restore --list`):
+      enable `majadu-backup.timer` once `majadu-tools.env` carries
+      `MAJADU_BACKUP_DSN_BM2` as `bm2_owner`; without it `backup.sh` refuses
+      before dumping anything, and the unit reddens instead of skipping.
 - [ ] The last `bm2` dump was restored into a scratch database, `bm2_app` read
       `select 1 from platform.community`, `select count(*) from
       dbtools.schema_migrations` matched the file count, and `dbtools verify`
