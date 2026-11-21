@@ -251,6 +251,14 @@ proc tournamentEntries(db: Db, communityId, asOf: string,
                        params: RatingParams, tiers: Table[string, string],
                        population: float, levels: Table[string, Level],
                        acc: var Table[string, Acc]) =
+  ## REL-BE-11: every tournament's games come from ONE connection for the whole
+  ## window. Reading them per tournament made this pass cost 6 + 2T (classic) or
+  ## 6 + 3T (team) pool checkouts, and /players/{id}/stats calls it on every
+  ## request; a squad opening the page after a match multiplied that. The shape
+  ## is now a constant: the header query, then `gamesForBulk` on a single
+  ## `db.read`. Phase, level and opponent-multiplier handling below is unchanged.
+  var headers: seq[Row] = @[]
+  var formats = initTable[string, string]()
   for header in db.query(
     """select e.source_id::text as id, e.local_date::text as local_date,
               t.format
@@ -264,16 +272,21 @@ proc tournamentEntries(db: Db, communityId, asOf: string,
     @[textParam(communityId), textParam(asOf),
       intParam(params.windowWeeks.int64)]):
     let sourceId = header.getUuid("id")
+    headers.add(header)
+    formats[sourceId] = header.get("format")
+  var gamesByTournament = initTable[string, seq[TournamentGame]]()
+  if headers.len > 0:
+    gamesByTournament = db.read(proc(conn: DbConn):
+        Table[string, seq[TournamentGame]] =
+      gamesForBulk(conn, communityId, formats))
+  for header in headers:
+    let sourceId = header.getUuid("id")
     let date = header.get("local_date")
-    let format = header.get("format")
-    let kind = "tournament_" & format
+    let kind = "tournament_" & header.get("format")
     let level = levels.getOrDefault(kind)
     let usesLevel = levels.hasKey(kind) and level.enabled
     var places = initTable[string, Place]()
-    # One short-lived connection per tournament; the header query above
-    # already released its own.
-    let games = db.read(proc(conn: DbConn): seq[TournamentGame] =
-      gamesFor(conn, communityId, sourceId, format))
+    let games = gamesByTournament.getOrDefault(sourceId)
     for game in games:
       let marginA = game.scoreA - game.scoreB
       if usesLevel:
