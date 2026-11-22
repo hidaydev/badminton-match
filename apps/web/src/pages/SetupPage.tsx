@@ -14,6 +14,7 @@ import { Field, Input } from '../components/Field'
 import { PageHeader } from '../components/PageHeader'
 import { createCommunity } from '../community/ownerApi'
 import type { CreatedCommunity } from '../community/ownerApi'
+import { singleCommunityDeployment } from '../community/tenancy'
 import Icon from '../components/Icon'
 import { PAGE_COLUMN } from '../components/Page'
 
@@ -107,7 +108,16 @@ export default function SetupPage() {
         </ul>
       )}
 
-      {user?.platformOwner === true && (
+      {user?.platformOwner === true && singleCommunityDeployment() && (
+        <p
+          role="status"
+          className="mt-8 rounded-2xl border border-border-subtle bg-surface p-4 text-sm text-fg"
+        >
+          {t('setup.single.body')}
+        </p>
+      )}
+
+      {user?.platformOwner === true && !singleCommunityDeployment() && (
         <CollapsiblePanel className="mt-8" title={t('setup.create')}>
           <form
             onSubmit={async (event) => {

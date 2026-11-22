@@ -109,7 +109,11 @@ wait_for_url "http://127.0.0.1:$API_PORT/healthz" "API" /tmp/e2e-api.log
 wait_for_url "http://127.0.0.1:$FLAG_PORT/healthz" \
   "the test-route instance" /tmp/e2e-api-flag.log
 
-pnpm --filter badminton-pair-tmp build >/dev/null
+# The e2e database holds several communities on purpose (the visual baseline
+# opens one and `global-setup` creates another), so the Setup screen must keep
+# its create form here. Production guards it by default; see
+# `apps/web/src/community/tenancy.ts`.
+VITE_SINGLE_COMMUNITY=0 pnpm --filter badminton-pair-tmp build >/dev/null
 pnpm --filter majadu-score build >/dev/null
 
 # REL-QA-11: `--strictPort` on both previews. Without it vite answers on the next
