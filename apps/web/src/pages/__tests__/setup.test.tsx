@@ -49,8 +49,63 @@ describe('community setup', () => {
     })
   })
 
-  it('keeps the create form closed until its summary is used', async () => {
+  it('says why a taken slug is refused', async () => {
     mockFetch({
+      'GET /api/auth/me': () => ({ body: owner }),
+      'GET /api/communities': () => ({ body: { items: [admin] } }),
+      'POST /api/communities': () => ({
+        status: 409,
+        body: { code: 'SLUG_TAKEN', detail: 'community slug already exists' },
+      }),
+    })
+
+    renderAt('/owner/communities')
+    fireEvent.change(await screen.findByLabelText(t('setup.slug')), {
+      target: { value: 'acme' },
+    })
+    fireEvent.change(screen.getByLabelText(t('setup.name')), {
+      target: { value: 'Acme' },
+    })
+    fireEvent.change(screen.getByLabelText(t('setup.adminEmail')), {
+      target: { value: 'admin@example.com' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: t('setup.submit') }))
+
+    expect(await screen.findByText(t('setup.error.slugTaken'))).toBeInTheDocument()
+  })
+
+  it('names the one-community rule instead of blaming the slug', async () => {
+    // ADR-018: a production database answers 409 COMMUNITY_LIMIT for the same
+    // status a taken slug uses, so the screen has to read the code.
+    mockFetch({
+      'GET /api/auth/me': () => ({ body: owner }),
+      'GET /api/communities': () => ({ body: { items: [admin] } }),
+      'POST /api/communities': () => ({
+        status: 409,
+        body: {
+          code: 'COMMUNITY_LIMIT',
+          detail: 'ADR-018 allows one community per production database',
+        },
+      }),
+    })
+
+    renderAt('/owner/communities')
+    fireEvent.change(await screen.findByLabelText(t('setup.slug')), {
+      target: { value: 'second-club' },
+    })
+    fireEvent.change(screen.getByLabelText(t('setup.name')), {
+      target: { value: 'Second Club' },
+    })
+    fireEvent.change(screen.getByLabelText(t('setup.adminEmail')), {
+      target: { value: 'admin@example.com' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: t('setup.submit') }))
+
+    expect(await screen.findByText(t('setup.error.communityLimit'))).toBeInTheDocument()
+    expect(screen.queryByText(t('setup.error.slugTaken'))).not.toBeInTheDocument()
+  })
+
+  it('keeps the create form closed until its summary is used', async () => {    mockFetch({
       'GET /api/auth/me': () => ({ body: owner }),
       'GET /api/communities': () => ({ body: { items: [admin] } }),
     })

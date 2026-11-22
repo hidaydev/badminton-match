@@ -10,6 +10,7 @@ import community/infrastructure/invite as inviteStore
 import community/infrastructure/join_request as joinRequestStore
 import community/infrastructure/membership as membershipStore
 import community/infrastructure/membership_sql as membershipSql
+import community/tenancy as communityTenancy
 import config as edgeConfig
 import config_routes
 import errors as platformErrors
@@ -90,6 +91,10 @@ type
     hub*: LiveHub
     cookieSecure*: bool
     bootstrapOwner*: string
+    # `MAJADU_ENV` as the process read it at boot. The create route asks the
+    # tenancy rule with this instead of the environment, so a suite can drive a
+    # production-shaped refusal without a production process.
+    environment*: string
 
   AuthUser = object
     id*: string
@@ -901,12 +906,28 @@ proc createCommunity(request: Request, snapshot: Snapshot) =
       "timezone is not a known IANA zone")
     return
   var created: communityStore.CreateResult
-  auditedWrite(proc(tx: Db, conn: DbConn) =
-    created = communityStore.create(tx, check.slug, name.strip(),
-      adminEmail, check.timezone, user.get.id)
-    if created.status == csOk:
-      auditConn(conn, "community.create", created.communityId, user.get,
-        "community", created.communityId, %*{"slug": check.slug}))
+  var refusal = ""
+  try:
+    auditedWrite(proc(tx: Db, conn: DbConn) =
+      # ADR-018: one community per production database until RLS ships. The
+      # count is read inside this transaction, so the request that would create
+      # the second community is the one that is refused, instead of the next
+      # restart. Two creators that both read the same count can still both
+      # insert; the boot assertion stays the backstop for that race.
+      refusal = communityTenancy.createCommunityRefusal(
+        communityTenancy.communityCount(tx), application.environment)
+      if refusal.len > 0:
+        raise newException(WriteRefusal, refusal)
+      created = communityStore.create(tx, check.slug, name.strip(),
+        adminEmail, check.timezone, user.get.id)
+      if created.status == csOk:
+        auditConn(conn, "community.create", created.communityId, user.get,
+          "community", created.communityId, %*{"slug": check.slug}))
+  except WriteRefusal:
+    discard
+  if refusal.len > 0:
+    problem(request, 409, "COMMUNITY_LIMIT", refusal)
+    return
   case created.status
   of csSlugTaken:
     problem(request, 409, "SLUG_TAKEN", "community slug already exists")
@@ -3866,7 +3887,10 @@ proc secureCookies(oidc: OidcConfig): bool =
     oidc.redirectUri.startsWith("https://")
 
 proc newApp*(db: Db, oidc: OidcConfig, keyring: Keyring,
-             config: ConfigCache): App =
+             config: ConfigCache,
+             environment = getEnv("MAJADU_ENV")): App =
+  ## `environment` is the boot's `MAJADU_ENV`, read once here instead of per
+  ## request. A caller that names it is a suite proving the production path.
   # REL-BE-05: the worker hands a failed rebuild to the process registry, so the
   # failure reaches `rating_jobs_failed` instead of only the journal. The
   # callback keeps that dependency pointing the right way: the rating module
@@ -3880,7 +3904,8 @@ proc newApp*(db: Db, oidc: OidcConfig, keyring: Keyring,
       ratingJobs: jobs,
       hub: newHub(db),
       cookieSecure: secureCookies(oidc),
-      bootstrapOwner: getEnv("MAJADU_BOOTSTRAP_OWNER_EMAIL").strip().toLowerAscii())
+      bootstrapOwner: getEnv("MAJADU_BOOTSTRAP_OWNER_EMAIL").strip().toLowerAscii(),
+      environment: environment.strip())
   jobs.start()
 
 proc identityLookups*(app: App): int =

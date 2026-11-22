@@ -3,10 +3,13 @@
 ## ADR-018 (`docs/decisions.md`) and `docs/db/rls-tenancy-options.md` record the
 ## decision: no row level security now, and the first release that serves a
 ## second community from one production database is the release that adds it.
-## A written condition is not an enforced one, so this is the enforcement: the
-## API refuses to start against a production database that holds more than one
-## community. The count lives in the database, so a check in the tree cannot be
-## the guard; the boot is the last place that can refuse before serving.
+## A written condition is not an enforced one, so this is the enforcement, in two
+## places: the create route refuses the request that would add a second community
+## (`createCommunityRefusal`, checked inside the insert's transaction), and the
+## API refuses to start against a production database that already holds more
+## than one (`assertSingleCommunity`). The count lives in the database, so a check
+## in the tree cannot be the guard; the route is the one that keeps a running
+## process honest, and the boot is the backstop behind it.
 ##
 ## The environment argument is the caller's `MAJADU_ENV`. Development and test
 ## databases hold many communities by design (a local development database had
@@ -34,6 +37,21 @@ proc singleCommunityViolation*(communities: int, environment: string): string =
     "production database until row level security ships " &
     "(docs/db/rls-tenancy-options.md). Move the second community to its own " &
     "database, or ship RLS and the two-community test first."
+
+proc createCommunityRefusal*(communities: int, environment: string): string =
+  ## The same rule seen from the create route: the transaction is about to make
+  ## the database illegal, so it is refused before the row lands. `communities`
+  ## is the count read inside that transaction, and the decision is asked of
+  ## `singleCommunityViolation` for the database as it would be after one more
+  ## community, so the boot guard and this route cannot drift apart. The wording
+  ## is the route's own: a boot refuses a database that already holds two, this
+  ## refuses a request that would create the second.
+  if singleCommunityViolation(communities + 1, environment).len == 0:
+    return ""
+  "ADR-018 allows one community per production database until row level " &
+    "security ships (docs/db/rls-tenancy-options.md), and this database " &
+    "already holds " & $communities & ". Create the new community against its " &
+    "own database, or ship RLS and the two-community test first."
 
 proc assertSingleCommunity*(db: Db, environment: string) =
   ## Raises `ValueError` with the reason, which is what the API boot reports and
