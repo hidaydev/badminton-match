@@ -13,13 +13,14 @@
 -- call site remembering.
 --
 -- Shape, and the reasons, are in docs/db/rls-migration-plan.md:
---   * 30 of the 31 tables carrying `community_id` get a policy.
---     `community.membership` does not: the query that builds a request's
---     community context joins it to `platform.community` by slug, before any
---     community id exists. A policy keyed on the id would make every login and
---     every `/c/{slug}` request return zero rows, and it cannot work even in
---     principle, because the row that names the community is the row the GUC
---     would have to be read from.
+--   * all 31 tables carrying `community_id` get a policy, `community.membership`
+--     included. Membership cannot be read through a policy alone: the query that
+--     builds a request's community context joins it to `platform.community` by
+--     slug, before any community id exists, and the row that names the community
+--     is the row the GUC would have to be read from. So it gets the standard
+--     policy like every other tenant table, and the one legitimate read goes
+--     through `community.membership_context(slug, user)` in section 5. The
+--     policy is what stops every *other* statement from reading it.
 --   * `enable`, never `force`: `bm2_owner` keeps bypassing, which is what
 --     migrations, `dbtools seed`, `ownerseed`, backup and the operator tools
 --     rely on. Forcing it would need a second bypass mechanism instead.
@@ -36,13 +37,39 @@
 -- tenant sees zero rows and its write is refused. That is the property that
 -- makes a forgotten call site a visible bug instead of a silent leak.
 --
+-- What this does NOT do, stated plainly so nobody reads the guard as stronger
+-- than it is:
+--
+--   1. The GUC is settable by `bm2_app` itself. `set_config('majadu.community_id', ...)`
+--      is an ordinary function any role may call, and the policy reads whatever
+--      value it finds. So this confines *omission*, not a hostile statement: a
+--      statement that deliberately sets another community's id reads that
+--      community's rows, exactly as it would without policies. What it does stop
+--      is the accidental case, a query written without a tenant at all, and that
+--      is the failure mode this release exists for. Confining a hostile statement
+--      would need the tenant to come from something the role cannot write, which
+--      is a different design and not in this migration.
+--   2. `bm2_app` keeps full DML on `platform.user` and `platform.community`,
+--      including `is_platform_owner`. Neither table carries `community_id`, so
+--      neither is governed here. A statement that reaches them is not tenant-
+--      filtered and can read or rewrite any account in the database. This
+--      migration does not narrow those grants: doing so would break the login
+--      and directory paths that step 1 scopes, and a privilege change belongs in
+--      its own reviewed migration, not folded into the one that turns policies
+--      on.
+--
+-- Both residuals above are recorded as accepted by the owner, Fredianto, on
+-- 2026-11-23, on the basis that the application role is not reachable by an
+-- untrusted party: it is the role the API server runs as, and a statement that
+-- runs as it was written by the API's own code.
+--
 -- Locking: `enable row level security` and `create policy` take an
 -- ACCESS EXCLUSIVE lock on each table for the duration of the statement, which
 -- on this database is milliseconds. dbtools applies this whole file in one
 -- transaction with `lock_timeout = '5s'`, so a queue behind it turns into a
 -- failed deploy rather than a hung service.
 --
--- Down path: `alter table <t> disable row level security` for the 30 tables, as
+-- Down path: `alter table <t> disable row level security` for the 31 tables, as
 -- the owner. Instant, no data touched, policies stay defined and are ignored.
 -- That is rollback path 1 of the plan and it needs no deploy. Dropping the
 -- policies and the three functions, then the view reloption, is the complete
@@ -103,7 +130,7 @@ comment on function session.tenant_id() is
 alter view session.game_results set (security_invoker = true);
 
 -- ---------------------------------------------------------------------------
--- 3. The 30 policies.
+-- 3. The 31 policies.
 -- ---------------------------------------------------------------------------
 
 -- session: 7
@@ -138,10 +165,13 @@ alter table player.aliases     enable row level security;
 alter table player.claims      enable row level security;
 alter table player.merge_log   enable row level security;
 
--- community: 3 (membership stays without a policy, see the header)
+-- community: 4. `membership` is here like the rest now: its legitimate read
+-- goes through a definer function, and the policy is what stops every other
+-- statement from reading it.
 alter table community.invite        enable row level security;
 alter table community.join_request  enable row level security;
 alter table community.settings      enable row level security;
+alter table community.membership    enable row level security;
 
 -- achievement, import, account: 1 each
 alter table achievement.earned  enable row level security;
@@ -282,10 +312,18 @@ create policy tenant_isolation on community.join_request
   using (community_id = session.tenant_id())
   with check (community_id = session.tenant_id());
 
--- `community.settings` is tenant-filtered like the rest. The one read that
--- genuinely spans communities, the public `/directory` listing, goes through
--- `community.directory_entries()` in section 5 instead of being exempted here.
+-- `community.settings` is tenant-filtered like the rest. The public
+-- `/directory` listing reads it one community at a time under that community's
+-- own scope (`community_store.directory`), so it needs no exemption here.
 create policy tenant_isolation on community.settings
+  for all to bm2_app, bm2_etl
+  using (community_id = session.tenant_id())
+  with check (community_id = session.tenant_id());
+
+-- `community.membership` carries the same policy as the other 30. The context
+-- lookup that cannot work through it reads `community.membership_context()`
+-- instead; everything else about membership is guarded normally.
+create policy tenant_isolation on community.membership
   for all to bm2_app, bm2_etl
   using (community_id = session.tenant_id())
   with check (community_id = session.tenant_id());
@@ -454,46 +492,41 @@ as $$
    where i.token_hash = p_token_hash
 $$;
 
--- 5c. The public directory. This one is not a door: no community is being
--- resolved, and the read is *asked* to span every community, so scoping cannot
--- fix it. Without this function the left join to `community.settings` returns
--- no row for any community, `coalesce` falls to the platform default (`false`
--- in `db/seeds/platform_config.sql`), and `GET /directory` answers
--- `{"items":[]}` with 200 while members still see their own community through
--- `community.membership`, which has no policy. That reads as "nobody opted in",
--- not as a bug.
+-- 5c. The community context, resolved by slug for one user. Mirrors
+-- `loadCommunity` in `apps/api/src/community_context.nim`: exactly one slug and
+-- one user in, the five columns it selects out, or zero rows.
 --
--- The filter is the same rule as `directoryVisible` in
--- `modules/community/domain/community.nim`: opted-in, or the caller is already
--- a member. `platform_default` stays a parameter so the L1 registry value keeps
--- coming from the snapshot instead of being frozen into a migration.
-create function community.directory_entries(
-  p_user_id uuid,
-  p_platform_default boolean
+-- This is the one membership read that cannot work through the policy. The
+-- policy needs `community_id`, and the whole question here is *which* community
+-- the slug names; the id would have to be read from the row the policy is
+-- filtering. So the lookup runs as the owner, and the standard policy on
+-- `community.membership` guards every other statement against it.
+--
+-- The shape is fixed on purpose: one slug, one user, at most one row. A
+-- caller-chosen uuid sweep would turn this into a cross-tenant oracle that
+-- answers "is this user a member anywhere", which nothing in the product needs.
+-- An unknown slug and a foreign user both return zero rows, so a caller cannot
+-- tell a community that does not exist from one they do not belong to.
+create function community.membership_context(
+  p_slug text,
+  p_user uuid
 ) returns table (
-  slug    text,
-  name    text,
-  enabled boolean,
-  member  boolean
+  id        uuid,
+  slug      text,
+  name      text,
+  timezone  text,
+  role      text
 )
 language sql
 stable
 security definer
 set search_path = pg_catalog, pg_temp
 as $$
-  select c.slug,
-         c.name,
-         coalesce((s.values ->> 'community.directory_enabled')::boolean,
-                  p_platform_default) as enabled,
-         (m.user_id is not null) as member
+  select c.id, c.slug, c.name, c.timezone, m.role
     from platform.community c
-    left join community.settings s on s.community_id = c.id
-    left join community.membership m
-      on m.community_id = c.id and m.user_id = p_user_id
-   where coalesce((s.values ->> 'community.directory_enabled')::boolean,
-                  p_platform_default)
-      or m.user_id is not null
-   order by c.slug
+    join community.membership m
+      on m.community_id = c.id and m.user_id = p_user
+   where c.slug = p_slug
 $$;
 
 -- A SECURITY DEFINER function is executable by PUBLIC unless it is revoked, and
@@ -501,8 +534,8 @@ $$;
 -- them; the owner does not need them and no other role may use them.
 revoke all on function session.share_link_resolve(bytea, uuid) from public;
 revoke all on function community.invite_by_token(bytea) from public;
-revoke all on function community.directory_entries(uuid, boolean) from public;
+revoke all on function community.membership_context(text, uuid) from public;
 
 grant execute on function session.share_link_resolve(bytea, uuid) to bm2_app;
 grant execute on function community.invite_by_token(bytea) to bm2_app;
-grant execute on function community.directory_entries(uuid, boolean) to bm2_app;
+grant execute on function community.membership_context(text, uuid) to bm2_app;
