@@ -519,7 +519,7 @@ stays the open half of the finding.
 
 **Date:** 2026-11-10
 **Audit finding:** DB-16
-**Status:** Deferred (partial)
+**Status:** Applied (guards removed 2026-11-23, see the dated update)
 
 **Decision:** no `enable row level security` and no tenant-scoped views. The
 second line of defence is the statement scan in `tools/archcheck`: every SQL
@@ -550,18 +550,32 @@ community from one production database. RLS option (a) in
 `docs/db/rls-tenancy-options.md` is then a condition of that release, not work
 scheduled after it: the policies ship with the two-community isolation test as a
 gate before the second community exists. `docs/ops/release.md` §4 repeats this as
-a release exit criterion. Since 2026-11-11 the API boot enforces the count instead
-of leaving it to the operator: `modules/community/tenancy.nim` refuses to start
-when `MAJADU_ENV=prod` and the database holds more than one community, and the
-refusal names this ADR and `docs/db/rls-tenancy-options.md`. The assertion is a
-backstop, not RLS: it guards a starting process, not a running one, and tools
-that connect as `bm2_owner` are not constrained by it. Since 2026-11-22 the create
-route asks the same rule inside the transaction that would insert
-(`createCommunityRefusal`), so a running production process answers 409
-`COMMUNITY_LIMIT` for the request that would create the second community instead
-of accepting it and dying on the next restart. Two creators that read the same
-count can still both insert; the boot assertion remains the backstop for that
-race.
+a release exit criterion.
+
+**Update 2026-11-23 (owner decision, supersedes the two guard paragraphs above):**
+multi-community in one database is the product's headline feature, and the owner
+decided it ships now. The app-level guards are gone: the boot no longer refuses a
+production database that holds more than one community
+(`apps/api/src/main.nim`), the create route no longer answers 409
+`COMMUNITY_LIMIT` (`apps/api/src/app.nim`), `modules/community/tenancy.nim` is
+deleted, and the error code left the registry.
+
+*Options:* (a) keep the one-community guard until RLS ships; (b) remove the
+guards now and make the contract-walked isolation matrix the tenancy gate; (c)
+remove the guards and enable RLS in the same release.
+*Picked:* (b).
+*Why:* the guards blocked the product's headline feature and only held a single
+process; a second community already existed in some databases, so the guard's
+value was a loud failure at restart rather than isolation. The matrix walks the
+generated route table, so a new `{slug}` route without a probe fails the suite
+instead of shipping uncovered, which is stronger than a process-level count.
+*What it does not buy:* without RLS, a statement that does not pass through a
+route-table handler (an operator tool, the share-code resolver, a future
+background job) has no database-level tenant guard, and `bm2_owner` bypasses any
+policy. The `tools/archcheck` statement scan remains the static half.
+*What would reverse it:* a leak the matrix cannot see, or the operator-tool
+exposure above becoming real during operation. RLS option (a) is the next
+release's gate, owned by Adit, with `docs/db/rls-tenancy-options.md` as its plan.
 
 ## ADR-019 · The deploy must run `dbtools seed`, and the config seed stays insert-only
 

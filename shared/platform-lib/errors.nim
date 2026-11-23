@@ -37,7 +37,6 @@ const
     ("CLAIM_PENDING", "error.claimPending"),
     ("CLIENT_OUTDATED", "error.clientOutdated"),
     ("CONFLICT", "error.conflict"),
-    ("COMMUNITY_LIMIT", "error.communityLimit"),
     ("CSRF_REJECTED", "error.csrfRejected"),
     ("FORBIDDEN", "error.forbidden"),
     ("IDEMPOTENCY_CONFLICT", "error.idempotencyConflict"),

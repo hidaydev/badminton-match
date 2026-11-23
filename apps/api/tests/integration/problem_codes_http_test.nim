@@ -818,17 +818,13 @@ suite "problem-code static guard":
     # second list: it is the codes `requireRow` actually exercised above, so
     # deleting a row also deletes its claim to coverage.
     const unreachable = ["INTERNAL", "USER_UPSERT_FAILED", "INVALID_SESSION",
-      "MERGE_CONFLICT", "UNAVAILABLE", "COMMUNITY_LIMIT"]
+      "MERGE_CONFLICT", "UNAVAILABLE"]
     # INTERNAL: boundary fallback for an unexpected SQLSTATE, no route of its
     # own. USER_UPSERT_FAILED and INVALID_SESSION: after an insert ... returning
     # that cannot return no row. MERGE_CONFLICT: fallback for an integrity
     # violation; no fixture reaches it without a schema-level conflict.
     # UNAVAILABLE: a pool checkout (DbPoolTimeout) or a full rating queue, both
     # of which need a fixture the suite cannot hold deterministically.
-    # COMMUNITY_LIMIT: the route only refuses when the app was booted as
-    # production, and this suite boots one app for every other code, so
-    # `integration/community_limit_http_test.nim` drives it on a prod-shaped app
-    # instead.
 
     var missing: seq[string] = @[]
     let text = readFile("apps/api/src/app.nim")

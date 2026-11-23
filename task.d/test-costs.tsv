@@ -62,7 +62,6 @@ modules/achievement/tests/integration/backfill_test.nim	5058
 modules/community/tests/community_test.nim	2030
 modules/community/tests/integration/access_test.nim	7233
 modules/community/tests/integration/store_test.nim	6486
-modules/community/tests/tenancy_test.nim	1830
 modules/platform/config/tests/integration/config_test.nim	3002
 modules/platform/tests/integration/audit_append_only_test.nim	2181
 modules/platform/tests/integration/idempotency_test.nim	6501

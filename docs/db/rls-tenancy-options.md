@@ -312,47 +312,36 @@ static guard is green and can be cited as a gate. That is the smallest artefact
 that proves the claim (c) rests on: that the isolation holds today and that a
 removed predicate is caught.
 
-**Mechanism (implemented 2026-11-11):** the condition is no longer prose. The
-guard is `modules/community/tenancy.nim`:
+**Mechanism (2026-11-23): the app-level guards are gone, the isolation matrix is
+the tenancy gate.** Multi-community in one database is the product's headline
+feature and the owner enabled it on 2026-11-23 (ADR-018, dated update). There is
+no `modules/community/tenancy.nim` any more: the boot does not check the
+community count, the create route does not answer 409 `COMMUNITY_LIMIT`, and the
+error code left `shared/platform-lib/errors.nim`.
 
-| Part | What it does |
+What holds tenancy today:
+
+| Layer | What it does |
 |---|---|
-| `communityCount(db)` | `select count(*) from platform.community` |
-| `singleCommunityViolation(communities, environment)` | returns the refusal message, or `""`; only `environment = "prod"` is constrained |
-| `assertSingleCommunity(db, environment)` | raises `ValueError` with that message |
-
-`bootHandler` (`apps/api/src/main.nim`) calls `assertSingleCommunity(database,
-getEnv("MAJADU_ENV"))` after the pool opens and before the handler is installed,
-so a production process refuses to serve a database that holds more than one
-community, and `main` turns the `ValueError` into `refuseStartup` with the
-reason on stderr. The message names the count, ADR-018 and this document, so the
-operator sees what to do rather than a bare assertion.
-
-Why production only: a development or test database holds many communities by
-design (34 on the development cluster when this was written), and a guard that
-ran there would refuse the work it is meant to protect. Why the boot rather than
-a migration: the community count is data, not schema, and a migration cannot
-refuse a row added later; the boot is the last point that can refuse before
-requests are served.
+| `apps/api/src/community_context.nim` + the dispatch gate | every `/c/{slug}/...` handler resolves its community from the slug and answers only inside it |
+| `apps/api/tests/integration/community_isolation_matrix_test.nim` | walks every contract route whose path carries `{slug}` out of the generated table, calls it from a B session against a row of A, and fails when a route ships without a probe |
+| `tools/archcheck` statement scan | static half: a statement naming a domain table must scope it by `community_id` or be allowlisted with a reason |
 
 What it does not do, stated so nobody reads it as more than it is:
 
-- It guards the API process. A tool or a `psql` session running as `bm2_owner`
-  can still insert the second community; the next API restart refuses to start
-  until it is moved, which is the loud failure the condition asks for.
-- It does not protect a running process: a second community inserted while the
-  API is up is served until the next restart. RLS is the control for that, and
-  this is why the assertion is a backstop and not a substitute.
-- It is not evaluated by `./task check` as a database fact; the rule half is
-  unit-tested (`modules/community/tests/tenancy_test.nim`) and the door half is
-  integration-tested with two communities in one database
-  (`apps/api/tests/integration/community_context_test.nim`).
+- A statement that does not pass through a route handler — an operator tool, the
+  share-code resolver, a future background job — has no database-level tenant
+  guard, and a connection as `bm2_owner` bypasses any policy. The archcheck scan
+  is the only thing that looks at those.
+- The matrix is dynamic and needs a database; it runs in `api-test`, not in the
+  static gate.
 
-Lifting it: the assertion is deleted in the release that ships RLS and the
-two-community isolation test as a gate, which is the same release ADR-018 names.
+RLS option (a) is the next release's gate, owned by Adit. Lifting the matrix
+does not happen with it: the matrix is what proves the policies are needed where
+they are missing and correct where they are enabled.
 
-**Shipped:** option (c) is the code in the tree — `modules/community/tenancy.nim`
-with the two-community isolation test — and ADR-018 is its record.
+**Shipped:** option (c) is the code in the tree — the contract-walked isolation
+matrix with no app-level count guard — and ADR-018 is its record.
 
 **If the decision flips to RLS**, the first step there proves it without
 committing: a spike branch (not merged) that sets the GUC from `scoped()`, enables

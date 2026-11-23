@@ -4,8 +4,7 @@
 ## before `openDb` (test routes in production, a missing DSN, no trusted proxy),
 ## so every case there returns before a connection. This suite covers the rest
 ## of the same routine against a real database: the pool, the OIDC config, the
-## share keyring, the config snapshot, the ADR-018 one-community guard and
-## `install()`.
+## share keyring, the config snapshot and `install()`.
 ##
 ## The suite never binds a port: `install()` assigns the process-wide App and
 ## registers the live hub, and `main()` is what listens.
@@ -37,7 +36,7 @@ proc withEnv(values: openArray[(string, string)], work: proc()) =
 proc bootEnv(environment: string,
              work: proc()): proc() =
   ## The environment a real boot needs beside the DSN: a client id and redirect
-  ## for `loadOidcConfig`, the share keyring, and the tenancy environment.
+  ## for `loadOidcConfig`, the share keyring and the environment.
   result = proc() =
     withEnv([
       ("OIDC_CLIENT_ID", "boot-coverage-client"),
@@ -59,20 +58,10 @@ proc deleteCommunity(db: Db, slug: string) =
   discard db.execUpdate("delete from platform.community where slug = $1",
     @[textParam(slug)])
 
-proc bootMessage(environment: string): string =
-  ## What `bootHandler` refused with, or "" when it booted.
-  var message = ""
-  bootEnv(environment, proc() =
-    try:
-      discard bootHandler(ServerConfig(port: Port(8080)), 1)
-    except ValueError as error:
-      message = error.msg)()
-  message
-
 suite "bootHandler against a real database":
-  test "two communities in production refuse with the one-community rule":
-    # ADR-018: a production database may hold one community until RLS ships.
-    # The message names the rule and the document, not only a count.
+  test "a database holding two communities boots in production":
+    # Multi-community is supported: the boot no longer refuses a database with
+    # more than one community, and the isolation matrix is the tenancy gate.
     let db = openDb(dsn(), 1)
     let suffix = $getCurrentProcessId()
     let first = "boot-coverage-a-" & suffix
@@ -80,16 +69,12 @@ suite "bootHandler against a real database":
     try:
       insertCommunity(db, first)
       insertCommunity(db, second)
-      # The rule names the count this database actually holds, so the assertion
-      # does not assume a template with no communities.
-      let total = parseInt(db.queryOne(
-        "select count(*)::int as total from platform.community").get.get("total"))
-      check total >= 2
-      let message = bootMessage("prod")
-      checkpoint("boot message: " & message)
-      check message.contains("ADR-018")
-      check message.contains("one per production database")
-      check message.contains($total & " communities")
+      check parseInt(db.queryOne(
+        "select count(*)::int as total from platform.community").get.get("total")) >= 2
+      var booted: BootedApi
+      bootEnv("prod", proc() =
+        booted = bootHandler(ServerConfig(port: Port(8080)), 1))()
+      check booted.guardBytes > 0
     finally:
       deleteCommunity(db, first)
       deleteCommunity(db, second)

@@ -138,12 +138,8 @@ proc startServer*(app: App, port: Port, baseUrl: string,
   # server that never comes up fails here naming the URL it waited on.
   waitForHttp(baseUrl & "/healthz", timeoutMs = 10000)
 
-proc newTestApp*(db: Db, environment = getEnv("MAJADU_ENV")): App =
-  ## `environment` is the `MAJADU_ENV` the app answers as. A suite that proves a
-  ## production-shaped refusal names `"prod"` instead of exporting it, so the
-  ## boot assertions in `main.nim` still read a process that is not production.
-  newApp(db, OidcConfig(), loadKeyring(keysJson, "1"), newConfigCache(db),
-    environment = environment)
+proc newTestApp*(db: Db): App =
+  newApp(db, OidcConfig(), loadKeyring(keysJson, "1"), newConfigCache(db))
 
 proc waitForRatingJobs*(timeoutMs = 5000) =
   ## Waits for the in-process rating worker to drain. A route that moves the

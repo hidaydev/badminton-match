@@ -132,11 +132,10 @@ proc bootstrap() =
   newMember(database, bCommunityId, bAdmin, "admin")
   ids.bPlayer = newPlayer(database, bCommunityId, markerB & "-Player")
   bCookie = cookieFor(database, bAdmin)
-  # `prod`: the create-community route refuses a second community only when the
-  # app was booted as production, and this suite is where that is asserted. The
-  # two communities below are fixtures, so the boot-shaped refusal is not on the
-  # path that builds them.
-  startServer(newTestApp(database, environment = "prod"), port, baseUrl)
+  # Multi-community: two communities are a supported production shape, so the
+  # app boots with the plain fixture and the create route is expected to accept
+  # a third one.
+  startServer(newTestApp(database), port, baseUrl)
 
 proc tournamentBody(): string =
   ## The create route validates the whole draw, so the smallest valid body is a
@@ -496,18 +495,12 @@ suite "community isolation matrix":
          where community_id = $1::uuid and name = $2""",
       @[textParam(bCommunityId), textParam(markerB & "-Cup")]).get.get("n") == "1"
 
-  test "the create-community route refuses a second community on prod":
+  test "the create-community route writes a second community that reads nothing of A":
     ## `POST /communities` is the one write with no `{slug}`, so the matrix
-    ## above cannot reach it, and it is where the product hole actually was.
-    ## The fix is inside the route: `createCommunity` asks
-    ## `community.createCommunityRefusal` with `app.environment` in the same
-    ## transaction as the insert, so the request that would create the second
-    ## community is the one refused. Before that, a running process wrote
-    ## community #2 and the next restart refused to serve the database.
-    ##
-    ## This app is booted with `environment = "prod"`, so this case proves the
-    ## production answer. Development still accepts many communities, which is
-    ## `community_http_test.nim`'s job, not a hole.
+    ## above cannot reach it. Multi-community in one database is the product's
+    ## headline feature: the route writes the row, and the community it creates
+    ## starts empty instead of inheriting a neighbour's data.
+    let aPrint = fingerprint(aCommunityId)
     let ownerUser = newUser(database, "iso-a-owner",
       "iso-a-owner@example.com", markerA & "-Owner", owner = true)
     let ownerCookie = cookieFor(database, ownerUser)
@@ -515,17 +508,31 @@ suite "community isolation matrix":
       "select count(*)::int as n from platform.community").get.get("n")
     let created = call(baseUrl, HttpPost, "/communities", ownerCookie,
       """{"slug":"iso-a-second-door","name":"Second","adminEmail":"second@example.com"}""")
-    checkpoint("POST /communities on prod: " & $created.status & " " & created.body)
-    expectProblem(created, 409, "COMMUNITY_LIMIT")
-    check created.body.contains("ADR-018")
+    checkpoint("POST /communities: " & $created.status & " " & created.body)
+    expectStatus(created, 201)
+    let secondId = parseJson(created.body)["id"].getStr()
     let after = database.queryOne(
       "select count(*)::int as n from platform.community").get.get("n")
-    check after == before
+    check after == $((parseInt(before)) + 1)
     check database.queryOne(
       "select 1 as one from platform.community where slug = 'iso-a-second-door'")
-      .isNone
-    # Nothing landed, so this is belt and braces: a future change that lets the
-    # row through here still leaves the database as this suite found it.
+      .isSome
+
+    # A session scoped to the new community reads nothing of A.
+    let secondAdmin = newUser(database, "iso-a-owner-second",
+      "iso-a-owner-second@example.com", markerA & "-Second Admin")
+    newMember(database, secondId, secondAdmin, "admin")
+    let secondCookie = cookieFor(database, secondAdmin)
+    let ownPlayers = call(baseUrl, HttpGet, "/c/iso-a-second-door/players",
+      secondCookie)
+    expectStatus(ownPlayers, 200)
+    check markerA notin ownPlayers.body
+    let foreignSession = call(baseUrl, HttpGet,
+      "/c/iso-a-second-door/sessions/" & ids.session, secondCookie)
+    check foreignSession.status in refusals
+    check markerA notin foreignSession.body
+    # Nothing of A's moved while that happened.
+    check fingerprint(aCommunityId) == aPrint
     purgeCommunity(database, "iso-a-second-door")
     cleanupUsers(database, "iso-a-owner")
 
