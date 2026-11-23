@@ -1275,33 +1275,40 @@ proc importEtl*(source, target: Db, slug, name, timezone: string,
     fail(program, "the cutover has completed; a run would overwrite v2 rows with " &
       "v1 values. Set MAJADU_IMPORT_ALLOW_POST_CUTOVER=1 if that is intended.")
   let communityId = resolveCommunity(target, slug, name, timezone, dryRun)
-  let players = importPlayers(source, target, communityId, dryRun)
-  let aliases = importAliases(source, target, communityId, dryRun)
+  # Everything below writes rows a community owns, `import.row_map` included,
+  # and `platform.community` is the only table read before this point. Under the
+  # policy set a plain facade reads and writes zero rows here and the run still
+  # reports success, so the statements issue through a facade that declares the
+  # community resolved above. Same shape as the janitor's per-community loop.
+  let scopedTarget = target.scoped(communityId)
+  let players = importPlayers(source, scopedTarget, communityId, dryRun)
+  let aliases = importAliases(source, scopedTarget, communityId, dryRun)
   # Sessions before anything that points at them, and participants before games
   # because the side columns are foreign keys into the participant set.
-  let sessions = importSessions(source, target, communityId, dryRun)
-  let courts = importCourts(source, target, communityId, dryRun)
-  let participants = importParticipants(source, target, communityId, dryRun)
-  let games = importGames(source, target, communityId, dryRun)
-  let tournaments = importTournamentHeaders(source, target, communityId, dryRun)
-  let tournamentChildren = importTournamentChildren(source, target, communityId,
+  let sessions = importSessions(source, scopedTarget, communityId, dryRun)
+  let courts = importCourts(source, scopedTarget, communityId, dryRun)
+  let participants = importParticipants(source, scopedTarget, communityId, dryRun)
+  let games = importGames(source, scopedTarget, communityId, dryRun)
+  let tournaments = importTournamentHeaders(source, scopedTarget, communityId,
     dryRun)
+  let tournamentChildren = importTournamentChildren(source, scopedTarget,
+    communityId, dryRun)
   # The sign-off is v1 data; the numbers are recomputed from the rows above, so
   # the ledger v2 serves is produced by v2's own formula.
-  let sources = importRatingSources(source, target, communityId, dryRun)
-  let levels = importRatingLevels(source, target, communityId, dryRun)
+  let sources = importRatingSources(source, scopedTarget, communityId, dryRun)
+  let levels = importRatingLevels(source, scopedTarget, communityId, dryRun)
   var rebuilt = (events: 0, deltas: 0)
   var tournamentRating = (events: 0, deltas: 0)
   if not dryRun:
-    rebuilt = rebuildRating(target, communityId)
-    tournamentRating = ingestFinalTournaments(target, communityId)
+    rebuilt = rebuildRating(scopedTarget, communityId)
+    tournamentRating = ingestFinalTournaments(scopedTarget, communityId)
   # v1 badges first, then the v2 backfill: the backfill does not overwrite an
   # existing row, so a v1 date survives and only new crossings are added.
-  let achievements = importAchievements(source, target, communityId, dryRun)
-  let snapshots = importSnapshots(source, target, communityId, dryRun)
+  let achievements = importAchievements(source, scopedTarget, communityId, dryRun)
+  let snapshots = importSnapshots(source, scopedTarget, communityId, dryRun)
   var awarded = Result()
   if not dryRun:
-    awarded = backfillAchievements(target, communityId)
+    awarded = backfillAchievements(scopedTarget, communityId)
   result = (players: players, aliases: aliases, sessions: sessions,
             courts: courts, participants: participants, games: games)
   echo $(%*{
@@ -1719,14 +1726,18 @@ proc verifyEtl*(source, target: Db, slugArg: string) =
     if row.isNone: fail(program, "community " & slug & " does not exist")
     resolved = row.get.get("id")
 
-  var problems = verifyPlayers(source, target, resolved)
-  problems.add verifyAliases(source, target, resolved)
-  problems.add verifySessions(source, target, resolved)
-  problems.add verifyGames(source, target, resolved)
-  problems.add verifyRating(source, target, resolved)
-  problems.add verifyTournaments(source, target, resolved)
-  problems.add verifyAchievements(source, target, resolved)
-  problems.add verifySnapshots(source, target, resolved)
+  # The report compares rows this community owns, so it reads through a facade
+  # that declares it: under the policy set an unscoped read returns zero rows and
+  # the report would call every imported domain missing.
+  let scopedTarget = target.scoped(resolved)
+  var problems = verifyPlayers(source, scopedTarget, resolved)
+  problems.add verifyAliases(source, scopedTarget, resolved)
+  problems.add verifySessions(source, scopedTarget, resolved)
+  problems.add verifyGames(source, scopedTarget, resolved)
+  problems.add verifyRating(source, scopedTarget, resolved)
+  problems.add verifyTournaments(source, scopedTarget, resolved)
+  problems.add verifyAchievements(source, scopedTarget, resolved)
+  problems.add verifySnapshots(source, scopedTarget, resolved)
   if problems.len > 0:
     for problem in problems:
       stderr.writeLine "import: " & problem
