@@ -28,7 +28,7 @@
 ## reason: a leaked GUC on a pooled connection is the bug this release exists to
 ## avoid, so the test must not become an example of it.
 
-import std/[options, strutils, unittest]
+import std/[options, os, strutils, unittest]
 import db/db
 import tests/fixtures
 
@@ -48,7 +48,8 @@ const
   ## derived list would not tell it that.
   checkedTables = [
     "achievement.earned", "account.audit", "community.invite",
-    "community.join_request", "community.settings", "import.row_map",
+    "community.join_request", "community.membership", "community.settings",
+    "import.row_map",
     "player.aliases", "player.claims", "player.merge_log", "player.players",
     "rating.events", "rating.levels", "rating.player_state",
     "rating.snapshots", "rating.sources", "session.courts", "session.game_sets",
@@ -164,6 +165,84 @@ proc runAsApp(db: Db, communityId: string, body: proc(conn: DbConn)) =
       false
     finally:
       discard conn.execUpdate("rollback"))
+
+proc auditProbe(db: Db, communityId, marker: string): tuple[state: string, visible: int] =
+  ## Writes one `account.audit` row in the shape `denyAudit` uses, as `bm2_app`,
+  ## with the tenant GUC at `communityId`, then reads it back **inside the same
+  ## transaction**. Both halves matter:
+  ##
+  ##   * the insert proves `with check` admits a row whose `community_id`
+  ##     matches the GUC, which is what a refusal has to be able to write;
+  ##   * the read-back proves the row is actually there under the policy, so an
+  ##     insert that reported success but landed nowhere cannot pass.
+  ##
+  ## The boundary is written out rather than borrowed from `runAsApp`, because
+  ## `runAsApp` discards its body's result and this probe needs two answers from
+  ## one transaction. It rolls back for the same reason: a probe that committed
+  ## would leave audit rows behind on the failure path.
+  var state = ""
+  var visible = -1
+  discard db.read(proc(conn: DbConn): bool =
+    doAssert canAssumeAppRole(conn),
+      "this suite needs a DSN whose role is a superuser or a member of bm2_app"
+    discard conn.execUpdate("begin")
+    try:
+      discard conn.execUpdate("set local role bm2_app")
+      discard conn.query("select set_config('majadu.community_id', $1, true)",
+        @[textParam(communityId)])
+      try:
+        discard conn.execUpdate(
+          """insert into account.audit
+               (actor_role, community_id, action, target_kind, target_id,
+                result, request_id)
+             values ('member', $1::uuid, $2, 'session', 'probe', 'deny', 'probe')""",
+          @[textParam(communityId), textParam(marker)])
+      except DbError as error:
+        state = error.sqlState
+      if state.len == 0:
+        let row = conn.queryOne(
+          "select count(*)::int as n from account.audit where action = $1",
+          @[textParam(marker)])
+        if row.isSome:
+          visible = row.get.getInt("n")
+      false
+    finally:
+      discard conn.execUpdate("rollback"))
+  (state: state, visible: visible)
+
+proc auditRefusedWithoutGuc(db: Db, communityId, marker: string): string =
+  ## The same insert the refusal handler makes, with the tenant setting never
+  ## written at all. That is what a statement outside a scoped facade looks
+  ## like, and the policy must refuse it: the row names a community while the
+  ## tenant is NULL, so `community_id = session.tenant_id()` is NULL.
+  ##
+  ## The community is named deliberately. `account.audit` admits a NULL
+  ## `community_id` on purpose (a platform-level action and a login refusal have
+  ## no community), so writing NULL here would be allowed and would prove
+  ## nothing. The defect this catches is the one that matters: a handler that
+  ## forgot to scope itself must not land its row.
+  var state = "99999"
+  discard db.read(proc(conn: DbConn): bool =
+    doAssert canAssumeAppRole(conn),
+      "this suite needs a DSN whose role is a superuser or a member of bm2_app"
+    discard conn.execUpdate("begin")
+    try:
+      discard conn.execUpdate("set local role bm2_app")
+      try:
+        discard conn.execUpdate(
+          """insert into account.audit
+               (actor_role, community_id, action, target_kind, target_id,
+                result, request_id)
+             values ('member', $1::uuid, $2, 'session', 'probe', 'deny',
+                     'probe')""",
+          @[textParam(communityId), textParam(marker)])
+        state = ""
+      except DbError as error:
+        state = error.sqlState
+      false
+    finally:
+      discard conn.execUpdate("rollback"))
+  state
 
 proc appIds(db: Db, table, communityId: string): seq[string] =
   ## What `bm2_app` can see in one table under one tenant's GUC, identified by
@@ -289,6 +368,45 @@ suite "RLS isolation as the application role":
       state = error.sqlState
     checkpoint("sqlstate: " & state)
     check state == "42501"
+
+  test "a refusal audit row lands under A's GUC and is refused without one":
+    # This is the case that proves step 1's fix actually writes under policies.
+    # `denyAudit` records a refusal with the community the request was scoped to,
+    # so the row must pass `with check` when the GUC matches it. Run twice:
+    #
+    #   * GUC at A: the insert succeeds AND the row is readable, so a policy that
+    #     silently dropped it (or a `with check` that reported success without
+    #     storing) fails here.
+    #   * no GUC at all: the same insert is refused with SQLSTATE 42501, because
+    #     a refusal handler that loses its tenant must not be able to write an
+    #     unscoped audit row either.
+    #
+    # `account.audit` is the one table whose `with check` admits a NULL
+    # community, on purpose: a platform-level action and a login refusal have no
+    # community to name. So the unset case writes A's id, not NULL. Writing NULL
+    # would be allowed by the policy and would prove nothing; naming A with no
+    # tenant is exactly the row a refusal handler that forgot to scope would
+    # try to land.
+    let marker = "rls-iso-audit-" & $getCurrentProcessId()
+    let scoped = auditProbe(db, fixture.communityA, marker)
+    checkpoint("scoped insert state: '" & scoped.state & "', visible: " &
+      $scoped.visible)
+    check scoped.state == ""
+    check scoped.visible == 1
+
+    let unscoped = auditRefusedWithoutGuc(db, fixture.communityA,
+      marker & "-unset")
+    checkpoint("unscoped insert sqlstate: '" & unscoped & "'")
+    check unscoped == "42501"
+
+    # Neither probe committed: the rolls back above are the reason the next run
+    # of this suite on the same database starts clean.
+    let leftover = db.queryOne(
+      "select count(*)::int as n from account.audit where action like $1",
+      @[textParam(marker & "%")])
+    check leftover.isSome
+    if leftover.isSome:
+      check leftover.get.getInt("n") == 0
 
   test "a write that names its own community lands":
     # The negative of the previous case, so a policy that refuses everything
