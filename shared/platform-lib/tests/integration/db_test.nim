@@ -76,6 +76,44 @@ suite "database layer":
     check row.get("has_a") == "t"
     check row.get("has_b") == "f"
 
+  test "the tenant setting does not leak through a pooled connection":
+    ## One scoped read, then one unscoped read on the same pool of one. The
+    ## second must see no community, not the first one's: a connection handed
+    ## back to the pool is the next request's, and `set_config` is transactional
+    ## so nothing else would clear it.
+    let probe = openDb(dsn(), 1)
+    try:
+      let health = "select current_setting('majadu.community_id', true) as held"
+      check probe.scoped("11111111-1111-1111-1111-111111111111")
+        .queryOne(health).get.get("held") == "11111111-1111-1111-1111-111111111111"
+      # Same pool, same single connection, no community installed.
+      check probe.queryOne(health).get.get("held") == ""
+    finally:
+      probe.close()
+
+  test "a scoped facade behind a bound facade keeps its community":
+    ## `boundTo` hands a helper the caller's connection; the tenant must travel
+    ## with it, or a scoped write that delegates loses its confinement halfway.
+    let probe = openDb(dsn(), 1)
+    try:
+      probe.tx(proc(conn: DbConn) =
+        let outer = probe.scoped("22222222-2222-2222-2222-222222222222")
+        let inner = outer.boundTo(conn)
+        check inner.communityOf == "22222222-2222-2222-2222-222222222222"
+        check inner.queryOne(
+          "select current_setting('majadu.community_id', true) as held")
+          .get.get("held") == "22222222-2222-2222-2222-222222222222")
+    finally:
+      probe.close()
+
+  test "scoping with an empty community is refused":
+    var raised = false
+    try:
+      discard db.scoped("")
+    except ValueError:
+      raised = true
+    check raised
+
   test "maps duplicate key to sqlState 23505":
     discard db.execUpdate(
       "insert into t004_probe (id) values ($1)", @[intParam(3)])
