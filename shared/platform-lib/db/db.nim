@@ -701,6 +701,20 @@ proc queryOne*(db: Db, sql: string, params: seq[DbParam] = @[]): Option[Row] =
 proc execUpdate*(db: Db, sql: string, params: seq[DbParam] = @[]): int =
   withConn(db, proc(conn: DbConn): int = conn.execUpdate(sql, params))
 
+proc functionExists*(db: Db, signature: string): bool =
+  ## Whether a named function is installed, asked of `pg_catalog` in one round
+  ## trip and deliberately not cached.
+  ##
+  ## The tenant helpers this answers for arrive in a later migration than the
+  ## code that calls them, so the caller picks its path per call. A cached
+  ## answer would be a process that started before the migration and kept
+  ## reading cross-tenant after it, which is the failure mode those helpers
+  ## exist to prevent.
+  let row = db.queryOne(
+    "select to_regprocedure($1) is not null as present",
+    @[textParam(signature)])
+  if row.isNone: false else: row.get.getBool("present")
+
 proc read*[T](db: Db, body: proc(conn: DbConn): T): T =
   ## Runs `body` on one connection without opening a transaction. Prefer
   ## `query`/`queryOne` for single statements: they release the connection as
