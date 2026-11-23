@@ -31,7 +31,15 @@ proc create*(db: Db, slug, name, adminEmail, timezone, actorId: string): CreateR
       communityId = row.get.getUuid("id")
       # The first-admin invitation is bound to the address, not to a bearer
       # token: the account becomes admin the first time that email logs in.
-      discard conn.execUpdate(
+      #
+      # `community.invite` carries the tenant policy and this transaction's
+      # connection has no tenant yet: it was checked out before the community
+      # existed. Inserting on the bare connection would fail its `with check`
+      # with SQLSTATE 42501 and roll back the platform.community row with it,
+      # so the headline feature could not create a community at all. Declaring
+      # the new id on this same connection is the fix; a second connection or a
+      # second transaction would commit the community without its admin.
+      discard db.scoped(communityId).boundTo(conn).execUpdate(
         """insert into community.invite
              (community_id, token_hash, email_hash, role, created_by)
            values ($1::uuid, decode($2,'hex'), $3, 'admin', $4::uuid)""",

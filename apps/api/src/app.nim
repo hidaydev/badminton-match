@@ -945,17 +945,26 @@ proc createCommunity(request: Request, snapshot: Snapshot) =
 
 proc listCommunities(request: Request,
                     snapshot: Snapshot) =
+  ## The caller's own memberships. The route has no `{slug}`, so dispatch never
+  ## installs a tenant and the membership join below matched nothing under the
+  ## policy set: every signed-in user got `{"items":[]}` and the web client,
+  ## which takes its membership list from here, landed on the empty state. The
+  ## root table names the communities; this user's role in each is read on a
+  ## facade that declares it. Same order, same four fields, same empty answer.
   let user = requireUser(request, snapshot)
   if user.isNone: return
   var items = newJArray()
-  for row in database().query(
-    """select c.id, c.slug, c.name, m.role
-       from community.membership m
-       join platform.community c on c.id = m.community_id
-       where m.user_id = $1 order by c.slug""",
-    @[textParam(user.get.id)]):
-    items.add(%*{"id": row.get("id"), "slug": row.get("slug"),
-      "name": row.get("name"), "role": row.get("role")})
+  for community in database().query(
+      "select id, slug, name from platform.community order by slug"):
+    let communityId = community.get("id")
+    let member = database().scoped(communityId).queryOne(
+      """select role from community.membership
+         where community_id = $1::uuid and user_id = $2::uuid""",
+      @[textParam(communityId), textParam(user.get.id)])
+    if member.isNone:
+      continue
+    items.add(%*{"id": community.get("id"), "slug": community.get("slug"),
+      "name": community.get("name"), "role": member.get.get("role")})
   jsonResponse(request, 200, %*{"items": items})
 
 proc jsonString(body: JsonNode, key: string): string =
