@@ -627,8 +627,15 @@ proc denyAudit(user: AuthUser, community: Option[CommunityContext],
     if user.isOwner: "platform_owner"
     elif community.isSome: $community.get.role
     else: "member"
+  # This runs before `scoped()` installs the request tenant, so the write must
+  # name its community here or the row lands with no tenant: under the policy
+  # set the insert fails its `with check`, the `DbError` below swallows it, and
+  # the refusal that exists to leave a trace leaves none.
+  let sink =
+    if community.isSome: database().scoped(community.get.communityId)
+    else: database()
   try:
-    recordAudit(database(), auditEvent("authz.denied", communityId,
+    recordAudit(sink, auditEvent("authz.denied", communityId,
       actorId = user.id, actorRole = role, outcome = arDeny,
       targetKind = "route", targetId = currentRouteLabel,
       reason = "denied " & currentRouteLabel,
