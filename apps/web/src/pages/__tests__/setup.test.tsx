@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import App from '../../App'
 import { t } from '../../i18n'
@@ -11,6 +11,10 @@ function renderAt(path: string) {
   window.history.replaceState({}, '', path)
   return render(<App />)
 }
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 
 describe('community setup', () => {
   it('opens a community and names the first admin', async () => {
@@ -66,5 +70,39 @@ describe('community setup', () => {
 
     fireEvent.click(screen.getByText(t('setup.create'), { selector: 'summary' }))
     expect(panel.open).toBe(true)
+  })
+
+  it('refuses on a single-community deployment without calling the API', async () => {
+    // ADR-018: the boot refuses a production database that holds two
+    // communities, so the form must not write the row that would be refused.
+    vi.stubEnv('VITE_SINGLE_COMMUNITY', '1')
+    const fetchMock = mockFetch({
+      'GET /api/auth/me': () => ({ body: owner }),
+      'GET /api/communities': () => ({ body: { items: [admin] } }),
+    })
+
+    renderAt('/owner/communities')
+
+    expect(await screen.findByText(t('setup.single.body'))).toBeInTheDocument()
+    expect(screen.queryByLabelText(t('setup.slug'))).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t('setup.submit') })).not.toBeInTheDocument()
+    const posted = fetchMock.mock.calls.some(
+      ([url, init]) =>
+        String(url) === '/api/communities' &&
+        (init as RequestInit | undefined)?.method === 'POST',
+    )
+    expect(posted).toBe(false)
+  })
+
+  it('shows the form when the deployment flag is absent', async () => {
+    mockFetch({
+      'GET /api/auth/me': () => ({ body: owner }),
+      'GET /api/communities': () => ({ body: { items: [admin] } }),
+    })
+
+    renderAt('/owner/communities')
+
+    expect(await screen.findByLabelText(t('setup.slug'))).toBeInTheDocument()
+    expect(screen.queryByText(t('setup.single.body'))).not.toBeInTheDocument()
   })
 })
