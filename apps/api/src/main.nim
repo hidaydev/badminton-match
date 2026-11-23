@@ -10,7 +10,6 @@ import live
 import security_headers
 import server
 import account/infrastructure/oidc
-import community/tenancy as communityTenancy
 import platform/config/store
 import share/crypto
 
@@ -160,12 +159,6 @@ proc bootHandler*(config: ServerConfig, threads: int): BootedApi =
     getEnv("SHARE_CODE_ACTIVE_KEY_ID"))
   # Loading the snapshot here refuses to start when a registry key is missing.
   let config = newConfigCache(database)
-  # ADR-018: one community per production database until row level security
-  # ships. The create route refuses a request that would add a second one; this
-  # is the backstop for what a running process can still do, such as two
-  # creators racing past the same count, or a row arriving from a tool. It is
-  # also the last point that can refuse before the process serves.
-  communityTenancy.assertSingleCommunity(database, getEnv("MAJADU_ENV"))
   # The body limits are read from the same snapshot, so the socket cap and the
   # guard cannot drift from the config by a restart.
   let limits = bodyLimits(config.snapshot(database))

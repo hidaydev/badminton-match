@@ -261,13 +261,14 @@ A release is not done until all eight are true:
    it creates and drops, so the report can be produced before the tag instead of
    waiting for a host window; the host run is still the one that exercises the
    512 MB ceiling and the watcher fan-out.
-8. **One community per production database, or RLS has already shipped.** The
-   first release that serves a second community from one production database
-   does not ship until option (a) of `docs/db/rls-tenancy-options.md` is enabled
-   on the tenant tables and the two-community isolation test is a gate (ADR-018,
-   second Reopener). Nothing in the pipeline checks this: the community count
-   lives in the database, so the operator confirms it against the database the
-   release will run on.
+8. **The two-community isolation matrix is green.** Multi-community in one
+   production database is supported (ADR-018, update 2026-11-23), so the tenancy
+   gate for a release is `apps/api/tests/integration/community_isolation_matrix_test.nim`:
+   it walks every contract route whose path carries `{slug}`, calls each one from
+   a session scoped to community B against a row of community A, and fails on a
+   `{slug}` route that ships without a probe. Row level security is **not** a
+   condition of this release; RLS option (a) of `docs/db/rls-tenancy-options.md`
+   is the next release's gate and is owned by Adit.
 
 If any of them fails, use §5, do not patch on the server.
 
