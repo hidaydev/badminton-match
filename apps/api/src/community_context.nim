@@ -52,5 +52,10 @@ proc loadCommunity*(db: Db, userId, slug: string): Option[CommunityContext] =
     name: value.get("name"),
     timezone: value.get("timezone"),
     role: parseRole(value.get("role")),
-    settings: currentSettings(db, communityId),
+    # `community.settings` carries the tenant policy, so the read has to declare
+    # the community it was just resolved for. On the plain pool it returns no
+    # row under the policy set, `settingsFrom(none)` yields `{}`, and every
+    # override a community configured silently reverts to the platform default
+    # on every `/c/{slug}` request.
+    settings: currentSettings(db.scoped(communityId), communityId),
   ))
