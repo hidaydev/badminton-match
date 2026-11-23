@@ -555,7 +555,13 @@ of leaving it to the operator: `modules/community/tenancy.nim` refuses to start
 when `MAJADU_ENV=prod` and the database holds more than one community, and the
 refusal names this ADR and `docs/db/rls-tenancy-options.md`. The assertion is a
 backstop, not RLS: it guards a starting process, not a running one, and tools
-that connect as `bm2_owner` are not constrained by it.
+that connect as `bm2_owner` are not constrained by it. Since 2026-11-22 the create
+route asks the same rule inside the transaction that would insert
+(`createCommunityRefusal`), so a running production process answers 409
+`COMMUNITY_LIMIT` for the request that would create the second community instead
+of accepting it and dying on the next restart. Two creators that read the same
+count can still both insert; the boot assertion remains the backstop for that
+race.
 
 ## ADR-019 · The deploy must run `dbtools seed`, and the config seed stays insert-only
 

@@ -27,6 +27,9 @@ const ROLE_LABEL: Record<CommunityRole, MessageKey> = {
 function describe(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 403) return t('setup.error.forbidden')
+    // 409 is two different answers now: a taken slug, and the ADR-018 refusal
+    // for a production database that already holds its one community.
+    if (error.code === 'COMMUNITY_LIMIT') return t('setup.error.communityLimit')
     if (error.status === 409) return t('setup.error.slugTaken')
     if (error.status === 400) return t('setup.error.invalid')
   }
