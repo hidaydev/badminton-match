@@ -9,24 +9,27 @@
 ##
 ## What it asserts, and why each one is a real defect if it fails:
 ##
-##   * every base table carrying `community_id`, except `community.membership`,
-##     has row security on and at least one policy. A tenant table without row
-##     security is unguarded: every statement that forgets a `where` reads it.
+##   * every base table carrying `community_id`, `community.membership`
+##     included, has row security on and at least one policy. A tenant table
+##     without row security is unguarded: every statement that forgets a `where`
+##     reads it.
 ##   * `relforcerowsecurity` is false everywhere. The owner is meant to bypass;
 ##     a forced table would break migrations, `dbtools seed`, `ownerseed` and
 ##     every operator tool that runs on the owner DSN.
-##   * `session.game_results` runs with `security_invoker`. Without it the view
-##     runs as its owner and keeps serving every community's rows beside a
-##     complete policy set, so the guard has a hole shaped exactly like the
-##     board.
+##   * every view carrying `community_id`, derived from `pg_class`, runs with
+##     `security_invoker`. Without it the view runs as its owner and keeps
+##     serving every community's rows beside a complete policy set, so the guard
+##     has a hole shaped exactly like the view.
 ##   * `account.audit` admits a NULL community for `bm2_app`, because a
 ##     platform-level action and a refused login have no community to name, and
 ##     the refusal must still be audited.
 ##   * no table outside the tenant set has row security on. Today that set is
 ##     the platform, auth, account-session and dbtools tables; switching one on
 ##     by accident turns that feature into a silent empty result.
-##   * the three cross-tenant read functions exist, are owned by the owner, are
-##     SECURITY DEFINER, pin `search_path`, and are not executable by PUBLIC.
+##   * the cross-tenant read functions exist, are owned by the owner, are
+##     SECURITY DEFINER, pin `search_path`, and are not executable by PUBLIC,
+##     and the set of them is exactly the reviewed three: a fourth definer
+##     function is a cross-tenant read nobody signed off on.
 ##
 ## Nothing here needs a fixture and nothing here writes: it is a catalogue read,
 ## so it runs in a second and cannot fail for a reason other than the schema.
@@ -39,20 +42,25 @@ import db/db
 import ../http_support
 
 const
-  ## The one tenant table that must not have a policy. `loadCommunity` joins it
-  ## to `platform.community` by slug *before* a community id exists, so a policy
-  ## keyed on the id makes every login and every `/c/{slug}` request return zero
-  ## rows. The row that names the community is the row the GUC would have to be
-  ## read from, so this cannot be fixed by setting the GUC earlier.
-  noPolicyTable = "community.membership"
+  ## The membership lookup that cannot work through a policy, because it is the
+  ## query that discovers *which* community a slug names. `loadCommunity` joins
+  ## `community.membership` to `platform.community` by slug before a community
+  ## id exists, and the row that names the community is the row the GUC would
+  ## have to be read from. So `community.membership` now carries the standard
+  ## policy like every other tenant table, and this function is the one
+  ## legitimate read past it. Asserted as a signature, not as an exemption: an
+  ## exemption here would leave membership readable by every statement.
+  membershipContextSignature = "community.membership_context(text,uuid)"
 
-  ## The three SECURITY DEFINER functions from 0061, with the argument types
-  ## `pg_proc` records. Spelled out because `regprocedure` needs them and a
-  ## signature change should fail loudly here.
+  ## The SECURITY DEFINER functions from 0061, with the argument types `pg_proc`
+  ## records. Spelled out because `regprocedure` needs them and a signature
+  ## change should fail loudly here. The list is asserted to be *exactly* this
+  ## set, so a fourth definer function cannot appear without a deliberate edit:
+  ## each one is a cross-tenant read, and an extra one is a hole nobody reviewed.
   definerFunctions = [
     "session.share_link_resolve(bytea,uuid)",
     "community.invite_by_token(bytea)",
-    "community.directory_entries(uuid,boolean)",
+    membershipContextSignature,
   ]
 
 type
@@ -100,6 +108,68 @@ proc tablesWithRls(db: Db): seq[string] =
           and c.relrowsecurity
         order by 1"""):
     result.add(row.get("qualified"))
+
+proc tenantViews(db: Db): seq[string] =
+  ## Every view that exposes a `community_id` column, straight from the
+  ## catalogue, so a view added by a later migration is checked on the day it
+  ## ships instead of the day someone remembers to add it to a list.
+  ## `attnum > 0` and `not attisdropped` keep a dropped-then-recreated column
+  ## from counting twice, the same guard the table query uses.
+  for row in db.query(
+    """select n.nspname || '.' || c.relname as qualified
+         from pg_class c
+         join pg_namespace n on n.oid = c.relnamespace
+        where c.relkind in ('v', 'm')
+          and n.nspname not in ('pg_catalog', 'information_schema')
+          and exists (
+            select 1 from pg_attribute a
+             where a.attrelid = c.oid
+               and a.attname = 'community_id'
+               and a.attnum > 0
+               and not a.attisdropped)
+        order by 1"""):
+    result.add(row.get("qualified"))
+
+proc viewRunsAsInvoker(db: Db, view: string): string =
+  ## "" when the view carries `security_invoker=true`, otherwise a sentence
+  ## saying what it has. A view without it runs as its owner and serves every
+  ## community's rows beside a complete policy set.
+  let row = db.queryOne(
+    """select coalesce(array_to_string(c.reloptions, ','), '') as options
+         from pg_class c
+         join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname || '.' || c.relname = $1""",
+    @[textParam(view)])
+  if row.isNone:
+    return "view not found"
+  let options = row.get.get("options").split(',').mapIt(it.strip)
+  if "security_invoker=true" in options:
+    return ""
+  if options.len == 0 or options == @[""]:
+    return "no reloptions, so it runs as its owner"
+  "reloptions are {" & row.get.get("options") & "}"
+
+proc actualDefinerFunctions(db: Db): seq[string] =
+  ## Every SECURITY DEFINER function in the schemas this migration owns, as
+  ## `schema.name(args)` with `pg_proc`'s type names. The assertions below say
+  ## the set is *exactly* the three expected ones, so this is what catches a
+  ## fourth: each definer function is a cross-tenant read and an unreviewed one
+  ## is a hole, not a convenience.
+  #
+  # `oidvectortypes` renders the argument *types* only; the identity-argument
+  # helper includes parameter names, which would make the comparison below about
+  # spelling rather than about the signature callers can reach.
+  for row in db.query(
+    """select n.nspname || '.' || p.proname || '(' ||
+              replace(oidvectortypes(p.proargtypes), ' ', '') || ')' as signature
+         from pg_proc p
+         join pg_namespace n on n.oid = p.pronamespace
+        where p.prosecdef
+          and n.nspname in ('session', 'community', 'platform', 'player',
+                            'rating', 'tournament', 'achievement', 'import',
+                            'account')
+        order by 1"""):
+    result.add(row.get("signature"))
 
 proc policyCount(db: Db, table, role: string): int =
   ## Policies on one table that name one role. `pg_policy.polroles` holds role
@@ -173,29 +243,20 @@ suite "RLS policy coverage":
     # empty list and pass.
     let tables = tenantTables(db)
     check tables.len == 31
-    check tables.filterIt(it.qualified == noPolicyTable).len == 1
+    check tables.filterIt(it.qualified == "community.membership").len == 1
 
-  test "every tenant table except membership has row security and a policy":
+  test "every tenant table, membership included, has row security and a policy":
+    # No exemption. `community.membership` is guarded like the other 30; the
+    # read that cannot pass through the policy goes through a definer function
+    # asserted below, not through a hole in the catalogue.
     var missing: seq[string] = @[]
     for table in tenantTables(db):
-      if table.qualified == noPolicyTable:
-        continue
       if not table.rlsOn:
         missing.add(table.qualified & ": row security off")
       elif table.policies == 0:
         missing.add(table.qualified & ": no policy")
     checkpoint(missing.join("\n"))
     check missing.len == 0
-
-  test "community.membership has neither row security nor a policy":
-    # The negative case of the previous test, asserted rather than implied. A
-    # policy added here later would break login and every /c/{slug} request,
-    # and this suite is the place that says so out loud.
-    let table = tenantTables(db).filterIt(it.qualified == noPolicyTable)
-    check table.len == 1
-    if table.len == 1:
-      check table[0].rlsOn == false
-      check table[0].policies == 0
 
   test "row security is enabled, never forced":
     # `force` would apply the policies to the table owner too, which breaks
@@ -218,16 +279,22 @@ suite "RLS policy coverage":
     checkpoint(unexpected.join(", "))
     check unexpected.len == 0
 
-  test "session.game_results runs with the invoker's rights":
-    let row = db.queryOne(
-      """select coalesce(array_to_string(c.reloptions, ','), '') as options
-           from pg_class c
-          where c.oid = 'session.game_results'::regclass""")
-    check row.isSome
-    if row.isSome:
-      checkpoint(row.get.get("options"))
-      check row.get.get("options").split(',').mapIt(it.strip) .contains(
-        "security_invoker=true")
+  test "every view with a tenant column runs with the invoker's rights":
+    # Derived from `pg_class`, like the table half: a second view over a tenant
+    # table cannot ship without this option and pass unseen. A view that runs as
+    # its owner keeps serving every community's rows beside a complete policy
+    # set, so this is the one read the table assertions cannot see.
+    let views = tenantViews(db)
+    checkpoint("views carrying community_id: " & views.join(", "))
+    check views.len > 0
+    var problems: seq[string] = @[]
+    for view in views:
+      let problem = viewRunsAsInvoker(db, view)
+      if problem.len > 0:
+        problems.add(view & ": " & problem)
+    checkpoint(problems.join("\n"))
+    check problems.len == 0
+    check "session.game_results" in views
 
   test "account.audit admits a NULL community for the application role":
     # A platform-level action and a refused login have no community to name, and
@@ -257,11 +324,30 @@ suite "RLS policy coverage":
     checkpoint(leaked.join(", "))
     check leaked.len == 0
 
-  test "the three cross-tenant read functions are safe DEFINER functions":
+  test "the cross-tenant read functions are safe DEFINER functions":
     for signature in definerFunctions:
       let problem = definerFunctionProblem(db, signature)
       checkpoint(signature & ": " & (if problem.len == 0: "ok" else: problem))
       check problem.len == 0
+
+  test "the definer function set is exactly the three reviewed signatures":
+    # A fourth SECURITY DEFINER function is a cross-tenant read nobody reviewed.
+    # Asserting the set rather than each member is what catches it: adding one
+    # to the migration without adding it here fails, on purpose.
+    let actual = actualDefinerFunctions(db)
+    checkpoint("SECURITY DEFINER functions: " & actual.join(", "))
+    for expected in definerFunctions:
+      check expected in actual
+    var unexpected: seq[string] = @[]
+    for signature in actual:
+      # The append-only audit trigger is SECURITY DEFINER-like in effect but is
+      # a trigger function, not a read the application calls; it is excluded by
+      # name so the set below stays the three reviewed reads.
+      if signature notin definerFunctions and
+         signature != "account.audit_append_only()":
+        unexpected.add(signature)
+    checkpoint("unreviewed: " & unexpected.join(", "))
+    check unexpected.len == 0
 
   test "the tenant predicate reads the GUC and fails closed when it is unset":
     # The predicate is the one place a fail-open bug would leak silently, so it
