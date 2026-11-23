@@ -42,12 +42,27 @@ proc create*(db: Db, communityId, emailHash: string, role: Role,
 proc lookup*(db: Db, token: string): AcceptResult =
   ## Read-only inspection. Acceptance is decided by `accept`, which also claims
   ## the row atomically.
-  let row = db.queryOne(
-    """select community_id, role, email_hash,
-              accepted_at is not null as accepted,
-              expires_at is not null and expires_at <= now() as expired
-       from community.invite where token_hash = decode($1,'hex')""",
-    @[textParam(sha256Hex(token))])
+  ##
+  ## An invite token is presented before a community is chosen, which is why the
+  ## row names its own community. Under the policy set a plain read here returns
+  ## nothing and every invitation link becomes "not found", so the read goes
+  ## through the definer function once step 2 installs it and stays in process
+  ## before that.
+  var row: Option[Row] = none(Row)
+  if db.functionExists("community.invite_by_token(bytea)"):
+    row = db.queryOne(
+      """select community_id, role, email_hash,
+                accepted_at is not null as accepted,
+                expires_at is not null and expires_at <= now() as expired
+         from community.invite_by_token(decode($1,'hex'))""",
+      @[textParam(sha256Hex(token))])
+  else:
+    row = db.queryOne(
+      """select community_id, role, email_hash,
+                accepted_at is not null as accepted,
+                expires_at is not null and expires_at <= now() as expired
+         from community.invite where token_hash = decode($1,'hex')""",
+      @[textParam(sha256Hex(token))])
   if row.isNone:
     return AcceptResult(outcome: aoNotFound)
   let detail = AcceptResult(communityId: row.get.getUuid("community_id"),
@@ -66,19 +81,29 @@ proc acceptPendingForEmail*(db: Db, userId, emailHash: string):
   ## first admin named at community creation becomes an admin (COM-01). Only
   ## memberships this call actually created are reported: an existing member
   ## already had the grant, and reporting it again would audit a no-op.
+  ##
+  ## An address is presented before any community is chosen, so this is a
+  ## cross-tenant write. It loops the root table and claims one community at a
+  ## time on a facade that declares it; a single statement spanning invites would
+  ## match nothing under the policy set and the first admin would never be
+  ## granted, with a green login and no error.
   var joined: seq[tuple[communityId, role: string]] = @[]
-  db.tx(proc(conn: DbConn) =
-    for row in conn.query(
-      """update community.invite
-         set accepted_at = now()
-         where email_hash = $1 and accepted_at is null
-           and (expires_at is null or expires_at > now())
-         returning community_id, role""",
-      @[textParam(emailHash)]):
-      if addMemberConn(conn, row.getUuid("community_id"), userId,
-          parseRole(row.get("role"))):
-        joined.add((communityId: row.getUuid("community_id"),
-          role: row.get("role"))))
+  for root in db.query("select id from platform.community order by slug"):
+    let communityId = root.get("id")
+    let community = db.scoped(communityId)
+    community.tx(proc(conn: DbConn) =
+      for row in conn.query(
+        """update community.invite
+           set accepted_at = now()
+           where community_id = $2::uuid
+             and email_hash = $1 and accepted_at is null
+             and (expires_at is null or expires_at > now())
+           returning community_id, role""",
+        @[textParam(emailHash), textParam(communityId)]):
+        if addMemberConn(conn, row.getUuid("community_id"), userId,
+            parseRole(row.get("role"))):
+          joined.add((communityId: row.getUuid("community_id"),
+            role: row.get("role"))))
   joined
 
 proc accept*(db: Db, token, userId, emailHash: string): AcceptResult =
@@ -93,8 +118,9 @@ proc accept*(db: Db, token, userId, emailHash: string): AcceptResult =
   if found.outcome == aoUsed:
     # Login claims every unused invite for the address, so the recipient who
     # follows the link afterwards finds their own invitation already redeemed.
-    # Same address, same outcome: report the membership it granted.
-    let held = db.queryOne(memberRoleSql,
+    # Same address, same outcome: report the membership it granted. The read
+    # declares the community the token named, which the token's own row supplied.
+    let held = db.scoped(found.communityId).queryOne(memberRoleSql,
       @[textParam(found.communityId), textParam(userId)])
     if held.isSome:
       return AcceptResult(outcome: aoOk, communityId: found.communityId,
@@ -104,7 +130,8 @@ proc accept*(db: Db, token, userId, emailHash: string): AcceptResult =
     return found
 
   var communityId, role: string
-  db.tx(proc(conn: DbConn) =
+  let community = db.scoped(found.communityId)
+  community.tx(proc(conn: DbConn) =
     let row = conn.queryOne(
       """update community.invite
          set accepted_at = now()

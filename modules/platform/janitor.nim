@@ -159,20 +159,31 @@ proc purge*(db: Db, retentionDays: int,
   var tenanted: seq[PurgeTarget] = @[]
   var platform: seq[PurgeTarget] = @[]
   for target in purgeTargets:
+    # Every table is reported once, whether or not it was reached, so the shape
+    # of the output does not depend on how many communities exist. A tool whose
+    # report changes shape cannot be monitored, and an empty report is the one an
+    # operator reads as "nothing to delete".
+    var reported = false
+    for existing in result.mitems:
+      if existing.table == target.table:
+        reported = true
+        break
+    if not reported:
+      result.add(PurgeOutcome(table: target.table, deleted: 0))
     if target.tenanted: tenanted.add(target) else: platform.add(target)
   # Tenant tables first, one community at a time, then the platform tables once
   # on the plain pool. Both passes keep `withPinnedClock` behaviour: the cutoff
   # is computed once, so the community loop cannot straddle a clock tick.
-  result = purgeTenanted(db, tenanted, cutText, nowText, batchSize)
-  for outcome in purgePlatform(db, platform, cutText, nowText, batchSize):
-    var merged = false
+  for outcome in purgeTenanted(db, tenanted, cutText, nowText, batchSize):
     for existing in result.mitems:
       if existing.table == outcome.table:
         existing.deleted += outcome.deleted
-        merged = true
         break
-    if not merged:
-      result.add(outcome)
+  for outcome in purgePlatform(db, platform, cutText, nowText, batchSize):
+    for existing in result.mitems:
+      if existing.table == outcome.table:
+        existing.deleted += outcome.deleted
+        break
 
 proc purgeWithConfig*(db: Db, snapshot: Snapshot): seq[PurgeOutcome] =
   purge(db, snapshot.intValue(%*{}, keyJanitorRetentionDays))

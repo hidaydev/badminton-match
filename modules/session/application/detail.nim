@@ -205,11 +205,20 @@ proc exists*(db: Db, communityId, sessionId: string): bool =
 proc inCommunitySlug*(db: Db, sessionId, slug: string): bool =
   ## A handshake names a ticket for a session and a community slug in the URL;
   ## the two must describe the same row.
-  db.queryOne(
-    """select 1 as ok from session.sessions s
-       join platform.community c on c.id = s.community_id
-       where s.id = $1::uuid and c.slug = $2""",
-    @[textParam(sessionId), textParam(slug)]).isSome
+  ##
+  ## The slug is read from `platform.community`, which carries no policy, so it
+  ## resolves before any tenant exists; the session read then declares the
+  ## community it just found. A single join would have to read `session.sessions`
+  ## with nothing declared and return false for every handshake once the policy
+  ## set is on, which a client sees as a socket that never opens.
+  let community = db.queryOne(
+    "select id from platform.community where slug = $1", @[textParam(slug)])
+  if community.isNone:
+    return false
+  db.scoped(community.get.get("id")).queryOne(
+    """select 1 as ok from session.sessions
+       where id = $1::uuid and community_id = $2::uuid""",
+    @[textParam(sessionId), textParam(community.get.get("id"))]).isSome
 
 proc gameResults*(db: Db, communityId, sessionId: string): seq[Row] =
   ## The public share payload: every game with its side names resolved in the
