@@ -364,12 +364,8 @@ export const en = {
   'setup.submit': 'Create community',
   'setup.error.forbidden': 'Only the platform owner can open a community.',
   'setup.error.slugTaken': 'That slug is already taken.',
-  'setup.error.communityLimit':
-    'This server already holds a community. A second one needs its own database.',
   'setup.error.invalid': 'The server rejected those values.',
   'setup.error.failed': 'The community was not created.',
-  'setup.single.title': 'One community per database',
-  'setup.single.body': 'This deployment serves a single community, so a second one cannot be opened here. It would be refused at the next restart. A new community needs its own database and its own deployment.',
 
   'admin.title': 'Community settings',
   'admin.members': 'Members',
