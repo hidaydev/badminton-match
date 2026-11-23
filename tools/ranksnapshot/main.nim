@@ -54,6 +54,11 @@ proc main() =
     discard writeSnapshot(community, communityId, day, rows)
     inc communities
     players += rows.len
+  # A run that inspected no community has done no work, and printing
+  # `{"communities":0}` beside a zero exit code is the shape an operator reads as
+  # success. Fail loudly instead, keeping the payload unchanged on the real path.
+  if communities == 0:
+    fail(program, "no communities to snapshot")
   echo $(%*{"communities": communities, "rows": players})
 
 when isMainModule:

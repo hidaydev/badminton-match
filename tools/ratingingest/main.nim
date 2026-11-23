@@ -133,6 +133,12 @@ proc main() =
     echo usage
     quit(2)
 
+  # Same rule as ranksnapshot: a tick or a rebuild that reached no community has
+  # done nothing, and `{"communities":0}` with exit 0 is indistinguishable from a
+  # quiet night. `session` and `rebuild` always set it to 1.
+  if communities == 0:
+    fail(program, "no communities to ingest")
+
   echo $(%*{"communities": communities, "events": events, "deltas": deltas,
     "awarded": awarded})
 

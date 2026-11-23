@@ -97,7 +97,7 @@ proc purgeBatch(db: Db, table, predicate: string, params: seq[DbParam],
       return total
 
 proc purgeTenanted(db: Db, targets: seq[PurgeTarget], cutText, nowText: string,
-                   batchSize: int): seq[PurgeOutcome] =
+                   batchSize: int, communities: var int): seq[PurgeOutcome] =
   ## The tenant branches, swept once per community. `platform.community` carries
   ## no policy, so reading it needs no context; every delete after it is issued
   ## through a facade that declares one community. Without the loop a nightly
@@ -105,6 +105,7 @@ proc purgeTenanted(db: Db, targets: seq[PurgeTarget], cutText, nowText: string,
   ## release exists to prevent.
   for row in db.query("select id from platform.community order by slug"):
     let communityId = row.get("id")
+    inc communities
     let scopedDb = db.scoped(communityId)
     for target in targets:
       var params: seq[DbParam] = @[]
@@ -150,6 +151,15 @@ proc purge*(db: Db, retentionDays: int,
   ## their own expiry. The cutoff comes from the application clock, so a test
   ## that pins `MAJADU_NOW` controls the window and does not have to write
   ## `now() - interval` into its fixtures.
+  var communities = 0
+  purgeCounting(db, retentionDays, communities, batchSize)
+
+proc purgeCounting*(db: Db, retentionDays: int, communities: var int,
+                    batchSize = janitorPurgeBatch): seq[PurgeOutcome] =
+  ## The same sweep, reporting how many communities it actually inspected
+  ## through `communities`. A nightly run that reaches none has deleted nothing
+  ## and looks exactly like a quiet night, so the caller needs that number to
+  ## fail on it.
   if batchSize < 1:
     raise newException(ValueError, "batchSize must be positive")
   let nowCut = utcNow()
@@ -174,7 +184,8 @@ proc purge*(db: Db, retentionDays: int,
   # Tenant tables first, one community at a time, then the platform tables once
   # on the plain pool. Both passes keep `withPinnedClock` behaviour: the cutoff
   # is computed once, so the community loop cannot straddle a clock tick.
-  for outcome in purgeTenanted(db, tenanted, cutText, nowText, batchSize):
+  for outcome in purgeTenanted(db, tenanted, cutText, nowText, batchSize,
+      communities):
     for existing in result.mitems:
       if existing.table == outcome.table:
         existing.deleted += outcome.deleted
