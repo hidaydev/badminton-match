@@ -14,7 +14,6 @@ import { Field, Input } from '../components/Field'
 import { PageHeader } from '../components/PageHeader'
 import { createCommunity } from '../community/ownerApi'
 import type { CreatedCommunity } from '../community/ownerApi'
-import { singleCommunityDeployment } from '../community/tenancy'
 import Icon from '../components/Icon'
 import { PAGE_COLUMN } from '../components/Page'
 
@@ -27,9 +26,6 @@ const ROLE_LABEL: Record<CommunityRole, MessageKey> = {
 function describe(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 403) return t('setup.error.forbidden')
-    // 409 is two different answers now: a taken slug, and the ADR-018 refusal
-    // for a production database that already holds its one community.
-    if (error.code === 'COMMUNITY_LIMIT') return t('setup.error.communityLimit')
     if (error.status === 409) return t('setup.error.slugTaken')
     if (error.status === 400) return t('setup.error.invalid')
   }
@@ -111,16 +107,7 @@ export default function SetupPage() {
         </ul>
       )}
 
-      {user?.platformOwner === true && singleCommunityDeployment() && (
-        <p
-          role="status"
-          className="mt-8 rounded-2xl border border-border-subtle bg-surface p-4 text-sm text-fg"
-        >
-          {t('setup.single.body')}
-        </p>
-      )}
-
-      {user?.platformOwner === true && !singleCommunityDeployment() && (
+      {user?.platformOwner === true && (
         <CollapsiblePanel className="mt-8" title={t('setup.create')}>
           <form
             onSubmit={async (event) => {
