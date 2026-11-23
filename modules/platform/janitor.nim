@@ -145,6 +145,9 @@ proc purgePlatform(db: Db, targets: seq[PurgeTarget], cutText, nowText: string,
     if not merged:
       result.add(PurgeOutcome(table: target.table, deleted: deleted))
 
+proc purgeCounting*(db: Db, retentionDays: int, communities: var int,
+                    batchSize = janitorPurgeBatch): seq[PurgeOutcome]
+
 proc purge*(db: Db, retentionDays: int,
             batchSize = janitorPurgeBatch): seq[PurgeOutcome] =
   ## Deletes rows older than the configured window, and rows that are dead at
