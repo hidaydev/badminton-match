@@ -1493,21 +1493,44 @@ suite "systemd units":
                 "MAJADU_AUDIT_DSN"]:
       check not activeAssignment(apiEnv, key)
       check activeAssignment(toolsEnv, key)
-    # OPS-05: the job units load the tool file as their only env, so it carries
-    # the application DSN too, and it never carries a request-path secret.
+    # OPS-05: the tool file still carries the application DSN, and it never
+    # carries a request-path secret. The scheduled jobs left this file for
+    # prod-job.env.example; deploy-vps.sh keeps the DSN check here because a tool
+    # file without it once installed timers that failed on every tick.
     check activeAssignment(toolsEnv, "MAJADU_PG_DSN")
     for key in ["SHARE_CODE_KEYS", "OIDC_CLIENT_SECRET"]:
       check not activeAssignment(toolsEnv, key)
       check activeAssignment(apiEnv, key)
 
-  # OPS-05: the four one-shot units read the tool env, not the API env. This is
-  # the half the templates alone cannot prove; the host-side check is
-  # `systemd-analyze verify` plus `podman inspect` after a deploy.
-  test "the job units load the tool env, never the API env":
+  # OPS-05: the scheduled job units read the job env, not the tool env and not
+  # the API env, so a nightly purge cannot hold the owner role or the staging
+  # credentials. majadu-audit-retention keeps the tool env on purpose: its
+  # MAJADU_AUDIT_DSN belongs to bm2_audit_prune and is not the application's.
+  # The host-side check is `systemd-analyze verify` plus `podman inspect` after a
+  # deploy.
+  test "the job units load the job env, never the tool env":
     for unit in ["majadu-ingest.service", "majadu-janitor.service",
-                 "majadu-snapshot.service", "majadu-audit-retention.service"]:
+                 "majadu-snapshot.service"]:
       let text = readFile(unitsDir / unit)
       check text.contains(
+        "--env-file=/srv/qouver/apps/majadu/env/majadu-job.env")
+      check not text.contains(
         "--env-file=/srv/qouver/apps/majadu/env/majadu-tools.env")
       check not text.contains(
         "--env-file=/srv/qouver/apps/majadu/env/majadu-prod.env")
+    let retention = readFile(unitsDir / "majadu-audit-retention.service")
+    check retention.contains(
+      "--env-file=/srv/qouver/apps/majadu/env/majadu-tools.env")
+    check not retention.contains(
+      "--env-file=/srv/qouver/apps/majadu/env/majadu-prod.env")
+
+  # The job env is the whole point of the split: one assignment, the application
+  # role, and none of the credentials that change the schema or read staging.
+  test "the job env template carries the application DSN and nothing else":
+    let jobEnv = readFile(repoDir / "ops" / "env" / "prod-job.env.example")
+    check activeAssignment(jobEnv, "MAJADU_PG_DSN")
+    for key in ["MAJADU_OWNER_DSN", "MAJADU_ETL_DSN",
+                "MAJADU_ETL_SOURCE_DSN", "MAJADU_BACKUP_DSN_BM2",
+                "MAJADU_CUTOVER_RESTORE_DSN", "MAJADU_AUDIT_DSN",
+                "SHARE_CODE_KEYS", "OIDC_CLIENT_SECRET"]:
+      check not activeAssignment(jobEnv, key)
