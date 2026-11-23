@@ -506,19 +506,23 @@ jobs:
     # The suite is 200 tests across four projects, and on main f5b4b45 the single
     # job ended 459 s in, two seconds before the gate: it owned the run's tail.
     # The measured split of that log is iphone-17 128 s / poco-f5 76 s / desktop
-    # 48 s / api 1 s, so pairing iphone-17 against the other three balances the
-    # two halves to within three seconds while each half keeps paying the same
-    # setup (browsers, system libraries, web build). Two jobs finish ~230 s
-    # earlier than one; the alternative, more workers in one job, would put four
-    # browser processes, the API and a Vite preview on the same four cores.
+    # 48 s / api 1 s, so on main pairing iphone-17 against the other three
+    # balances the two halves to within three seconds while each half keeps
+    # paying the same setup (browsers, system libraries, web build). Two jobs
+    # finish ~230 s earlier than one; the alternative, more workers in one job,
+    # would put four browser processes, the API and a Vite preview on the same
+    # four cores.
+    #
+    # A pull request pays for less: one job runs desktop and api, the two
+    # projects that cover the API contract and the browser path against it, and
+    # skips the two device profiles (iphone-17, poco-f5) that mostly re-walk the
+    # same views in a different viewport. Those run before a merge lands on main
+    # and on a dispatch, which is where a device regression has to be caught.
+    # The matrix is one expression over `github.event_name` rather than two
+    # jobs, so `e2e` keeps its single job id and the Gate below keeps its shape.
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - group: "iphone-17"
-            projects: "--project=iphone-17"
-          - group: "poco-f5-desktop-api"
-            projects: "--project=poco-f5 --project=desktop --project=api"
+      matrix: ${{ github.event_name == 'pull_request' && fromJSON('{"include":[{"group":"desktop-api","projects":"--project=desktop --project=api"}]}') || fromJSON('{"include":[{"group":"iphone-17","projects":"--project=iphone-17"},{"group":"poco-f5-desktop-api","projects":"--project=poco-f5 --project=desktop --project=api"}]}') }}
     services:
       postgres:
         image: postgres:18.6
@@ -650,9 +654,10 @@ jobs:
         env:
           PGPASSWORD: postgres
           PROJECTS: ${{ matrix.projects }}
-        # Two jobs, split by the cost measured on main f5b4b45 (iphone-17 128 s,
-        # poco-f5 76 s, desktop 48 s, api 1 s). The comment on the matrix says why
-        # a matrix beats more workers inside one job: four browser processes, the
+        # One job on a pull request, two elsewhere, split by the cost measured on
+        # main f5b4b45 (iphone-17 128 s, poco-f5 76 s, desktop 48 s, api 1 s). The
+        # comment on the matrix says which projects a pull request runs and why a
+        # matrix beats more workers inside one job: four browser processes, the
         # API and a Vite preview would all share the runner's four cores.
         run: ./task e2e $PROJECTS
       # QA-11: traces, failure screenshots, videos, the JSON report and the
