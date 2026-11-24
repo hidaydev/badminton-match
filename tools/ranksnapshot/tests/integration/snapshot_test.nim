@@ -15,6 +15,7 @@ import platform/config/store
 import rating/infrastructure/params
 import rating/read
 import ../../main
+import tests/app_role_fixture
 
 const
   slug = "rank-snapshot-test"
@@ -221,3 +222,30 @@ suite "ranksnapshot day selection":
     let stray = runCli("2026-11-01")
     check stray.exitCode == 2
     check stray.output.contains("Usage: ranksnapshot")
+
+  test "the snapshot write lands as the application role":
+    # The suite is connected as the owner or a superuser, both of which bypass
+    # row security, so a write path that lost its tenant scoping would still
+    # store rows here. `main` builds one facade per community and issues every
+    # statement through it; this case drives the same shape as `bm2_app` and
+    # counts the rows from inside the same transaction, then lets it roll back.
+    addSession("2026-10-20")
+    var written = -1
+    var stored = -1
+    let day = "2026-11-01"
+    asApp(database, proc(app: Db, conn: DbConn) =
+      let snapshot = loadSnapshot(app)
+      let limit = snapshot.values[$keyRankBoardLimit].getInt()
+      let scoped = app.scoped(communityId)
+      let rows = board(scoped, BoardQuery(communityId: communityId, asOf: day,
+        params: loadRatingParams(snapshot, newJObject()), limit: limit, tier: ""))
+      written = writeSnapshot(scoped, communityId, day, rows)
+      stored = conn.queryOne(
+        """select count(*)::int as n from rating.snapshots
+           where community_id = $1::uuid""",
+        @[textParam(communityId)]).get.getInt("n"))
+    check written == 4
+    check stored == 4
+    # Rolled back: the owner-side count is still zero, so the next case starts
+    # from the same state it always did.
+    check snapshotCount() == "0"

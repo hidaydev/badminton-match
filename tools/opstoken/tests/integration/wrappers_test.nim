@@ -295,6 +295,13 @@ suite "thin wrapper CLIs":
     check run.output.contains("MAJADU_PG_DSN is required")
 
   test "janitor purges past the window, keeps live rows and reports it":
+    # A sweep that reached no community now exits non-zero, so the database this
+    # case runs on needs at least one, the way production always has. Without it
+    # the assertion below would read the new alarm as a broken janitor.
+    let sweepSlug = tag & "janitor-community"
+    purgeCommunity(database, sweepSlug)
+    discard newCommunity(database, sweepSlug, "Janitor Sweep")
+    defer: purgeCommunity(database, sweepSlug)
     let days = configInt("janitor.retention_days")
     let expired = sha256Hex(tag & "expired-ticket")
     let live = sha256Hex(tag & "live-ticket")

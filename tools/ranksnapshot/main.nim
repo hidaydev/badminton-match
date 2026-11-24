@@ -41,14 +41,24 @@ proc main() =
   var communities, players = 0
   for row in db.query("select id, timezone from platform.community order by slug"):
     let communityId = row.get("id")
-    let settings = communitySettings(db, communityId)
+    # `platform.community` carries no policy, so the loop reads it on the plain
+    # pool; everything below it is that community's and runs on a facade that
+    # declares it. Without this the board and the snapshot write would match
+    # zero rows once the policy set is on, and the tool would still exit 0.
+    let community = db.scoped(communityId)
+    let settings = communitySettings(community, communityId)
     let params = loadRatingParams(snapshot, settings)
-    let day = snapshotDay(db, asOf, communityId, row.get("timezone"))
-    let rows = board(db, BoardQuery(communityId: communityId, asOf: day,
+    let day = snapshotDay(community, asOf, communityId, row.get("timezone"))
+    let rows = board(community, BoardQuery(communityId: communityId, asOf: day,
       params: params, limit: limit, tier: ""))
-    discard writeSnapshot(db, communityId, day, rows)
+    discard writeSnapshot(community, communityId, day, rows)
     inc communities
     players += rows.len
+  # A run that inspected no community has done no work, and printing
+  # `{"communities":0}` beside a zero exit code is the shape an operator reads as
+  # success. Fail loudly instead, keeping the payload unchanged on the real path.
+  if communities == 0:
+    fail(program, "no communities to snapshot")
   echo $(%*{"communities": communities, "rows": players})
 
 when isMainModule:

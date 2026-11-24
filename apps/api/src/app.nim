@@ -100,11 +100,23 @@ type
 
 var application: App
 
+# The community the current request acts on, once `scoped()` has resolved it.
+# Each connection is served on one worker thread, so a threadvar cannot carry a
+# tenant into the next request; `route()` clears it on both exits. Until it is
+# set, `database()` is the plain pool.
+var currentScopedDb {.threadvar.}: Db
+
 proc database(): Db =
   ## The process pool, named once. A handler receives it from here instead of
   ## reaching for the global in every routine; the archcheck allowlist records
   ## this single routine as the documented exception (BE-06).
-  application.db
+  ##
+  ## While a request has a community installed, this is the scoped facade over
+  ## the same pool, so every statement the handler and the modules behind it
+  ## issue declares that community without threading a parameter through 108
+  ## call sites. The facade owns no connection: `poolStats` and `close` behind it
+  ## still answer about the pool.
+  if currentScopedDb != nil: currentScopedDb else: application.db
 
 # `route()` computes the quota label once and `send` hands it to the counter
 # instead of deriving it again. Each connection is served on a single worker
@@ -615,8 +627,15 @@ proc denyAudit(user: AuthUser, community: Option[CommunityContext],
     if user.isOwner: "platform_owner"
     elif community.isSome: $community.get.role
     else: "member"
+  # This runs before `scoped()` installs the request tenant, so the write must
+  # name its community here or the row lands with no tenant: under the policy
+  # set the insert fails its `with check`, the `DbError` below swallows it, and
+  # the refusal that exists to leave a trace leaves none.
+  let sink =
+    if community.isSome: database().scoped(community.get.communityId)
+    else: database()
   try:
-    recordAudit(database(), auditEvent("authz.denied", communityId,
+    recordAudit(sink, auditEvent("authz.denied", communityId,
       actorId = user.id, actorRole = role, outcome = arDeny,
       targetKind = "route", targetId = currentRouteLabel,
       reason = "denied " & currentRouteLabel,
@@ -875,6 +894,12 @@ proc scoped(request: Request, snapshot: Snapshot, slug: string,
       denyAudit(user.get, ctx, slug)
     respondGate(request, decision)
     return none((AuthUser, CommunityContext))
+  # Every `/c/{slug}/...` arm reaches the handler below through this one
+  # routine, so the community is installed here once instead of being passed to
+  # 64 `tx` sites. Anything the handler reads or writes afterwards declares this
+  # community to the database, and a statement that forgets its own predicate
+  # still cannot reach another community's rows.
+  currentScopedDb = database().scoped(ctx.get.communityId)
   some((user.get, ctx.get))
 
 proc createCommunity(request: Request, snapshot: Snapshot) =
@@ -920,17 +945,26 @@ proc createCommunity(request: Request, snapshot: Snapshot) =
 
 proc listCommunities(request: Request,
                     snapshot: Snapshot) =
+  ## The caller's own memberships. The route has no `{slug}`, so dispatch never
+  ## installs a tenant and the membership join below matched nothing under the
+  ## policy set: every signed-in user got `{"items":[]}` and the web client,
+  ## which takes its membership list from here, landed on the empty state. The
+  ## root table names the communities; this user's role in each is read on a
+  ## facade that declares it. Same order, same four fields, same empty answer.
   let user = requireUser(request, snapshot)
   if user.isNone: return
   var items = newJArray()
-  for row in database().query(
-    """select c.id, c.slug, c.name, m.role
-       from community.membership m
-       join platform.community c on c.id = m.community_id
-       where m.user_id = $1 order by c.slug""",
-    @[textParam(user.get.id)]):
-    items.add(%*{"id": row.get("id"), "slug": row.get("slug"),
-      "name": row.get("name"), "role": row.get("role")})
+  for community in database().query(
+      "select id, slug, name from platform.community order by slug"):
+    let communityId = community.get("id")
+    let member = database().scoped(communityId).queryOne(
+      """select role from community.membership
+         where community_id = $1::uuid and user_id = $2::uuid""",
+      @[textParam(communityId), textParam(user.get.id)])
+    if member.isNone:
+      continue
+    items.add(%*{"id": community.get("id"), "slug": community.get("slug"),
+      "name": community.get("name"), "role": member.get.get("role")})
   jsonResponse(request, 200, %*{"items": items})
 
 proc jsonString(body: JsonNode, key: string): string =
@@ -1592,27 +1626,37 @@ proc requestJoin(request: Request, slug: string, snapshot: Snapshot) =
         requestIdentity(request, snapshot, clientIp(request, trustedProxies())),
         snapshot.intValue(%*{}, keySecurityJoinRequestRate)):
       return
-  let row = if user.isSome:
-    database().queryOne(
-      """select c.id,
-                coalesce((s.values ->> $2)::boolean, $3) as enabled
-         from platform.community c
-         left join community.settings s on s.community_id = c.id
-         where c.slug = $1""",
-      @[textParam(slug),
-        textParam($keyCommunityJoinRequestsEnabled),
-        boolParam(snapshot.boolValue(%*{}, keyCommunityJoinRequestsEnabled))])
-    else:
-      none(Row)
-  if row.isSome and row.get.get("enabled") == "t" and user.isSome:
+  var resolvedCommunity = ""
+  var enabled = false
+  if user.isSome:
+    # Resolve the community first: `platform.community` has no policy, so the
+    # slug is answerable before a context exists. The settings read after it
+    # declares the community it just found. A single slug-keyed left join would
+    # fall to the default `false` under the policy set and silently drop every
+    # join request, on a route that answers 202 either way.
+    let root = database().queryOne(
+      "select id from platform.community where slug = $1", @[textParam(slug)])
+    if root.isSome:
+      resolvedCommunity = root.get.get("id")
+      let settings = database().scoped(resolvedCommunity).queryOne(
+        """select coalesce((values ->> $1)::boolean, $2) as enabled
+           from community.settings where community_id = $3::uuid""",
+        @[textParam($keyCommunityJoinRequestsEnabled),
+          boolParam(snapshot.boolValue(%*{}, keyCommunityJoinRequestsEnabled)),
+          textParam(resolvedCommunity)])
+      enabled = if settings.isSome: settings.get.get("enabled") == "t" else: false
+  if enabled and user.isSome:
     let requester = user.get
-    auditedWrite(proc(tx: Db, conn: DbConn) =
-      let created = joinRequestStore.request(tx, row.get.get("id"),
-        requester.id)
+    # The write declares the community it lands in: the requester has no
+    # context of their own yet, and `community.join_request` is a tenant table.
+    let target = database().scoped(resolvedCommunity)
+    target.tx(proc(conn: DbConn) =
+      let created = joinRequestStore.request(target.boundTo(conn),
+        resolvedCommunity, requester.id)
       if created:
         # The request itself is a self-service write; record it without the
         # community context the requester does not have yet.
-        auditConn(conn, "community.join.requested", row.get.get("id"),
+        auditConn(conn, "community.join.requested", resolvedCommunity,
           requester, "user", requester.id, %*{"status": "pending"},
           role = "member"))
   jsonResponse(request, 202, %*{"status": "accepted"})
@@ -2782,14 +2826,18 @@ proc resolveShare(code: string): Option[JsonNode] =
   if found.isNone:
     return none(JsonNode)
   let value = found.get
-  let rules = sessionSchedule.sessionRules(database(), value.communityId,
+  # The code named its community, so every read below declares it. A spectator
+  # holds no session, so this is the one path where a missing scope is not a
+  # permission error but an empty page.
+  let community = database().scoped(value.communityId)
+  let rules = sessionSchedule.sessionRules(community, value.communityId,
     value.sessionId)
   # Every set of the session in one statement: the public payload is polled by
   # a whole group chat and must not cost one query per game.
-  let allSets = sessionDetail.setsByGame(database(), value.communityId,
+  let allSets = sessionDetail.setsByGame(community, value.communityId,
     value.sessionId)
   var games = newJArray()
-  for row in sessionDetail.gameResults(database(), value.communityId,
+  for row in sessionDetail.gameResults(community, value.communityId,
       value.sessionId):
     # Names, not ids: a spectator cannot resolve a uuid, and the share payload
     # is the only read that has no session behind it. The round and the court
@@ -2824,7 +2872,7 @@ proc resolveShare(code: string): Option[JsonNode] =
                 "slotMinutes": value.slotMinutes},
     "community": {"slug": value.slug, "name": value.communityName},
     "games": games,
-    "standings": publicStandings(sessionStandings.compute(database(),
+    "standings": publicStandings(sessionStandings.compute(community,
       value.communityId, value.sessionId)),
   }
   if rules.isSome:
@@ -2986,7 +3034,8 @@ proc playerStats(request: Request, ctx: CommunityContext, playerId: string,
 proc sessionPlayerIds(communityId, sessionId: string): seq[string] =
   ## The players who took part in one session. A share code opens that session,
   ## so the public board it serves is this set and never the whole community.
-  sessionDetail.participantIds(database(), communityId, sessionId)
+  sessionDetail.participantIds(database().scoped(communityId), communityId,
+    sessionId)
 
 proc getSharedRanking(request: Request, code, playerId: string,
                       snapshot: Snapshot) =
@@ -3001,7 +3050,10 @@ proc getSharedRanking(request: Request, code, playerId: string,
   if playerId notin playerIds:
     problem(request, 404, "NOT_FOUND", "player is not on the board")
     return
-  let settings = currentSettings(database(), found.get.communityId)
+  # Anonymous read: the code named the community, so it is declared here rather
+  # than resolved from a membership this spectator never had.
+  let community = database().scoped(found.get.communityId)
+  let settings = currentSettings(community, found.get.communityId)
   rankingPlayer(request, found.get.communityId, found.get.timezone, playerId,
     snapshot, settings, playerIds)
 
@@ -3010,7 +3062,8 @@ proc getSharedRankings(request: Request, code: string, snapshot: Snapshot) =
   if found.isNone:
     problem(request, 404, "NOT_FOUND", "link not found")
     return
-  let settings = currentSettings(database(), found.get.communityId)
+  let community = database().scoped(found.get.communityId)
+  let settings = currentSettings(community, found.get.communityId)
   communityBoard(request, found.get.communityId, found.get.timezone, snapshot,
     settings, sessionPlayerIds(found.get.communityId, found.get.sessionId))
 
@@ -3844,10 +3897,19 @@ proc route(request: Request) =
   # read, so even a 500 from the config snapshot carries this request's label
   # instead of the previous one's.
   currentRouteLabel = quotaRoute(request.path)
+  # A community installed by a previous request on this worker thread must not
+  # survive into this one: the thread is reused, the tenant is not. Cleared
+  # before the first read so `loadCommunity` resolves the slug on the plain pool,
+  # and cleared again in the `finally` so a handler that raises cannot leave one
+  # installed for the next request either.
+  currentScopedDb = nil
   # One id per request: every audit row written while serving it and the
   # access-log line share it, so a 500 can be paired with the write before it.
   beginRequest()
-  guarded(request, proc() = dispatch(request))
+  try:
+    guarded(request, proc() = dispatch(request))
+  finally:
+    currentScopedDb = nil
 
 proc secureCookies(oidc: OidcConfig): bool =
   ## An explicit flag wins, but it cannot contradict the deployment: a public

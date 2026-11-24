@@ -147,18 +147,37 @@ proc looksLikeUuid(value: string): bool =
   true
 
 proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
-  var row = db.queryOne(
-    shareLookupColumns & ", to_char(s.start_time, 'HH24:MI') as start_time, s.slot_minutes" & shareLookupFrom &
-    """l.code_hash = decode($1,'hex') and """ & liveLinkSql,
-    @[textParam(sha256Hex(code))])
-  if row.isNone and looksLikeUuid(code):
-    # A link minted before the code era was `/s/{sessionId}`. Only those rows
-    # answer for an id, so links already in a group chat keep working while a
-    # rotated link revokes that shape together with the old code.
+  ## The code *is* the credential, so this read happens before any tenant is
+  ## known. Under the policy set a plain join here would return nothing and every
+  ## live link in every group chat would become a 404, which the call sites read
+  ## as "link not found" rather than as a fault.
+  ##
+  ## Both paths return the same columns: the definer function once step 2
+  ## installs it, the join in process before that. The choice is made per call
+  ## from the catalogue rather than cached, so a process that started before the
+  ## migration cannot keep reading cross-tenant after it.
+  var row: Option[Row] = none(Row)
+  if db.functionExists("session.share_link_resolve(bytea,uuid)"):
+    row = db.queryOne(
+      """select link_id, community_id, session_id, key_id, code_enc, title,
+                session_date, status, slug, name, timezone, start_time,
+                slot_minutes
+         from session.share_link_resolve($1, $2)""",
+      @[textParam(sha256Hex(code)),
+        (if looksLikeUuid(code): textParam(code) else: nullParam())])
+  else:
     row = db.queryOne(
       shareLookupColumns & ", to_char(s.start_time, 'HH24:MI') as start_time, s.slot_minutes" & shareLookupFrom &
-      """l.session_id = $1::uuid and l.legacy_id_ok and """ & liveLinkSql,
-      @[textParam(code)])
+      """l.code_hash = decode($1,'hex') and """ & liveLinkSql,
+      @[textParam(sha256Hex(code))])
+    if row.isNone and looksLikeUuid(code):
+      # A link minted before the code era was `/s/{sessionId}`. Only those rows
+      # answer for an id, so links already in a group chat keep working while a
+      # rotated link revokes that shape together with the old code.
+      row = db.queryOne(
+        shareLookupColumns & ", to_char(s.start_time, 'HH24:MI') as start_time, s.slot_minutes" & shareLookupFrom &
+        """l.session_id = $1::uuid and l.legacy_id_ok and """ & liveLinkSql,
+        @[textParam(code)])
   if row.isNone:
     return none(ShareLookup)
   let value = row.get

@@ -20,9 +20,15 @@ proc main() =
   let days = loadSnapshot(db).intValue(%*{}, keyJanitorRetentionDays)
   var rows = newJArray()
   var total = 0
-  for outcome in purge(db, days):
+  var communities = 0
+  for outcome in purgeCounting(db, days, communities):
     rows.add(%*{"table": outcome.table, "deleted": outcome.deleted})
     total += outcome.deleted
+  # A sweep that inspected no community deleted nothing anywhere, and its report
+  # is byte-identical to a night with nothing to purge. Fail on a non-zero exit
+  # with a line on stderr; the JSON payload on a real run stays as it was.
+  if communities == 0:
+    fail(program, "no communities to purge")
   echo $(%*{"retentionDays": days, "deleted": total, "tables": rows})
 
 when isMainModule:

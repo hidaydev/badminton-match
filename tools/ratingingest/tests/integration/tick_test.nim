@@ -1,6 +1,11 @@
 import std/[options, os, sets, unittest]
 import db/db
+import platform/config/store
+import rating/infrastructure/ingest
+import rating/infrastructure/params
+import tests/fixtures
 import ../../main
+import tests/app_role_fixture
 
 ## Runs only when a scratch v2 database is named, because a tick reads and
 ## writes it:
@@ -102,3 +107,52 @@ suite "ratingingest tick":
   test "a seen session leaves the walk when it is ingested":
     seedEvent(early, "2026-11-05")
     check pendingSessions(database, communityId) == @[late]
+
+  test "a tick writes an event as the application role":
+    # The suite connects as the owner or a superuser, both of which bypass row
+    # security, so a tick that lost its tenant scoping would still ingest here.
+    # This case drives the same statements `main` does through a facade that
+    # declares the community, as `bm2_app`, and reads the result back through the
+    # same facade before rolling it back.
+    #
+    # The session carries one played game and its set: an approved session with no
+    # playable game contributes nothing, so a fixture without one would prove a
+    # zero and look like a scoping failure.
+    let lateGame = seedSession("2027-01-04", "2027-01-05 20:00:00+07")
+    let first = database.queryOne(
+      """insert into player.players (community_id, canonical_name, gender)
+         values ($1::uuid, 'Tick A', 'M') returning id""",
+      @[textParam(communityId)]).get.get("id")
+    let second = database.queryOne(
+      """insert into player.players (community_id, canonical_name, gender)
+         values ($1::uuid, 'Tick B', 'M') returning id""",
+      @[textParam(communityId)]).get.get("id")
+    newParticipant(database, communityId, lateGame, first)
+    newParticipant(database, communityId, lateGame, second)
+    newPlayedGame(database, communityId, lateGame, 0, 0, [first], [second],
+      setScoreA = 21, setScoreB = 15, scoreA = 21, scoreB = 15)
+    var events = -1
+    var stored = -1
+    let before = database.queryOne(
+      """select count(*)::int as n from rating.events
+         where community_id = $1::uuid""",
+      @[textParam(communityId)]).get.getInt("n")
+    asApp(database, proc(app: Db, conn: DbConn) =
+      let scoped = app.scoped(communityId)
+      let snapshot = loadSnapshot(scoped)
+      let params = loadRatingParams(snapshot, communitySettings(scoped, communityId))
+      events = ingestSession(scoped, communityId, lateGame, params).events
+      # Counted through the same scoped facade: `rating.events` carries the
+      # tenant policy, so the bare connection reads zero rows and that zero
+      # would be indistinguishable from an ingest that wrote nothing.
+      stored = scoped.queryOne(
+        """select count(*)::int as n from rating.events
+           where community_id = $1::uuid and source_id = $2::uuid""",
+        @[textParam(communityId), textParam(lateGame)]).get.getInt("n"))
+    check events == 1
+    check stored == 1
+    # Rolled back: the transaction left the ledger exactly as it found it.
+    check database.queryOne(
+      """select count(*)::int as n from rating.events
+         where community_id = $1::uuid""",
+      @[textParam(communityId)]).get.getInt("n") == before

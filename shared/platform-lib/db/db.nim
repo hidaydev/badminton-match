@@ -36,6 +36,13 @@ type
     ## already inside a transaction with. Such a facade never takes a pooled
     ## connection and never opens a transaction of its own.
     pinned: PPGconn
+    ## Set on a facade built by `scoped` and by `boundTo` on one: the community
+    ## every statement on this facade declares to the database. Empty means the
+    ## facade declares none, which is what an unscoped caller gets.
+    scopedCommunity: string
+    ## Set on a facade: the pool it borrows from. A facade owns no connections,
+    ## so it cannot own a lock either; every checkout goes through this.
+    root: Db
     size*: int
     ## Milliseconds. Zero disables that bound, which keeps a tool that opens a
     ## one-connection pool on a private database from inheriting a web timeout.
@@ -55,6 +62,14 @@ type
 const
   PG_DIAG_SQLSTATE = 67.cint
   PG_DIAG_CONSTRAINT_NAME = 110.cint
+  ## The setting the tenant policy set reads. `session.tenant_id()` turns the
+  ## empty string into NULL, which matches no tenant, so a facade that declares
+  ## no community is a facade the database sees as outside every community.
+  tenantSetting* = "majadu.community_id"
+  ## One statement per checkout, deliberately not counted: the statement counter
+  ## is a contract on what the application reads and writes, and a session
+  ## setting is transport for the statement that follows it.
+  tenantStatement = "select set_config('" & tenantSetting & "', $1, false)"
   ## The API process edge reads MAJADU_DB_* and passes these values in.
   ## `openDb` itself defaults every bound to zero, because a CLI tool
   ## (dbtools migrate, tools/import, ratingingest) must not run under a web
@@ -464,14 +479,21 @@ proc openDb*(dsn: string, poolSize: int, statementTimeoutMs = 0,
     result.available.add(connectConfigured(dsn, result.statementTimeoutMs,
       result.lockTimeoutMs, result.idleTimeoutMs))
 
+proc poolOf(db: Db): Db =
+  ## The pool a facade borrows from. A facade built by `scoped` or `boundTo`
+  ## owns no lock and no connections, so `close`, `poolStats` and
+  ## `connectionTimeouts` must answer about the pool behind it.
+  if db.root != nil: db.root else: db
+
 proc close*(db: Db) =
-  acquire(db.lock)
-  for conn in db.available:
+  let pool = poolOf(db)
+  acquire(pool.lock)
+  for conn in pool.available:
     pqfinish(conn)
-  db.available.setLen(0)
-  release(db.lock)
-  deinitCond(db.cond)
-  deinitLock(db.lock)
+  pool.available.setLen(0)
+  release(pool.lock)
+  deinitCond(pool.cond)
+  deinitLock(pool.lock)
 
 when defined(posix):
   proc pthreadCondTimedWait(cond: var Cond, lock: var Lock,
@@ -558,12 +580,13 @@ proc poolStats*(db: Db): tuple[size, available, inUse: int] =
   ## The pool's state for the metrics gauge. `available` is what a checkout can
   ## take right now; `inUse` is size minus that, which is also what a waiting
   ## caller is queued behind once it reaches zero.
-  acquire(db.lock)
+  let pool = poolOf(db)
+  acquire(pool.lock)
   try:
-    result.size = db.size
-    result.available = db.available.len
+    result.size = pool.size
+    result.available = pool.available.len
   finally:
-    release(db.lock)
+    release(pool.lock)
   result.inUse = result.size - result.available
 
 proc connectionTimeouts*(db: Db): seq[(string, string, string)] =
@@ -571,9 +594,10 @@ proc connectionTimeouts*(db: Db): seq[(string, string, string)] =
   ## `idle_in_transaction_session_timeout` of every pooled connection. The
   ## integration test reads this to prove the settings are on the connection
   ## rather than on one lucky checkout.
-  acquire(db.lock)
+  let pool = poolOf(db)
+  acquire(pool.lock)
   try:
-    for conn in db.available:
+    for conn in pool.available:
       let rows = executeRows(conn,
         """select current_setting('statement_timeout') as statement_timeout,
                   current_setting('lock_timeout') as lock_timeout,
@@ -583,7 +607,32 @@ proc connectionTimeouts*(db: Db): seq[(string, string, string)] =
         result.add((rows[0].get("statement_timeout"),
           rows[0].get("lock_timeout"), rows[0].get("idle_timeout")))
   finally:
-    release(db.lock)
+    release(pool.lock)
+
+proc bindTenant(conn: PPGconn, community: string) =
+  ## Declares this statement's community on the connection, unconditionally.
+  ##
+  ## Caching what a connection already carries would be one round trip cheaper
+  ## and is refused: `set_config` is transactional, so a transaction that rolls
+  ## back leaves the session holding the value from before it while any cache
+  ## would still claim the new one. That stale cache is a cross-tenant read, not
+  ## a slow path, and it is exactly the failure the policy set exists to stop.
+  ##
+  ## `set_config(..., false)` is session-scoped on purpose. `is_local = true`
+  ## would only apply inside an explicit transaction block, and most reads are
+  ## one statement with no `BEGIN` around them. The empty string is written as
+  ## an empty string: `session.tenant_id()` turns it into NULL, which matches no
+  ## tenant.
+  var values = [community.cstring]
+  let res = pqexecParams(conn, tenantStatement.cstring, 1, nil,
+    cast[cstringArray](addr values[0]), nil, nil, 0)
+  if res == nil:
+    raise newException(DbError, $pqerrorMessage(conn))
+  try:
+    if pqresultStatus(res) != PGRES_TUPLES_OK:
+      raiseResultError(res)
+  finally:
+    pqclear(res)
 
 proc releaseConn(db: Db, conn: PPGconn) =
   acquire(db.lock)
@@ -592,13 +641,20 @@ proc releaseConn(db: Db, conn: PPGconn) =
   release(db.lock)
 
 proc withConn[T](db: Db, body: proc(conn: DbConn): T): T =
+  ## The one place a pooled connection is handed out. A facade with a community
+  ## writes it onto the connection before `body` runs, so every statement the
+  ## caller issues under the policy set is confined without the caller naming
+  ## the community again.
   if db.pinned != nil:
+    bindTenant(db.pinned, db.scopedCommunity)
     return body(DbConn(conn: db.pinned))
-  let conn = acquireConn(db)
+  let pool = if db.root != nil: db.root else: db
+  let conn = acquireConn(pool)
   try:
+    bindTenant(conn, db.scopedCommunity)
     body(DbConn(conn: conn))
   finally:
-    releaseConn(db, conn)
+    releaseConn(pool, conn)
 
 proc boundTo*(db: Db, conn: DbConn): Db =
   ## A facade over a connection the caller already holds inside a transaction.
@@ -606,7 +662,35 @@ proc boundTo*(db: Db, conn: DbConn): Db =
   ## caller's transaction instead of checking out a second connection. A `tx`
   ## on the facade runs its body without `BEGIN`/`COMMIT`: the caller has
   ## already opened the boundary, and only that caller may end it.
-  Db(pinned: conn.conn, size: db.size)
+  ##
+  ## The community of the caller's facade travels with it: a scoped read that
+  ## hands a helper a connection must not lose the tenant on the way.
+  Db(pinned: conn.conn, size: db.size, scopedCommunity: db.scopedCommunity,
+    root: (if db.root != nil: db.root else: db))
+
+proc scoped*(db: Db, communityId: string): Db =
+  ## The same pool, with every statement on it declaring `communityId`. It owns
+  ## no connection and opens no transaction, so it is cheap to build per request
+  ## or per job; a statement made through it must name no other community.
+  ##
+  ## A facade that is already pinned to the caller's transaction stays pinned:
+  ## scoping narrows what it declares, it does not move it to another connection.
+  ##
+  ## An empty id is refused rather than silently unscoped: a caller that meant to
+  ## scope and passed nothing is a bug the database must not paper over.
+  if communityId.len == 0:
+    raise newException(ValueError, "scoped: community id is empty")
+  Db(size: db.size, pinned: db.pinned, scopedCommunity: communityId,
+    root: (if db.root != nil: db.root else: db),
+    acquireTimeoutMs: db.acquireTimeoutMs,
+    statementTimeoutMs: db.statementTimeoutMs,
+    lockTimeoutMs: db.lockTimeoutMs, idleTimeoutMs: db.idleTimeoutMs)
+
+proc communityOf*(db: Db): string =
+  ## What this facade declares, empty when it declares nothing. The HTTP layer
+  ## uses it to answer "is a tenant installed for this request" without keeping
+  ## a second copy of the answer.
+  db.scopedCommunity
 
 proc query*(db: Db, sql: string, params: seq[DbParam] = @[]): seq[Row] =
   withConn(db, proc(conn: DbConn): seq[Row] = conn.query(sql, params))
@@ -616,6 +700,20 @@ proc queryOne*(db: Db, sql: string, params: seq[DbParam] = @[]): Option[Row] =
 
 proc execUpdate*(db: Db, sql: string, params: seq[DbParam] = @[]): int =
   withConn(db, proc(conn: DbConn): int = conn.execUpdate(sql, params))
+
+proc functionExists*(db: Db, signature: string): bool =
+  ## Whether a named function is installed, asked of `pg_catalog` in one round
+  ## trip and deliberately not cached.
+  ##
+  ## The tenant helpers this answers for arrive in a later migration than the
+  ## code that calls them, so the caller picks its path per call. A cached
+  ## answer would be a process that started before the migration and kept
+  ## reading cross-tenant after it, which is the failure mode those helpers
+  ## exist to prevent.
+  let row = db.queryOne(
+    "select to_regprocedure($1) is not null as present",
+    @[textParam(signature)])
+  if row.isNone: false else: row.get.getBool("present")
 
 proc read*[T](db: Db, body: proc(conn: DbConn): T): T =
   ## Runs `body` on one connection without opening a transaction. Prefer
@@ -635,6 +733,7 @@ proc txRet*[T](db: Db, body: proc(conn: DbConn): T): T =
   ## the caller may commit.
   if db.pinned != nil:
     let conn = db.pinned
+    bindTenant(conn, db.scopedCommunity)
     savepointSeq.inc
     let name = "majadu_sp_" & $savepointSeq
     let saveRes = pqexec(conn, ("savepoint " & name).cstring)

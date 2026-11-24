@@ -156,13 +156,18 @@ proc waitIdle*(jobs: RatingJobs, timeoutMs = 5000): bool =
   jobs.idle
 
 proc process(jobs: RatingJobs, job: Job) =
-  let snapshot = loadSnapshot(jobs.db)
+  ## Every read and write of one job runs on a facade that declares the job's
+  ## community. Without it a rebuild under the policy set would read zero rows,
+  ## delete nothing and report success, which is the failure an operator cannot
+  ## see: they get a job id and the board never changes.
+  let community = jobs.db.scoped(job.communityId)
+  let snapshot = loadSnapshot(community)
   let params = loadRatingParams(snapshot,
-    communitySettings(jobs.db, job.communityId))
+    communitySettings(community, job.communityId))
   if job.kind == jkRebuild:
-    discard rebuild(jobs.db, job.communityId, params)
-  discard backfill(jobs.db, job.communityId,
-    latestEventDate(jobs.db, job.communityId), params)
+    discard rebuild(community, job.communityId, params)
+  discard backfill(community, job.communityId,
+    latestEventDate(community, job.communityId), params)
 
 proc workerLoop(args: WorkerArgs) {.thread.} =
   while true:

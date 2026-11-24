@@ -91,41 +91,53 @@ proc main() =
   of "tick":
     for row in db.query("select id from platform.community order by slug"):
       let communityId = row.get("id")
-      let params = planFor(db, snapshot, communityId)
-      for id in pendingSessions(db, communityId):
-        let result = ingestSession(db, communityId, id, params)
+      # The loop reads the root table on the plain pool; every statement under
+      # it declares the community it belongs to, so enabling the policy set
+      # changes nothing about what this tick finds.
+      let community = db.scoped(communityId)
+      let params = planFor(community, snapshot, communityId)
+      for id in pendingSessions(community, communityId):
+        let result = ingestSession(community, communityId, id, params)
         events += result.events
         deltas += result.deltas
-      awarded += backfill(db, communityId,
-        latestEventDate(db, communityId), params).awarded
+      awarded += backfill(community, communityId,
+        latestEventDate(community, communityId), params).awarded
       inc communities
   of "session":
     if slug.len == 0 or sessionId.len == 0:
       usageFail(program, "session needs an id and --community <slug>")
     let communityId = communityIdOf(db, slug)
-    if not sessionInCommunity(db, communityId, sessionId):
+    let community = db.scoped(communityId)
+    if not sessionInCommunity(community, communityId, sessionId):
       fail(program, absentSessionMessage(sessionId, slug))
-    let params = planFor(db, snapshot, communityId)
-    let result = ingestSession(db, communityId, sessionId, params)
+    let params = planFor(community, snapshot, communityId)
+    let result = ingestSession(community, communityId, sessionId, params)
     events += result.events
     deltas += result.deltas
-    awarded += backfill(db, communityId,
-      latestEventDate(db, communityId), params).awarded
+    awarded += backfill(community, communityId,
+      latestEventDate(community, communityId), params).awarded
     communities = 1
   of "rebuild":
     if slug.len == 0:
       usageFail(program, "rebuild needs --community <slug>")
     let communityId = communityIdOf(db, slug)
-    let params = planFor(db, snapshot, communityId)
-    let result = rebuild(db, communityId, params)
+    let community = db.scoped(communityId)
+    let params = planFor(community, snapshot, communityId)
+    let result = rebuild(community, communityId, params)
     events += result.events
     deltas += result.deltas
-    awarded += backfill(db, communityId,
-      latestEventDate(db, communityId), params).awarded
+    awarded += backfill(community, communityId,
+      latestEventDate(community, communityId), params).awarded
     communities = 1
   else:
     echo usage
     quit(2)
+
+  # Same rule as ranksnapshot: a tick or a rebuild that reached no community has
+  # done nothing, and `{"communities":0}` with exit 0 is indistinguishable from a
+  # quiet night. `session` and `rebuild` always set it to 1.
+  if communities == 0:
+    fail(program, "no communities to ingest")
 
   echo $(%*{"communities": communities, "events": events, "deltas": deltas,
     "awarded": awarded})

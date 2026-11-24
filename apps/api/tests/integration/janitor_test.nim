@@ -4,6 +4,7 @@ import platform/janitor
 import platform/audit_retention
 import tests/fixtures
 import "../../../../shared/platform-lib/tests/clock_fixture"
+import tests/app_role_fixture
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
@@ -231,6 +232,41 @@ suite "janitor":
       """select count(*) as total from account.audit
          where action = 'janitor.test'""").get.get("total")
     check survivor != "0"
+
+  test "the sweep deletes and reports communities as the application role":
+    # The suite's own connection is a superuser or the owner, both of which
+    # bypass row security, so a sweep that lost its per-community scoping would
+    # still delete here. This case runs the same call as `bm2_app`, on a
+    # transaction that is always rolled back. On a database with the policy set
+    # applied it is the only way `purge` can be shown to do anything at all.
+    var communities = 0
+    var links = -1
+    var invites = -1
+    withPinnedClock(pinned):
+      asApp(db, proc(app: Db, conn: DbConn) =
+        for _ in purgeCounting(app, retentionDays, communities):
+          discard
+        # Counted through a facade that declares the community, not on the bare
+        # connection: under the policy set an unscoped read returns zero rows,
+        # which is the same zero a sweep that deleted everything would show.
+        let scoped = app.scoped(communityId)
+        links = scoped.queryOne(
+          """select count(*)::int as total from session.links
+             where community_id = $1::uuid""",
+          @[textParam(communityId)]).get.getInt("total")
+        invites = scoped.queryOne(
+          """select count(*)::int as total from community.invite
+             where community_id = $1::uuid""",
+          @[textParam(communityId)]).get.getInt("total"))
+    check communities >= 1
+    # Only the fresh link (44) and the fresh invite ('fresh') survive a purge.
+    check links == 1
+    check invites == 1
+    # Rolled back, so the owner-side fixture is unchanged for the next case.
+    check db.queryOne(
+      """select count(*) as total from session.links
+         where community_id = $1::uuid""",
+      @[textParam(communityId)]).get.get("total") == "3"
 
   test "the application role cannot delete audit rows":
     let allowed = db.queryOne(
