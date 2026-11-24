@@ -1,7 +1,7 @@
 # deps.lock — pinned toolchain, Nim packages, and gate tools.
 # Format: docs/handbook/deps-format.md. Verify with ./task deps-check.
 # tree = sha256 over the sorted entry lines below (comments excluded).
-tree 1740c083b5aa2995ad124bbab8f2b929a37db26155f3283f1f888243ac18b67b
+tree 73c293af516299569f53aba39bbb0ac6c72eee5922b20036917b117124595fb4
 
 # Nim toolchain
 nim 2.4.2 toolchain:nim -
@@ -59,8 +59,8 @@ osv-scanner 2.7.0 release:https://github.com/google/osv-scanner/releases/downloa
 gitleaks 8.30.1 release:https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
 
 # Playwright browser builds (revision directory names under the browser cache)
-chromium 1254 playwright-browser:chromium -
-chromium_headless_shell 1254 playwright-browser:chromium_headless_shell -
+chromium 1255 playwright-browser:chromium -
+chromium_headless_shell 1255 playwright-browser:chromium_headless_shell -
 ffmpeg 1013 playwright-browser:ffmpeg -
 firefox 1572 playwright-browser:firefox -
 webkit 2388 playwright-browser:webkit -
