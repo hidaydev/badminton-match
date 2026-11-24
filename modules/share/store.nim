@@ -163,7 +163,10 @@ proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
                 session_date, status, slug, name, timezone, start_time,
                 slot_minutes
          from session.share_link_resolve($1, $2)""",
-      @[textParam(sha256Hex(code)),
+      # The hash goes as 32 raw bytes. Sent as the 64-character hex the server
+      # stores 64 bytes in the `bytea`, `code_hash = $1` never matches, and every
+      # live link in every group chat answers "link not found".
+      @[byteaParam(sha256Raw(code)),
         (if looksLikeUuid(code): textParam(code) else: nullParam())])
   else:
     row = db.queryOne(

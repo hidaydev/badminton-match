@@ -802,10 +802,19 @@ proc finishAuth(request: Request, snapshot: Snapshot) =
   let loginUser = AuthUser(id: userRow.get.get("id"),
     isOwner: userRow.get.get("is_platform_owner") == "t")
   database().tx(proc(conn: DbConn) =
-    for grant in inviteStore.acceptPendingForEmail(database().boundTo(conn),
-        loginUser.id, sha256Hex(email)):
-      auditConn(conn, "community.join", grant.communityId, loginUser, "community",
-        grant.communityId, %*{"role": grant.role}, grant.role))
+    let granted = inviteStore.acceptPendingForEmail(database().boundTo(conn),
+      loginUser.id, sha256Hex(email))
+    for grant in granted:
+      # One row per grant, and each row declares its own community through the
+      # facade before it is written. `auditConn(conn, ...)` cannot do that: the
+      # tenant setting lives on the session, so the connection still carries the
+      # last community the loop above claimed. Under the policy set `with check`
+      # refuses a row for any other community, `statusForSqlState` turns 42501
+      # into a 500, and the membership rows roll back with it.
+      recordAudit(database().scoped(grant.communityId).boundTo(conn),
+        evidenceEvent("community.join", grant.communityId, loginUser,
+          "community", grant.communityId, %*{"role": grant.role},
+          grant.role)))
   let token = createSessionToken(userRow.get.get("id"), snapshot)
   authAudit("auth.login", AuthUser(id: userRow.get.get("id"),
     isOwner: userRow.get.get("is_platform_owner") == "t"))

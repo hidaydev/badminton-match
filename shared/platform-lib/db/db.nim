@@ -6,7 +6,7 @@ import db_connector/postgres
 
 type
   DbParamKind* = enum
-    dpNull, dpText, dpInt, dpBool, dpTimestamp
+    dpNull, dpText, dpInt, dpBool, dpTimestamp, dpBytea
 
   DbParam* = object
     case kind*: DbParamKind
@@ -15,6 +15,11 @@ type
     of dpInt: intValue*: int64
     of dpBool: boolValue*: bool
     of dpTimestamp: timestampValue*: string
+    ## Raw bytes, sent in binary format so the server takes them as the `bytea`
+    ## value itself. A hex string sent as text resolves to the `bytea` overload
+    ## too, but arrives as 64 ASCII characters instead of 32 bytes, and a
+    ## comparison against a column of hashes then never matches.
+    of dpBytea: bytes*: seq[byte]
 
   Row* = object
     names*: seq[string]
@@ -86,6 +91,12 @@ proc timestampParam*(value: string): DbParam =
   ## RFC 3339 UTC; PostgreSQL parses the text representation.
   DbParam(kind: dpTimestamp, timestampValue: value)
 
+proc byteaParam*(value: openArray[byte]): DbParam =
+  ## The bytes themselves, not their hex. `sha256Raw` feeds it directly: a hash
+  ## passed as hex is 64 characters the server stores as a 64-byte `bytea`, and
+  ## `code_hash = $1` then compares 32 bytes against 64.
+  DbParam(kind: dpBytea, bytes: @value)
+
 proc textOrNull*(value: string): DbParam =
   ## An empty string is "no value": the column keeps NULL instead of `''`.
   if value.len == 0: nullParam() else: textParam(value)
@@ -101,11 +112,17 @@ proc textArray*(values: seq[string]): string =
 
 proc asText*(param: DbParam): string =
   case param.kind
-  of dpNull: ""
-  of dpText: param.text
-  of dpInt: $param.intValue
-  of dpBool: (if param.boolValue: "true" else: "false")
-  of dpTimestamp: param.timestampValue
+  of dpNull: result = ""
+  of dpText: result = param.text
+  of dpInt: result = $param.intValue
+  of dpBool: result = (if param.boolValue: "true" else: "false")
+  of dpTimestamp: result = param.timestampValue
+  of dpBytea:
+    # Only a fallback: a `dpBytea` value goes on the wire in binary. Text form is
+    # the hex a `decode($1,'hex')` call site expects.
+    result = newStringOfCap(param.bytes.len * 2)
+    for value in param.bytes:
+      result.add(toHex(value, 2))
 
 proc errorField(res: PPGresult, code: cint): string =
   let value = pqresultErrorField(res, code)
@@ -167,6 +184,13 @@ type BoundParams = object
   ## Owns the bytes every pointer in `values` refers to. libpq reads the
   ## pointers during PQexecParams, so these strings must outlive the call.
   backing: seq[string]
+  ## Owns the bytes of every `dpBytea` parameter. Empty when no parameter is
+  ## binary, which keeps the all-text path exactly as it was.
+  raw: seq[seq[byte]]
+  ## One entry per parameter, allocated only when at least one is binary:
+  ## libpq reads both arrays for every parameter once either is supplied.
+  lengths: ptr UncheckedArray[int32]
+  formats: ptr UncheckedArray[int32]
 
 proc countStatement(sql: string) =
   discard statementsAll.fetchAdd(1)
@@ -235,18 +259,47 @@ proc measureStatements*(body: proc()): int =
 proc bindValues(params: seq[DbParam]): BoundParams =
   result.values = cast[cstringArray](alloc0(params.len * sizeof(cstring)))
   result.backing = newSeq[string](params.len)
+  result.raw = newSeq[seq[byte]](params.len)
+  var binary = false
   for i, param in params:
-    if param.kind != dpNull:
+    case param.kind
+    of dpNull: discard
+    of dpBytea:
+      binary = true
+      result.raw[i] = param.bytes
+      # A zero-length `bytea` still needs a pointer libpq may read: a nil entry
+      # is the wire encoding of NULL, not of the empty value.
+      if result.raw[i].len == 0:
+        result.raw[i] = newSeq[byte](1)
+      result.values[i] = cast[cstring](addr result.raw[i][0])
+    else:
       result.backing[i] = param.asText
       result.values[i] = result.backing[i].cstring
+  if binary:
+    # libpq reads both arrays entry by entry once either is supplied, and an
+    # entry of zero means "text, untyped", which is what every other parameter
+    # stays.
+    result.lengths = cast[ptr UncheckedArray[int32]](
+      alloc0(params.len * sizeof(int32)))
+    result.formats = cast[ptr UncheckedArray[int32]](
+      alloc0(params.len * sizeof(int32)))
+    for i, param in params:
+      if param.kind == dpBytea:
+        result.lengths[i] = param.bytes.len.int32
+        result.formats[i] = 1
 
 proc freeValues(bound: BoundParams) =
   let count = bound.backing.len
   for i in 0 ..< count:
     bound.values[i] = nil
   dealloc(bound.values)
+  if bound.lengths != nil:
+    dealloc(bound.lengths)
+  if bound.formats != nil:
+    dealloc(bound.formats)
   # Keep the backing storage alive past the libpq call explicitly.
   discard bound.backing.len
+  discard bound.raw.len
 
 proc executeRows(conn: PPGconn, sql: string, params: seq[DbParam]): seq[Row] =
   ## The SQL string is passed verbatim with $1..$n placeholders, so a jsonb `?`
@@ -255,7 +308,8 @@ proc executeRows(conn: PPGconn, sql: string, params: seq[DbParam]): seq[Row] =
   let bound = bindValues(params)
   try:
     let res = pqexecParams(
-      conn, sql.cstring, params.len.int32, nil, bound.values, nil, nil, 0)
+      conn, sql.cstring, params.len.int32, nil, bound.values,
+      cast[ptr int32](bound.lengths), cast[ptr int32](bound.formats), 0)
     if res == nil:
       raise newException(DbError, $pqerrorMessage(conn))
     try:
@@ -272,7 +326,8 @@ proc executeCommand(conn: PPGconn, sql: string, params: seq[DbParam]): int =
   let bound = bindValues(params)
   try:
     let res = pqexecParams(
-      conn, sql.cstring, params.len.int32, nil, bound.values, nil, nil, 0)
+      conn, sql.cstring, params.len.int32, nil, bound.values,
+      cast[ptr int32](bound.lengths), cast[ptr int32](bound.formats), 0)
     if res == nil:
       raise newException(DbError, $pqerrorMessage(conn))
     try:

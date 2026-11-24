@@ -229,6 +229,17 @@ suite "ranksnapshot day selection":
     # store rows here. `main` builds one facade per community and issues every
     # statement through it; this case drives the same shape as `bm2_app` and
     # counts the rows from inside the same transaction, then lets it roll back.
+    #
+    # It needs the policy set, and says so. On a database without it every
+    # statement here passes whatever the write path declares, so a green run
+    # would be a pass for the wrong reason: the case exists to prove the tenant
+    # is declared, and without policies nothing reads it.
+    let policiesOn = database.queryOne(
+      """select count(*)::int as n from pg_policies
+         where schemaname = 'rating' and tablename = 'snapshots'""")
+      .get.getInt("n") > 0
+    doAssert policiesOn, "this case needs the 0061 policy set; run it with " &
+      "./task policy-test (or migrate the database past 0060)"
     addSession("2026-10-20")
     var written = -1
     var stored = -1
