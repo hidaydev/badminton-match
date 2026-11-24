@@ -15,6 +15,7 @@
 #   apps/api/tests/integration/tenant_scope_guc_test.nim     the three pre-context reads as bm2_app
 #   apps/api/tests/integration/tenant_scope_route_test.nim   the same three through the real routes as bm2_app
 #   apps/api/tests/integration/policy_login_audit_test.nim   a login grant outside the last community by slug
+#   apps/api/tests/integration/policy_definer_bytea_test.nim the three definer reads, resolved by real bytes
 #   tools/ranksnapshot/tests/integration/snapshot_test.nim   the snapshot write as bm2_app
 #
 # The database this runs on is built here, from bm2_template plus db/migrations,
@@ -34,6 +35,7 @@ apps/api/tests/integration/rls_isolation_test.nim
 apps/api/tests/integration/tenant_scope_guc_test.nim
 apps/api/tests/integration/tenant_scope_route_test.nim
 apps/api/tests/integration/policy_login_audit_test.nim
+apps/api/tests/integration/policy_definer_bytea_test.nim
 tools/ranksnapshot/tests/integration/snapshot_test.nim
 "
 
@@ -57,9 +59,15 @@ junit_begin
 # so the only way the policy set reaches this database is a migration, and a
 # database past 0060 that somehow lost it is a defect this target must name
 # rather than pass through.
-policies=$(psql -v ON_ERROR_STOP=1 -At -d "$ISOLATION_SEED" -c \
+#
+# The DSN, not the bare name: `-d <name>` connects over the unix socket, which
+# exists on a developer machine and does not exist in CI, and a connection error
+# then reads as "the migrations never reached 0061". The two cases are kept
+# apart on purpose: only a count that really came back 0 may claim no policies.
+seed_dsn=$(dsn_with_database "$ISOLATION_BASE_DSN" "$ISOLATION_SEED")
+policies=$(psql -v ON_ERROR_STOP=1 -At -d "$seed_dsn" -c \
   "select count(*) from pg_policies where schemaname not in ('pg_catalog','information_schema')" 2>&1) ||
-  fail "policy-test: cannot read pg_policies from $ISOLATION_SEED: $policies"
+  fail "policy-test: cannot connect to $ISOLATION_SEED to read pg_policies: $policies"
 case "$policies" in
   ''|*[!0-9]*) fail "policy-test: pg_policies returned '$policies'" ;;
   0) fail "policy-test: $ISOLATION_SEED has no policies; db/migrations must reach 0061 (0061_rls_tenant_policies.sql)" ;;
