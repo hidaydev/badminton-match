@@ -1,16 +1,11 @@
 # Daily rank snapshot, started by majadu-snapshot.timer.
 #
-# The image ships ranksnapshot for the same reason it ships dbtools and
-# majadu-import: the VPS has no Nim toolchain, so the release runs its own code.
-# The timer is enabled only after the cutover; before it, the env file points at
-# the v1 database, which has no rating.snapshots table.
+# ranksnapshot loops platform.community and, per community, reads the board and
+# upserts rating.snapshots. It reads MAJADU_PG_DSN and nothing else.
 #
-# The job writes the board anchored on the community's last rated event, so a
-# missed day is repaired by the next run; Persistent=true also runs a missed
-# timer at boot.
-#
-# The env file is the tool file: this job needs MAJADU_PG_DSN and none of the
-# request-serving secrets the API unit loads.
+# It loads the job env, not the tool env: the tool env also carries
+# MAJADU_OWNER_DSN, MAJADU_ETL_DSN and the backup DSNs, and a snapshot writer has
+# no use for the role that can change the schema.
 [Unit]
 Description=Majadu daily rank snapshot
 Wants=network-online.target qouver-postgres.service
@@ -19,9 +14,10 @@ OnFailure=majadu-alert@%N.service
 
 [Service]
 Type=oneshot
-# The image ENTRYPOINT is the API, so the tool is selected with --entrypoint;
-# an argument after the image name would start a second API instance instead.
+ExecStartPre=/bin/sh -c 'test -r /srv/qouver/apps/majadu/env/majadu-job.env || { echo "majadu-job.env is missing; install it from ops/env/prod-job.env.example" >&2; exit 1; }'
+# The image ENTRYPOINT is the API, so the tool is selected with --entrypoint; an
+# argument after the image name would start a second API instance instead.
 ExecStart=/usr/bin/podman run --rm --pull=never --network=qouver \
-  --env-file=/srv/qouver/apps/majadu/env/majadu-tools.env \
+  --env-file=/srv/qouver/apps/majadu/env/majadu-job.env \
   --entrypoint /usr/local/bin/ranksnapshot \
   localhost/majadu-api:local

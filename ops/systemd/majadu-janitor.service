@@ -5,9 +5,11 @@
 # touches account.audit; that table belongs to majadu-audit-retention.service,
 # which runs as the owner.
 #
-# It loads the tool env, not the API env: the janitor needs MAJADU_PG_DSN and
-# nothing the request path uses, so the OIDC client secret and the share-code
-# keyring are not in its environment.
+# It loads the job env, not the tool env: the janitor needs MAJADU_PG_DSN and
+# nothing else, so neither the OIDC client secret and share-code keyring (in the
+# API env) nor MAJADU_OWNER_DSN, MAJADU_ETL_DSN and the backup DSNs (in the tool
+# env) are in its environment. The tool env is still where the operator scripts
+# read those; this unit is the one that should not hold them.
 [Unit]
 Description=Majadu janitor (expired temporary rows)
 Wants=network-online.target qouver-postgres.service
@@ -20,8 +22,12 @@ Type=oneshot
 # forever: it never fails, never pages, and the timer's next fire is skipped
 # as "still running".
 TimeoutStartSec=1800
+# A deploy syncs unit files from the repository but never creates env files, so a
+# host that has the new unit and not the file would fail every tick with the
+# tool's own "MAJADU_PG_DSN is required". The check names the file instead.
+ExecStartPre=/bin/sh -c 'test -r /srv/qouver/apps/majadu/env/majadu-job.env || { echo "majadu-job.env is missing; install it from ops/env/prod-job.env.example" >&2; exit 1; }'
 # --entrypoint selects the tool: the image ENTRYPOINT is the API.
 ExecStart=/usr/bin/podman run --rm --pull=never --network=qouver \
-  --env-file=/srv/qouver/apps/majadu/env/majadu-tools.env \
+  --env-file=/srv/qouver/apps/majadu/env/majadu-job.env \
   --entrypoint /usr/local/bin/janitorcli \
   localhost/majadu-api:local
