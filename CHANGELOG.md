@@ -5,6 +5,31 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.3.0] - 2026-11-24
+
+### Added
+- feat(db): guard community.membership and drop directory_entries (425eaba; db/migrations/0061_rls_tenant_policies.sql)
+- feat(db): add 0061 row level security tenant policies (2694128; db/migrations/0061_rls_tenant_policies.sql)
+
+### Changed
+- ci(deps): finish the setup-nim bump the batch merge left behind (ead4e9e; .github/workflows/ci.yml)
+- ci(tenancy): run the policy suites as bm2_app on a database that has 0061 (bd8c883; .github/workflows/ci.yml, task, task.d/policy-test.sh (+1 more))
+- test(tenancy): fail hard when the policy set is absent (fc91341; apps/api/tests/integration/tenant_scope_route_test.nim, tools/ranksnapshot/tests/integration/snapshot_test.nim)
+- test(db): prove a refusal audit row lands and is refused unscoped (bff505a; apps/api/tests/integration/rls_isolation_test.nim)
+- test(db): derive views from the catalogue and pin the definer set (c479dd4; apps/api/tests/integration/policy_coverage_test.nim)
+- docs: move the migration count to 61 (74eda03; README.md, docs/handbook/current-status.md)
+- test(db): prove RLS binds for the application role (c5609f2; apps/api/tests/integration/rls_isolation_test.nim)
+- test(db): assert RLS coverage from the catalogue (9caaf20; apps/api/tests/integration/policy_coverage_test.nim)
+- chore(deps): pin playwright 1.65.1 in deps.lock and refresh the tree (050ab80; deps.lock)
+- chore(deps-dev): bump @testing-library/jest-dom from 7.0.1 to 8.0.0 (530e376; apps/scoreboard/package.json, apps/web/package.json, pnpm-lock.yaml)
+- chore(deps): bump the npm-patch-minor group with 10 updates (2d3a2aa; apps/scoreboard/package.json, apps/web/package.json, package.json (+1 more))
+- chore(deps): bump the github-actions group with 2 updates (a5ee887; .github/workflows/ci.yml, .github/workflows/nightly.yml, .github/workflows/release.yml)
+
+### Fixed
+- fix(tenancy): send a share-link hash as the 32 bytes the column holds (2a3207a; apps/api/tests/integration/policy_definer_bytea_test.nim, modules/share/store.nim, shared/platform-lib/db/db.nim (+1 more))
+- fix(deps): record the browser builds playwright 1.65.1 actually installs (ee237aa; deps.lock)
+- fix(tenancy): audit each login grant in its own community (e218a54; apps/api/src/app.nim, apps/api/tests/integration/policy_login_audit_test.nim)
+
 ## [2.2.0] - 2026-11-24
 
 ### Added
