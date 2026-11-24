@@ -17,9 +17,13 @@
 ##      transaction with no tenant, `with check` refuses it, and the whole
 ##      community rolls back as a 500.
 ##
-## Skipped, not failed, when the database is openable by the app role but has no
-## policy set: without policies the three paths answer correctly on the old code
-## too, so they prove nothing. The point of this file is the policy set.
+## This file REFUSES a database without the policy set, and that is the whole
+## point: without policies the three paths answer correctly on the old code too,
+## so a green run there proves nothing about them. It used to compute the
+## precondition and never read it, so it passed 4/4 on a policy-free database and
+## every reader took the green as evidence. The precondition is now an assertion
+## at the top of `setup`, and the CI job that runs this file is the one that
+## applies 0061 first (`policy` job).
 
 import std/[httpclient, json, options, strutils, unittest]
 import db/db
@@ -66,6 +70,10 @@ suite "pre-context routes as the application role":
       """select count(*)::int as n from pg_policies
          where schemaname = 'community' and tablename = 'settings'""")
       .get.getInt("n") > 0
+    # Hard, not a skip: every case below passes on a policy-free database for the
+    # wrong reason, so a green run there would be a lie someone cites later.
+    doAssert policiesOn, "pre-context route test needs a database with the 0061 " &
+      "policy set; run it in the job that applies 0061 (./task policy-test)"
     for slug in [slugA, slugB, slugA & "-new"]:
       purgeCommunity(owner, slug)
     discard owner.execUpdate(
