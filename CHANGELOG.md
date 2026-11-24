@@ -5,6 +5,35 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.2.0] - 2026-11-24
+
+### Added
+- feat(tenancy): read the community context through a definer door (31a3acd; apps/api/src/community_context.nim)
+- feat(db): ask the catalogue whether a tenant helper is installed (f849748; shared/platform-lib/db/db.nim)
+- feat(tenancy): scope the reads that run before a context exists (6a4bd5b; apps/api/src/app.nim, modules/community/infrastructure/community_store.nim, modules/community/infrastructure/invite.nim (+3 more))
+- feat(jobs): bind each community before its statements (71c3e73; modules/platform/janitor.nim, modules/rating/infrastructure/jobs.nim, tools/ranksnapshot/main.nim (+1 more))
+- feat(db): declare a community per statement on a scoped facade (fe581ef; shared/platform-lib/db/db.nim, shared/platform-lib/tests/integration/db_test.nim)
+- feat(community): serve many communities from one database (bcd0e49; apps/api/src/app.nim, apps/api/src/main.nim, apps/api/tests/http_support.nim (+17 more))
+- feat(web): open the create-community panel on every build (87ff35e; apps/web/src/community/tenancy.ts, apps/web/src/i18n/en.ts, apps/web/src/pages/SetupPage.tsx (+2 more))
+- feat(web): refuse a second community on a single-community deployment (581e804; apps/web/src/community/tenancy.ts, apps/web/src/i18n/en.ts, apps/web/src/pages/SetupPage.tsx (+2 more))
+- feat(community): refuse a second community on the create route (0258c62; apps/api/src/app.nim, apps/api/src/main.nim, apps/api/tests/integration/community_limit_http_test.nim (+11 more))
+
+### Changed
+- test(jobs): give the janitor wrapper case a community to sweep (8b5c4a8; tools/opstoken/tests/integration/wrappers_test.nim)
+- test(tenancy): prove the three pre-context paths against 0061 as bm2_app (112152a; apps/api/tests/integration/tenant_scope_guc_test.nim, apps/api/tests/integration/tenant_scope_route_test.nim)
+- test(deploy): lock the job env split instead of the old shared one (7f61741; tools/shelltests/tests/deploy_guards_test.nim)
+- test(jobs): run the nightly paths as the application role (30e3c70; apps/api/tests/integration/janitor_test.nim, modules/platform/janitor.nim, shared/platform-lib/tests/app_role_fixture.nim (+2 more))
+- ops(job-env): run the scheduled jobs on a one-variable env file (3e8f4fd; ops/env/prod-job.env.example, ops/env/prod-tools.env.example, ops/systemd/majadu-ingest.service (+2 more))
+- ci(e2e): run one browser job on pull requests, keep two on main (3a0aa14; .github/workflows/ci.yml)
+- test(api): prove the prod refusal and give the tournament probe a real draw (14de1a5; apps/api/tests/http_support.nim, apps/api/tests/integration/community_isolation_matrix_test.nim)
+
+### Fixed
+- fix(jobs): fail loudly when a nightly run reached no community (e6b04c2; modules/platform/janitor.nim, tools/janitorcli/main.nim, tools/ranksnapshot/main.nim (+1 more))
+- fix(tenancy): list memberships and create a community under a tenant (9be03ab; apps/api/src/app.nim, modules/community/infrastructure/community_store.nim)
+- fix(tenancy): read a community's settings on its own scope (9124632; apps/api/src/community_context.nim)
+- fix(import): declare the community before the loader writes (ef7e2eb; tools/import/main.nim)
+- fix(audit): name the community on a refusal written before the tenant is installed (e288e9c; apps/api/src/app.nim)
+
 ## [2.1.2] - 2026-11-21
 
 ### Fixed
