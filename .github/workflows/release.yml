@@ -107,7 +107,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
+      - uses: jiro4989/setup-nim-action@08957181dc5baf5f8446497598f798020a03e66a # v2.5.1
         with:
           nim-version: ${{ env.NIM_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -192,7 +192,7 @@ jobs:
       MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
+      - uses: jiro4989/setup-nim-action@08957181dc5baf5f8446497598f798020a03e66a # v2.5.1
         with:
           nim-version: ${{ env.NIM_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -357,7 +357,7 @@ jobs:
       MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
+      - uses: jiro4989/setup-nim-action@08957181dc5baf5f8446497598f798020a03e66a # v2.5.1
         with:
           nim-version: ${{ env.NIM_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -455,7 +455,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
+      - uses: jiro4989/setup-nim-action@08957181dc5baf5f8446497598f798020a03e66a # v2.5.1
         with:
           nim-version: ${{ env.NIM_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -502,7 +502,7 @@ jobs:
       MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
+      - uses: jiro4989/setup-nim-action@08957181dc5baf5f8446497598f798020a03e66a # v2.5.1
         with:
           nim-version: ${{ env.NIM_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -563,7 +563,7 @@ jobs:
       # APP_COMMIT (`-d:appCommit` at apps/api/Dockerfile:49); the other seven
       # compile from sources alone, so a commit-only change reuses their layers
       # instead of rebuilding them.
-      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: "Image: log in to GHCR"
         env:
           GHCR_USER: ${{ github.actor }}
