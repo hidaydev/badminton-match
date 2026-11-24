@@ -299,6 +299,77 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  policy:
+    name: "API: policy set (bm2_app)"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # The suites that only mean something under the 0061 policy set. Every other
+    # job runs them on a DSN whose role bypasses row security (`postgres` here,
+    # the developer's own role locally): 0061 enables RLS and never forces it, so
+    # the owner reads every row and a route that lost its tenant scoping answers
+    # 200 with the wrong content while the assertions still pass.
+    #
+    # This job exists so "green" always means the policies were on. Its database
+    # is built by `./task policy-test` from bm2_template plus db/migrations, and
+    # the target refuses to run when the migration set does not reach 0061.
+    #
+    # `./task policy-test` is not a gate command, so W11 does not see it as a
+    # duplicate of `api-test`'s `./task test`.
+    needs: [preflight]
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jiro4989/setup-nim-action@efd7b4f2cab6441597916438c4f03425167d453b # v2.4.0
+        with:
+          nim-version: ${{ env.NIM_VERSION }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nimble
+          key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cache/*/check
+            .cache/*/build
+          key: nimcache-${{ runner.os }}-${{ hashFiles('deps.lock', 'config.nims', 'majadu.nimble', 'apps/**/*.nim', 'modules/**/*.nim', 'shared/**/*.nim', 'tools/**/*.nim') }}
+          restore-keys: |
+            nimcache-${{ runner.os }}-
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/majadu-runtime-debs
+          key: runtime-debs-${{ runner.os }}-${{ hashFiles('ops/ci/runtime-packages.txt') }}
+      - name: "Dependencies: install the runtime C libraries"
+        env:
+          MAJADU_RUNTIME_DEPS_CACHE: ${{ runner.temp }}/majadu-runtime-debs
+        run: |
+          mkdir -p "$MAJADU_RUNTIME_DEPS_CACHE"
+          cp -a "$HOME/.cache/majadu-runtime-debs/." "$MAJADU_RUNTIME_DEPS_CACHE/" 2>/dev/null || true
+          ./task runtime-deps
+          cp -a "$MAJADU_RUNTIME_DEPS_CACHE/." "$HOME/.cache/majadu-runtime-debs/" 2>/dev/null || true
+      - name: "Dependencies: install pinned Nim packages"
+        run: ./task deps-install
+      # `dev-db` creates the bm2 roles (bm2_app, bm2_owner, bm2_etl) and the bare
+      # bm2_template every seed is copied from. The suites here do not use the
+      # operator's database at all: `policy-test` builds its own.
+      - name: "Database: provision the roles and the template"
+        env:
+          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env
+        run: ./task dev-db
+      - name: "API: policy set as bm2_app"
+        env:
+          MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_policy_test
+          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+        run: ./task policy-test
+
   preflight:
     name: "Preflight: contract, docs, standard"
     runs-on: ubuntu-24.04
@@ -854,7 +925,7 @@ jobs:
     timeout-minutes: 15
     # Only the in-repo quality jobs. `image` waits for this job instead of the other
     # way round, so a tag is published only for a commit whose checks are green.
-    needs: [preflight, api-check, api-test, supply-chain, web, e2e, mutation]
+    needs: [preflight, api-check, api-test, policy, supply-chain, web, e2e, mutation]
     if: always()
     steps:
       - name: "Gate: require every job"

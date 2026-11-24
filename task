@@ -11,6 +11,7 @@ Usage: ./task <target> [args...]
 
 Targets:
   check        nim check, deadcode, proc length, the unit suites and the TypeScript gate (no database)
+  policy-test  the suites that only mean something under the 0061 policy set, as bm2_app
   deadcode     fail on dead declarations, unused imports, shadowing and warnings
   proc-length  fail when a production proc grows past 100 lines
   build        release build of the API binary
