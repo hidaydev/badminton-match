@@ -198,6 +198,14 @@ export const a11yRoutes: readonly VisualRoute[] = [
   },
   // The scoreboard is not repeated here: it is in `visualRoutes` above and this
   // list spreads that one.
+  // The directory is reachable from the account menu of every signed-in
+  // account, so it is walked for a11y without a screenshot baseline: the
+  // baseline has to be recorded on each platform first.
+  {
+    name: 'directory',
+    path: () => '/directory',
+    ready: () => `text=${t('directory.page.title')}`,
+  },
   // Static prose the shell links from the account menu. They carry no data, so
   // the heading is the readiness signal.
   { name: 'privacy', path: () => '/privacy', ready: () => 'h1' },
