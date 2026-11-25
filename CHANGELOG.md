@@ -5,6 +5,16 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.4.0] - 2026-11-25
+
+### Added
+- feat(web): reach the community directory from the account menu (3eee581; apps/web/src/App.tsx, apps/web/src/community/DirectoryPage.test.tsx, apps/web/src/community/DirectoryPage.tsx (+3 more))
+
+### Changed
+- test(e2e): walk /directory in the a11y baseline (c37675a; e2e/visual.routes.ts)
+- docs(routes): list /directory and the account-menu entry (e3a940e; docs/handbook/features-and-routes.md)
+- test(security): move the ISO-17 fallback-origin suite to a reserved host (00570a3; apps/api/tests/integration/security/oidc_fallback_origin_test.nim)
+
 ## [2.3.1] - 2026-11-25
 
 ### Fixed
