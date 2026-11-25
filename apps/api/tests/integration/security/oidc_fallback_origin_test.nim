@@ -1,5 +1,5 @@
 ## ISO-17: the login has to work when the SPA is served from the fallback
-## origin, not only from the Vercel host. The fallback is a real hostname, so the
+## origin, not only from the Vercel host. The fallback is a hostname, not loopback, so the
 ## redirect URI is `https://` — which makes every cookie `Secure`. This suite
 ## drives the whole flow on that configuration: `loadOidcConfig` reads the
 ## fallback origin from the environment, the authorize URL carries it verbatim,
@@ -27,10 +27,10 @@ let
   stubPort = 18178
   stubBase = "http://127.0.0.1:" & $stubPort
   clientId = "iso17-client"
-  ## The static fallback origin the repository documents, not a loopback stand
-  ## in: the point is that the exact string registered at the provider travels
-  ## into the authorize URL.
-  fallbackOrigin = "https://majadu.qouver.com"
+  ## Reserved host (RFC 2606), not the planned origin named in
+  ## `ops/caddy/site-web-fallback.caddy`: this fixture only needs a non-loopback
+  ## hostname that travels verbatim into the authorize URL.
+  fallbackOrigin = "https://majadu-fallback.example"
   fallbackRedirect = fallbackOrigin & "/api/auth/callback"
   keysJson = """{"1":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}"""
 
@@ -72,7 +72,7 @@ proc startStub() =
   putEnv("OIDC_STUB_CLIENT_ID", clientId)
   # The guard stays strict everywhere else; this suite is the one that proves
   # the fallback host is a legitimate callback.
-  putEnv("OIDC_STUB_ALLOWED_REDIRECT_HOSTS", "majadu.qouver.com")
+  putEnv("OIDC_STUB_ALLOWED_REDIRECT_HOSTS", "majadu-fallback.example")
   stubProcess = startProcess(binary, workingDir = repoRoot(), args = [])
   addExitProc(stopStub)
   waitForHttp(stubBase & "/healthz")
