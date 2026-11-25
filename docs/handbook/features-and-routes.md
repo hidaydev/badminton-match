@@ -16,6 +16,7 @@ All legacy screens live under `/c/:slug` through `LegacyShell`; the public URLs
 | Path | Page | Access | Notes |
 |---|---|---|---|
 | `/` | `RootRedirect` | login | redirect to the active community |
+| `/directory` | `DirectoryPage` (`community/DirectoryPage.tsx`) | login | public directory + slug join form, reachable with or without a community |
 | `/owner/communities` | `OwnerSetupPage` (`pages/SetupPage.tsx`) | platform owner | create community + community list |
 | `/c/:slug` | legacy `HomePage` | login | hub: new session, continue session, navigation cards, admin grid |
 | `/c/:slug/sessions` | legacy `SessionListPage` | login | session list |
@@ -57,9 +58,9 @@ Notes:
 
 - Navigation does not use a global menu. `HomeLayout` holds the community picker,
   refresh, and account menu. The account menu contains only identity + community role,
-  `Community settings` (admin), `All communities` (platform owner), and
-  `Sign out`; there is no Admin link in it. Screen changes go through cards
-  on home.
+  `Browse communities` (`/directory`), `Community settings` (admin), `All communities`
+  (platform owner), and `Sign out`; there is no Admin link in it. Screen changes go
+  through cards on home.
 - `HomePage` only shows the New Session CTA and the admin grid for staff
   (`isAdmin` = host or admin). The grid holds Unlock Session and Tournament for
   staff, plus Ratings and Settings for community admins only (`isAdminRole`).
