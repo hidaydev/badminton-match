@@ -250,6 +250,18 @@ type
     bounded*: int
     retired*: int
 
+proc communityIds(db: Db): seq[string] =
+  ## Every tenant, read from the one table that carries no policy. A key is
+  ## shared by the whole deployment and a legacy link can live in any community,
+  ## so the affected row set is every tenant, not one the caller names.
+  ##
+  ## The rows themselves are then read and written through a facade that
+  ## declares one community: on the plain pool under the 0061 policy set a
+  ## `select` from `session.links` returns nothing, so the old code counted zero
+  ## links and reported success while touching none of them.
+  for row in db.query("select id from platform.community order by slug"):
+    result.add(row.get("id"))
+
 proc retireLegacy*(db: Db, windowDays: int, dryRun = false): LegacyRetirement =
   ## Gives the pre-code shortcut a sunset. 0033 marked every row that existed
   ## when codes landed, and `expires_at is null` means "live forever", so the
@@ -268,26 +280,28 @@ proc retireLegacy*(db: Db, windowDays: int, dryRun = false): LegacyRetirement =
     where legacy_id_ok
       and (expires_at is null or expires_at <= now()
            or created_at < now() - make_interval(days => $1))"""
-  if dryRun:
-    result.bounded = db.queryOne(
-      "select count(*)::int as n " & openSql).get.getInt("n")
-    result.retired = db.queryOne(
-      "select count(*)::int as n " & staleSql,
-      @[intParam(windowDays.int64)]).get.getInt("n")
-    return
-  # Bound first: the update is idempotent because the predicate requires a NULL
-  # expiry, so a second run finds nothing to do.
-  result.bounded = db.execUpdate(
-    """update session.links
-       set expires_at = now() + make_interval(days => $1)
-       where legacy_id_ok and expires_at is null""",
-    @[intParam(windowDays.int64)])
-  result.retired = db.execUpdate(
-    """update session.links set legacy_id_ok = false
-       where legacy_id_ok
-         and (expires_at is null or expires_at <= now()
-              or created_at < now() - make_interval(days => $1))""",
-    @[intParam(windowDays.int64)])
+  for communityId in communityIds(db):
+    let scoped = db.scoped(communityId)
+    if dryRun:
+      result.bounded += scoped.queryOne(
+        "select count(*)::int as n " & openSql).get.getInt("n")
+      result.retired += scoped.queryOne(
+        "select count(*)::int as n " & staleSql,
+        @[intParam(windowDays.int64)]).get.getInt("n")
+      continue
+    # Bound first: the update is idempotent because the predicate requires a NULL
+    # expiry, so a second run finds nothing to do.
+    result.bounded += scoped.execUpdate(
+      """update session.links
+         set expires_at = now() + make_interval(days => $1)
+         where legacy_id_ok and expires_at is null""",
+      @[intParam(windowDays.int64)])
+    result.retired += scoped.execUpdate(
+      """update session.links set legacy_id_ok = false
+         where legacy_id_ok
+           and (expires_at is null or expires_at <= now()
+                or created_at < now() - make_interval(days => $1))""",
+      @[intParam(windowDays.int64)])
 
 proc rotateKeys*(db: Db, keyring: Keyring, fromKeyId, toKeyId: string,
                  dryRun = false): int =
@@ -300,32 +314,39 @@ proc rotateKeys*(db: Db, keyring: Keyring, fromKeyId, toKeyId: string,
   ## key that was still in use. A target the keyring does not hold is refused
   ## before the first write. `dryRun` reports the exact row count and writes
   ## nothing.
+  ##
+  ## The count matters more than the write: `--dry-run` is the pre-flight an
+  ## operator reads before retiring a key, and `SHARE_CODE_KEYS` is the only copy
+  ## of it. A read on the plain pool returned zero under the policy set, so the
+  ## pre-flight said "nothing uses this key" while links still did.
   if fromKeyId == toKeyId:
     return 0
   if not keyring.holds(toKeyId):
     raise newException(ShareKeyError,
       "target share key is missing from SHARE_CODE_KEYS: " & toKeyId)
-  let rows = db.query(
-    """select id, community_id, key_id, encode(code_enc,'hex') as code_enc
-       from session.links
-       where key_id = $1""",
-    @[textParam(fromKeyId)])
-  if dryRun:
-    return rows.len
-  for row in rows:
-    let linkId = row.get("id")
-    let communityId = row.get("community_id")
-    var code = ""
-    try:
-      code = decryptWith(keyring, fromKeyId, hexBytes(row.get("code_enc")),
-        aadFor(communityId, linkId))
-    except ShareKeyError:
+  for communityId in communityIds(db):
+    let scoped = db.scoped(communityId)
+    let rows = scoped.query(
+      """select id, community_id, key_id, encode(code_enc,'hex') as code_enc
+         from session.links
+         where community_id = $1::uuid and key_id = $2""",
+      @[textParam(communityId), textParam(fromKeyId)])
+    if dryRun:
+      result += rows.len
       continue
-    let (newKeyId, encrypted) = encryptWithKey(keyring, toKeyId, code,
-      aadFor(communityId, linkId))
-    discard db.execUpdate(
-      """update session.links set code_enc = decode($2,'hex'), key_id = $3
-         where community_id = $4::uuid and id = $1::uuid""",
-      @[textParam(linkId), textParam(bytesHex(encrypted)), textParam(newKeyId),
-        textParam(communityId)])
-    result.inc
+    for row in rows:
+      let linkId = row.get("id")
+      var code = ""
+      try:
+        code = decryptWith(keyring, fromKeyId, hexBytes(row.get("code_enc")),
+          aadFor(communityId, linkId))
+      except ShareKeyError:
+        continue
+      let (newKeyId, encrypted) = encryptWithKey(keyring, toKeyId, code,
+        aadFor(communityId, linkId))
+      discard scoped.execUpdate(
+        """update session.links set code_enc = decode($2,'hex'), key_id = $3
+           where community_id = $4::uuid and id = $1::uuid""",
+        @[textParam(linkId), textParam(bytesHex(encrypted)), textParam(newKeyId),
+          textParam(communityId)])
+      result.inc
