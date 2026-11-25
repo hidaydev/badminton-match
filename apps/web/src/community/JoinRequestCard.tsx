@@ -6,9 +6,11 @@ import { Field, Input } from '../components/Field'
 import { requestToJoin } from './api'
 
 /**
- * The one action a signed-in account without a community can take. The API
- * answers the same 202 for every reason, so the form cannot tell the person
- * whether the slug exists — it only confirms the request left.
+ * Ask an admin to add this account. The API answers the same 202 for every
+ * reason, so the form cannot tell the person whether the slug exists — it only
+ * confirms the request left. Reachable from the empty state and from the
+ * directory page, at any time, whether or not the account already belongs to a
+ * community.
  */
 export function JoinRequestCard({
   slug,

@@ -31,6 +31,7 @@ export const en = {
 
   'nav.settings': 'Community settings',
   'nav.owner': 'All communities',
+  'nav.directory': 'Browse communities',
   'nav.menu': 'Menu',
   'shell.account': 'Account menu',
   'shell.skipToContent': 'Skip to content',
@@ -87,6 +88,10 @@ export const en = {
   'join.failed': 'The request could not be sent. Try again.',
   'directory.title': 'Public communities',
   'directory.hint': 'These communities list themselves publicly. Pick one to fill in its slug below.',
+  'directory.page.title': 'Community directory',
+  'directory.page.subtitle':
+    'Pick a community that lists itself publicly, or send a request with its slug. An admin of that community approves it.',
+  'directory.page.back': 'Back to {name}',
 
   'shared.title': 'Shared session',
   'shared.tabs': 'Session views',
