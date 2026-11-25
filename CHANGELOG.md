@@ -5,6 +5,14 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.3.1] - 2026-11-25
+
+### Fixed
+- fix(ci): nightly order-check provisions the import databases it runs (b962bd6; .github/workflows/nightly.yml)
+- fix(levels): resolve the tenant before reading or writing a ladder (bffea98; task.d/policy-test.sh, tools/ratinglevels/main.nim, tools/ratinglevels/tests/integration/policy_levels_test.nim)
+- fix(share): sweep every tenant in retire-legacy and rotate (0f0098d; modules/share/store.nim, modules/share/tests/integration/policy_share_tools_test.nim)
+- fix(account): anonymize through the tenant facade in every community (45a9962; modules/account/infrastructure/lifecycle_store.nim, modules/account/tests/integration/policy_lifecycle_test.nim)
+
 ## [2.3.0] - 2026-11-24
 
 ### Added
