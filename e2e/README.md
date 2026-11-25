@@ -53,12 +53,14 @@ check over 404s (QAE-03).
   `db/seeds/platform_config.sql` rather than repeated, so the test probes the
   value the deployment has. It runs in the `api` project and never opens a page.
 
-The suite is 183 runs over three viewports: 58 drive a flow on a phone, 9 drive
-the API over its own socket, 39 are the pixel baseline (13 routes on each of the
-two phones and the 1440 desktop) plus the account-menu screenshot on each phone,
-and 77 are axe sweeps, 69 signed in and 8 on the public screens. A snapshot cannot fail for a permission regression, which
-is why the functional share is stated rather than implied; `--list` prints the
-same split per file if it has drifted.
+The suite is 203 runs over three viewports: 9 drive the API over its own socket,
+41 are the pixel baseline (13 routes on each of the two phones and the 1440
+desktop, plus the account-menu screenshot on each phone), 80 are axe sweeps, 72
+signed in and 8 on the public screens, and the remaining 73 drive a flow, the
+keyboard pattern or the route-list guard. A snapshot cannot fail for a permission
+regression, which is why the functional share is stated rather than implied;
+`--list` prints the same split per file if it has drifted. The counts were
+measured on 2026-11-25 with `pnpm exec playwright test --list` from `apps/web`.
 
 Every spec waits for the screen's own data (`VisualRoute.ready`) instead of
 `networkidle`, which never settles on a screen holding a WebSocket open. No spec
