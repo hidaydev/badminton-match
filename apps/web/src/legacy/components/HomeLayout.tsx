@@ -194,6 +194,15 @@ export default function HomeLayout() {
                     </div>
                   )}
                   <div className="flex flex-col p-1.5 text-sm">
+                    <RouterLink
+                      role="menuitem"
+                      tabIndex={-1}
+                      to="/directory"
+                      onClick={() => setAccountOpen(false)}
+                      className="rounded-lg px-3 py-2 text-fg hover:bg-elevated"
+                    >
+                      {t('nav.directory')}
+                    </RouterLink>
                     {isAdminRole && (
                       <Link
                         role="menuitem"

@@ -12,6 +12,7 @@ import { PageHeader } from './components/PageHeader'
 import { RouteChange } from './components/RouteChange'
 import { CommunityProvider } from './community/CommunityProvider'
 import { DirectoryList } from './community/DirectoryList'
+import DirectoryPage from './community/DirectoryPage'
 import { JoinRequestCard } from './community/JoinRequestCard'
 import { useCommunity } from './community/CommunityContext'
 import { t } from './i18n'
@@ -286,6 +287,7 @@ function AuthedRoutes() {
   return (
     <Routes>
       <Route path="/" element={<RootRedirect />} />
+      <Route path="/directory" element={<DirectoryPage />} />
       <Route
         path="/owner/communities"
         element={
