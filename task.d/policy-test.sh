@@ -16,6 +16,9 @@
 #   apps/api/tests/integration/tenant_scope_route_test.nim   the same three through the real routes as bm2_app
 #   apps/api/tests/integration/policy_login_audit_test.nim   a login grant outside the last community by slug
 #   apps/api/tests/integration/policy_definer_bytea_test.nim the three definer reads, resolved by real bytes
+#   modules/account/tests/integration/policy_lifecycle_test.nim  anonymize as bm2_app: membership, claims, players
+#   modules/share/tests/integration/policy_share_tools_test.nim  retire-legacy and rotate as bm2_app
+#   tools/ratinglevels/tests/integration/policy_levels_test.nim  list/set/clear as bm2_app
 #   tools/ranksnapshot/tests/integration/snapshot_test.nim   the snapshot write as bm2_app
 #
 # The database this runs on is built here, from bm2_template plus db/migrations,
@@ -36,6 +39,9 @@ apps/api/tests/integration/tenant_scope_guc_test.nim
 apps/api/tests/integration/tenant_scope_route_test.nim
 apps/api/tests/integration/policy_login_audit_test.nim
 apps/api/tests/integration/policy_definer_bytea_test.nim
+modules/account/tests/integration/policy_lifecycle_test.nim
+modules/share/tests/integration/policy_share_tools_test.nim
+tools/ratinglevels/tests/integration/policy_levels_test.nim
 tools/ranksnapshot/tests/integration/snapshot_test.nim
 "
 

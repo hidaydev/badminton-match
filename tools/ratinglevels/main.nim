@@ -22,6 +22,11 @@ Requires MAJADU_PG_DSN."""
 const kinds = ["session", "tournament_classic", "tournament_team"]
 
 proc communityIdOf(db: Db, slug: string): string =
+  ## `platform.community` carries no policy, so the slug resolves without a
+  ## tenant. Every `rating.levels` statement after this one goes through a facade
+  ## that declares the community: under the 0061 policy set a statement with no
+  ## tenant sees no rows and its writes are refused, so `list` printed an empty
+  ## ladder while `set` failed with a row-level security error.
   let row = db.queryOne(
     "select id from platform.community where slug = $1", @[textParam(slug)])
   if row.isNone:
@@ -120,26 +125,34 @@ proc main() =
 
   case command
   of "list":
-    let communityId = if slug.len > 0: communityIdOf(db, slug) else: ""
-    let filter = if communityId.len > 0: "where l.community_id = $1::uuid" else: ""
     var items = newJArray()
-    for row in db.query(
-      """select c.slug as slug, l.kind as kind,
-                l.champion_points::text as champion_points,
-                l.enabled as enabled, l.round_ratios::text as round_ratios
-         from rating.levels l
-         join platform.community c on c.id = l.community_id
-         """ & filter & """
-         order by c.slug, l.kind""",
-      if communityId.len > 0: @[textParam(communityId)] else: @[]):
-      items.add(%*{"community": row.get("slug"), "kind": row.get("kind"),
-        "championPoints": row.get("champion_points"),
-        "enabled": row.get("enabled") == "t",
-        "roundRatios": parseJson(row.get("round_ratios"))})
+    # One tenant per read. `list` without --community sweeps the catalogue, which
+    # is readable without a tenant, instead of one unscoped join that sees nothing.
+    var communities: seq[(string, string)] = @[]
+    if slug.len > 0:
+      communities.add((communityIdOf(db, slug), slug))
+    else:
+      for row in db.query(
+        "select id, slug from platform.community order by slug"):
+        communities.add((row.get("id"), row.get("slug")))
+    for (communityId, communitySlug) in communities:
+      for row in db.scoped(communityId).query(
+        """select l.kind as kind,
+                  l.champion_points::text as champion_points,
+                  l.enabled as enabled, l.round_ratios::text as round_ratios
+           from rating.levels l
+           where l.community_id = $1::uuid
+           order by l.kind""",
+        @[textParam(communityId)]):
+        items.add(%*{"community": communitySlug, "kind": row.get("kind"),
+          "championPoints": row.get("champion_points"),
+          "enabled": row.get("enabled") == "t",
+          "roundRatios": parseJson(row.get("round_ratios"))})
     echo $(%*{"items": items})
   of "set":
     let communityId = communityIdOf(db, slug)
-    let before = existingRow(db, communityId, kind)
+    let scoped = db.scoped(communityId)
+    let before = existingRow(scoped, communityId, kind)
     let plannedRatios =
       if ratios.len > 0: validateRatios(ratios)
       elif before.isSome: before.get
@@ -151,7 +164,7 @@ proc main() =
         "enabled": enabled, "roundRatios": plannedRatios})
       return
     db.tx(proc(conn: DbConn) =
-      discard conn.execUpdate(
+      discard scoped.boundTo(conn).execUpdate(
         """insert into rating.levels
              (community_id, kind, champion_points, round_ratios, enabled,
               updated_at)
@@ -173,14 +186,15 @@ proc main() =
       "roundRatios": plannedRatios})
   of "clear":
     let communityId = communityIdOf(db, slug)
+    let scoped = db.scoped(communityId)
     if dryRun:
-      let before = existingRow(db, communityId, kind)
+      let before = existingRow(scoped, communityId, kind)
       echo $(%*{"dryRun": true, "community": slug, "kind": kind,
         "action": (if before.isSome: "delete" else: "noop")})
       return
     var deleted = 0
     db.tx(proc(conn: DbConn) =
-      deleted = conn.execUpdate(
+      deleted = scoped.boundTo(conn).execUpdate(
         """delete from rating.levels
            where community_id = $1::uuid and kind = $2""",
         @[textParam(communityId), textParam(kind)])
