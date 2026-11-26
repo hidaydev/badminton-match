@@ -297,9 +297,12 @@ Being honest about gaps is more useful than a runbook that assumes tools that do
 not exist:
 
 - The ops scripts are executed, not theoretical: `cutover.sh` moved production to
-  `bm2`, and `deploy-vps.sh` runs `smoke.sh` on every deploy. The one thing still
-  not run is the D-3 rehearsal (T-063): `tools/rehearsal/timings.json` records
-  `"status": "not_run"`, so the rollback path has no rehearsed run behind it.
+  `bm2`, and `deploy-vps.sh` runs `smoke.sh` on every deploy. The D-3 rehearsal
+  (T-063) ran on qouver1 on 2026-11-26 in a sandbox venue: 22 s total, 1 s
+  restore, 15 s window, 7 s rollback, `resume_proof: true`, recorded in
+  `tools/rehearsal/timings.json`. The rollback half used the `v1-fixture` v1
+  build because `:v1-final` was removed on 2026-11-21, and no archived tarball
+  of that tag exists, so a return to the original v1 image is not possible.
 - Automatic alerts exist at the unit level: `OnFailure=majadu-alert@%N.service`
   on every unit, and `deploy-vps.sh`, `cutover.sh`, and `rollback.sh` call the
   same template on failure. `%N` is the unit name without its type suffix, so

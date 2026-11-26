@@ -25,9 +25,10 @@ Shipped and in production: sessions and courts, tournaments (classic draws and t
 ratings, achievements, player management with claim and merge, multi-tenancy, sealed share links,
 the social canvas, and live updates over WebSocket with an HTTP fallback.
 
-The contract is 76 operations across an OpenAPI definition, backed by 61 migrations on PostgreSQL 18
-keyed and scoped by `community_id`. `./task docs-check` fails the build when a document quotes a
-different number.
+The contract is 76 operations across an OpenAPI definition, backed by 61 migrations on PostgreSQL
+keyed and scoped by `community_id`. Production runs PostgreSQL 19.0; CI and local dev pin the
+`postgres:18.6` image, and every migration is exercised there. `./task docs-check` fails the build
+when a document quotes a different number.
 
 ## Architecture
 
@@ -38,7 +39,7 @@ Majadu follows clean architecture with strict boundary enforcement.
  Delivery and API layer      Nim 2.4, Mummy HTTP and WebSocket server
  Domain core                 9 pure modules: rules, entities, invariants
  Shared platform library     DB binder, clock, logger, metrics, UUIDv7
- Data layer                  PostgreSQL 18, multi-tenant schemas
+ Data layer                  PostgreSQL 19 in production, 18.6 in CI and dev
 ```
 
 - Domain isolation: modules under `modules/<domain>/` hold business logic and database access, and
@@ -83,7 +84,7 @@ task                       Single project dispatcher (`./task help`)
 | Tool | Version | Source |
 |---|---|---|
 | Nim | 2.4.0 | `deps.lock`, `.github/workflows/ci.yml` |
-| PostgreSQL | 18 | CI uses `postgres:18.6`; a container on `127.0.0.1:5432` is enough |
+| PostgreSQL | 18.6 | CI and dev pin `postgres:18.6`; production runs 19.0 |
 | Node.js | 26 | `.github/workflows/ci.yml` |
 | pnpm | 12.17.0 | `packageManager` in `package.json` |
 

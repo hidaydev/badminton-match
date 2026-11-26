@@ -13,13 +13,15 @@ Browser (React 19 SPA)
 apps/api (Nim 2.4, Mummy HTTP + WebSocket)
    │  direct SQL (db_connector, pool)
    ▼
-PostgreSQL 18: database bm2, schema per domain
+PostgreSQL 19.0 in production, 18.6 in CI and dev; database bm2, schema per domain
 ```
 
 - Frontend: React 19, Vite 8, Tailwind 4, React Router 7 (`apps/web/package.json`).
 - Backend: Nim `>= 2.4.0 & < 2.5.0`, Mummy 0.4.8, `db_connector` (commit pin), nimcrypto
   (`majadu.nimble`, `deps.lock`).
-- Database: PostgreSQL 18; tooling uses the database names `bm2_dev` / `bm2_e2e`
+- Database: PostgreSQL 19.0 in production (upgraded 2026-11-25 by dump/restore,
+  18.6 kept as the rollback for a week); CI and local dev pin `postgres:18.6`.
+  Tooling uses the database names `bm2_dev` / `bm2_e2e`
   (`.github/workflows/ci.yml`, `task.d/e2e.sh`). Schema and tables are in
   [`data-model.md`](data-model.md).
 
@@ -258,11 +260,13 @@ touches the games it names, so a partial schedule remains valid
 ## 12. v1 (Go), now removed
 
 The Go v1 source (`apps/api/cmd/`, `apps/api/internal/`, `apps/api/api/`, `go.mod`,
-`go.sum`, `Makefile`) was removed in T-082, after the image
-`localhost/majadu-api:v1-final` was kept as the rollback path. Consequently
-v1 cannot be hotfixed from source during the image retention period; its source exists only in
-git history. The frozen v1 contract lives in `testdata/parity/v1/` (cases,
-`cases.tsv`, and `routes.txt`) and needs no Go source.
+`go.sum`, `Makefile`) was removed in T-082, on the assumption that the image
+`localhost/majadu-api:v1-final` was kept as the rollback path. That tag was
+deleted from the host on 2026-11-21 and no archive was made, so neither the
+image nor the source is available any more (ADR-024); the only rollback left is
+the `:prev` rotation between v2 deploys. The frozen v1 contract lives in
+`testdata/parity/v1/` (cases, `cases.tsv`, and `routes.txt`) and needs no Go
+source.
 
 Module docstrings that mention `*.go` are provenance notes ("ported from"),
 not files still in the tree. `ops/` already uses the v2 env (`MAJADU_PG_DSN` and

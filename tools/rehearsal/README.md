@@ -12,7 +12,9 @@ pointed at a sandbox app dir, unit, Caddy site, and databases.
 - Caddy is really used: the sandbox site on `:18081` imports
   `active.caddy`, and `/version` is answered through Caddy, not only through the
   app port.
-- `:v1-final` is restored by `rollback.sh` until v1's `/healthz` is green.
+- `:v1-final` is restored by `rollback.sh` until v1's `/healthz` is green. That
+  tag no longer exists on the host, so the run needs `MAJADU_REHEARSAL_V1_IMAGE`
+  pointed at a v1 build; the 2026-11-26 run used `localhost/majadu-api:v1-fixture`.
 - `--from restore-staging` really continues the rest of the sequence after
   `rollback.sh` removes `cutover_state`.
 - Duration per step, total, restore, cutover window, and rollback are written to

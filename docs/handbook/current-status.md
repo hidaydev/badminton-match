@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: **2026-11-16**. This document answers "what actually exists in the repo
+Last updated: **2026-11-26**. This document answers "what actually exists in the repo
 today", not "what is planned".
 
 Next entry points: [`architecture.md`](architecture.md),
@@ -14,16 +14,19 @@ apps/web   React 19.2 · Vite 8 · TypeScript 6 · Tailwind 4 · React Router 7
    │        browser → same-origin /api (Vite proxy in dev, vercel.json in prod)
 apps/api   Nim 2.4.0 · mummy (HTTP + WebSocket) · db connector
    │
-Postgres 18.6 · schema per domain (platform, community, player, session,
-              tournament, rating, achievement, auth, account)
+Postgres 19.0 (production; CI and local dev still 18.6) · schema per domain
+            (platform, community, player, session, tournament, rating,
+             achievement, auth, account)
 ```
 
 - **Backend = Nim** in `apps/api/src/`; `apps/api/Dockerfile` builds
   `apps/api/src/main.nim` (multi-stage Nim 2.4.0 → Debian bookworm-slim, uid 10001,
   port 8080).
-- **The Go v1 code is removed** (T-082). Rollback uses the image
-  `localhost/majadu-api:v1-final`, not source; the frozen v1 contract is in
-  `testdata/parity/v1/`.
+- **The Go v1 code is removed** (T-082). `rollback.sh` pointed at the image
+  `localhost/majadu-api:v1-final`, but that tag was deleted on 2026-11-21 and no
+  `podman save` archive exists, so the script now fails closed and the only
+  return path is the `:prev` rotation from a normal deploy (ADR-024). The frozen
+  v1 contract is in `testdata/parity/v1/`.
 - **Scoreboard** (`apps/scoreboard`) is a separate PWA for recording scores on
   court; it shares no code with `apps/web` other than the score validation rules.
 
@@ -181,9 +184,11 @@ E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
   2026-11-21 by the owner's order. Its docs page went with it; a push to that
   branch now dispatches nowhere.
 - **Cutover** (`ops/scripts/cutover.sh`): 14 named steps with a resume marker
-  (`--from`), `:v1-final` tagged before v1 is stopped, Caddy maintenance, dump →
-  `bm_staging`, roles + migrations + seed + owner, ETL + verify, `cutover_state`,
-  swap env, swap the Caddy snippet, `/readyz`, smoke. Rollback: `rollback.sh`.
+  (`--from`), `:v1-final` tagged before v1 is stopped (that tag has since been
+  deleted, so this step only applies to a future v1 source), Caddy maintenance,
+  dump → `bm_staging`, roles + migrations + seed + owner, ETL + verify,
+  `cutover_state`, swap env, swap the Caddy snippet, `/readyz`, smoke. Rollback:
+  `rollback.sh`, which now fails closed because `:v1-final` is gone.
 - **Unit**: `ops/systemd/majadu-api.container` (rootless, `Pull=never`,
   `MemoryMax=512M`, `StartLimit*`, `OnFailure=majadu-alert@%N.service`,
   `NoNewPrivileges`, `DropCapability=ALL`) + `majadu-alert@.service`.
@@ -197,22 +202,30 @@ E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
   is kept. The one-time steps are in `ops/caddy/Caddyfile.api.qouver.com`.
 - **Backup/restore/smoke**: `ops/scripts/{backup,restore,smoke}.sh`; the dump is verified
   with `pg_restore --list` before it is moved, file mode 600.
-- **Rehearsal**: `tools/rehearsal/` + `./task rehearsal check`; `timings.json` is still
-  `not_run` because it needs Podman + a maintenance window on the VPS.
-- **Artifacts** not yet proven on the VPS: `caddy validate` on the production Caddyfile,
-  Quadlet parsing, digest `podman pull`, and stopwatch rollback. See
-  [`../ops/cutover.md`](../ops/cutover.md) §"What is not yet proven until the D-3 rehearsal".
+- **Rehearsal**: `tools/rehearsal/` + `./task rehearsal check`; `timings.json` records
+  `"status": "passed"` from the qouver1 sandbox run on 2026-11-26 (22 s total,
+  1 s restore, 15 s window, 7 s rollback, resume proof true).
+- **VPS evidence**: captured on qouver1 on 2026-11-26 — `caddy validate` valid on the
+  production Caddyfile, the Quadlet generator reads 13 units, digest
+  `sha256:973126e8d7fa` pulls and matches `last-release.json`. See
+  [`../ops/cutover.md`](../ops/cutover.md) §7 for what the rehearsal did and did not prove.
 
 ## 8. Remaining work
 
 The rewrite backlog is done; what remains is operations and measurement.
 
-- **Operations, waiting on the VPS/time:** T-063 rehearsal (and therefore the
-  T-060/061/065 evidence: production `caddy validate`, Quadlet parsing, digest
-  `podman pull`, stopwatch rollback), removal of `:v1-final` after 30 days
-  (T-082), T-108 force-push postponed by owner decision. The T-074 soak is
-  dropped (ADR-023), so the host capacity ceiling stays unproven; `./task
-  loadtest --local` remains the regression baseline.
+- **Closed on the host 2026-11-26:** the T-063 rehearsal passed in a sandbox venue
+  (22 s total, 1 s restore, 15 s window, 7 s rollback, resume proof true) and the
+  T-060/061/065 evidence was captured (production `caddy validate`, Quadlet
+  generator reads 13 units, digest `sha256:973126e8d7fa` pulls and matches
+  `last-release.json`). T-082 needed no work: `:v1-final` was already gone and no
+  archive exists (ADR-024). REL-BKP-02 is rejected by owner decision (ADR-025) —
+  no offsite copy, the same-volume risk is accepted.
+- **Still waiting on the host:** REL-BOOT-01 needs one announced reboot to prove
+  the Quadlet `After=qouver-postgres.service` ordering. T-108 force-push stays
+  postponed by owner decision. The T-074 soak is dropped (ADR-023), so the host
+  capacity ceiling stays unproven; `./task loadtest --local` remains the
+  regression baseline.
 - **Gaps outside the plan:** `platform.outbox` producer (realtime is still
   per-process). Coverage is measured after the gcov attribution fix by
   `./task coverage`, which is a local run: no workflow has judged

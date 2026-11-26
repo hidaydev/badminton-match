@@ -5,10 +5,12 @@ Cutover is **manual and one-way**: there is no side-by-side period, no cutover
 from a push, and no automatic resume. The only way back is `rollback.sh`.
 
 Status: executed. The sequence below ran on the VPS in the v2.0.0 release window
-(2026-11-11 era) and production has served `bm2` since; `v2.0.2` is the current
-release. The D-3 rehearsal gate was never met — `tools/rehearsal/timings.json`
-still records `"status": "not_run"` — so the forward path is proven by the
-cutover itself, and the rollback path is not proven by a rehearsal.
+(2026-11-11 era) and production has served `bm2` since; `2.4.0` is the current
+release. The D-3 rehearsal ran on qouver1 on 2026-11-26 in a sandbox venue
+(`majadu-rehearsal`, port 18081, `bm_staging` → `bm2_rehearsal`) and
+`tools/rehearsal/timings.json` records `"status": "passed"`: 22 s total, 1 s
+restore, 15 s window, 7 s rollback, with the `--from restore-staging` resume
+proof. Production was not touched by that run.
 
 Before the window, run `cutover.sh --check --version v<version>`. It validates
 the tools and resolves the signed release digest without taking the lock or
@@ -22,7 +24,9 @@ on this host; the host-binary path remains for a host that already has them.
 ## 0. Principles that must not be violated
 
 - The v1 image is tagged `:v1-final` **before** v1 is shut down. If tagging
-  fails after v1 stops, there is no way back.
+  fails after v1 stops, there is no way back. (The current host has no
+  `:v1-final` any more — deleted 2026-11-21, ADR-024 — so this principle applies
+  to a future cutover only.)
 - v1 is `disable`d, not just `stop`ped. A reboot must not bring it back up and
   write to `bm`.
 - `bm` is read-only: dump only, not a restore target, no DDL, no writes after
@@ -112,7 +116,9 @@ fixed (for example a wrong role password):
 ```
 
 `--from` does not re-check the earlier steps; the operator makes sure the state
-on disk still matches (for example `:v1-final` exists and is correct).
+on disk still matches (for example `cutover_state` exists and its step markers
+agree). `:v1-final` is not part of that check any more: the tag was deleted on
+2026-11-21 (ADR-024).
 
 **B. Go back to v1:**
 
@@ -187,17 +193,25 @@ If the rollback itself fails, do not rerun the cutover: recover by hand from
 - [ ] `bm` stays read-only; the `bm2_*` roles cannot `CONNECT` to it
       (`ops/db/roles.sql` already enforces this with assertions).
 - [ ] The daily `bm` dump stops; keep one final dump outside the rotation.
-- [ ] `:v1-final` is kept until T-082: archive it as a tarball
-      (`podman save`) **before** the tag is removed, then delete it together
-      with the Go decommission.
+- [ ] The D+30 archive step was **missed**: `:v1-final` was deleted on 2026-11-21
+      without a `podman save` tarball and without a recorded digest (ADR-024).
+      Nothing is left to delete; a future cutover must archive before removing.
 - [ ] Review whether `majadu-prod.env.v1` and the v1 `ops/scripts` are still
-      needed; do not delete `:v1-final` earlier than 30 days.
+      needed.
 
-## 7. What is not yet proven until the D-3 rehearsal
+## 7. What the D-3 rehearsal proved, and what it did not
 
-`tools/rehearsal/timings.json` still records `"status": "not_run"`, so the
-rehearsal never replaced the targets in this document with measurements. What
-that leaves unproven is the rollback-and-resume path as one rehearsed run:
-`rollback.sh` followed by `cutover.sh --from restore-staging`, on the real
-Quadlet and Caddy, inside an announced window. The forward path is proven by the
-cutover that shipped v2.0.0; §3 is the procedure if it has to be walked again.
+The rehearsal ran on qouver1 on 2026-11-26 and `tools/rehearsal/timings.json`
+records `"status": "passed"` with every budget met: 22 s total against 1800 s,
+1 s restore against 900 s, 15 s window against 600 s, 7 s rollback, and
+`resume_proof: true` from `cutover.sh --from restore-staging`. It ran the real
+scripts against a sandbox venue with its own app dir, unit, Caddy site and
+databases, so the Quadlet and Caddy path is the same shape production uses.
+
+The one substitution: `localhost/majadu-api:v1-final` was already removed on
+2026-11-21, so the rollback half used `localhost/majadu-api:v1-fixture`, a real
+v1 Go build that reports `/version 1.99.0-fixture`. The return to v1 is
+therefore rehearsed with the same binary shape, not with the original tag, and
+no `podman save` archive of `:v1-final` exists (ADR-024). The forward path is
+proven by the cutover that shipped v2.0.0; §3 is the procedure if it has to be
+walked again.

@@ -29,8 +29,10 @@ frozen now that the Go tree is gone (T-082).
 `PARITY_BASE` defaults to `http://127.0.0.1:8091`.
 
 `verify` needs nothing but the files and the Nim toolchain, so it runs anywhere.
-`record` and `replay` need a live v1 server; since the source is gone, use the
-archived image instead of rebuilding it:
+`record` and `replay` need a live v1 server. The archived image
+`localhost/majadu-api:v1-final` was deleted on 2026-11-21 (ADR-024), so the v1
+binary now has to be rebuilt from the last Go commit (or supplied by
+`MAJADU_REHEARSAL_V1_IMAGE`) before either command can run:
 
 ```
 ./task dev-v1

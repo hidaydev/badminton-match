@@ -249,10 +249,10 @@ A release is not done until all eight are true:
    The deploy runs it itself after `/readyz` goes green (step 7 in §3); if that
    gate fails, `deploy/deployed-rev` is not written and the release is retried
    on the next push.
-6. **`:v1-final` has a deletion date and an archived digest.** That tag is never
-   deleted by the deploy (`podman image prune -f` only drops untagged images);
-   delete it by hand after that date, with the digest recorded in the release
-   notes.
+6. **`:v1-final` no longer exists.** The tag was deleted on 2026-11-21 with no
+   archived digest and no `podman save` tarball, so `rollback.sh` fails closed
+   and the only return path is the `:prev` rotation between v2 deploys
+   (ADR-024). Any future cutover that needs a v1 image has to rebuild one.
 7. **The local load baseline for the tagged commit is recorded.** `./task
    loadtest --local` against the release candidate, with its p50/p95/p99,
    failure count and RSS peak archived in the release evidence. It runs against

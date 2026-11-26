@@ -1,6 +1,6 @@
 # Roadmap
 
-Status as of **2026-11-16** (Release 2.0.3). The change history is in git history.
+Status as of **2026-11-26** (Release 2.4.0). The change history is in git history.
 
 ## ✅ Done
 
@@ -9,7 +9,7 @@ Status as of **2026-11-16** (Release 2.0.3). The change history is in git histor
   `apps/api/src/main.nim`.
 - **76-operation contract**: `core.yaml` + `community.yaml` → `api.yaml`,
   `routes_gen.nim`, TS client, fingerprint (`packages/contracts/openapi`).
-- **v2 schema**: 60 migrations (`0001`–`0060`), 36 config keys, config and
+- **v2 schema**: 61 migrations (`0001`–`0061`), 36 config keys, config and
   achievement seeds.
 - **Auth & communities**: OIDC + session cookie, `member`/`host`/`admin` membership,
   invite, join request, settings, append-only audit, platform owner.
@@ -34,9 +34,11 @@ Status as of **2026-11-16** (Release 2.0.3). The change history is in git histor
 - **Daily snapshot**: `ranksnapshot` ships in the image and is run by
   `majadu-snapshot.timer` (active after cutover); the rank arrow no longer
   depends on a manual snapshot.
-- **Release**: SemVer 2.0.3, CHANGELOG, SSH-signed tags, image built once in CI, digest-based
+- **Release**: SemVer 2.4.0, CHANGELOG, SSH-signed tags, image built once in CI, digest-based
   Release and automated VPS deploy.
-- **Go v1 decommission**: source removed; rollback uses `:v1-final`.
+- **Go v1 decommission**: source removed; the `:v1-final` rollback tag was lost
+  on 2026-11-21, so rollback now fails closed and only `:prev` (v2 → v2) remains
+  (ADR-024).
 
 ## ⏳ Next (outside the 88 tasks)
 
@@ -47,21 +49,29 @@ Status as of **2026-11-16** (Release 2.0.3). The change history is in git histor
 
 ## 🚧 Operations still open
 
-- **T-063 rehearsal**: harness + gate ready, `timings.json` is still `not_run`;
-  needs Podman and a maintenance window on the VPS.
-- **VPS evidence** (T-060/061/065): production `caddy validate`, Quadlet parsing,
-  digest `podman pull`, stopwatch rollback.
+- **VPS evidence** (T-060/061/065): captured on qouver1 on 2026-11-26 — production
+  `caddy validate` valid, the Quadlet generator reads 13 units, digest
+  `sha256:973126e8d7fa` pulls and matches `last-release.json`. The artifact lives
+  outside the repo (`2026-11-26-vps-backlog/VPS-EVIDENCE.md`), so the repo carries
+  the summary, not the raw output.
+- **T-063 rehearsal**: **passed** on qouver1 2026-11-26 (22 s total, 1 s restore,
+  15 s window, 7 s rollback, resume proof true), recorded in
+  `tools/rehearsal/timings.json`. The rollback half used the `v1-fixture` v1 build,
+  because `:v1-final` was already gone.
 - **T-074 soak**: **dropped** by owner decision 2026-11-26 (ADR-023). The
   harness stays for the local regression baseline (`./task loadtest --local`);
   no host run is planned, so the capacity ceiling stays unproven and that gap is
   accepted rather than outstanding.
-- **T-082**: remove the `:v1-final` image after 30 days of post-cutover observation.
+- **T-082**: `:v1-final` was already removed on 2026-11-21 and no `podman save`
+  tarball was ever made, so the v1 return path is gone; see ADR-024.
+- **REL-BOOT-01**: the Quadlet `After=qouver-postgres.service` units are committed,
+  but only one announced host reboot proves them.
 - **T-108**: force-push of the rewritten history is **postponed** by owner decision;
   a local hook rejects internal audit/review notes coming back in.
 
 ## Notes
 
 - Deploy: push `main` → webhook → `ops/scripts/deploy-vps.sh` with cosign signature verification retry.
-- Production runs v2.0.3 on `bm2_prod` at 127.0.0.1:8080 behind Caddy.
+- Production runs 2.4.0 on `bm2` at 127.0.0.1:8080 behind Caddy, on PostgreSQL 19.0.
 - Tests: `./task check` · `./task test` (with `MAJADU_PG_DSN`) · `./task coverage`
   · `./task e2e` · `pnpm check:web`.

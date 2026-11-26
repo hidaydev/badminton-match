@@ -702,3 +702,53 @@ by a single request path, a plan to run more than one API instance, or a
 customer asking for a capacity number in writing. Any of those makes the soak
 worth its window again, and the committed harness (`./task loadtest`) is the
 run to repeat.
+
+## ADR-024 · The v1 return path is gone; `:v1-final` was removed without an archive
+
+**Date:** 2026-11-26
+**Audit finding:** T-082
+**Status:** Applied (host, 2026-11-21), decision recorded 2026-11-26
+
+**Decision:** the rollback to Go v1 is not available any more, and no attempt
+will be made to rebuild it. `localhost/majadu-api:v1-final` was deleted from the
+Podman store on 2026-11-21, before the 30-day observation window in
+`docs/ops/cutover.md` §7 had expired and without the `podman save` tarball that
+section required. Nothing in the repo, on the host, or in GHCR holds that image.
+
+**Reason:** the removal already happened, so the choice is between recording it
+and pretending a guard still exists. `rollback.sh` fails closed with
+`:v1-final is gone; v2 cannot be rolled back safely`, which is the correct
+behaviour: a rollback script that silently falls back to an untested image would
+be worse than one that refuses. The practical return path is now the `:prev`
+rotation that `deploy-vps.sh` maintains on every deploy, which returns to the
+previous **v2** image, not to v1.
+
+**What it does not buy:** a bad v2 release can only be rolled back one v2 step.
+If a future cutover needs the v1 binary as a last resort it has to be rebuilt
+from `testdata/parity/v1/` or from the frozen Go tree, and that is an unplanned
+piece of work, not a stored artifact.
+
+**Reopener:** a v2 incident that `:prev` cannot recover from, or a requirement to
+run the v1 Go API again for any reason.
+
+## ADR-025 · No offsite copy of the PostgreSQL backups is bought
+
+**Date:** 2026-11-26
+**Audit finding:** REL-BKP-02
+**Status:** Rejected (owner decision)
+
+**Decision:** offsite backup replication is dropped from the backlog. `rclone`
+will not be installed and the `offsite:` remote will not be configured. The
+nightly `bm2` dump keeps living on the same volume as the database.
+
+**Reason:** the owner weighed the cost of an offsite target against the risk and
+declined it. The loss this leaves is specific and should be stated plainly: a
+disk failure or a deleted volume takes production **and** every backup with it,
+including the weekly and monthly tiers that REL-BKP-03 added.
+
+**What it does not buy:** protection against losing the host's storage. Backups
+protect against a bad deploy, a bad migration and application corruption, which
+all live on the same disk; they do not protect against losing the disk.
+
+**Reopener:** any storage-level incident on qouver1, a change of hosting
+provider, or a second machine that can hold a copy cheaply.
