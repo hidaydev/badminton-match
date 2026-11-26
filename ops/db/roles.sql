@@ -110,11 +110,21 @@ end $$;
 -- are emitted only when the caller can actually alter `bm`; otherwise they would
 -- warn "no privileges could be revoked" and change nothing. Either way the
 -- assertion below reports a hole instead of pretending it was closed.
+-- One transaction from here to the assertions: `\gexec` otherwise autocommits
+-- each statement, so a failing assert would leave the ACL half-applied.
+begin;
+
+-- The revoke is gated on the grantee existing: it closes the archive to every
+-- role, and the GRANT below is what lets v1 back in. Without `majadu_app` the
+-- revoke would shut v1 out of its own archive, which is the one outcome the
+-- comment above forbids. A rebuilt host has the database back but not the role
+-- (roles are not in a dump), so this is reachable, not theoretical.
 select 'revoke connect on database bm from public'
 where exists (
   select 1 from pg_database d
   where d.datname = 'bm' and pg_has_role(current_user, d.datdba, 'USAGE')
-) \gexec
+)
+  and exists (select 1 from pg_roles where rolname = 'majadu_app') \gexec
 select 'revoke all on database bm from bm2_app, bm2_etl, bm2_audit_prune'
 where exists (
   select 1 from pg_database d
@@ -142,6 +152,15 @@ begin
   select pg_has_role(current_user, d.datdba, 'USAGE') into can_fix
   from pg_database d
   where d.datname = 'bm';
+
+  -- Revoking PUBLIC's CONNECT without the grant back locks v1 out of its own
+  -- archive. The REVOKE above is gated on the same role existing, so this only
+  -- reports the reason the archive was left alone instead of failing after it
+  -- had already been shut.
+  if can_fix and not exists (select 1 from pg_roles where rolname = 'majadu_app') then
+    raise exception
+      'role majadu_app does not exist: revoking PUBLIC connect on bm would lock v1 out of its own archive. Create the v1 login role first (ops/env/*.v1 names it)';
+  end if;
 
   -- v1 logs in as majadu_app (see ops/env/*.v1); without CONNECT a rollback
   -- restores an image that cannot open its own database.
@@ -177,3 +196,5 @@ begin
       'bm2_audit_prune can still connect to bm (O-41); this session is not the owner of bm, so the revoke was not attempted';
   end if;
 end $$;
+
+commit;

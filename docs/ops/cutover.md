@@ -196,6 +196,12 @@ If the rollback itself fails, do not rerun the cutover: recover by hand from
       the `bm2_owner` used by cutover and rehearsal, gets a `NOTICE` instead of a
       hard failure, so the closure has to be confirmed with the owner role once
       and re-checked after every restore (Dimas reports it is closed on qouver1).
+      The section runs in one transaction, so a failed assertion leaves `bm`'s ACL
+      untouched, and the `PUBLIC` revoke is skipped when the `majadu_app` role does
+      not exist: on a rebuilt host the database comes back without the roles, and
+      revoking without the grant would shut v1 out of its own archive. The file
+      then fails with "role majadu_app does not exist" and the archive stays open
+      until the role is created (its name comes from the v1 env on the host).
 - [ ] The daily `bm` dump stops; keep one final dump outside the rotation.
 - [ ] The D+30 archive step was **missed**: `:v1-final` was deleted on 2026-11-21
       without a `podman save` tarball and without a recorded digest (ADR-024).
