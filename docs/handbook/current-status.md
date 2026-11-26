@@ -226,6 +226,18 @@ The rewrite backlog is done; what remains is operations and measurement.
   postponed by owner decision. The T-074 soak is dropped (ADR-023), so the host
   capacity ceiling stays unproven; `./task loadtest --local` remains the
   regression baseline.
+- **Archive ACL on the host:** Dimas read it live on qouver1 on 2026-11-26 (read
+  only): `bm` is `{=T/qouver,qouver=CTc/qouver,majadu_app=c/qouver}`, the v1
+  `DATABASE_URL` logs in as `majadu_app` with `rolcanlogin = true`, and no `bm2`
+  or `majadu2_*` role holds `CONNECT` on `bm`. `ops/db/roles.sql` also gates its
+  `PUBLIC` revoke on that role being usable (`LOGIN`, connection limit not zero,
+  password not expired), and `docs/ops/cutover.md` §6 requires
+  `psql "$V1_DSN" -c 'select 1'` before an owner-run on a rebuilt host.
+- **`bm2` still carries the default ACL:** Dimas' read shows `datacl` NULL on the
+  live `bm2` database, so `PUBLIC` keeps `CONNECT` there and the per-role grants
+  in `roles.sql` are redundant until an owner-run of the file on `bm2` revokes it.
+  Table and schema privileges are unaffected; this is a hygiene gap, not a data
+  exposure, and it is not urgent.
 - **Gaps outside the plan:** `platform.outbox` producer (realtime is still
   per-process). Coverage is measured after the gcov attribution fix by
   `./task coverage`, which is a local run: no workflow has judged
