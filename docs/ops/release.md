@@ -4,9 +4,9 @@ The v2 release runbook: how a version is made, what must be right before it is
 declared done, and how to go back to the previous release on a functional
 regression (not during cutover; for that, see `docs/ops/cutover.md`).
 
-Status: four releases have shipped from this flow (`v2.0.0`, `v2.0.1`,
-`v2.0.2`, `v2.0.3`; §7), and `v2.0.3` is what production runs. The parts that are still
-unproven are named in §7.
+Status: fourteen releases have shipped from this flow (`v2.0.0` … `v2.4.0`;
+§7), and `2.4.0` is what production runs. The parts that are still unproven are
+named in §7.
 
 ## 1. Source of truth
 
@@ -27,8 +27,8 @@ other digest-shaped string appears in the body (for example in the tag message).
 The signature is checked with `cosign verify --key env/cosign.pub` before
 `podman pull`.
 
-The tag is `v<version>` and nothing else: `VERSION` with a `v` in front (`2.0.3`
-on this tree, so `v2.0.3`). The candidate branch carries a pre-release name of
+The tag is `v<version>` and nothing else: `VERSION` with a `v` in front (`2.4.0`
+on this tree, so `v2.4.0`). The candidate branch carries a pre-release name of
 its own;
 the tag never does, and this repository has no release-candidate tag.
 `release.yml` refuses a tag whose name does not match `VERSION` (it fails with
@@ -330,15 +330,27 @@ readiness, not silently write wrong data.
 
 ## 7. Releases recorded
 
-Four releases have shipped from this flow. The digest is not copied into this
+Fourteen releases have shipped from this flow. The digest is not copied into this
 document: the deploy records it in `deploy/last-release.json` on the host, next
-to the commit and the schema, and that file is what a rollback reads.
+to the commit and the schema, and that file is what a rollback reads. Dates are
+the tag dates; the per-version detail is in `CHANGELOG.md`.
 
 | Tag | Date | What shipped | Digest |
 |---|---|---|---|
 | `v2.0.0` | 2026-11-09 | the v2 release: Google OIDC login, communities, players, sessions and scoring, share links, rating projection and leaderboards, tournaments, live watchers, the v1→v2 importer; production cut over from `bm` to `bm2` | recorded on the host |
 | `v2.0.1` | 2026-11-16 | Nim 2.4.2 and Playwright 1.65.0 pins, the image job gated behind a green gate, deploys keyed to the pushed commit's image, Caddy restarted (never reloaded) on cutover, and the cutover fixes listed in the changelog | recorded on the host |
 | `v2.0.2` | 2026-11-16 | the deploy waits for the image signature instead of failing seconds after the pull, and the SPA rebuilds when `VERSION` changes | recorded on the host |
+| `v2.0.3` | 2026-11-16 | documentation audit and prune for v2.0.2, plus the release SOP clarification | recorded on the host |
+| `v2.0.4` | 2026-11-18 | tier and tournament medals on the player shelf; the release notes drop their signature block | recorded on the host |
+| `v2.0.5` | 2026-11-18 | the CI standard check, dev Postgres reached through the `pg18` container, one lock-wait constant for both deploy scripts, test shards split by measured cost | recorded on the host |
+| `v2.0.6` | 2026-11-18 | Playwright browser installs cached and capped in every workflow instead of `--with-deps` | recorded on the host |
+| `v2.1.0` | 2026-11-21 | draft sessions carry a 48-hour share link (ADR-022), the instrumented coverage graph is removed, and the reliability backlog round lands (pooled-connection revalidation, in-transaction idempotency, watcher bounds, backup refusal without an owner DSN, boot ordering) | recorded on the host |
+| `v2.1.1` | 2026-11-21 | two integration suites the release shards died on | recorded on the host |
+| `v2.1.2` | 2026-11-22 | `:local` survives the image rotation and a latched unit is reset | recorded on the host |
+| `v2.2.0` | 2026-11-24 | many communities from one database: the community context read through a definer door, each statement bound to its community, jobs bound before their statements | recorded on the host |
+| `v2.3.0` | 2026-11-24 | `0061_rls_tenant_policies.sql` and the tenancy test suites that prove it for the application role | recorded on the host |
+| `v2.3.1` | 2026-11-25 | rating levels resolve the tenant before touching a ladder, share-sweep and account-anonymize fixes across tenants, nightly order-check provisions the databases it runs | recorded on the host |
+| `v2.4.0` | 2026-11-26 | a signed-in member reaches the public directory from the account menu | recorded on the host |
 
 `ops/scripts/release-preflight.sh <tag>` walks the same inputs the workflow and
 the deploy read and names the missing one; it creates nothing. Run it before the
