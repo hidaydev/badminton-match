@@ -5,6 +5,24 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.4.1] - 2026-11-26
+
+### Changed
+- docs(ops): order the v1 DSN preflight before and after the owner-run (388d1dd; docs/handbook/current-status.md, docs/ops/cutover.md)
+- docs: record the live bm ACL and the bm2 default-ACL gap (f55f755; docs/handbook/current-status.md)
+- docs: say which Postgres each environment runs in the remaining two files (50da00c; CLAUDE.md, apps/api/README.md)
+- docs(release): record all fourteen releases, not the first three (e9a93b5; docs/ops/release.md)
+- docs(cutover): state who the CONNECT asserts actually fire for (d863c41; docs/ops/cutover.md)
+- docs: record the 2026-11-26 host run and correct the stale Postgres/version lines (721d1a1; README.md, docs/decisions.md, docs/handbook/architecture.md (+9 more))
+- docs: drop the host soak (T-074) and record ADR-023 (774dd9a; docs/decisions.md, docs/handbook/current-status.md, docs/handbook/roadmap.md (+3 more))
+- ci: run registry retention daily (0c9de11; .github/workflows/retention.yml)
+
+### Fixed
+- fix(ops): require a usable majadu_app login before closing bm (249a51c; docs/ops/cutover.md, ops/db/roles.sql)
+- fix(ops): require majadu_app to log in before closing bm (6eed589; docs/ops/cutover.md, ops/db/roles.sql)
+- fix(ops): keep v1 able to reach bm when the role is missing (28147cc; docs/ops/cutover.md, ops/db/roles.sql)
+- fix(ops): make the archive asserts conditional and the rehearsal runnable (f9da92b; ops/db/roles.sql, ops/scripts/cutover.sh, tools/rehearsal/README.md (+1 more))
+
 ## [2.4.0] - 2026-11-25
 
 ### Added
