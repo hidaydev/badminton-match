@@ -253,14 +253,13 @@ A release is not done until all eight are true:
    deleted by the deploy (`podman image prune -f` only drops untagged images);
    delete it by hand after that date, with the digest recorded in the release
    notes.
-7. **The load report for the tagged commit is recorded.** `./task loadtest`
-   against the release candidate with `--pid` on the API process, with its
-   p50/p95/p99, failure count and RSS peak archived in the release evidence
-   (T-074). A release without it has no measured capacity, only a configured
-   ceiling. `./task loadtest --local` runs the same harness against a database
-   it creates and drops, so the report can be produced before the tag instead of
-   waiting for a host window; the host run is still the one that exercises the
-   512 MB ceiling and the watcher fan-out.
+7. **The local load baseline for the tagged commit is recorded.** `./task
+   loadtest --local` against the release candidate, with its p50/p95/p99,
+   failure count and RSS peak archived in the release evidence. It runs against
+   a database the harness creates and drops, so it needs no host window, and it
+   is a regression baseline, not a capacity measurement: the host soak (T-074)
+   is dropped by owner decision 2026-11-26 (ADR-023), so the 512 MB ceiling and
+   the watcher fan-out stay unmeasured.
 8. **The two-community isolation matrix is green.** Multi-community in one
    production database is supported (ADR-018, update 2026-11-23), so the tenancy
    gate for a release is `apps/api/tests/integration/community_isolation_matrix_test.nim`:

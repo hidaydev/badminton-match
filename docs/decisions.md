@@ -672,3 +672,33 @@ shorter than a season.
 season page, gets its own object with its own TTL rather than borrowing this
 one. If a draft link leaks and the community wants it dead before the TTL, the
 existing revoke path (`DELETE /c/{slug}/sessions/{id}/share`) is unchanged.
+
+## ADR-023 · The host soak (T-074) is dropped; the capacity ceiling stays unproven
+
+**Date:** 2026-11-26
+**Audit finding:** none; a backlog item the owner decided not to buy
+**Status:** Deferred (owner decision)
+
+**Decision:** the 1-million-request plus 50-watcher soak against the VPS is no
+longer a backlog item. It is not replaced by a smaller host run. `./task
+loadtest --local` stays in the release checklist as the regression baseline
+(p50/p95/p99 and RSS per tagged commit), and the capacity numbers in
+`docs/ops/operations.md` remain configured safety limits, not measurements.
+
+**Reason:** v2 has been live on the single host since the 2026-11-09 cutover
+with no memory or latency incident attributable to load, and the soak costs a
+maintenance window plus a hand-built watcher URL file, since a ticket cannot be
+replayed. The owner weighed that cost against a number that would not change a
+config value today: with one process, no replicas and a 512 MB `MemoryMax`, the
+operational answer to a hot host is a restart or a bigger container, not a
+tuning decision that needs a measured ceiling first.
+
+**What it does not buy:** no measured host ceiling and no evidence for the
+500-watcher fan-out. A capacity claim above the configured defaults is
+unsupported until a run exists. That gap is accepted, not pending.
+
+**Reopener:** a latency or memory incident on the host that cannot be explained
+by a single request path, a plan to run more than one API instance, or a
+customer asking for a capacity number in writing. Any of those makes the soak
+worth its window again, and the committed harness (`./task loadtest`) is the
+run to repeat.

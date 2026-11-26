@@ -253,8 +253,9 @@ The configured ceilings are:
 | requests per minute per route and identity | 300 | `platform.config` seed |
 | API memory | 512 MB | `MemoryMax` in the unit |
 
-Those are safety limits, not measurements. The measured capacity is recorded by
-the T-074 soak test on the host above, using the committed load test:
+Those are safety limits, not measurements. The host measurement (T-074) was
+dropped by owner decision on 2026-11-26 (ADR-023), so no host ceiling is
+recorded here. The committed load test can still produce one:
 
 ```sh
 ./task loadtest --http https://api.qouver.com/majadu/readyz \
@@ -283,11 +284,12 @@ object; a latency number without the memory number cannot distinguish a slow
 reply from a process about to hit the 512 MB limit.
 
 The watcher half needs a file of single-use watcher URLs (`--ws-file`), because
-a ticket cannot be replayed. Until that run is recorded here, the 500-watcher
-ceiling is a configuration default and the capacity claim is unproven. A run
-that reaches 500 watchers and 100,000 requests without a 5xx, a rejected
-upgrade or an OOM is the acceptance evidence; a lower measured ceiling is the
-number to configure, not the default.
+a ticket cannot be replayed. The 500-watcher ceiling is therefore a
+configuration default and the capacity claim stays unproven; that gap is
+accepted, not outstanding (ADR-023). A run that reaches 500 watchers and
+100,000 requests without a 5xx, a rejected upgrade or an OOM would be the
+acceptance evidence if the decision is ever reopened; a lower measured ceiling
+would be the number to configure, not the default.
 
 ## 6. What is still missing
 

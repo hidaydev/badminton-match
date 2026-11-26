@@ -209,11 +209,10 @@ The rewrite backlog is done; what remains is operations and measurement.
 
 - **Operations, waiting on the VPS/time:** T-063 rehearsal (and therefore the
   T-060/061/065 evidence: production `caddy validate`, Quadlet parsing, digest
-  `podman pull`, stopwatch rollback), T-074 soak (`ops/scripts/loadtest.mjs`
-  reports p50/p95/p99 and RSS through `./task loadtest`; the 1 million request +
-  50 watcher run against the VPS is still outstanding, so the ceiling stays
-  unproven until it is archived), removal of `:v1-final` after 30 days (T-082),
-  T-108 force-push postponed by owner decision.
+  `podman pull`, stopwatch rollback), removal of `:v1-final` after 30 days
+  (T-082), T-108 force-push postponed by owner decision. The T-074 soak is
+  dropped (ADR-023), so the host capacity ceiling stays unproven; `./task
+  loadtest --local` remains the regression baseline.
 - **Gaps outside the plan:** `platform.outbox` producer (realtime is still
   per-process). Coverage is measured after the gcov attribution fix by
   `./task coverage`, which is a local run: no workflow has judged

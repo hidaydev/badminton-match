@@ -94,7 +94,7 @@ or work that needs an environment this repository cannot provide.
 |---|---|---|---|
 | 14 routes have no axe walk | dated exemption | QA | `e2e/a11y-exemptions.json` (2027-03-31) |
 | Keyboard pass is limited to the two sheets | partial | QA | `e2e/overlay.spec.ts` |
-| No 1M-request soak on the VPS | open | owner | `docs/handbook/roadmap.md` T-074 |
+| No 1M-request soak on the VPS | dropped by owner (accepted, not pending) | owner | `docs/decisions.md` ADR-023 |
 | Mutation manifest covers 18 mutants in 13 files | open | QA | `tools/mutation/manifest.txt` |
 | Import fixture is synthetic plus production-shaped | partial | QA | `testdata/import/` |
 | Web coverage threshold is below the API's | open | web | `apps/web/vitest.config.ts` |

@@ -51,7 +51,10 @@ Status as of **2026-11-16** (Release 2.0.3). The change history is in git histor
   needs Podman and a maintenance window on the VPS.
 - **VPS evidence** (T-060/061/065): production `caddy validate`, Quadlet parsing,
   digest `podman pull`, stopwatch rollback.
-- **T-074 soak**: `ops/scripts/loadtest.mjs` is committed and reports p50/p95/p99 and RSS (`./task loadtest`); the 1 million request + 50 watcher run against the VPS is still outstanding, and `docs/ops/operations.md` records the ceiling as unproven until it is archived.
+- **T-074 soak**: **dropped** by owner decision 2026-11-26 (ADR-023). The
+  harness stays for the local regression baseline (`./task loadtest --local`);
+  no host run is planned, so the capacity ceiling stays unproven and that gap is
+  accepted rather than outstanding.
 - **T-082**: remove the `:v1-final` image after 30 days of post-cutover observation.
 - **T-108**: force-push of the rewritten history is **postponed** by owner decision;
   a local hook rejects internal audit/review notes coming back in.
