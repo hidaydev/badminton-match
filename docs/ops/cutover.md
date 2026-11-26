@@ -206,10 +206,17 @@ If the rollback itself fails, do not rerun the cutover: recover by hand from
       fails with "role majadu_app is missing or cannot log in" and the archive
       stays open; a `bm2_owner` caller reports the same fact as a `NOTICE`.
       Before an owner-run on a rebuilt or restored host, prove the assumption the
-      file cannot check: `psql "$V1_DSN" -c 'select 1'` as the v1 role must succeed.
-      That one command covers everything the predicates cannot see (role name the
-      v1 env actually uses, password, `pg_hba`, per-database `datconnlimit`), so
-      run it first and stop if it fails.
+      file cannot check, in this order and stopping on the first failure:
+      `psql "$V1_DSN" -tAc 'select current_user'` must print `majadu_app`, then the
+      owner-run, then `psql "$V1_DSN" -tAc 'select 1'` must still succeed. The
+      `current_user` check comes first because `select 1` alone can pass over the
+      default `PUBLIC` grant while the role name in the v1 env is something else;
+      the check after the owner-run is the one that proves the revoke did not lock
+      v1 out. Together they cover everything the predicates cannot see (role name
+      the v1 env actually uses, password, `pg_hba`, per-database `datconnlimit`).
+      Note the file revokes `PUBLIC` and the three `bm2_*` roles only, so explicit
+      `CONNECT` granted to any other v1-era role survives on `bm`; that is
+      consistent with O-41 and not a defect.
 - [ ] The daily `bm` dump stops; keep one final dump outside the rotation.
 - [ ] The D+30 archive step was **missed**: `:v1-final` was deleted on 2026-11-21
       without a `podman save` tarball and without a recorded digest (ADR-024).

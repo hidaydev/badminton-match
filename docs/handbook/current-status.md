@@ -231,8 +231,9 @@ The rewrite backlog is done; what remains is operations and measurement.
   `DATABASE_URL` logs in as `majadu_app` with `rolcanlogin = true`, and no `bm2`
   or `majadu2_*` role holds `CONNECT` on `bm`. `ops/db/roles.sql` also gates its
   `PUBLIC` revoke on that role being usable (`LOGIN`, connection limit not zero,
-  password not expired), and `docs/ops/cutover.md` §6 requires
-  `psql "$V1_DSN" -c 'select 1'` before an owner-run on a rebuilt host.
+  password not expired), and `docs/ops/cutover.md` §6 requires a
+  `select current_user` check for `majadu_app` and a `select 1` after the
+  owner-run before trusting the closure on a rebuilt host.
 - **`bm2` still carries the default ACL:** Dimas' read shows `datacl` NULL on the
   live `bm2` database, so `PUBLIC` keeps `CONNECT` there and the per-role grants
   in `roles.sql` are redundant until an owner-run of the file on `bm2` revokes it.
