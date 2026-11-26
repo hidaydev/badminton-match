@@ -190,8 +190,12 @@ If the rollback itself fails, do not rerun the cutover: recover by hand from
 
 ## 6. D+30
 
-- [ ] `bm` stays read-only; the `bm2_*` roles cannot `CONNECT` to it
-      (`ops/db/roles.sql` already enforces this with assertions).
+- [ ] `bm` stays read-only; the `bm2_*` roles cannot `CONNECT` to it. `ops/db/roles.sql`
+      revokes `PUBLIC` and then asserts it only when the caller owns database `bm`
+      (`pg_has_role(current_user, d.datdba, 'USAGE')`); any other caller, including
+      the `bm2_owner` used by cutover and rehearsal, gets a `NOTICE` instead of a
+      hard failure, so the closure has to be confirmed with the owner role once
+      and re-checked after every restore (Dimas reports it is closed on qouver1).
 - [ ] The daily `bm` dump stops; keep one final dump outside the rotation.
 - [ ] The D+30 archive step was **missed**: `:v1-final` was deleted on 2026-11-21
       without a `podman save` tarball and without a recorded digest (ADR-024).
