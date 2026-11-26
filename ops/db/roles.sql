@@ -114,18 +114,33 @@ end $$;
 -- each statement, so a failing assert would leave the ACL half-applied.
 begin;
 
--- The revoke is gated on the grantee existing and being able to log in: it
--- closes the archive to every role, and the GRANT below is what lets v1 back
--- in. Without a login `majadu_app` the revoke would shut v1 out of its own
--- archive, which is the one outcome the comment above forbids. A rebuilt host
--- has the database back but not the role (roles are not in a dump), so this is
--- reachable, not theoretical.
+-- The revoke is gated on the grantee existing and being able to open a session:
+-- it closes the archive to every role, and the GRANT below is what lets v1 back
+-- in. Without a usable `majadu_app` login the revoke would shut v1 out of its
+-- own archive, which is the one outcome the comment above forbids. "Usable"
+-- means LOGIN, a non-zero connection limit and a password that has not expired;
+-- `has_database_privilege` ignores all three, so a role that passes that check
+-- can still be one nobody can sign in as. A rebuilt host has the database back
+-- but not the role (roles are not in a dump), so this is reachable, not
+-- theoretical.
+--
+-- No privilege query can prove that this is the role the v1 DSN really logs in
+-- as, or that the server accepts it at all: the password, pg_hba and the
+-- database's own connection limit live outside pg_roles. Before an owner-run on
+-- a rebuilt host, prove it with a real connection as the v1 role
+-- (psql "$V1_DSN" -c 'select 1'); docs/ops/cutover.md carries that step.
 select 'revoke connect on database bm from public'
 where exists (
   select 1 from pg_database d
   where d.datname = 'bm' and pg_has_role(current_user, d.datdba, 'USAGE')
 )
-  and exists (select 1 from pg_roles where rolname = 'majadu_app' and rolcanlogin) \gexec
+  and exists (
+    select 1 from pg_roles
+    where rolname = 'majadu_app'
+      and rolcanlogin
+      and rolconnlimit <> 0
+      and (rolvaliduntil is null or rolvaliduntil > now())
+  ) \gexec
 select 'revoke all on database bm from bm2_app, bm2_etl, bm2_audit_prune'
 where exists (
   select 1 from pg_database d
@@ -136,7 +151,13 @@ where exists (
   select 1 from pg_database d
   where d.datname = 'bm' and pg_has_role(current_user, d.datdba, 'USAGE')
 )
-  and exists (select 1 from pg_roles where rolname = 'majadu_app' and rolcanlogin) \gexec
+  and exists (
+    select 1 from pg_roles
+    where rolname = 'majadu_app'
+      and rolcanlogin
+      and rolconnlimit <> 0
+      and (rolvaliduntil is null or rolvaliduntil > now())
+  ) \gexec
 
 -- The assertions below fail the run only when this session could have closed the
 -- hole, which is the same condition the REVOKEs above use. A rehearsal or a
@@ -155,19 +176,23 @@ begin
   where d.datname = 'bm';
 
   -- Revoking PUBLIC's CONNECT without the grant back locks v1 out of its own
-  -- archive. A role that exists but cannot log in is no better than a missing
-  -- one, because has_database_privilege does not care about LOGIN: the REVOKE
-  -- would fire and the grant would land on a role nobody can sign in as. Both
-  -- REVOKEs above are gated on the same condition, so this only reports the
-  -- reason the archive was left alone instead of failing after it was shut.
-  if not coalesce(
-       (select rolcanlogin from pg_roles where rolname = 'majadu_app'), false) then
+  -- archive. A role that exists but cannot open a session is no better than a
+  -- missing one, because has_database_privilege does not care about LOGIN, the
+  -- connection limit or an expired password: the REVOKE would fire and the grant
+  -- would land on a role nobody can sign in as. Both statements above are gated
+  -- on the same condition, so this only reports the reason the archive was left
+  -- alone instead of failing after it was shut.
+  if not coalesce((
+       select rolcanlogin
+              and rolconnlimit <> 0
+              and (rolvaliduntil is null or rolvaliduntil > now())
+       from pg_roles where rolname = 'majadu_app'), false) then
     if can_fix then
       raise exception
-        'role majadu_app is missing or cannot log in: revoking PUBLIC connect on bm would lock v1 out of its own archive. Create the v1 login role with LOGIN first (its name comes from the v1 env on the host)';
+        'role majadu_app is missing or cannot log in (LOGIN off, connection limit 0, or password expired): revoking PUBLIC connect on bm would lock v1 out of its own archive. Make the v1 login role usable first (its name comes from the v1 env on the host)';
     else
       raise notice
-        'role majadu_app is missing or cannot log in; this session is not the owner of bm, so the revoke was not attempted';
+        'role majadu_app is missing or cannot log in (LOGIN off, connection limit 0, or password expired); this session is not the owner of bm, so the revoke was not attempted';
     end if;
   end if;
 

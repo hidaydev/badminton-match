@@ -195,16 +195,21 @@ If the rollback itself fails, do not rerun the cutover: recover by hand from
       (`pg_has_role(current_user, d.datdba, 'USAGE')`); any other caller, including
       the `bm2_owner` used by cutover and rehearsal, gets a `NOTICE` instead of a
       hard failure, so the closure has to be confirmed with the owner role once
-      and re-checked after every restore (Dimas reports it is closed on qouver1).
+      and re-checked after every restore (Dimas read the live ACL on qouver1 on
+      2026-11-26: `{=T/qouver,qouver=CTc/qouver,majadu_app=c/qouver}`, and the v1
+      `DATABASE_URL` logs in as `majadu_app` with `rolcanlogin = true`).
       The section runs in one transaction, so a failed assertion leaves `bm`'s ACL
-      untouched, and the `PUBLIC` revoke is skipped when the `majadu_app` role is
-      missing or cannot log in (`rolcanlogin = false`): on a rebuilt host the
-      database comes back without the roles, and revoking without a working grant
-      would shut v1 out of its own archive. The file then fails with "role
-      majadu_app is missing or cannot log in" and the archive stays open until the
-      login role is created (its name comes from the v1 env on the host). A
-      `bm2_owner` caller (rehearsal) reports the same fact as a `NOTICE` and leaves
-      the ACL alone.
+      untouched, and the `PUBLIC` revoke is skipped unless `majadu_app` can open a
+      session: `rolcanlogin`, `rolconnlimit <> 0` and `rolvaliduntil` in the future.
+      On a rebuilt host the database comes back without the roles, and revoking
+      without a usable grant would shut v1 out of its own archive. The file then
+      fails with "role majadu_app is missing or cannot log in" and the archive
+      stays open; a `bm2_owner` caller reports the same fact as a `NOTICE`.
+      Before an owner-run on a rebuilt or restored host, prove the assumption the
+      file cannot check: `psql "$V1_DSN" -c 'select 1'` as the v1 role must succeed.
+      That one command covers everything the predicates cannot see (role name the
+      v1 env actually uses, password, `pg_hba`, per-database `datconnlimit`), so
+      run it first and stop if it fails.
 - [ ] The daily `bm` dump stops; keep one final dump outside the rotation.
 - [ ] The D+30 archive step was **missed**: `:v1-final` was deleted on 2026-11-21
       without a `podman save` tarball and without a recorded digest (ADR-024).
