@@ -16,9 +16,12 @@
 #
 # Env (in addition to MAJADU_APP_DIR):
 #   MAJADU_OWNER_SUB     Google subject of the first platform owner (required)
-#   MAJADU_OWNER_EMAIL   email of that account (optional)
+#   MAJADU_OWNER_EMAIL   email of that account; ownerseed requires it when the
+#                        owner account does not exist yet
 #   MAJADU_CUTOVER_NETWORK  podman network shared with Postgres (default: qouver)
 #   MAJADU_CADDY_CONFIG     main Caddyfile (default: /etc/caddy/Caddyfile)
+#   MAJADU_CADDY_SRC        directory the handler snippets are installed from
+#                           (default: <app>/monorepo/ops/caddy)
 #   MAJADU_SYSTEMCTL_CMD    systemctl invocation (default: systemctl --user)
 #   MAJADU_CADDY_VALIDATE   Caddy check command (default: caddy validate)
 #   MAJADU_STAGING_DB       database the dump is restored into (default: bm_staging)
@@ -68,6 +71,10 @@ ENV_V1="$APP_DIR/env/majadu-prod.env.v1"
 ENV_V2="$APP_DIR/env/majadu-prod.env.v2"
 TOOLS_ENV="${MAJADU_TOOLS_ENV:-$APP_DIR/env/majadu-tools.env}"
 MONO_DIR="$APP_DIR/monorepo"
+# Where the handler snippets are read from. The rehearsal points this at a copy
+# whose reverse_proxy ports are rewritten to its own sandbox, so preflight cannot
+# install snippets that forward to the production container.
+CADDY_SRC="${MAJADU_CADDY_SRC:-$MONO_DIR/ops/caddy}"
 CUTOVER_DIR="$APP_DIR/cutover"
 LOCK_FILE="$APP_DIR/.deploy.lock"
 STEP_FILE="$CUTOVER_DIR/cutover.step"
@@ -406,10 +413,10 @@ step_preflight() {
   podman tag "$REGISTRY_IMAGE@$digest" "$LOCAL_IMAGE:release"
   printf '%s\n' "$digest" >"$CUTOVER_DIR/release.digest"
 
-  install -m 644 "$MONO_DIR/ops/caddy/site-v1.caddy" "$CADDY_DIR/site-v1.caddy"
-  install -m 644 "$MONO_DIR/ops/caddy/site-v2.caddy" "$CADDY_DIR/site-v2.caddy"
-  install -m 644 "$MONO_DIR/ops/caddy/site-maintenance.caddy" "$CADDY_DIR/site-maintenance.caddy"
-  install -m 644 "$MONO_DIR/ops/caddy/log-share.caddy" "$CADDY_DIR/log-share.caddy"
+  install -m 644 "$CADDY_SRC/site-v1.caddy" "$CADDY_DIR/site-v1.caddy"
+  install -m 644 "$CADDY_SRC/site-v2.caddy" "$CADDY_DIR/site-v2.caddy"
+  install -m 644 "$CADDY_SRC/site-maintenance.caddy" "$CADDY_DIR/site-maintenance.caddy"
+  install -m 644 "$CADDY_SRC/log-share.caddy" "$CADDY_DIR/log-share.caddy"
   [ -e "$CADDY_ACTIVE" ] || ln -s "$CADDY_DIR/site-v1.caddy" "$CADDY_ACTIVE"
   [ -e "$ENV_LINK" ] || ln -s "$ENV_V1" "$ENV_LINK"
 

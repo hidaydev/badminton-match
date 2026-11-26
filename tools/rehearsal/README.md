@@ -45,10 +45,12 @@ pointed at a sandbox app dir, unit, Caddy site, and databases.
 
    Fill in the real values. The harness rejects files whose mode is not 600 and
    rejects DSNs that point at `bm`, `bm2`, `bm2_dev`, or `postgres`.
-4. The release image `localhost/majadu-api:v1-final` exists (from the production
-   cutover). If it does not exist yet, the harness uses
-   `localhost/majadu-api:local` as v1, which is correct before the first cutover
-   and wrong after it.
+4. A v1 image for the rollback half: `localhost/majadu-api:v1-final`, or any
+   image named by `MAJADU_REHEARSAL_V1_IMAGE`. The harness refuses to guess:
+   `:local` is v2 after the first real cutover, so falling back to it would
+   rehearse a rollback from v2 to v2 and record a proof that means nothing.
+   If the production tag was removed early (`REL-HOST-13` deleted it on
+   2026-11-21), build v1 from the last Go commit and point the variable at it.
 
 ## Running
 

@@ -96,27 +96,84 @@ begin
   end if;
 end $$;
 
--- The archive may not exist on a fresh machine, so the revokes are generated
--- only when it does.
-select 'revoke all on database bm from bm2_app, bm2_etl'
-where exists (select 1 from pg_database where datname = 'bm') \gexec
--- PUBLIC's CONNECT on bm is deliberately left alone: v1 reaches its own database
--- through it, so revoking it here locks the v1 API out and breaks a rollback
--- after the cutover has run this file. Keeping the v2 roles out is what the
--- revoke above already does.
+-- `bm` is the frozen v1 archive (O-41): the v2 roles must not reach it, but v1
+-- must still reach it after a rollback. Both facts follow from the database ACL.
+--
+-- `bm` normally carries the default ACL, which grants CONNECT to PUBLIC -- so
+-- every role can connect, and revoking "all on database bm from bm2_app, ..."
+-- removes nothing because no per-role grant exists. The v2 roles have to be shut
+-- out by revoking PUBLIC's CONNECT and granting it back to the one role v1
+-- logs in as. Anything else leaves the archive open to every role on the host.
+--
+-- Only the owner of `bm` (or a superuser) can change this: on qouver1 that is
+-- `qouver`, while this file is applied with `bm2_owner`'s DSN. So the statements
+-- are emitted only when the caller can actually alter `bm`; otherwise they would
+-- warn "no privileges could be revoked" and change nothing. Either way the
+-- assertion below reports a hole instead of pretending it was closed.
+select 'revoke connect on database bm from public'
+where exists (
+  select 1 from pg_database d
+  where d.datname = 'bm' and pg_has_role(current_user, d.datdba, 'USAGE')
+) \gexec
+select 'revoke all on database bm from bm2_app, bm2_etl, bm2_audit_prune'
+where exists (
+  select 1 from pg_database d
+  where d.datname = 'bm' and pg_has_role(current_user, d.datdba, 'USAGE')
+) \gexec
+select 'grant connect on database bm to majadu_app'
+where exists (
+  select 1 from pg_database d
+  where d.datname = 'bm' and pg_has_role(current_user, d.datdba, 'USAGE')
+)
+  and exists (select 1 from pg_roles where rolname = 'majadu_app') \gexec
 
+-- The assertions below fail the run only when this session could have closed the
+-- hole, which is the same condition the REVOKEs above use. A rehearsal or a
+-- cutover runs as bm2_owner, which cannot touch bm's ACL: failing there would
+-- abort a run that has nothing to fix, so the hole is reported as a notice and
+-- left to the owner of bm (`qouver`).
 do $$
+declare
+  can_fix boolean;
 begin
   if not exists (select 1 from pg_database where datname = 'bm') then
     return;
   end if;
-  if has_database_privilege('bm2_app', 'bm', 'CONNECT') then
-    raise exception 'bm2_app can still connect to bm';
+  select pg_has_role(current_user, d.datdba, 'USAGE') into can_fix
+  from pg_database d
+  where d.datname = 'bm';
+
+  -- v1 logs in as majadu_app (see ops/env/*.v1); without CONNECT a rollback
+  -- restores an image that cannot open its own database.
+  if exists (select 1 from pg_roles where rolname = 'majadu_app')
+     and not has_database_privilege('majadu_app', 'bm', 'CONNECT') then
+    if can_fix then
+      raise exception
+        'majadu_app cannot connect to bm: v1 would not survive a rollback. Run "grant connect on database bm to majadu_app" as the owner of bm';
+    else
+      raise notice
+        'majadu_app cannot connect to bm; this session is not the owner of bm, so the grant was not attempted';
+    end if;
   end if;
-  if has_database_privilege('bm2_etl', 'bm', 'CONNECT') then
-    raise exception 'bm2_etl can still connect to bm';
+  if can_fix and has_database_privilege('bm2_app', 'bm', 'CONNECT') then
+    raise exception
+      'bm2_app can still connect to bm (O-41). Run "revoke connect on database bm from public" and "grant connect on database bm to majadu_app" as the owner of bm';
+  elsif has_database_privilege('bm2_app', 'bm', 'CONNECT') then
+    raise notice
+      'bm2_app can still connect to bm (O-41); this session is not the owner of bm, so the revoke was not attempted';
   end if;
-  if has_database_privilege('bm2_audit_prune', 'bm', 'CONNECT') then
-    raise exception 'bm2_audit_prune can still connect to bm';
+  if can_fix and has_database_privilege('bm2_etl', 'bm', 'CONNECT') then
+    raise exception
+      'bm2_etl can still connect to bm (O-41). Run "revoke connect on database bm from public" and "grant connect on database bm to majadu_app" as the owner of bm';
+  elsif has_database_privilege('bm2_etl', 'bm', 'CONNECT') then
+    raise notice
+      'bm2_etl can still connect to bm (O-41); this session is not the owner of bm, so the revoke was not attempted';
+  end if;
+  if can_fix and has_database_privilege('bm2_audit_prune', 'bm', 'CONNECT') then
+    raise exception
+      'bm2_audit_prune can still connect to bm (O-41). Run "revoke connect on database bm from public" and "grant connect on database bm to majadu_app" as the owner of bm';
+  elsif has_database_privilege('bm2_audit_prune', 'bm', 'CONNECT') then
+    raise notice
+      'bm2_audit_prune can still connect to bm (O-41); this session is not the owner of bm, so the revoke was not attempted';
   end if;
 end $$;
