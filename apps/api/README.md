@@ -8,9 +8,10 @@ not a separate document in this folder.
 ## Stack
 
 - Nim 2.4.0, `mummy` as the HTTP server (thread pool, WebSocket)
-- PostgreSQL 18, one schema per domain (`platform`, `community`, `player`, `session`,
-  `tournament`, `rating`, `achievement`, `auth`, `account`); role `bm2_app` for
-  runtime, `bm2_owner` for migrations, `bm2_etl` for ETL
+- PostgreSQL 19.0 in production, 18.6 in CI and dev; one schema per domain
+  (`platform`, `community`, `player`, `session`, `tournament`, `rating`,
+  `achievement`, `auth`, `account`); role `bm2_app` for runtime, `bm2_owner` for
+  migrations, `bm2_etl` for ETL
 - A single `HttpOnly` session cookie; no tokens on the client
 - Routes are generated from the contract (`routes_gen.nim`); handlers are verified at compile time
 

@@ -24,7 +24,8 @@ Web scripts proxy to `apps/web`: `pnpm dev`, `pnpm build:web`, `pnpm check:web`.
 ## Architecture
 
 Mobile-first React 19 PWA (`apps/web`) over a Nim 2.4 API (`apps/api`), one
-PostgreSQL 18 database. `apps/scoreboard` is a separate courtside PWA.
+PostgreSQL database (19.0 in production, 18.6 in CI and dev). `apps/scoreboard`
+is a separate courtside PWA.
 
 - **Modules** (`modules/<domain>/`) hold business rules and SQL. `domain/` is pure
   logic and `infrastructure/` holds the SQL stores where a module has more than
