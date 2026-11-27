@@ -134,7 +134,7 @@ export default function AccountSessions({ onClose }: Props) {
               <p className="text-sm text-fg">
                 {t('sessions.lastSeen')} {formatWhen(session.lastSeenAt)}
                 {session.current && (
-                  <span className="ml-2 rounded-full border border-border-subtle px-2 py-0.5 text-[10px] uppercase tracking-wide text-fg-dim">
+                  <span className="ml-2 rounded-full border border-border-subtle px-2 py-0.5 text-meta uppercase tracking-wide text-fg-dim">
                     {t('sessions.current')}
                   </span>
                 )}

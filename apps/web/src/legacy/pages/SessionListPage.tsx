@@ -307,7 +307,7 @@ export default function SessionListPage() {
                 {/* Date Badge */}
                 <div className="w-11 h-11 rounded-lg bg-elevated border border-border flex flex-col items-center justify-center shrink-0">
                   <span className="text-sm font-bold font-mono text-fg leading-none">{day}</span>
-                  <span className="text-[11px] font-mono font-semibold text-accent uppercase leading-none mt-1">
+                  <span className="text-2xs font-mono font-semibold text-accent uppercase leading-none mt-1">
                     {month}
                   </span>
                 </div>
@@ -319,7 +319,7 @@ export default function SessionListPage() {
                   </span>
                   <div className="flex items-center gap-2">
                     <span
-                      className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border leading-none ${
+                      className={`text-2xs font-mono font-medium px-1.5 py-0.5 rounded border leading-none ${
                         s.locked
                           ? 'text-accent bg-accent/10 border-accent/25'
                           : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25'
@@ -327,7 +327,7 @@ export default function SessionListPage() {
                     >
                       {s.locked ? t('sessions.locked') : t('sessions.active')}
                     </span>
-                    <span className="text-[10px] font-mono text-fg-dim">
+                    <span className="text-2xs font-mono text-fg-dim">
                       {year}
                     </span>
                   </div>
@@ -337,10 +337,10 @@ export default function SessionListPage() {
                 <div className="shrink-0 flex items-center gap-2">
                   <div className="text-right font-mono flex flex-col items-end">
                     <span className="text-xs font-semibold text-fg">
-                      {s.playerCount} <span className="text-[10px] font-sans text-fg-dim font-normal">{t('sessions.players')}</span>
+                      {s.playerCount} <span className="text-2xs font-sans text-fg-dim font-normal">{t('sessions.players')}</span>
                     </span>
-                    <span className="text-[10px] text-fg-dim">
-                      {s.totalGames} <span className="text-[11px] font-sans">{t('sessions.games')}</span>
+                    <span className="text-2xs text-fg-dim">
+                      {s.totalGames} <span className="text-2xs font-sans">{t('sessions.games')}</span>
                     </span>
                   </div>
                   <Icon name="chevron-right" size={16} className="text-fg-dim/40 ml-1" />

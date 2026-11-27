@@ -70,7 +70,7 @@ describe('PlayerMatchDetailSheet match history', () => {
     const points = screen.getByText('21–18 · 19–21')
     const tally = screen.getByText('1 - 1')
     expect(points).toHaveClass('text-sm', 'text-slate-300')
-    expect(tally).toHaveClass('text-[11px]', 'text-slate-400')
+    expect(tally).toHaveClass('text-2xs', 'text-slate-400')
     expect(points.compareDocumentPosition(tally) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     )

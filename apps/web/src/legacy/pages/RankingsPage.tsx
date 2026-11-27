@@ -135,7 +135,7 @@ export default function RankingsPage() {
                 className="shrink-0"
               >
                 <span>{tier}</span>
-                <span className="text-[10px] font-mono">({count})</span>
+                <span className="text-2xs font-mono">({count})</span>
               </Chip>
             )
           })}

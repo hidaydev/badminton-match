@@ -50,7 +50,7 @@ function MatchCard({
   return (
     <div className={`w-full bg-surface rounded-lg border-l-2 ${borderColor} border-t border-r border-b border-border-subtle overflow-hidden shadow-xs`}>
       <div className="px-2 pt-2 pb-1.5 border-b border-border-subtle flex items-center justify-between">
-        <span className={`text-[11px] font-bold tracking-wide ${labelColor}`}>{label}</span>
+        <span className={`text-2xs font-bold tracking-wide ${labelColor}`}>{label}</span>
         {showPostIcon && (
           <div className="relative shrink-0">
             <button
@@ -74,9 +74,9 @@ function MatchCard({
         <div className="px-2 pt-2 pb-1">
           <div className="text-xs text-fg font-medium truncate">{getPairName(match.pairAId)}</div>
           {scored ? (
-            <div className="text-[10px] font-bold font-mono text-accent text-center my-1">{match.scoreA} – {match.scoreB}</div>
+            <div className="text-2xs font-bold font-mono text-accent text-center my-1">{match.scoreA} – {match.scoreB}</div>
           ) : (
-            <div className="text-[11px] text-fg-dim text-center my-1 font-medium">{t('shared.versus')}</div>
+            <div className="text-2xs text-fg-dim text-center my-1 font-medium">{t('shared.versus')}</div>
           )}
           <div className="text-xs text-fg font-medium truncate">{getPairName(match.pairBId)}</div>
         </div>
@@ -246,7 +246,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
       <div className="overflow-x-auto -mx-3 px-3 pt-1.5 pb-2 scroll-smooth" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="min-w-75 w-full">
           {/* Column headers */}
-          <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] mb-2 text-[10px] text-fg-dim uppercase tracking-widest font-semibold">
+          <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] mb-2 text-meta text-fg-dim uppercase tracking-widest font-semibold">
             {rounds.map((round, i) => (
               <Fragment key={round.id}>
                 {i > 0 && <span />}
@@ -361,7 +361,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
                     {rank}
                   </span>
                 </div>
-                <div className={`text-[10px] mt-1 font-bold ${isChamp ? 'text-accent' : 'text-fg-dim'}`}>{label}</div>
+                <div className={`text-2xs mt-1 font-bold ${isChamp ? 'text-accent' : 'text-fg-dim'}`}>{label}</div>
                 <div className={`text-xs mt-1 font-medium max-w-24 truncate ${isChamp ? 'text-fg text-sm font-semibold' : 'text-fg-dim'}`}>{name}</div>
                 <div className="mt-2 flex items-center justify-center gap-3">
                   <IconButton

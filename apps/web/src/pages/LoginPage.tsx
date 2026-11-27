@@ -117,7 +117,7 @@ export default function LoginPage() {
           {/* Which tree this bundle came from: the owner reads it to tell a
               fresh deploy from a stale one. The visible stamp is a commit hash,
               so the screen-reader name comes from the dictionary. */}
-          <span className="ml-auto text-[11px] tabular-nums text-fg-dim">
+          <span className="ml-auto text-2xs tabular-nums text-fg-dim">
             <span className="sr-only">
               {t('login.build', { version: BUILD.version, commit: BUILD.commit })}
             </span>

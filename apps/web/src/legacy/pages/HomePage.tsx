@@ -102,18 +102,18 @@ export default function HomePage() {
             <Icon name="play" size={20} />
           </div>
           <div className="flex flex-col gap-1 flex-1 min-w-0">
-            <span className="text-[10px] font-sans font-semibold text-fg-dim label-meta">
+            <span className="text-meta font-sans font-semibold text-fg-dim label-meta">
               {t('home.continueSession')}
             </span>
             <span className="text-sm sm:text-base font-bold text-fg leading-tight truncate">
               {draftSession.title || 'Untitled Session'}
             </span>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-mono text-fg-dim">
+              <span className="text-2xs font-mono text-fg-dim">
                 {draftSession.date.split('-').reverse().join('-')}
               </span>
-              <span className="text-[10px] font-mono text-fg-dim">·</span>
-              <span className="text-[10px] font-mono text-fg-dim">
+              <span className="text-2xs font-mono text-fg-dim">·</span>
+              <span className="text-2xs font-mono text-fg-dim">
                 {t('legacy.home.draftMeta', { players: draftSession.playerCount, games: draftSession.totalGames })}</span>
             </div>
           </div>
@@ -143,7 +143,7 @@ export default function HomePage() {
               </div>
               <div className="flex flex-col gap-0.5 min-w-0">
                 <span className="text-sm font-semibold text-fg leading-tight">{t(item.label)}</span>
-                <span className="text-[11px] text-fg-dim leading-snug">{t(item.description)}</span>
+                <span className="text-2xs text-fg-dim leading-snug">{t(item.description)}</span>
               </div>
             </Card>
           ))}
@@ -160,7 +160,7 @@ export default function HomePage() {
               </div>
               <div className="flex flex-col gap-0.5 min-w-0">
                 <span className="text-sm font-semibold text-fg leading-tight">{t('home.card.myStats')}</span>
-                <span className="text-[11px] text-fg-dim leading-snug">
+                <span className="text-2xs text-fg-dim leading-snug">
                   {t('home.card.myStats.hint', { name: myPlayer.name })}
                 </span>
               </div>
@@ -179,7 +179,7 @@ export default function HomePage() {
               </div>
               <div className="flex flex-col gap-0.5 min-w-0">
                 <span className="text-sm font-semibold text-fg leading-tight">{t('home.installApp')}</span>
-                <span className="text-[11px] text-fg-dim leading-snug">{t('home.installDesc')}</span>
+                <span className="text-2xs text-fg-dim leading-snug">{t('home.installDesc')}</span>
               </div>
             </Card>
           )}

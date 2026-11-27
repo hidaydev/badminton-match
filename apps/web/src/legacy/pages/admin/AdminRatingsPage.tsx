@@ -66,11 +66,11 @@ export default function AdminRatingsPage() {
                   <div key={src.source_id} className="flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-elevated/30 transition-colors">
                     <div className="flex flex-col min-w-0">
                       <span className="text-sm font-medium text-fg truncate">{src.source_name}</span>
-                      <span className="text-[11px] text-fg-dim font-mono mt-0.5">
+                      <span className="text-2xs text-fg-dim font-mono mt-0.5">
                         {isT ? 'Tournament' : 'Session'} · {t(src.event_count === 1 ? 'admin.pointEntry' : 'admin.pointEntries', { count: src.event_count })}
                       </span>
                       {isT && !src.finalized && (
-                        <span className="text-[11px] text-fg-dim mt-0.5">{t('admin.ingestNeedsFinalize')}</span>
+                        <span className="text-2xs text-fg-dim mt-0.5">{t('admin.ingestNeedsFinalize')}</span>
                       )}
                     </div>
 

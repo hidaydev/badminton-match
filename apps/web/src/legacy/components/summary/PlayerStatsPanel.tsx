@@ -42,13 +42,13 @@ export function GeneratedPlayerStats({ schedule, playerMap }: GeneratedPlayerSta
                 <span className={`text-xs font-bold w-8 ${over ? 'text-amber-400' : under ? 'text-sky-400' : 'text-emerald-400'}`}>
                   {plays}×
                 </span>
-                <span className="text-[10px] text-slate-400">
+                <span className="text-2xs text-slate-400">
                   {t('legacy.playerStats.counts', { sits: sits, partners: partners, opponents: opponents })}</span>
               </div>
             )
           })}
       </div>
-      <p className="text-[10px] text-slate-400">{t('legacy.playerStats.legend')}</p>
+      <p className="text-2xs text-slate-400">{t('legacy.playerStats.legend')}</p>
     </Card>
   )
 }
@@ -98,7 +98,7 @@ export default function PlayerStatsPanel({
       <Card padding="sm" radius="lg" className="mt-6 flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-white">{t('legacy.playerStats.title')}</span>
-          <span className="text-[10px] text-slate-400">{t('legacy.playerStats.tapHint')}</span>
+          <span className="text-2xs text-slate-400">{t('legacy.playerStats.tapHint')}</span>
         </div>
         <div className="grid grid-cols-3 gap-x-2 gap-y-1.5">
           {sorted.map((id) => {
@@ -127,7 +127,7 @@ export default function PlayerStatsPanel({
                   <AnnotatedPlayerName name={name} />
                   {teamTheme && <img src={teamTheme.logo} style={{ width: teamKey === 'Green Grove' ? 18 : 15, height: teamKey === 'Green Grove' ? 18 : 15, objectFit: 'contain', flexShrink: 0 }} />}
                 </span>
-                {isAbsent && <span className="text-[10px] text-slate-300 bg-slate-800 rounded px-1 py-0.5 shrink-0">{t('session.absent')}</span>}
+                {isAbsent && <span className="text-2xs text-slate-300 bg-slate-800 rounded px-1 py-0.5 shrink-0">{t('session.absent')}</span>}
                 <span className={`text-xs font-bold shrink-0 ${isAbsent ? 'text-slate-400' : isSelected && !teamTheme ? 'text-yellow-400' : 'text-white'}`}
                   style={isSelected && teamTheme ? { color: teamTheme.color } : undefined}>
                   {plays}×

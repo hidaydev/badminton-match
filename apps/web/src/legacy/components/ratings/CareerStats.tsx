@@ -13,7 +13,7 @@ function PairRow({ name, wins, losses, count }: { name: string; wins: number; lo
       <span className="text-xs text-fg truncate min-w-0 font-medium">
         <AnnotatedPlayerName name={name} />
       </span>
-      <div className="flex items-center gap-1 font-mono text-[10px] shrink-0 tabular-nums">
+      <div className="flex items-center gap-1 font-mono text-2xs shrink-0 tabular-nums">
         <span className="text-emerald-400 font-semibold">{t('legacy.career.winsShort', { wins: wins })}</span>
         {losses > 0 && <span className="text-red-400 font-semibold">{t('legacy.career.lossesShort', { losses: losses })}</span>}
         <span className="text-fg-dim font-sans">{count}×</span>
@@ -39,7 +39,7 @@ export default function CareerStats({ stats, countedPoints }: {
       {stats.sessions.length > 0 && (
         <Card padding="md" radius="xl" className="flex flex-col gap-2">
           <div className="flex items-center justify-between pb-0.5">
-            <p className="text-[10px] font-sans text-fg-dim label-meta font-semibold">
+            <p className="text-meta font-sans text-fg-dim label-meta font-semibold">
               {t('career.sessions')} ({stats.sessions.length})
               <span className="normal-case tracking-normal"> {t('career.ratedNote')}</span>
             </p>
@@ -56,17 +56,17 @@ export default function CareerStats({ stats, countedPoints }: {
                   <div className="flex items-center gap-2 shrink-0">
                     {counted && (
                       <span
-                        className="text-[10px] font-mono text-accent bg-accent/10 border border-accent/30 rounded px-1.5 py-0.5 font-bold tabular-nums"
+                        className="text-2xs font-mono text-accent bg-accent/10 border border-accent/30 rounded px-1.5 py-0.5 font-bold tabular-nums"
                         title={`Rank points contributed: +${Math.round(pts).toLocaleString('en-US')}`}
                       >
                         {t('legacy.career.rankPoints', { points: Math.round(pts).toLocaleString('en-US') })}</span>
                     )}
                     {s.absent && (
-                      <span className="text-[10px] font-sans text-fg-dim bg-elevated px-1.5 py-0.5 rounded border border-border-subtle">
+                      <span className="text-2xs font-sans text-fg-dim bg-elevated px-1.5 py-0.5 rounded border border-border-subtle">
                         {t('career.absent')}
                       </span>
                     )}
-                    <span className="text-[10px] font-mono text-fg-dim tabular-nums">{s.date.split('-').reverse().join('-')}</span>
+                    <span className="text-2xs font-mono text-fg-dim tabular-nums">{s.date.split('-').reverse().join('-')}</span>
                   </div>
                 </div>
               )
@@ -107,7 +107,7 @@ export default function CareerStats({ stats, countedPoints }: {
         >
           {stats.topPartners.length > 0 && (
             <Card padding="sm" radius="xl" className="flex flex-col gap-1.5">
-              <p className="text-[10px] font-sans text-fg-dim label-meta font-semibold">
+              <p className="text-meta font-sans text-fg-dim label-meta font-semibold">
                 {t('career.topPartners')}
               </p>
               {stats.topPartners.map((p) => (
@@ -118,7 +118,7 @@ export default function CareerStats({ stats, countedPoints }: {
 
           {stats.topOpponents.length > 0 && (
             <Card padding="sm" radius="xl" className="flex flex-col gap-1.5">
-              <p className="text-[10px] font-sans text-fg-dim label-meta font-semibold">
+              <p className="text-meta font-sans text-fg-dim label-meta font-semibold">
                 {t('career.topOpponents')}
               </p>
               {stats.topOpponents.map((p) => (
@@ -138,7 +138,7 @@ export default function CareerStats({ stats, countedPoints }: {
               <span className="text-xl sm:text-2xl font-bold font-mono text-fg leading-none tabular-nums">
                 {stats.tournamentStats.gamesPlayed}
               </span>
-              <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1.5 font-medium">
+              <span className="text-meta sm:text-xs font-sans text-fg-dim label-meta mt-1.5 font-medium">
                 {t('career.tournGames')}
               </span>
             </Card>
@@ -150,7 +150,7 @@ export default function CareerStats({ stats, countedPoints }: {
                 <span className="text-fg-dim text-sm font-light">/</span>
                 <span className="text-red-400">{t('legacy.career.lossesShort', { losses: stats.tournamentStats.losses })}</span>
               </div>
-              <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1.5 font-medium">
+              <span className="text-meta sm:text-xs font-sans text-fg-dim label-meta mt-1.5 font-medium">
                 {t('career.tournWl')}
               </span>
             </Card>
@@ -168,7 +168,7 @@ export default function CareerStats({ stats, countedPoints }: {
                   />
                 </div>
               )}
-              <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1 font-medium">
+              <span className="text-meta sm:text-xs font-sans text-fg-dim label-meta mt-1 font-medium">
                 {t('career.tournWinRate')}
               </span>
             </Card>
@@ -176,7 +176,7 @@ export default function CareerStats({ stats, countedPoints }: {
 
           {stats.tournamentStats.tournaments.length > 0 && (
             <Card padding="md" radius="xl" className="flex flex-col gap-2">
-              <p className="text-[10px] font-sans text-fg-dim label-meta font-semibold pb-0.5">
+              <p className="text-meta font-sans text-fg-dim label-meta font-semibold pb-0.5">
                 {t('career.tournaments')} ({stats.tournamentStats.tournaments.length})
               </p>
               <div className="flex flex-col">
@@ -185,7 +185,7 @@ export default function CareerStats({ stats, countedPoints }: {
                   return (
                     <div key={tItem.share_code || tItem.name} className="flex justify-between items-center text-sm gap-2 py-1.5 border-b border-border-subtle/50 last:border-0">
                       <span className="text-fg font-medium truncate min-w-0">{tItem.name}</span>
-                      <div className="flex items-center gap-2 shrink-0 font-mono text-[10px] tabular-nums">
+                      <div className="flex items-center gap-2 shrink-0 font-mono text-2xs tabular-nums">
                         {tPts !== undefined && (
                           <span
                             className="text-accent bg-accent/10 border border-accent/30 rounded px-1.5 py-0.5 font-bold"
@@ -217,7 +217,7 @@ export default function CareerStats({ stats, countedPoints }: {
             >
               {stats.tournamentStats.topPartners.length > 0 && (
                 <Card padding="sm" radius="xl" className="flex flex-col gap-1.5">
-                  <p className="text-[10px] font-sans text-fg-dim label-meta font-semibold">
+                  <p className="text-meta font-sans text-fg-dim label-meta font-semibold">
                     {t('career.tournamentPartners')}
                   </p>
                   {stats.tournamentStats.topPartners.map((p) => (
@@ -228,7 +228,7 @@ export default function CareerStats({ stats, countedPoints }: {
 
               {stats.tournamentStats.topOpponents.length > 0 && (
                 <Card padding="sm" radius="xl" className="flex flex-col gap-1.5">
-                  <p className="text-[10px] font-sans text-fg-dim label-meta font-semibold">
+                  <p className="text-meta font-sans text-fg-dim label-meta font-semibold">
                     {t('career.tournamentOpponents')}
                   </p>
                   {stats.tournamentStats.topOpponents.map((p) => (

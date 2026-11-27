@@ -61,18 +61,18 @@ export default function StandingsTab({
         </div>
         {(absentList.length > 0 || placeholderList.length > 0) && (
           <div className="flex flex-col gap-1.5">
-            <p className="text-[10px] font-bold text-slate-400 label-meta px-2" id={notPlayingEmptyId}>{t('legacy.summaryStandings.notPlaying')}</p>
+            <p className="text-meta font-bold text-slate-400 label-meta px-2" id={notPlayingEmptyId}>{t('legacy.summaryStandings.notPlaying')}</p>
             <ul role="list" aria-labelledby={notPlayingEmptyId} className="flex flex-col gap-1.5">
               {absentList.map(p => (
                 <li key={p.id} className="flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl border border-slate-800/50 bg-slate-800/20">
                   <span className="flex-1 text-sm font-medium text-slate-400 line-through">{p.name}</span>
-                  <span className="text-[10px] text-slate-400">{t('session.absent')}</span>
+                  <span className="text-2xs text-slate-400">{t('session.absent')}</span>
                 </li>
               ))}
               {placeholderList.map(p => (
                 <li key={p.id} className="flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl border border-slate-800/50 bg-slate-800/20">
                   <span className="flex-1 text-sm font-medium text-slate-400">{p.name}</span>
-                  <span className="text-[10px] text-slate-400">{t('wizard.players.tbd')}</span>
+                  <span className="text-2xs text-slate-400">{t('wizard.players.tbd')}</span>
                 </li>
               ))}
             </ul>
@@ -85,7 +85,7 @@ export default function StandingsTab({
   return (
     <div className="flex flex-col gap-1.5">
       {/* Tiebreaker order strip — hugs top divider */}
-      <div className="flex justify-end gap-1 items-center pl-2 pr-2 -mt-4 pt-1 pb-3 text-[11px] text-slate-400">
+      <div className="flex justify-end gap-1 items-center pl-2 pr-2 -mt-4 pt-1 pb-3 text-2xs text-slate-400">
         <span>{t('legacy.summaryStandings.rankedBy')}</span>
         <span className="font-semibold">{t('legacy.summaryStandings.wl')}</span>
         <span>›</span>
@@ -111,18 +111,18 @@ export default function StandingsTab({
       {(absentList.length > 0 || placeholderList.length > 0) && (
         <>
           <div className="h-px bg-slate-800 my-1" />
-          <p className="text-[10px] font-bold text-slate-400 label-meta px-2 mt-1" id={notPlayingId}>{t('legacy.summaryStandings.notPlaying')}</p>
+          <p className="text-meta font-bold text-slate-400 label-meta px-2 mt-1" id={notPlayingId}>{t('legacy.summaryStandings.notPlaying')}</p>
           <ul role="list" aria-labelledby={notPlayingId} className="flex flex-col gap-1.5">
             {absentList.map(p => (
               <li key={p.id} className="flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl border border-slate-800/50 bg-slate-800/20">
                 <span className="flex-1 text-sm font-medium text-slate-400 line-through"><AnnotatedPlayerName name={p.name} /></span>
-                <span className="text-[10px] text-slate-400">{t('session.absent')}</span>
+                <span className="text-2xs text-slate-400">{t('session.absent')}</span>
               </li>
             ))}
             {placeholderList.map(p => (
               <li key={p.id} className="flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl border border-slate-800/50 bg-slate-800/20">
                 <span className="flex-1 text-sm font-medium text-slate-400"><AnnotatedPlayerName name={p.name} /></span>
-                <span className="text-[10px] text-slate-400">{t('wizard.players.tbd')}</span>
+                <span className="text-2xs text-slate-400">{t('wizard.players.tbd')}</span>
               </li>
             ))}
           </ul>

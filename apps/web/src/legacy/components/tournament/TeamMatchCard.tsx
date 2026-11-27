@@ -56,7 +56,7 @@ export default function TeamMatchCard({
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-xs text-fg-dim label-meta truncate">{label}</span>
           <label className="flex items-center gap-1 shrink-0">
-            <span className="text-[11px] text-fg-dim">{t('team.court')}</span>
+            <span className="text-2xs text-fg-dim">{t('team.court')}</span>
             <input
               type="text"
               value={courts[0]}
@@ -70,7 +70,7 @@ export default function TeamMatchCard({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {dirty && (
-            <span className="text-[11px] text-fg-dim">
+            <span className="text-2xs text-fg-dim">
               {out.complete ? `${out.aWins}-${out.bWins}` : 'incomplete'}
             </span>
           )}
@@ -93,8 +93,8 @@ export default function TeamMatchCard({
         {PARTAI_CLASSES.map(([clsA, clsB], pi) => (
           <div key={pi} className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
-              <span className="w-12 text-[11px] text-fg-dim uppercase shrink-0">{clsA} {clsB}</span>
-              <span className="flex-1 text-[11px] text-fg-dim truncate">
+              <span className="w-12 text-2xs text-fg-dim uppercase shrink-0">{clsA} {clsB}</span>
+              <span className="flex-1 text-2xs text-fg-dim truncate">
                 {getTeamPlayer(match.teamA, clsA)}/{getTeamPlayer(match.teamA, clsB)}
               </span>
               <input
@@ -118,7 +118,7 @@ export default function TeamMatchCard({
                 className="w-14 h-10 bg-elevated border border-border rounded-lg px-2.5 py-2 text-base font-bold font-sans text-fg text-center focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default"
                 aria-label={`Score ${teamName(teams, match.teamB)} partai ${pi + 1}`}
               />
-              <span className="flex-1 text-[11px] text-fg-dim truncate text-right">
+              <span className="flex-1 text-2xs text-fg-dim truncate text-right">
                 {getTeamPlayer(match.teamB, clsA)}/{getTeamPlayer(match.teamB, clsB)}
               </span>
               {/* Inline camera icon per partai (post mode) */}

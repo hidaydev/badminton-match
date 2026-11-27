@@ -347,7 +347,7 @@ function ClaimRow({
           {t(CLAIM_STATUS_KEY[claim.status])}
         </span>
       </p>
-      <p className="mt-1 font-mono text-[10px] text-fg-dim">{formatInstantDate(claim.createdAt, timeZone)}</p>
+      <p className="mt-1 font-mono text-2xs text-fg-dim">{formatInstantDate(claim.createdAt, timeZone)}</p>
       {claim.reason !== '' && <p className="mt-1 text-xs text-fg-dim">{claim.reason}</p>}
 
       {admin && !own && claim.status === 'pending' && (

@@ -507,7 +507,7 @@ function MemberRow({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="min-w-0">
           <span className="block truncate text-sm text-fg">{member.displayName}</span>
-          <span className="font-mono text-[10px] text-fg-dim">
+          <span className="font-mono text-2xs text-fg-dim">
             {formatInstantDate(member.joinedAt, timeZone)}
           </span>
         </span>
@@ -688,7 +688,7 @@ function JoinRequests({
           {requests.map((request) => (
             <Card as="li" key={request.id} radius="xl" padding="sm">
               <p className="text-sm text-fg">{request.displayName}</p>
-              <p className="font-mono text-[10px] text-fg-dim">
+              <p className="font-mono text-2xs text-fg-dim">
                 {formatInstantDate(request.createdAt, timeZone)}
               </p>
               <div className="mt-2 flex flex-wrap items-end gap-2">
@@ -794,7 +794,7 @@ function PendingClaims({
                   <span className="block text-xs text-fg-dim">
                     {t('admin.claims.claimant', { name: claim.displayName })}
                   </span>
-                  <span className="font-mono text-[10px] text-fg-dim">
+                  <span className="font-mono text-2xs text-fg-dim">
                     {formatInstantDate(claim.createdAt, timeZone)}
                   </span>
                 </span>

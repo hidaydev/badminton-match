@@ -227,7 +227,7 @@ function TeamWizard() {
               <Card radius="lg" key={t.id} className="overflow-hidden">
                 <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-subtle">
                   <span className="flex-1 text-sm font-semibold text-fg">{TEAM_NAMES[i]}</span>
-                  <span className="text-[10px] font-sans text-fg-dim label-meta">
+                  <span className="text-meta font-sans text-fg-dim label-meta">
                     {t.players.length}/{TEAM_COUNT}
                   </span>
                 </div>

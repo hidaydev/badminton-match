@@ -112,7 +112,7 @@ export function FixMatchCard({
       {match.mode === 'pinned' && (
         <div className="flex gap-2 items-end">
           <div className="flex flex-col gap-1 flex-1">
-            <span className="text-[10px] text-slate-400">{t('wizard.constraints.time')}</span>
+            <span className="text-2xs text-slate-400">{t('wizard.constraints.time')}</span>
             <select
               value={match.pinnedTime}
               onChange={(e) => updateFixMatch(match.id, { pinnedTime: e.target.value || toTimeString(''), pinnedCourt: e.target.value ? match.pinnedCourt : 0 } as Partial<MatchConstraint>)}
@@ -125,7 +125,7 @@ export function FixMatchCard({
             </select>
           </div>
           <div className="flex flex-col gap-1 flex-1">
-            <span className="text-[10px] text-slate-400">{t('team.court')}</span>
+            <span className="text-2xs text-slate-400">{t('team.court')}</span>
             <select
               value={match.pinnedCourt}
               onChange={(e) => updateFixMatch(match.id, { pinnedCourt: e.target.value ? Number(e.target.value) : 0 } as Partial<MatchConstraint>)}
@@ -145,7 +145,7 @@ export function FixMatchCard({
       {conflicts.length > 0 && (
         <div className="flex flex-col gap-0.5">
           {conflicts.map((msg, i) => (
-            <p key={i} className="text-[11px] text-red-400">⚠ {msg}</p>
+            <p key={i} className="text-2xs text-red-400">⚠ {msg}</p>
           ))}
         </div>
       )}

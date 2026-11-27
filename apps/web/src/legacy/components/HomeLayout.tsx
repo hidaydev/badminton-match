@@ -152,7 +152,7 @@ export default function HomeLayout() {
                     <p className="truncate text-sm font-semibold text-fg">
                       {user?.displayName ?? ''}
                     </p>
-                    <p className="mt-0.5 truncate text-[11px] text-fg-dim">
+                    <p className="mt-0.5 truncate text-2xs text-fg-dim">
                       {roleLabel}
                       {current !== null ? ` · ${current.name}` : ''}
                     </p>
@@ -166,7 +166,7 @@ export default function HomeLayout() {
                       aria-label={t('community.label')}
                       className="border-b border-border-subtle p-1.5 md:hidden"
                     >
-                      <p className="px-3 pb-1 pt-1.5 text-[10px] font-semibold label-meta text-fg-dim">
+                      <p className="px-3 pb-1 pt-1.5 text-meta font-semibold label-meta text-fg-dim">
                         {t('community.label')}
                       </p>
                       {memberships.map((membership) => {

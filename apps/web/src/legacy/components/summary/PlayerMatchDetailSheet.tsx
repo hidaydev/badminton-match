@@ -157,7 +157,7 @@ export default function PlayerMatchDetailSheet({
                 <div className="mt-1">
                   <div className="text-sm text-slate-300">{describeSetsFor(game.sets, game.onTeamA)}</div>
                   {game.sets.length > 1 && (
-                    <div className="text-[11px] text-slate-400">
+                    <div className="text-2xs text-slate-400">
                       {(() => {
                         const count = setsWon(game.sets)
                         return `${game.onTeamA ? count.a : count.b} - ${game.onTeamA ? count.b : count.a}`

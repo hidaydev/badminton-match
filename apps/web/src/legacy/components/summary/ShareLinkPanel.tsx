@@ -141,7 +141,7 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
               </div>
             ) : (
               <>
-                <code className="block break-all rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1.5 text-[11px] text-slate-300">{url}</code>
+                <code className="block break-all rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1.5 text-2xs text-slate-300">{url}</code>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
@@ -178,7 +178,7 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
                     </button>
                   ) : (
                     <>
-                      <span className="text-[11px] text-red-300">{t('session.share.revokeConfirm')}</span>
+                      <span className="text-2xs text-red-300">{t('session.share.revokeConfirm')}</span>
                       <button
                         ref={confirmRef}
                         type="button"
@@ -202,7 +202,7 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
               </>
             )}
             {error && (
-              <ErrorText as="span" inherit className="text-[11px] text-red-300">{error}</ErrorText>
+              <ErrorText as="span" inherit className="text-2xs text-red-300">{error}</ErrorText>
             )}
             <span role="status" className="sr-only">{copied ? t('session.share.copied') : ''}</span>
           </div>

@@ -309,7 +309,7 @@ export default function TeamTournamentPage() {
                     team === undefined || team.players.length === 0 ? undefined : (
                       <>
                         {team.players.map((p) => (
-                          <span key={p.name} className="text-[10px] text-fg-dim">
+                          <span key={p.name} className="text-2xs text-fg-dim">
                             <span className="text-accent">{p.cls}</span> {p.name}
                           </span>
                         ))}
@@ -401,7 +401,7 @@ export default function TeamTournamentPage() {
                 {/* Champion banner */}
                 {finalOutcome?.complete && championName && (
                   <div className="bg-linear-to-r from-accent/20 via-accent/10 to-accent/20 border border-accent/30 rounded-lg px-4 py-3 text-center">
-                    <p className="text-[10px] text-accent uppercase tracking-widest mb-1">{t('team.champion')}</p>
+                    <p className="text-meta text-accent uppercase tracking-widest mb-1">{t('team.champion')}</p>
                     <p className="text-lg font-bold text-fg">🏆 {championName}</p>
                     <p className="text-xs text-fg-dim mt-0.5">
                       {finalOutcome.aWins} - {finalOutcome.bWins}

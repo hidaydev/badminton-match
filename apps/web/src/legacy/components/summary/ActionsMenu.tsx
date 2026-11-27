@@ -88,7 +88,7 @@ export default function ActionsMenu({
                 className="w-full text-left px-4 py-2.5 text-xs font-medium text-emerald-400 hover:bg-slate-800 transition-colors border-t border-slate-800 hit44"
                 role="menuitem"
               >
-                {t('legacy.actions.replacePlayer')}<span className="block text-[10px] text-slate-400 font-normal">{t('legacy.actions.replacePlayerHint')}</span>
+                {t('legacy.actions.replacePlayer')}<span className="block text-2xs text-slate-400 font-normal">{t('legacy.actions.replacePlayerHint')}</span>
               </button>
             )}
             {hasChangePlayer && (
@@ -97,7 +97,7 @@ export default function ActionsMenu({
                 className="w-full text-left px-4 py-2.5 text-xs font-medium text-sky-400 hover:bg-slate-800 transition-colors border-t border-slate-800 hit44"
                 role="menuitem"
               >
-                {t('legacy.actions.changePlayer')}<span className="block text-[10px] text-slate-400 font-normal">{t('legacy.actions.changePlayerHint')}</span>
+                {t('legacy.actions.changePlayer')}<span className="block text-2xs text-slate-400 font-normal">{t('legacy.actions.changePlayerHint')}</span>
               </button>
             )}
             {hasSwapSlots && (
@@ -116,7 +116,7 @@ export default function ActionsMenu({
               >
                 <Icon name="user" size={14} className="inline mr-1.5 -mt-0.5" />
                 {t('legacy.markAbsent')}
-                <span className="block text-[10px] text-slate-400 font-normal">{t('legacy.actions.wholeSession')}</span>
+                <span className="block text-2xs text-slate-400 font-normal">{t('legacy.actions.wholeSession')}</span>
               </button>
             )}
             {hasSetSkipped && (
@@ -125,7 +125,7 @@ export default function ActionsMenu({
                 className="w-full text-left px-4 py-2.5 text-xs font-medium text-amber-400 hover:bg-slate-800 transition-colors border-t border-slate-800 hit44"
                 role="menuitem"
               >
-                {t('legacy.actions.skipInGame')}<span className="block text-[10px] text-slate-400 font-normal">{t('legacy.actions.skipInGameHint')}</span>
+                {t('legacy.actions.skipInGame')}<span className="block text-2xs text-slate-400 font-normal">{t('legacy.actions.skipInGameHint')}</span>
               </button>
             )}
           </div>

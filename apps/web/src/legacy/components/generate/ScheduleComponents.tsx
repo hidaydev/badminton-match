@@ -17,7 +17,7 @@ function renderTierLetters(tiers: number[]) {
   return tiers.map((tier, index) => (
     <span
       key={`${tier}-${index}`}
-      className={`text-[10px] font-bold ${TIER_COLORS[tier] ?? 'text-slate-400'}`}
+      className={`text-2xs font-bold ${TIER_COLORS[tier] ?? 'text-slate-400'}`}
     >
       {TIER_LABELS[tier] ?? tier}
     </span>
@@ -30,11 +30,11 @@ function PlayerChip({ player, backToBackRun }: { player: Player; backToBackRun?:
   return (
     <span className="inline-flex items-center gap-1 bg-slate-700 rounded-lg px-2 py-1 text-xs text-white min-w-0 overflow-hidden">
       <span className="overflow-hidden"><AnnotatedPlayerName name={player.name} /></span>
-      {backToBackRun ? <sup className="text-[11px] font-bold text-amber-400 shrink-0">*{backToBackRun}</sup> : null}
-      <span className={`hidden sm:inline text-[10px] font-bold shrink-0 ${player.gender === 'M' ? 'text-blue-400' : 'text-red-400'}`}>
+      {backToBackRun ? <sup className="text-2xs font-bold text-amber-400 shrink-0">*{backToBackRun}</sup> : null}
+      <span className={`hidden sm:inline text-2xs font-bold shrink-0 ${player.gender === 'M' ? 'text-blue-400' : 'text-red-400'}`}>
         {player.gender}
       </span>
-      <span className={`hidden sm:inline text-[10px] font-bold shrink-0 ${TIER_COLORS[player.tier]}`}>{TIER_LABELS[player.tier]}</span>
+      <span className={`hidden sm:inline text-2xs font-bold shrink-0 ${TIER_COLORS[player.tier]}`}>{TIER_LABELS[player.tier]}</span>
     </span>
   )
 }
@@ -53,10 +53,10 @@ function TierBalance({ tiersA, tiersB }: { tiersA: number[]; tiersB: number[] })
     : 'text-red-400 bg-red-900/30 border-red-800'
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[10px] text-slate-400">
+      <span className="text-2xs text-slate-400">
         <span>{renderTierLetters(tiersA)}</span> {' '}{t('shared.versus')}{' '}<span>{renderTierLetters(tiersB)}</span>
       </span>
-      <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${color}`}>{badge}</span>
+      <span className={`text-2xs px-1.5 py-0.5 rounded border font-medium ${color}`}>{badge}</span>
     </div>
   )
 }
@@ -86,7 +86,7 @@ function GameCard({
   return (
     <div className="bg-elevated border border-border rounded-xl px-3 py-2 flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-slate-400 font-medium">{courtName}</span>
+        <span className="text-2xs text-slate-400 font-medium">{courtName}</span>
         <TierBalance tiersA={tiersA} tiersB={tiersB} />
       </div>
       <div className="flex items-center gap-2">
@@ -168,9 +168,9 @@ export function ScheduleView({
                 ))}
                 {out.length > 0 && (
                   <div className="flex items-center gap-2 flex-wrap mt-1">
-                    <span className="text-[10px] text-slate-400">{t('legacy.schedule.sitsOut')}</span>
+                    <span className="text-2xs text-slate-400">{t('legacy.schedule.sitsOut')}</span>
                     {out.map((p) => (
-                      <span key={p.id} className="text-[10px] text-slate-400 bg-slate-800/50 px-1.5 py-0.5 rounded">
+                      <span key={p.id} className="text-2xs text-slate-400 bg-slate-800/50 px-1.5 py-0.5 rounded">
                         <AnnotatedPlayerName name={p.name} />
                       </span>
                     ))}
@@ -255,7 +255,7 @@ export function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood,
             {hasBad ? '⚠ Consider regenerating' : hasWarn ? '~ Could be better' : '✓ Good schedule'}
           </span>
           {retryInfo && (
-            <span className="text-[11px] text-slate-400">
+            <span className="text-2xs text-slate-400">
               {retryInfo.perfect ? `· found in ${retryInfo.attempts} attempt${retryInfo.attempts > 1 ? 's' : ''}` : `· best of ${retryInfo.attempts} attempts`}
             </span>
           )}
@@ -272,24 +272,24 @@ export function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood,
         {items.map((item) => (
           <div key={item.label} className="flex items-center gap-1.5 min-w-0">
             <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot[item.level]}`} />
-            <span className="text-[11px] text-slate-400 shrink-0">{item.label}:</span>
-            <span className={`text-[11px] font-medium truncate ${text[item.level]}`}>{item.detail}</span>
+            <span className="text-2xs text-slate-400 shrink-0">{item.label}:</span>
+            <span className={`text-2xs font-medium truncate ${text[item.level]}`}>{item.detail}</span>
             {item.hint && (
-              <span title={item.hint} className="text-[10px] text-slate-400 hover:text-slate-400 cursor-help shrink-0">ⓘ</span>
+              <span title={item.hint} className="text-2xs text-slate-400 hover:text-slate-400 cursor-help shrink-0">ⓘ</span>
             )}
           </div>
         ))}
         <div className="col-span-2 flex items-center gap-1.5 min-w-0">
           <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot[backToBackItem.level]}`} />
-          <span className="text-[11px] text-slate-400 shrink-0">{backToBackItem.label}:</span>
-          <span className={`text-[11px] font-medium ${text[backToBackItem.level]}`}>{backToBackItem.detail}</span>
+          <span className="text-2xs text-slate-400 shrink-0">{backToBackItem.label}:</span>
+          <span className={`text-2xs font-medium ${text[backToBackItem.level]}`}>{backToBackItem.detail}</span>
           {backToBackItem.hint && (
-            <span title={backToBackItem.hint} className="text-[10px] text-slate-400 hover:text-slate-400 cursor-help shrink-0">ⓘ</span>
+            <span title={backToBackItem.hint} className="text-2xs text-slate-400 hover:text-slate-400 cursor-help shrink-0">ⓘ</span>
           )}
         </div>
       </div>
       {b2bConfigLimited && (
-        <p className="text-[11px] text-amber-400/90 leading-snug border-t border-amber-800/50 pt-2">
+        <p className="text-2xs text-amber-400/90 leading-snug border-t border-amber-800/50 pt-2">
           {t('legacy.schedule.backToBackLimit', { backToBackCount: q.backToBackCount })}</p>
       )}
     </div>

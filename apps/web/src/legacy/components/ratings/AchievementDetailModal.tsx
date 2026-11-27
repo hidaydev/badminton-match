@@ -102,19 +102,19 @@ export default function AchievementDetailModal({
           {/* Tier Name Pill */}
           {isMilestone ? (
             <div
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-[10px] font-bold label-meta ${currentTierStyle.pillBorder} ${currentTierStyle.pillBg} ${currentTierStyle.pillText}`}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-meta font-bold label-meta ${currentTierStyle.pillBorder} ${currentTierStyle.pillBg} ${currentTierStyle.pillText}`}
             >
-              <span className="text-[11px] leading-none">★</span>
+              <span className="text-2xs leading-none">★</span>
               <span>
                 {t('legacy.achievement.tierPill', { tier: MEDAL_TIER_NAMES[tierIdx], level: tierLevel, total: thresholds.length })}</span>
             </div>
           ) : isEvent ? (
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-elevated px-3 py-0.5 text-[10px] font-bold label-meta text-fg">
-              <span className="text-accent text-[11px] leading-none">◆</span>
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-elevated px-3 py-0.5 text-meta font-bold label-meta text-fg">
+              <span className="text-accent text-2xs leading-none">◆</span>
               <span>{t('legacy.achievement.tournamentMedal')}</span>
             </div>
           ) : (
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-elevated px-3 py-0.5 text-[10px] font-bold label-meta text-fg">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-elevated px-3 py-0.5 text-meta font-bold label-meta text-fg">
               <span>{t('legacy.achievement.achievement')}</span>
             </div>
           )}
@@ -133,7 +133,7 @@ export default function AchievementDetailModal({
         {/* ── Tangga Tingkat (Milestone Ladder) ─────────────────── */}
         {isMilestone ? (
           <div className="flex flex-col gap-3 border-t border-border-subtle bg-surface/50 px-5 pt-4 pb-5">
-            <div className="flex items-center justify-between text-[10px] font-semibold label-meta text-fg-dim">
+            <div className="flex items-center justify-between text-meta font-semibold label-meta text-fg-dim">
               <span>{t('legacy.achievement.milestoneLadder')}</span>
               <span className="text-fg">
                 {t('legacy.achievement.completed', { level: tierLevel, total: thresholds.length })}</span>
@@ -183,12 +183,12 @@ export default function AchievementDetailModal({
 
                       <div className="flex flex-col items-center">
                         <span
-                          className={`text-[11px] font-medium leading-none ${achieved ? 'text-fg' : 'text-fg-dim'}`}
+                          className={`text-2xs font-medium leading-none ${achieved ? 'text-fg' : 'text-fg-dim'}`}
                         >
                           {tierName}
                         </span>
                         <span
-                          className={`mt-0.5 text-[10px] font-bold leading-tight ${achieved ? 'text-fg' : 'text-fg-dim'}`}
+                          className={`mt-0.5 text-2xs font-bold leading-tight ${achieved ? 'text-fg' : 'text-fg-dim'}`}
                         >
                           {label}
                         </span>
@@ -204,7 +204,7 @@ export default function AchievementDetailModal({
                 threshold, so a ratio built from it would be fiction. */}
             {tierLevel < thresholds.length && nextTarget && (
               <div className="mt-1 rounded-lg border border-border-subtle bg-ground/40 p-2.5">
-                <div className="flex items-center justify-between text-[10px]">
+                <div className="flex items-center justify-between text-2xs">
                   <span className="text-fg-dim">
                     {t('legacy.achievement.next')}{' '}<span className="font-semibold text-fg">
                       {MEDAL_TIER_NAMES[tierLevel]} ({a.key === 'medal:rank' ? `#${nextTarget}` : nextTarget})
@@ -238,7 +238,7 @@ export default function AchievementDetailModal({
               {seed && (
                 <div className="flex justify-between gap-3 text-xs">
                   <dt className="text-fg-dim">{t('legacy.achievement.tournamentId')}</dt>
-                  <dd className="font-mono text-[11px] text-fg-dim">{seed}</dd>
+                  <dd className="font-mono text-2xs text-fg-dim">{seed}</dd>
                 </div>
               )}
             </dl>

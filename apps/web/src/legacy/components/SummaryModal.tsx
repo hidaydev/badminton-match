@@ -478,7 +478,7 @@ export default function SummaryModal({
               {t(swapSelected ? 'summary.swapOne' : 'summary.swapStart')}
             </span>
             {swapError && (
-              <span className="text-[11px] text-red-400">{swapError}</span>
+              <span className="text-2xs text-red-400">{swapError}</span>
             )}
           </div>
         )}
@@ -489,7 +489,7 @@ export default function SummaryModal({
                 ? t('summary.absentSome', { count: absentPending.size })
                 : t('summary.absentNone')}
             </span>
-            <span className="text-[11px] text-red-400/70">
+            <span className="text-2xs text-red-400/70">
               {t('summary.absentScope', { games: totalGames })}
             </span>
             <div className="flex flex-wrap gap-1.5">
@@ -526,9 +526,9 @@ export default function SummaryModal({
                 ? t('summary.skipSome', { count: flatSkippedCount })
                 : t('summary.skipNone')}
             </span>
-            <span className="text-[11px] text-amber-400/70">{t('summary.skipScope')}</span>
+            <span className="text-2xs text-amber-400/70">{t('summary.skipScope')}</span>
             {skipChanged && (
-              <span className="text-[10px] text-amber-300">
+              <span className="text-2xs text-amber-300">
                 {[...skipPending.entries()].map(([k, s]) => `${k}: ${[...s].map(id => playerMap.get(id)?.name ?? id).join(', ')}`).join(' · ')}
               </span>
             )}
@@ -633,7 +633,7 @@ export default function SummaryModal({
                   </button>
                 </div>
                 {changeError && (
-                  <span className="text-[11px] text-red-400">{changeError}</span>
+                  <span className="text-2xs text-red-400">{changeError}</span>
                 )}
               </>
             )}

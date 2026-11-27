@@ -21,7 +21,7 @@ export function SlotPicker({
 
   return (
     <div className="flex flex-col gap-1 flex-1 min-w-0">
-      <span className="text-[10px] text-slate-400 text-center">{label}</span>
+      <span className="text-2xs text-slate-400 text-center">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -34,7 +34,7 @@ export function SlotPicker({
           </option>
         ))}
       </select>
-      <span className={`text-[10px] text-center h-3 leading-3 ${selected ? selected.gender === 'M' ? 'text-blue-400' : 'text-red-400' : 'text-transparent'}`}>
+      <span className={`text-2xs text-center h-3 leading-3 ${selected ? selected.gender === 'M' ? 'text-blue-400' : 'text-red-400' : 'text-transparent'}`}>
         {selected ? (
           <>
             {selected.gender} · <span className={TIER_COLORS[selected.tier] ?? 'text-slate-400'}>

@@ -118,7 +118,7 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
           >
             {player.name}
             {isPlaceholderName(player.name) && (
-              <span className="ml-2 text-[11px] font-bold text-amber-400/90 bg-amber-900/40 border border-amber-700/50 rounded px-1 py-0.5 label-meta">
+              <span className="ml-2 text-2xs font-bold text-amber-400/90 bg-amber-900/40 border border-amber-700/50 rounded px-1 py-0.5 label-meta">
                 {t('wizard.players.tbd')}</span>
             )}
           </span>
@@ -164,7 +164,7 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
                 className="gap-1.5 font-normal"
               >
                 <span>{m.name}</span>
-                <span className="text-[10px] text-fg-dim">({TIER_LABELS[m.tier]} · {m.gender})</span>
+                <span className="text-2xs text-fg-dim">({TIER_LABELS[m.tier]} · {m.gender})</span>
               </Button>
             ))}
           </div>

@@ -29,7 +29,7 @@ export default function AdminMenuGrid() {
           </div>
           <div className="flex flex-col gap-0.5 min-w-0">
             <span className="text-sm font-semibold text-fg leading-tight">{it.label}</span>
-            <span className="text-[11px] text-fg-dim leading-snug">{it.desc}</span>
+            <span className="text-2xs text-fg-dim leading-snug">{it.desc}</span>
           </div>
         </Card>
       ))}

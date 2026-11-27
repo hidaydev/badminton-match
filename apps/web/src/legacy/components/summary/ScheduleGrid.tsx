@@ -146,7 +146,7 @@ export default function ScheduleGrid({
           <div key={s} className="flex items-start gap-4 py-4">
             <div className="flex flex-col items-center w-4 shrink-0 pt-0.5 gap-0.5">
               <span className="text-xs font-bold text-slate-400 tabular-nums">#{s + 1}</span>
-              <span className="text-[11px] text-slate-400 font-medium leading-none tabular-nums">
+              <span className="text-2xs text-slate-400 font-medium leading-none tabular-nums">
                 {minutesToTime(timeToMinutes(sessionStart) + s * slotMinutes)}
               </span>
             </div>
@@ -194,7 +194,7 @@ export default function ScheduleGrid({
                       >
                         {ids.map((id, i) => (
                           <span key={i} className="flex items-center gap-1">
-                            {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
+                            {i > 0 && <span className="text-2xs text-slate-400">&</span>}
                             <span className="text-xs font-medium text-slate-200"><AnnotatedPlayerName name={name(id)} /></span>
                           </span>
                         ))}
@@ -215,7 +215,7 @@ export default function ScheduleGrid({
                         const chipDimmed = !!pendingSwap && !chipSelected
                         return (
                           <span key={i} className={`flex items-center gap-1 min-w-0 ${chipDimmed ? 'opacity-30' : ''}`}>
-                            {i > 0 && <span className="text-[10px] text-slate-400 shrink-0">&</span>}
+                            {i > 0 && <span className="text-2xs text-slate-400 shrink-0">&</span>}
                             <PlayerChipRenderer
                               playerName={n}
                               team={team}
@@ -276,14 +276,14 @@ export default function ScheduleGrid({
                         aria-label={`Played: ${teamANames} vs ${teamBNames}`}
                         className={`w-6 h-6 shrink-0 rounded border flex items-center justify-center transition-colors hit44 disabled:cursor-not-allowed ${locked || mode !== 'idle' ? 'opacity-25' : saving ? 'opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
                       >
-                        {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
+                        {done && <span className="text-white text-2xs font-bold leading-none">✓</span>}
                       </button>
                       {/* Teams — 4-column precision grid: Court label (compact fixed), Team A, vs (centered lurus), Team B */}
                       <div
                         className="grid items-center gap-1 flex-1 min-w-0"
                         style={{ gridTemplateColumns: 'minmax(32px, 40px) minmax(0, 1fr) 20px minmax(0, 1fr)' }}
                       >
-                        <span className="text-[10px] font-semibold text-slate-400 whitespace-nowrap">
+                        <span className="text-2xs font-semibold text-slate-400 whitespace-nowrap">
                           {courtLabel(courtNames, g.court)}
                         </span>
                         {teamCell('A')}
@@ -295,10 +295,10 @@ export default function ScheduleGrid({
                         <button
                           onClick={() => { if (!locked) { onScoreChange({ kind: 'expand', key, draft: draftFromScore(savedScore, scoring) }) } }}
                           aria-label={`Score: ${teamANames} ${headline}${setLine ? `, sets ${setLine}` : ''}. Edit score`}
-                          className={`text-[11px] font-bold shrink-0 whitespace-nowrap min-h-6 px-1 leading-tight tabular-nums hit44 ${locked ? 'text-slate-300 cursor-default' : 'text-emerald-300 hover:text-emerald-200'}`}
+                          className={`text-2xs font-bold shrink-0 whitespace-nowrap min-h-6 px-1 leading-tight tabular-nums hit44 ${locked ? 'text-slate-300 cursor-default' : 'text-emerald-300 hover:text-emerald-200'}`}
                         >
                           <span className="block">{headline}</span>
-                          {setLine && <span className="block text-[11px] font-medium text-slate-400 tabular-nums">{setLine}</span>}
+                          {setLine && <span className="block text-2xs font-medium text-slate-400 tabular-nums">{setLine}</span>}
                         </button>
                       ) : !locked ? (
                         <button
@@ -306,7 +306,7 @@ export default function ScheduleGrid({
                             if (isOpen) { onScoreChange({ kind: 'collapse' }) }
                             else { onScoreChange({ kind: 'expand', key, draft: draftFromScore(undefined) }) }
                           }}
-                          className={`text-[10px] text-slate-400 hover:text-slate-400 shrink-0 whitespace-nowrap min-h-6 px-1 transition-colors hit44`}
+                          className={`text-2xs text-slate-400 hover:text-slate-400 shrink-0 whitespace-nowrap min-h-6 px-1 transition-colors hit44`}
                         >
                           {isOpen ? '▲ score' : '+ score'}
                         </button>
@@ -345,13 +345,13 @@ export default function ScheduleGrid({
                     {isOpen && (
                       <div className="ml-6 bg-slate-900 border border-indigo-800/60 rounded-lg px-3 py-2.5 flex flex-col gap-2">
                         {scoring && (
-                          <p className="text-[10px] text-slate-400 text-center">
+                          <p className="text-2xs text-slate-400 text-center">
                             {t('legacy.scheduleGrid.format', { label: scoring.label, games: scoring.gamesToWin, unit: scoring.gamesToWin === 1 ? 'set' : 'sets', points: scoring.pointsToWin })}</p>
                         )}
                         <div className="flex flex-col gap-1.5">
                           {draft.map((row, index) => (
                             <div key={index} className="flex items-center justify-center gap-2">
-                              <span className="w-10 text-right text-[10px] text-slate-400 tabular-nums">{t('legacy.scheduleGrid.set', { set: index + 1 })}</span>
+                              <span className="w-10 text-right text-2xs text-slate-400 tabular-nums">{t('legacy.scheduleGrid.set', { set: index + 1 })}</span>
                               <input
                                 type="number"
                                 inputMode="numeric"
@@ -378,7 +378,7 @@ export default function ScheduleGrid({
                         </div>
                         <div className="flex flex-col items-center gap-1">
                           {scoreError && (
-                            <ErrorText inherit className="text-[10px] text-red-400 text-center">{scoreError}</ErrorText>
+                            <ErrorText inherit className="text-2xs text-red-400 text-center">{scoreError}</ErrorText>
                           )}
                           <div className="flex items-center gap-2">
                             {savedScore && (

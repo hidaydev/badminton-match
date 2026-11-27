@@ -107,7 +107,7 @@ export default function TournamentListPage() {
                 {/* Date Badge */}
                 <div className="w-11 h-11 rounded-lg bg-elevated border border-border flex flex-col items-center justify-center shrink-0">
                   <span className="text-sm font-bold font-mono text-fg leading-none">{day}</span>
-                  <span className="text-[11px] font-mono font-semibold text-accent uppercase leading-none mt-1">
+                  <span className="text-2xs font-mono font-semibold text-accent uppercase leading-none mt-1">
                     {month}
                   </span>
                 </div>
@@ -119,7 +119,7 @@ export default function TournamentListPage() {
                   </span>
                   <div className="flex items-center gap-2">
                     <span
-                      className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border leading-none ${
+                      className={`text-2xs font-mono font-medium px-1.5 py-0.5 rounded border leading-none ${
                         isTeam
                           ? 'text-accent bg-accent/10 border-accent/25'
                           : 'text-sky-400 bg-sky-500/10 border-sky-500/25'
@@ -127,7 +127,7 @@ export default function TournamentListPage() {
                     >
                       {isTeam ? t('tournaments.formatTeam') : t('tournaments.formatClassic')}
                     </span>
-                    <span className="text-[10px] font-mono text-fg-dim">
+                    <span className="text-2xs font-mono text-fg-dim">
                       {year}
                     </span>
                   </div>

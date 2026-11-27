@@ -143,7 +143,7 @@ export default function RatingPlayerPage() {
           {/* Points Highlight Bar */}
           <div className="mt-4 pt-3.5 border-t border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 relative">
             <div>
-              <span className="text-[10px] font-sans text-fg-dim label-meta font-semibold block">
+              <span className="text-meta font-sans text-fg-dim label-meta font-semibold block">
                 {t('player.rankPointsTitle')}
               </span>
               {rankLoading ? (
@@ -168,7 +168,7 @@ export default function RatingPlayerPage() {
                   {t(rankRow.entries_available > rankRow.counted_entries ? 'player.countedSessionsOf' : 'player.countedSessions', { counted: rankRow.counted_entries, total: rankRow.entries_available })}
                 </p>
                 {rankRow.thin_evidence && (
-                  <span className="inline-block mt-1 text-[10px] font-sans text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-lg border border-amber-400/20 font-medium">
+                  <span className="inline-block mt-1 text-2xs font-sans text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-lg border border-amber-400/20 font-medium">
                     {t('player.thinEvidence')}
                   </span>
                 )}
@@ -182,7 +182,7 @@ export default function RatingPlayerPage() {
           {/* Matches */}
           <Card padding="sm" radius="xl" className="text-center flex flex-col justify-center">
             <span className="text-xl sm:text-2xl font-bold font-mono text-fg leading-none">{games}</span>
-            <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1.5 font-medium">
+            <span className="text-meta sm:text-xs font-sans text-fg-dim label-meta mt-1.5 font-medium">
               {t('player.matches')}
             </span>
           </Card>
@@ -194,7 +194,7 @@ export default function RatingPlayerPage() {
               <span className="text-fg-dim text-sm font-light">/</span>
               <span className="text-red-400">{t('legacy.ratingPlayer.losses', { losses: losses })}</span>
             </div>
-            <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1.5 font-medium">
+            <span className="text-meta sm:text-xs font-sans text-fg-dim label-meta mt-1.5 font-medium">
               {t('player.record')}
             </span>
           </Card>
@@ -212,7 +212,7 @@ export default function RatingPlayerPage() {
                 />
               </div>
             )}
-            <span className="text-[10px] sm:text-xs font-sans text-fg-dim label-meta mt-1 font-medium">
+            <span className="text-meta sm:text-xs font-sans text-fg-dim label-meta mt-1 font-medium">
               {t('player.winRate')}
             </span>
           </Card>
@@ -225,7 +225,7 @@ export default function RatingPlayerPage() {
               {t('player.recentMatches')}
             </h2>
             {safeHistory.length > 0 && (
-              <span className="text-[10px] font-mono text-fg-dim">
+              <span className="text-2xs font-mono text-fg-dim">
                 {safeHistory.length} {t('common.total')}
               </span>
             )}
@@ -286,7 +286,7 @@ export default function RatingPlayerPage() {
 
                       {/* Match title */}
                       {h.title && (
-                        <p className="text-[10px] font-sans text-fg-dim truncate">
+                        <p className="text-2xs font-sans text-fg-dim truncate">
                           {h.title}
                         </p>
                       )}
@@ -297,7 +297,7 @@ export default function RatingPlayerPage() {
                       <div className="bg-elevated border border-border px-2.5 py-1 rounded-lg text-xs font-mono font-bold tracking-tight text-fg shadow-sm">
                         {h.score_a} - {h.score_b}
                       </div>
-                      <span className="text-[10px] font-mono text-fg-dim">
+                      <span className="text-2xs font-mono text-fg-dim">
                         {h.date ? h.date.split('-').reverse().join('-') : ''}
                       </span>
                     </div>
@@ -374,7 +374,7 @@ export default function RatingPlayerPage() {
               {medalSections.map(({ label, rows }) =>
                 rows.length === 0 ? null : (
                   <div key={label} className="flex flex-col gap-2 border-t border-border-subtle pt-3 first:border-t-0 first:pt-0">
-                    <p className="text-[10px] font-sans text-fg-dim label-meta font-semibold">{label}</p>
+                    <p className="text-meta font-sans text-fg-dim label-meta font-semibold">{label}</p>
                     <MedalHoneycomb
                       items={rows.map((a) => (
                         <AchievementBadge

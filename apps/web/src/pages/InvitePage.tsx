@@ -113,12 +113,12 @@ export default function InvitePage() {
         </p>
 
         {accepted === null ? (
-          {/* mt-6 inside the card: same step as the signed-out branch above. */}
+          // mt-6 inside the card: same step as the signed-out branch above.
           <Button className="mt-6 w-full py-3" onClick={() => accept()} disabled={accepting}>
             {accepting ? t('invite.accepting') : t('invite.accept')}
           </Button>
         ) : (
-          {/* mt-6 inside the card: the confirmation hangs off the hint. */}
+          // mt-6 inside the card: the confirmation hangs off the hint.
           <div className="mt-6">
             <p role="status" className="text-sm text-fg">
               {t('invite.accepted', { role: t(ROLE_LABEL[accepted]) })}

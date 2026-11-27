@@ -425,7 +425,7 @@ export default function InstagramPostPage() {
       <div className="flex items-center gap-3 px-1 pt-4 pb-3">
         <div>
           <p
-            className="text-[10px] font-sans text-slate-400 uppercase"
+            className="text-meta font-sans text-slate-400 uppercase"
             style={{ letterSpacing: '0.2em' }}
           >
             {t('legacy.create')}
@@ -532,7 +532,7 @@ export default function InstagramPostPage() {
                   <div className="w-12 h-15 rounded-lg bg-slate-700 border border-slate-600" />
                   <div className="text-center">
                     <p className="text-sm font-bold text-white">{t('legacy.instagram.post')}</p>
-                    <p className="text-[11px] text-slate-400">{POST_WIDTH} × {POST_HEIGHT}</p>
+                    <p className="text-2xs text-slate-400">{POST_WIDTH} × {POST_HEIGHT}</p>
                   </div>
                 </Card>
 
@@ -548,7 +548,7 @@ export default function InstagramPostPage() {
                   </div>
                   <div className="text-center">
                     <p className="text-sm font-bold text-black">{t('legacy.instagram.story')}</p>
-                    <p className="text-[11px] text-yellow-800">{STORY_WIDTH} × {STORY_HEIGHT}</p>
+                    <p className="text-2xs text-yellow-800">{STORY_WIDTH} × {STORY_HEIGHT}</p>
                   </div>
                 </Card>
 
@@ -564,7 +564,7 @@ export default function InstagramPostPage() {
                   </div>
                   <div className="text-center">
                     <p className="text-sm font-bold text-white">{t('legacy.instagram.leaderboardPost')}</p>
-                    <p className="text-[11px] text-slate-400">{POST_WIDTH} × {POST_HEIGHT}</p>
+                    <p className="text-2xs text-slate-400">{POST_WIDTH} × {POST_HEIGHT}</p>
                   </div>
                 </Card>
 
@@ -580,7 +580,7 @@ export default function InstagramPostPage() {
                   </div>
                   <div className="text-center">
                     <p className="text-sm font-bold text-black">{t('legacy.instagram.leaderboardStory')}</p>
-                    <p className="text-[11px] text-yellow-800">{STORY_WIDTH} × {STORY_HEIGHT}</p>
+                    <p className="text-2xs text-yellow-800">{STORY_WIDTH} × {STORY_HEIGHT}</p>
                   </div>
                 </Card>
               </div>
@@ -639,7 +639,7 @@ export default function InstagramPostPage() {
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-white truncate">{s.title}</p>
-                        <p className="text-[11px] text-slate-400">{t('legacy.instagram.sessionMeta', { date: s.date, players: s.playerCount })}</p>
+                        <p className="text-2xs text-slate-400">{t('legacy.instagram.sessionMeta', { date: s.date, players: s.playerCount })}</p>
                       </div>
                       <span className="text-slate-400 text-xs">→</span>
                     </Card>

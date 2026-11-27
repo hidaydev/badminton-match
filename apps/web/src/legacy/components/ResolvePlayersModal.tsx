@@ -127,7 +127,7 @@ export default function ResolvePlayersModal({
               </select>
             )}
             {entry.mode === 'merge' && entry.mergeTarget && (
-              <p className="text-[10px] text-slate-400">
+              <p className="text-2xs text-slate-400">
                 {t('legacy.resolve.alias', { name: entry.player.name })}{' '}<span className="text-indigo-400 font-medium">{entry.mergeTarget}</span>.
                 {t('legacy.autoResolveHint')}
               </p>

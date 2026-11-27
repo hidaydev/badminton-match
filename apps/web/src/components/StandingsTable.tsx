@@ -101,15 +101,15 @@ function Ledger({ rows, labels }: { rows: readonly StandingsRow[]; labels?: Stan
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2 pl-2 pr-2 mb-1">
-        <span className="w-8 shrink-0 text-center text-[10px] font-bold text-slate-400">#</span>
-        <span className="flex-1 text-[10px] font-bold text-slate-400">{labels.name}</span>
-        <span className="w-11 shrink-0 text-center text-[10px] font-bold text-slate-400">
+        <span className="w-8 shrink-0 text-center text-2xs font-bold text-slate-400">#</span>
+        <span className="flex-1 text-2xs font-bold text-slate-400">{labels.name}</span>
+        <span className="w-11 shrink-0 text-center text-2xs font-bold text-slate-400">
           {labels.winsLosses}
         </span>
-        <span className="w-9 shrink-0 text-center text-[10px] font-bold text-slate-400">
+        <span className="w-9 shrink-0 text-center text-2xs font-bold text-slate-400">
           {labels.diff}
         </span>
-        <span className="w-9 shrink-0 text-center text-[10px] font-bold text-slate-400">
+        <span className="w-9 shrink-0 text-center text-2xs font-bold text-slate-400">
           {labels.points}
         </span>
       </div>
@@ -123,7 +123,7 @@ function Ledger({ rows, labels }: { rows: readonly StandingsRow[]; labels?: Stan
               className={`flex items-center gap-2 pl-2 pr-2 py-2.5 rounded-xl border ${rowTone(rank)}`}
             >
               <span
-                className={`w-8 shrink-0 text-center text-[11px] font-bold tabular-nums ${rankTone(rank)}`}
+                className={`w-8 shrink-0 text-center text-2xs font-bold tabular-nums ${rankTone(rank)}`}
               >
                 {row.rank ?? rank}
               </span>
@@ -139,16 +139,16 @@ function Ledger({ rows, labels }: { rows: readonly StandingsRow[]; labels?: Stan
                 </button>
               )}
               <span
-                className={`w-11 shrink-0 text-center text-[11px] font-semibold tabular-nums ${resultTone(row.wins ?? 0, row.losses ?? 0)}`}
+                className={`w-11 shrink-0 text-center text-2xs font-semibold tabular-nums ${resultTone(row.wins ?? 0, row.losses ?? 0)}`}
               >
                 {row.wins ?? 0}-{row.losses ?? 0}
               </span>
               <span
-                className={`w-9 shrink-0 text-center text-[11px] font-semibold tabular-nums ${diffTone(row.diff ?? 0)}`}
+                className={`w-9 shrink-0 text-center text-2xs font-semibold tabular-nums ${diffTone(row.diff ?? 0)}`}
               >
                 {formatDiff(row.diff ?? 0)}
               </span>
-              <span className="w-9 shrink-0 text-center text-[11px] font-semibold tabular-nums text-slate-400">
+              <span className="w-9 shrink-0 text-center text-2xs font-semibold tabular-nums text-slate-400">
                 {row.pointsFor ?? 0}
               </span>
             </li>
@@ -173,7 +173,7 @@ function Compact({ rows, labels }: { rows: readonly StandingsRow[]; labels?: Sta
   }
   return (
     <>
-      <div className={`${COMPACT_GRID} text-[10px] text-fg-dim mb-1 px-1 gap-x-2`}>
+      <div className={`${COMPACT_GRID} text-2xs text-fg-dim mb-1 px-1 gap-x-2`}>
         <span>#</span>
         <span></span>
         <span className="text-center">{labels.wins}</span>
@@ -272,10 +272,10 @@ function Record({ rows, labels }: { rows: readonly StandingsRow[]; labels?: Stan
           </span>
           <div className="flex-1 min-w-0">
             <div className="text-sm text-fg font-medium truncate">{row.name}</div>
-            <div className="text-[10px] text-fg-dim mt-0.5">{row.sublabel}</div>
+            <div className="text-2xs text-fg-dim mt-0.5">{row.sublabel}</div>
           </div>
           <div className="text-right shrink-0">
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-elevated border border-border-subtle font-mono text-[11px]">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-elevated border border-border-subtle font-mono text-2xs">
               <span className="text-success font-semibold">{row.wins ?? 0}{labels.wins}</span>
               <span className="text-border">·</span>
               <span className="text-error font-semibold">{row.losses ?? 0}{labels.losses}</span>
@@ -305,13 +305,13 @@ function Rank({ rows }: { rows: readonly StandingsRow[] }) {
                 #{row.rank}
               </span>
               {row.rankDetail !== undefined && (
-                <span className="text-[11px] font-mono text-fg-dim leading-tight mt-0.5 tabular-nums">
+                <span className="text-2xs font-mono text-fg-dim leading-tight mt-0.5 tabular-nums">
                   #{row.rankDetail}
                 </span>
               )}
             </div>
             {row.delta !== undefined && (
-              <span className="w-3 shrink-0 font-mono text-[10px] leading-none text-center tabular-nums">
+              <span className="w-3 shrink-0 font-mono text-2xs leading-none text-center tabular-nums">
                 {row.delta}
               </span>
             )}

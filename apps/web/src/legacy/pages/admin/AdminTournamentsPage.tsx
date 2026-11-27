@@ -44,7 +44,7 @@ export default function AdminTournamentsPage() {
                 <div key={t2.id} className="flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-elevated/30 transition-colors">
                   <div className="flex flex-col min-w-0">
                     <span className="text-sm font-medium text-fg truncate">{t2.name || 'Untitled Tournament'}</span>
-                    <div className="flex items-center gap-2 text-[11px] text-fg-dim font-mono mt-0.5">
+                    <div className="flex items-center gap-2 text-2xs text-fg-dim font-mono mt-0.5">
                       <span>{t2.date}</span>
                       <span>·</span>
                       <span className={t2.format === 'team' ? 'text-accent font-medium font-sans' : 'text-fg-dim font-sans'}>

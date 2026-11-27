@@ -56,7 +56,7 @@ export default function NewTournamentPage() {
                     {o.title}
                   </span>
                   <span
-                    className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border leading-none ${
+                    className={`text-2xs font-mono font-semibold px-1.5 py-0.5 rounded border leading-none ${
                       isAccent
                         ? 'text-accent bg-accent/10 border-accent/25'
                         : 'text-sky-400 bg-sky-500/10 border-sky-500/25'

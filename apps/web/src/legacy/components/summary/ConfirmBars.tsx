@@ -51,8 +51,8 @@ function ConfirmActionBar({
                   `aria-live`, so the confirmation is announced when the bar
                   mounts or its pending selection changes. */}
               <div role="status" className="text-xs font-semibold text-slate-200 truncate">{description}</div>
-              {warning && <p className="text-[10px] text-red-400 mt-0.5">⚠ {warning}</p>}
-              {extraWarning && <p className="text-[10px] text-amber-400 mt-0.5">⚠ {extraWarning}</p>}
+              {warning && <p className="text-2xs text-red-400 mt-0.5">⚠ {warning}</p>}
+              {extraWarning && <p className="text-2xs text-amber-400 mt-0.5">⚠ {extraWarning}</p>}
             </div>
             <button
               onClick={onCancel}
@@ -112,16 +112,16 @@ function SlotSwapConfirmBar({
       description={
         <div className="flex flex-col gap-1.5">
           <div>
-            <span className="text-[10px] font-bold text-amber-400 label-meta">{s1.label}</span>
+            <span className="text-meta font-bold text-amber-400 label-meta">{s1.label}</span>
             {s1.players && <p className="text-xs text-slate-200 leading-snug mt-0.5">{s1.players}</p>}
           </div>
           <div className="flex items-center gap-1.5">
             <div className="h-px flex-1 bg-amber-900/40" />
-            <span className="text-[10px] text-amber-500 font-bold">{t('legacy.confirmBars.switch')}</span>
+            <span className="text-2xs text-amber-500 font-bold">{t('legacy.confirmBars.switch')}</span>
             <div className="h-px flex-1 bg-amber-900/40" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-amber-400 label-meta">{s2.label}</span>
+            <span className="text-meta font-bold text-amber-400 label-meta">{s2.label}</span>
             {s2.players && <p className="text-xs text-slate-200 leading-snug mt-0.5">{s2.players}</p>}
           </div>
         </div>

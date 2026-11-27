@@ -151,7 +151,7 @@ function CourtTimeline({
             return (
               <span
                 key={t}
-                className="absolute text-[10px] text-slate-400 -translate-x-1/2"
+                className="absolute text-2xs text-slate-400 -translate-x-1/2"
                 style={{ left: `${pct}%` }}
               >
                 {minutesToTime(t)}
@@ -167,13 +167,13 @@ function CourtTimeline({
             const slots = Math.max(0, Math.floor((timeToMinutes(ct.end) - timeToMinutes(ct.start)) / slotMinutes))
             return (
               <div key={i} className="flex items-center gap-2">
-                <span className="text-[10px] text-slate-400 w-12 shrink-0">{courtLabel(courtNames, i)}</span>
+                <span className="text-2xs text-slate-400 w-12 shrink-0">{courtLabel(courtNames, i)}</span>
                 <div className="flex-1 relative h-5 bg-slate-800 rounded">
                   <div
                     className={`absolute h-full rounded ${COURT_COLORS[i % COURT_COLORS.length]} opacity-80 flex items-center justify-center`}
                     style={{ left: `${startPct}%`, width: `${endPct - startPct}%` }}
                   >
-                    <span className="text-[10px] text-white font-semibold">{t('legacy.setup.gameCount', { count: slots, plural: slots !== 1 ? 's' : '' })}</span>
+                    <span className="text-2xs text-white font-semibold">{t('legacy.setup.gameCount', { count: slots, plural: slots !== 1 ? 's' : '' })}</span>
                   </div>
                 </div>
               </div>
@@ -350,7 +350,7 @@ export default function SetupPage() {
                     />
                     <span className="text-sm font-semibold text-white">{preset.label}</span>
                   </span>
-                  <span className="pl-6 text-[10px] text-slate-400">{formatSummary(preset)}</span>
+                  <span className="pl-6 text-2xs text-slate-400">{formatSummary(preset)}</span>
                 </label>
               )
             })}
