@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @import "../../../packages/design-tokens/tokens.css";
 
+/* `packages/` sits outside this app's root, so Tailwind's automatic source
+   detection misses it. Without this line the classes rendered by
+   `@majadu/scoreboard-ui` never reach the built stylesheet. */
+@source "../../../packages/scoreboard-ui/src";
+
 /* -- Design Tokens (docs/design-system.md) --------------------------------- */
 @theme {
   /* Typography */
@@ -157,6 +162,25 @@
   &:focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
+  }
+}
+
+/* The 44px touch target, in one place. A control that is smaller than 44px
+   on purpose (a 28px camera button beside a pair name) opts in with `hit44`
+   instead of retyping the pseudo-element. The pseudo-element takes the taps,
+   so the visible box and the surrounding layout stay untouched. The parent
+   must not clip overflow, or the expanded area is cut off. */
+@utility hit44 {
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 2.75rem;
+    height: 2.75rem;
+    transform: translate(-50%, -50%);
   }
 }
 

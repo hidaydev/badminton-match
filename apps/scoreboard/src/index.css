@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @import "../../../packages/design-tokens/tokens.css";
 
+/* `packages/` sits outside this app's root, so Tailwind's automatic source
+   detection misses it. Without this line the classes rendered by
+   `@majadu/scoreboard-ui` never reach the built stylesheet. */
+@source "../../../packages/scoreboard-ui/src";
+
 /* The one focus ring. A new interactive element opts in with `focus-ring`
    instead of retyping the ring and its colour. */
 @utility focus-ring {
