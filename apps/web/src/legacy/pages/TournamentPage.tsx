@@ -11,7 +11,7 @@ import { GROUP_IDS, EMPTY_GROUPS, type GroupId } from '../utils/tournament'
 import { todayLocal } from '../utils/time'
 import { formatLongDate } from '../../utils/day'
 import { t } from '../../i18n'
-import { TabBar, tabId, tabPanelId } from '../../components/TabBar'
+import { Tabs } from '../../components/Tabs'
 import { useAutoDismiss, mutationToastHandlers } from '../hooks/useAutoDismiss'
 import { useAdmin } from '../context/AdminContext'
 import { Toast } from '../../components/Toast'
@@ -175,28 +175,24 @@ export default function TournamentPage() {
             {formatLongDate(date, false)} · {t(pairs.length === 1 ? 'classic.header.pair' : 'classic.header.pairs', { count: pairs.length })} · {t(groupCount === 1 ? 'classic.header.group' : 'classic.header.groups', { count: groupCount })}
           </p>
         )}
-        <TabBar
+        <Tabs
           items={tabs}
           value={tab}
-          onChange={handleTabChange}
+          onChange={(id) => handleTabChange(id as Tab)}
           label={t('tournament.tabs')}
-          idPrefix="tournament-tabs"
+          panelId="tournament-tabs-panel"
+          idPrefix="tournament-tabs-tab"
+          variant="underline"
           className="flex"
-          tabClassName={(_item, selected) =>
-            `flex-1 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-              selected
-                ? 'text-accent border-accent'
-                : 'text-fg-dim border-transparent hover:text-fg'
-            }`
-          }
+          tabClassName={() => 'flex-1 py-2.5'}
         />
       </div>
 
       {/* Tab content */}
       <div
-        id={tabPanelId('tournament-tabs')}
+        id="tournament-tabs-panel"
         role="tabpanel"
-        aria-labelledby={tabId('tournament-tabs', tab)}
+        aria-labelledby={`tournament-tabs-tab-${tab}`}
         className="px-3 pt-4 pb-8"
       >
         {tab === 'groups' && (

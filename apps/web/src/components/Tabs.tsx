@@ -6,6 +6,8 @@ export type TabItem = {
   label: ReactNode
 }
 
+export type TabVariant = 'pill' | 'underline'
+
 type TabsProps = {
   items: readonly TabItem[]
   value: string
@@ -15,15 +17,23 @@ type TabsProps = {
   label: string
   /** Id prefix for the tab buttons. Defaults to `panelId`. */
   idPrefix?: string
+  /** `pill` is the filled block; `underline` is a text tab with an accent rule. */
+  variant?: TabVariant
   className?: string
-  /** Per-site chip styling, given whether the tab is selected. */
+  /** Per-site spacing only; the variant owns the look. */
   tabClassName?: (active: boolean) => string
 }
 
-const DEFAULT_TAB =
-  'focus-ring inline-flex min-h-11 items-center text-xs font-semibold px-4 rounded-lg transition-colors'
-const DEFAULT_ACTIVE = 'bg-accent text-ground'
-const DEFAULT_INACTIVE = 'text-fg-dim hover:text-fg'
+const VARIANT: Record<TabVariant, (active: boolean) => string> = {
+  pill: (active) =>
+    `focus-ring inline-flex min-h-11 items-center text-xs font-semibold px-4 rounded-lg transition-colors ${
+      active ? 'bg-accent text-ground' : 'text-fg-dim hover:text-fg'
+    }`,
+  underline: (active) =>
+    `focus-ring inline-flex min-h-11 items-center text-sm font-semibold border-b-2 transition-colors ${
+      active ? 'text-accent border-accent' : 'text-fg-dim border-transparent hover:text-fg'
+    }`,
+}
 
 /**
  * One WAI-ARIA tab strip with roving tabindex. The arrow/Home/End handling and
@@ -36,11 +46,12 @@ export function Tabs({
   panelId,
   label,
   idPrefix = panelId,
+  variant = 'pill',
   className = 'flex gap-1',
   tabClassName,
 }: TabsProps) {
   const listRef = useRef<HTMLDivElement>(null)
-  const style = tabClassName ?? ((active: boolean) => `${DEFAULT_TAB} ${active ? DEFAULT_ACTIVE : DEFAULT_INACTIVE}`)
+  const base = VARIANT[variant]
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const index = items.findIndex(item => item.id === value)
@@ -61,6 +72,7 @@ export function Tabs({
     <div ref={listRef} role="tablist" aria-label={label} className={className} onKeyDown={handleKeyDown}>
       {items.map(item => {
         const active = item.id === value
+        const extra = tabClassName?.(active)
         return (
           <button
             key={item.id}
@@ -71,7 +83,7 @@ export function Tabs({
             aria-controls={panelId}
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(item.id)}
-            className={`min-h-11 ${style(active)}`}
+            className={`min-h-11 ${base(active)}${extra ? ` ${extra}` : ''}`}
           >
             {item.label}
           </button>
