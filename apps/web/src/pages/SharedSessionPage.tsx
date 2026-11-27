@@ -10,6 +10,7 @@ import type { SharedSession } from '../share/api'
 import { buildGuestView } from '../share/view'
 import { useAsyncEffect } from '../hooks/useAsyncEffect'
 import { LoadingState } from '../components/LoadingState'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { ErrorText } from '../components/ErrorText'
 import { safeLazy } from '../legacy/utils/safeLazy'
 import type { CourtTime } from '../legacy/types'
@@ -36,6 +37,7 @@ type Settled = {
  */
 export default function SharedSessionPage() {
   const { code = '' } = useParams<{ code: string }>()
+  usePageTitle('shared.title')
   const [settled, setSettled] = useState<Settled | null>(null)
 
   useAsyncEffect((scope) => {

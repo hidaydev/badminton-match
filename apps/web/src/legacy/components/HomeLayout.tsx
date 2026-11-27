@@ -7,6 +7,7 @@ import { useCommunity } from '../../community/CommunityContext'
 import { CommunityPicker } from '../../community/CommunityPicker'
 import { t } from '../../i18n'
 import { SkipLink } from '../../components/SkipLink'
+import { usePageTitle, titleKeyForPath } from '../../hooks/usePageTitle'
 import AccountSessions from './AccountSessions'
 import Icon from '../../components/Icon'
 import { PAGE_COLUMN } from '../../components/Page'
@@ -14,6 +15,7 @@ import { PAGE_COLUMN } from '../../components/Page'
 export default function HomeLayout() {
   const location = useLocation()
   const navigate = useNavigate()
+  usePageTitle(titleKeyForPath(location.pathname))
   const isHome = location.pathname === '/'
   const { isAdminRole } = useAdmin()
   const { user, logout } = useAuth()

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { t } from '../i18n'
 
 const SECURITY_ADVISORY =
@@ -28,6 +29,7 @@ function Section({
 
 /** Public terms of service. Plain language, no legal entity invented. */
 export default function TermsPage() {
+  usePageTitle('terms.title')
   return (
     <main className="min-h-screen bg-ground text-fg">
       <article className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">

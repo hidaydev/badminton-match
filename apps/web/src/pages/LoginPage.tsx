@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { Button } from '../components/Button'
 import { ErrorText } from '../components/ErrorText'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { t } from '../i18n'
 import { BUILD } from '../build'
 
@@ -31,6 +32,7 @@ function GoogleMark() {
 }
 
 export default function LoginPage() {
+  usePageTitle('login.title')
   const { login, loggingIn } = useAuth()
   const [failed, setFailed] = useState(false)
 
