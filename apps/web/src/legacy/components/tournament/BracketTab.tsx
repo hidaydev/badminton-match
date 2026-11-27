@@ -9,6 +9,7 @@ import Icon from '../Icon'
 import ScoreModal from './ScoreModal'
 import { IconButton } from '../../../components/Button'
 import { Card } from '../../../components/Card'
+import { FileInput } from '../../../components/Field'
 import { t } from '../../../i18n'
 
 interface BracketTabProps {
@@ -400,8 +401,8 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
           refetch={refetch}
         />
       )}
-      <input ref={bracketFileInputRef} type="file" accept="image/*" className="hidden" onChange={onBracketFileChange} />
-      <input ref={podiumFileInputRef} type="file" accept="image/*" className="hidden" onChange={onPodiumFileChange} />
+      <FileInput ref={bracketFileInputRef} accept="image/*" onChange={onBracketFileChange} />
+      <FileInput ref={podiumFileInputRef} accept="image/*" onChange={onPodiumFileChange} />
     </div>
   )
 }

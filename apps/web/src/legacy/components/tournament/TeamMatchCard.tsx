@@ -4,6 +4,7 @@ import Icon from '../Icon'
 import { t } from '@/i18n'
 import { Button, IconButton } from '../../../components/Button'
 import { Card } from '../../../components/Card'
+import { Input } from '../../../components/Field'
 
 interface PostProps {
   isPostMode: boolean
@@ -57,12 +58,12 @@ export default function TeamMatchCard({
           <span className="text-xs text-fg-dim label-meta truncate">{label}</span>
           <label className="flex items-center gap-1 shrink-0">
             <span className="text-2xs text-fg-dim">{t('team.court')}</span>
-            <input
+            <Input
               type="text"
               value={courts[0]}
               onChange={(e) => onUpdateCourt(matchIdx, e.target.value)}
               disabled={!canEdit}
-              className="w-20 bg-transparent text-xs text-fg-dim border-b border-border-subtle focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default"
+              className="w-20 px-1 text-xs"
               placeholder={t('legacy.placeholder.court')}
               aria-label={`Court ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}`}
             />
@@ -97,25 +98,25 @@ export default function TeamMatchCard({
               <span className="flex-1 text-2xs text-fg-dim truncate">
                 {getTeamPlayer(match.teamA, clsA)}/{getTeamPlayer(match.teamA, clsB)}
               </span>
-              <input
+              <Input
                 type="number"
                 min={0}
                 max={target}
                 value={match.partai[pi].scoreA ?? ''}
                 onChange={(e) => onChange(matchIdx, pi, { scoreA: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
                 disabled={!canEdit}
-                className="w-14 h-10 bg-elevated border border-border rounded-lg px-2.5 py-2 text-base font-bold font-sans text-fg text-center focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default"
+                className="w-14 px-2.5 text-base font-bold text-center"
                 aria-label={`Score ${teamName(teams, match.teamA)} partai ${pi + 1}`}
               />
               <span className="text-fg-dim text-xs shrink-0">:</span>
-              <input
+              <Input
                 type="number"
                 min={0}
                 max={target}
                 value={match.partai[pi].scoreB ?? ''}
                 onChange={(e) => onChange(matchIdx, pi, { scoreB: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
                 disabled={!canEdit}
-                className="w-14 h-10 bg-elevated border border-border rounded-lg px-2.5 py-2 text-base font-bold font-sans text-fg text-center focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default"
+                className="w-14 px-2.5 text-base font-bold text-center"
                 aria-label={`Score ${teamName(teams, match.teamB)} partai ${pi + 1}`}
               />
               <span className="flex-1 text-2xs text-fg-dim truncate text-right">

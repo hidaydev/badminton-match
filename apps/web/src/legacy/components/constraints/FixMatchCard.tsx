@@ -4,6 +4,7 @@ import { useStore } from '../../store'
 import { computeTimeSlots, courtsAtTime } from '../../utils/time'
 import { courtLabel } from '../../utils/courtLabel'
 import { t } from '@/i18n'
+import { Field, Select } from '@/components/Field'
 import { SlotPicker } from './SlotPicker'
 
 // ── Fix Match card ────────────────────────────────────────────────────────────
@@ -111,33 +112,31 @@ export function FixMatchCard({
       {/* Time/Court pickers (pinned only) */}
       {match.mode === 'pinned' && (
         <div className="flex gap-2 items-end">
-          <div className="flex flex-col gap-1 flex-1">
-            <span className="text-2xs text-slate-400">{t('wizard.constraints.time')}</span>
-            <select
+          <Field label={t('wizard.constraints.time')} className="flex-1">
+            <Select
               value={match.pinnedTime}
               onChange={(e) => updateFixMatch(match.id, { pinnedTime: e.target.value || toTimeString(''), pinnedCourt: e.target.value ? match.pinnedCourt : 0 } as Partial<MatchConstraint>)}
-              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
+              className="px-2 text-xs"
             >
               <option value="">{t('wizard.constraints.selectTime')}</option>
               {timeSlots.map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1 flex-1">
-            <span className="text-2xs text-slate-400">{t('team.court')}</span>
-            <select
+            </Select>
+          </Field>
+          <Field label={t('team.court')} className="flex-1">
+            <Select
               value={match.pinnedCourt}
               onChange={(e) => updateFixMatch(match.id, { pinnedCourt: e.target.value ? Number(e.target.value) : 0 } as Partial<MatchConstraint>)}
               disabled={!match.pinnedTime}
-              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent cursor-pointer disabled-dim-faint disabled:cursor-not-allowed"
+              className="px-2 text-xs"
             >
               <option value="">{t('wizard.constraints.selectCourt')}</option>
               {availableCourts.map((c) => (
                 <option key={c} value={c}>{courtLabel(session.courtNames, c)}</option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </Field>
         </div>
       )}
 

@@ -4,6 +4,7 @@ import type { PlayerSummary } from '../queries'
 import type { ResolveEntry, ResolveResult } from '../utils/resolvePlayers'
 import { buildResolveResult } from '../utils/resolvePlayers'
 import { Overlay } from '../../components/Overlay'
+import { Select } from '../../components/Field'
 import { t } from '../../i18n'
 
 interface ResolvePlayersModalProps {
@@ -114,17 +115,18 @@ export default function ResolvePlayersModal({
                 {t('legacy.resolve.mergeButton')}</button>
             </div>
             {entry.mode === 'merge' && (
-              <select
+              <Select
                 value={entry.mergeTarget ?? ''}
                 onChange={(e) => setMergeTarget(entry.player.id, e.target.value)}
-                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
+                className="text-xs"
+                aria-label={t('legacy.resolve.selectExisting')}
               >
                 <option value="">{t('legacy.resolve.selectExisting')}</option>
                 {knownPlayers.map((kp) => (
                   <option key={kp.name} value={kp.name}>
                     {t('legacy.resolve.playerOption', { name: kp.name, gender: kp.gender, tier: kp.tier })}</option>
                 ))}
-              </select>
+              </Select>
             )}
             {entry.mode === 'merge' && entry.mergeTarget && (
               <p className="text-2xs text-slate-400">

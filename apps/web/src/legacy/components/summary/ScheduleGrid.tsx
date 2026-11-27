@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { ErrorText } from '@/components/ErrorText'
+import { Input } from '@/components/Field'
 import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import { HIGHLIGHTED_PLAYERS, TEAM_HIGHLIGHT_ENABLED } from '../../config/teamHighlights'
 import { DndContext } from '@dnd-kit/core'
@@ -352,25 +353,25 @@ export default function ScheduleGrid({
                           {draft.map((row, index) => (
                             <div key={index} className="flex items-center justify-center gap-2">
                               <span className="w-10 text-right text-2xs text-slate-400 tabular-nums">{t('legacy.scheduleGrid.set', { set: index + 1 })}</span>
-                              <input
+                              <Input
                                 type="number"
                                 inputMode="numeric"
                                 min={0}
                                 max={99}
                                 value={row.a}
                                 onChange={(e) => onScoreChange({ kind: 'set', key, index, side: 'a', value: e.target.value })}
-                                className="w-14 bg-slate-800 border border-indigo-700 rounded-lg px-2 py-1.5 text-white font-bold text-lg text-center tabular-nums focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
+                                className="w-14 px-2 text-lg font-bold text-center tabular-nums"
                                 aria-label={`Set ${index + 1} score for ${teamANames}`}
                               />
                               <span className="text-slate-400 font-bold text-lg">–</span>
-                              <input
+                              <Input
                                 type="number"
                                 inputMode="numeric"
                                 min={0}
                                 max={99}
                                 value={row.b}
                                 onChange={(e) => onScoreChange({ kind: 'set', key, index, side: 'b', value: e.target.value })}
-                                className="w-14 bg-elevated border border-border rounded-lg px-2 py-1.5 text-slate-300 font-bold text-lg text-center tabular-nums focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
+                                className="w-14 px-2 text-lg font-bold text-center tabular-nums"
                                 aria-label={`Set ${index + 1} score for ${teamBNames}`}
                               />
                             </div>

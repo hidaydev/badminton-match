@@ -10,6 +10,7 @@ import { canvasToBlob, shareOrDownload } from '../../utils/share'
 import { loadOverlayImages } from '../../utils/overlays'
 import { t } from '../../../i18n'
 import { StandingsTable } from '../../../components/StandingsTable'
+import { FileInput } from '../../../components/Field'
 
 interface GroupMatchesProps {
   pairs: TournamentPair[]
@@ -205,10 +206,8 @@ export default function GroupMatches({ pairs, groups, matches, canEdit, onSetMat
         )
       })}
 
-      <input
-        type="file"
+      <FileInput
         accept="image/jpeg,image/png,image/webp"
-        className="hidden"
         ref={matchFileInputRef}
         onChange={onMatchFileChange}
       />

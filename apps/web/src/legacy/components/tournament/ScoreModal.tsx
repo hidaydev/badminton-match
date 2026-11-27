@@ -4,6 +4,7 @@ import { validateScore } from '../../utils/scoreValidation'
 import ScoreboardOverlay from './ScoreboardOverlay'
 import { Overlay } from '@/components/Overlay'
 import { Button } from '@/components/Button'
+import { Input } from '@/components/Field'
 import { t } from '@/i18n'
 
 interface ScoreModalProps {
@@ -103,25 +104,27 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
       <div className="flex items-center gap-3 mb-5">
         <div className="flex-1 flex flex-col items-center gap-1">
           <span className="text-xs text-fg-dim font-medium truncate w-full text-center">{pairAName}</span>
-          <input
+          <Input
             type="number"
             min={0}
             value={scoreA}
             onChange={(e) => setScoreA(e.target.value)}
-            className="w-full bg-elevated border border-border rounded-xl px-3 py-3 text-2xl font-bold font-mono text-accent text-center focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
+            className="h-14 w-full text-2xl font-bold text-center"
             placeholder="0"
+            aria-label={`${t('classic.score')} ${pairAName}`}
           />
         </div>
         <span className="text-fg-dim font-bold text-lg pt-5">{t('shared.versus')}</span>
         <div className="flex-1 flex flex-col items-center gap-1">
           <span className="text-xs text-fg-dim font-medium truncate w-full text-center">{pairBName}</span>
-          <input
+          <Input
             type="number"
             min={0}
             value={scoreB}
             onChange={(e) => setScoreB(e.target.value)}
-            className="w-full bg-elevated border border-border rounded-xl px-3 py-3 text-2xl font-bold font-mono text-accent text-center focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
+            className="h-14 w-full text-2xl font-bold text-center"
             placeholder="0"
+            aria-label={`${t('classic.score')} ${pairBName}`}
           />
         </div>
       </div>

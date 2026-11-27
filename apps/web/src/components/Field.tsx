@@ -71,6 +71,15 @@ export function Input({ className, ...props }: ComponentProps<'input'>) {
 }
 
 /**
+ * The hidden file input behind a button that opens the picker. Nothing is
+ * visible, so it has no label of its own: the button that calls `click()` names
+ * the action and carries the 44px target.
+ */
+export function FileInput({ className, ...props }: Omit<ComponentProps<'input'>, 'type'>) {
+  return <input type="file" {...props} className={join('hidden', className)} />
+}
+
+/**
  * WebKit sizes a native select from its own appearance and ignores `min-height`,
  * so the shared control class alone left it 22px tall and below the 44px touch
  * minimum. An explicit height is honoured by every engine.

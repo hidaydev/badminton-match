@@ -11,6 +11,7 @@ import { t } from '../../i18n'
 import { Card } from '../../components/Card'
 import { Chip } from '../../components/Chip'
 import { ErrorText } from '../../components/ErrorText'
+import { Input } from '../../components/Field'
 import { StandingsTable } from '../../components/StandingsTable'
 
 const LIMIT = 200
@@ -152,12 +153,13 @@ export default function RankingsPage() {
         <label htmlFor={searchId} className="sr-only">
           {selectedTier === 'all' ? t('rankings.searchAll') : t('rankings.searchTier', { tier: selectedTier })}
         </label>
-        <input
+        {/* Inline search under a heading: the sr-only label above names it, and
+            a visible one would repeat the subtitle. */}
+        <Input
           id={searchId}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={selectedTier === 'all' ? t('rankings.searchAll') : t('rankings.searchTier', { tier: selectedTier })}
-          className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         />
 
         {isError && (

@@ -28,6 +28,7 @@ import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { Tabs } from '../../components/Tabs'
 import { Spinner } from '../../components/Spinner'
+import { Input } from '../../components/Field'
 import Icon from '../../components/Icon'
 
 /** Read-only data props for SummaryModal */
@@ -544,7 +545,7 @@ export default function SummaryModal({
                   {t('summary.replaceWith', { name: playerMap.get(replaceTarget)?.name ?? '' })}
                 </span>
                 <div className="flex gap-2 items-center">
-                  <input
+                  <Input
                     type="text"
                     value={replaceName}
                     onChange={(e) => setReplaceName(e.target.value)}
@@ -555,8 +556,9 @@ export default function SummaryModal({
                       }
                     }}
                     placeholder={t('summary.namePlaceholder')}
+                    aria-label={t('summary.namePlaceholder')}
                     autoFocus
-                    className="flex-1 bg-slate-900 border border-emerald-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+                    className="flex-1 px-3 text-xs"
                   />
                   <button
                     onClick={async () => {
@@ -602,7 +604,7 @@ export default function SummaryModal({
                 <span className="text-xs text-sky-300 font-medium">
                   {t('legacy.summaryModal.changePrefix')}{' '}<strong>{playerMap.get(changeTarget.playerId)?.name ?? '?'}</strong> {' '}{t('legacy.summaryModal.changeSuffix', { slot: changeTarget.slot + 1, court: courtLabel(courtNames, changeTarget.court) })}</span>
                 <div className="flex gap-2 items-center">
-                  <input
+                  <Input
                     type="text"
                     value={changeName}
                     onChange={(e) => { setChangeName(e.target.value); setChangeError(null) }}
@@ -615,8 +617,9 @@ export default function SummaryModal({
                       }
                     }}
                     placeholder={t('summary.namePlaceholder')}
+                    aria-label={t('summary.namePlaceholder')}
                     autoFocus
-                    className="flex-1 bg-slate-900 border border-sky-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-slate-400 focus:outline-none focus:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/50"
+                    className="flex-1 px-3 text-xs"
                   />
                   <button
                     onClick={() => {

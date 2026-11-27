@@ -28,6 +28,7 @@ import { Button, IconButton } from '../../components/Button'
 import { Chip } from '../../components/Chip'
 import { EmptyState } from '../../components/EmptyState'
 import { Card } from '../../components/Card'
+import { Input } from '../../components/Field'
 
 // Convert canonical tier string (D..A+) to numeric (1..8)
 function tierStringToNumber(tier: string): Tier {
@@ -103,13 +104,14 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
 
         {/* Name — click to edit */}
         {editing ? (
-          <input
+          <Input
             ref={inputRef}
             value={name}
             onChange={(e) => setName(e.target.value)}
             onBlur={save}
             onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setName(player.name); setEditing(false) } }}
-            className="flex-1 bg-slate-800 border border-indigo-500 rounded-lg px-2 py-1 text-white text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="flex-1 px-2"
+            aria-label={t('players.add.name')}
           />
         ) : (
           <span
@@ -207,13 +209,16 @@ function AddPlayerRow({ onAdd, onCancel, canonicalPlayers }: {
       <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-slate-400 text-xs shrink-0">
         ?
       </div>
-      <input
+      {/* Inline add row: the placeholder is the only place a name fits, and the
+          form itself is labelled. */}
+      <Input
         autoFocus
         value={name}
         onChange={(e) => handleNameChange(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }}
         placeholder={t('legacy.placeholder.playerName')}
-        className="flex-1 bg-transparent text-white text-sm placeholder-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        aria-label={t('legacy.placeholder.playerName')}
+        className="flex-1 px-2"
       />
       {/* Gender picker */}
       <GenderToggle value={gender} onChange={setGender} />

@@ -1,4 +1,4 @@
-// useImageUploadMap: the photo upload pattern behind a hidden <input type="file">.
+// useImageUploadMap: the photo upload pattern behind a hidden file input (FileInput).
 // openUpload(key) marks the active key and opens the picker; onFileChange reads
 // the file, loads it into an HTMLImageElement, revokes the object URL and keeps
 // it in the map. The optional onLoad is used when the photo state lives in the

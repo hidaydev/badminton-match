@@ -1,5 +1,6 @@
 import type { Player } from '../../types'
 import { TIER_LABELS, TIER_COLORS } from '../../config/tiers'
+import { Field, Select } from '../../../components/Field'
 import { t } from '../../../i18n'
 
 // ── Player selector ───────────────────────────────────────────────────────────
@@ -21,19 +22,20 @@ export function SlotPicker({
 
   return (
     <div className="flex flex-col gap-1 flex-1 min-w-0">
-      <span className="text-2xs text-slate-400 text-center">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="bg-elevated border border-border rounded-lg px-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent cursor-pointer w-full"
-      >
-        <option value="">{t('wizard.constraints.any')}</option>
-        {available.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
-          </option>
-        ))}
-      </select>
+      <Field label={label} className="min-w-0 text-center">
+        <Select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="px-1.5 text-xs"
+        >
+          <option value="">{t('wizard.constraints.any')}</option>
+          {available.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </Select>
+      </Field>
       <span className={`text-2xs text-center h-3 leading-3 ${selected ? selected.gender === 'M' ? 'text-blue-400' : 'text-red-400' : 'text-transparent'}`}>
         {selected ? (
           <>

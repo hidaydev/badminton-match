@@ -14,6 +14,7 @@ import { LoadingState } from '../../components/LoadingState'
 import { todayLocal } from '../utils/time'
 import { Overlay } from '../../components/Overlay'
 import { Spinner } from '../../components/Spinner'
+import { FileInput, Input } from '../../components/Field'
 import { IconButton } from '../../components/Button'
 import { Card } from '../../components/Card'
 import Icon from '../../components/Icon'
@@ -432,12 +433,12 @@ export default function InstagramPostPage() {
           </p>
           <h1 className="text-lg font-bold text-yellow-400 tracking-tight leading-none">{t('home.card.post')}</h1>
         </div>
-        <input
+        <Input
           type="date"
           aria-label={t('instagram.postDate')}
           value={dateValue}
           onChange={e => setDateValue(e.target.value)}
-          className="ml-auto bg-slate-800/60 border border-slate-700 rounded-xl px-3 py-2 text-sm font-semibold text-white outline-none"
+          className="ml-auto w-auto px-3 font-semibold"
         />
       </div>
 
@@ -502,11 +503,9 @@ export default function InstagramPostPage() {
       </div>
 
 
-      <input
+      <FileInput
         ref={fileInputRef}
-        type="file"
         accept="image/jpeg,image/png,image/webp"
-        className="hidden"
         onChange={handleFileChange}
       />
 
@@ -602,12 +601,15 @@ export default function InstagramPostPage() {
               </div>
 
               <div className="mb-3">
-                <input
+                {/* Inline search inside the sheet: the placeholder names it and
+                    a visible label would repeat the sheet heading. */}
+                <Input
                   type="text"
                   value={sessionQuery}
                   onChange={(e) => setSessionQuery(e.target.value)}
                   placeholder={t('legacy.placeholder.searchSession')}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:border-yellow-400"
+                  aria-label={t('legacy.placeholder.searchSession')}
+                  className="px-3"
                 />
               </div>
 

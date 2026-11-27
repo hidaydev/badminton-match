@@ -18,6 +18,7 @@ import { TEAM_CLASSES, TEAM_NAMES, type TeamClass } from '../utils/teamTournamen
 import { t } from '../../i18n'
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
+import { Field, Input, Select } from '../../components/Field'
 
 const PAIR_COUNT = 16
 const emptyPair = () => ({ a: '', b: '' })
@@ -129,24 +130,16 @@ function TeamWizard() {
 
       {step === 1 && (
         <div className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-fg-dim">{t('tournament.name')}</span>
-            <input
+          <Field label={t('tournament.name')}>
+            <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t('legacy.placeholder.teamTournamentName')}
-              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-fg-dim">{t('tournaments.column.date')}</span>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            />
-          </label>
+          </Field>
+          <Field label={t('tournaments.column.date')}>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </Field>
           <Button
             className="mt-2 w-full font-bold"
             onClick={() => setStep(2)}
@@ -168,30 +161,34 @@ function TeamWizard() {
             {players.map((p, i) => (
               <div key={i} className="flex items-center gap-1.5 px-3 py-2">
                 <span className="w-6 text-xs font-sans text-fg-dim shrink-0">{i + 1}</span>
-                <input
+                {/* A row control: the placeholder names the control, and the
+                    row is already labelled by its number. */}
+                <Input
                   value={p.name}
                   onChange={(e) => updatePlayer(i, { name: e.target.value })}
                   placeholder={`${TEAM_NAMES[TEAM_IDS.indexOf(p.team)]} (${p.cls})`}
-                  className="flex-1 bg-elevated border border-border rounded-lg px-2 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent min-w-0"
+                  className="flex-1 px-2 text-sm"
                 />
-                <select
+                <Select
                   value={p.cls}
                   onChange={(e) => updatePlayer(i, { cls: e.target.value as TeamClass })}
-                  className="bg-elevated border border-border rounded-lg px-1.5 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent shrink-0 w-14 sm:w-16 cursor-pointer"
+                  className="w-14 shrink-0 px-1.5 text-xs sm:w-16"
+                  aria-label={t('team.class')}
                 >
                   {TEAM_CLASSES.map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
-                </select>
-                <select
+                </Select>
+                <Select
                   value={p.team}
                   onChange={(e) => updatePlayer(i, { team: e.target.value as TeamId })}
-                  className="bg-elevated border border-border rounded-lg px-2 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent shrink-0 w-24 sm:w-28 md:w-32 truncate cursor-pointer"
+                  className="w-24 shrink-0 px-2 text-xs sm:w-28 md:w-32"
+                  aria-label={t('team.team')}
                 >
                   {TEAM_IDS.map((t, idx) => (
                     <option key={t} value={t}>{TEAM_NAMES[idx]}</option>
                   ))}
-                </select>
+                </Select>
               </div>
             ))}
           </Card>
@@ -330,24 +327,16 @@ function ClassicWizard() {
 
       {step === 1 && (
         <div className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-fg-dim">{t('tournament.name')}</span>
-            <input
+          <Field label={t('tournament.name')}>
+            <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t('legacy.placeholder.tournamentName')}
-              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-fg-dim">{t('tournaments.column.date')}</span>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            />
-          </label>
+          </Field>
+          <Field label={t('tournaments.column.date')}>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </Field>
           <Button
             className="mt-2 w-full font-bold"
             onClick={() => setStep(2)}
@@ -375,18 +364,20 @@ function ClassicWizard() {
             {pairs.map((p, i) => (
               <div key={i} className="flex items-center gap-2 px-3 py-2">
                 <span className="w-6 text-xs font-sans text-fg-dim shrink-0">{i + 1}</span>
-                <input
+                <Input
                   value={p.a}
                   onChange={(e) => updatePair(i, 'a', e.target.value)}
                   placeholder={t('legacy.placeholder.player1')}
-                  className="flex-1 bg-elevated border border-border rounded-lg px-2.5 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent min-w-0"
+                  className="flex-1 px-2.5 text-sm"
+                  aria-label={`${t('legacy.placeholder.player1')} ${i + 1}`}
                 />
                 <span className="text-fg-dim text-xs shrink-0">&</span>
-                <input
+                <Input
                   value={p.b}
                   onChange={(e) => updatePair(i, 'b', e.target.value)}
                   placeholder={t('legacy.placeholder.player2')}
-                  className="flex-1 bg-elevated border border-border rounded-lg px-2.5 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent min-w-0"
+                  className="flex-1 px-2.5 text-sm"
+                  aria-label={`${t('legacy.placeholder.player2')} ${i + 1}`}
                 />
               </div>
             ))}

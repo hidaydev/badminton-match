@@ -12,6 +12,7 @@ import Icon from '../components/Icon'
 import { Button, ButtonLink } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { ErrorText } from '../../components/ErrorText'
+import { Input } from '../../components/Field'
 import { EmptyState } from '../../components/EmptyState'
 
 const MONTH_NAMES = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
@@ -204,20 +205,22 @@ export default function SessionListPage() {
 
       {/* Search & Date Filter Bar */}
       <div className="flex flex-col sm:flex-row gap-2">
-        <input
+        {/* Inline search in a filter bar: no room for a visible label, so the
+            placeholder and the aria-label carry the name. */}
+        <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('sessions.searchPlaceholder')}
           aria-label={t('sessions.searchPlaceholder')}
-          className="flex-1 bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="flex-1"
         />
         <div className="flex items-center gap-1.5 shrink-0">
-          <input
+          <Input
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
             aria-label={t('sessions.filterDate')}
-            className="bg-elevated border border-border rounded-lg px-2.5 py-2 text-xs font-mono text-fg focus:border-accent focus:outline-none"
+            className="w-auto px-2.5 font-mono"
           />
           {dateFilter && (
             <Button variant="secondary" size="sm" onClick={() => setDateFilter('')}>

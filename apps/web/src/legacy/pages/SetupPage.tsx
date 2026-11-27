@@ -12,6 +12,7 @@ import type { ScoringPreset } from '../../community/api'
 import { Radio } from '../../components/Radio'
 import { t } from '../../i18n'
 import { Card } from '../../components/Card'
+import { Field, Input, Select } from '../../components/Field'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -97,17 +98,17 @@ function TimeSelect({
   label: string
 }) {
   return (
-    <select
+    <Select
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       aria-label={label}
-      className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled-dim-faint disabled:cursor-not-allowed cursor-pointer h-11"
+      className="w-auto px-2"
     >
       {options.map((o) => (
         <option key={o} value={o}>{hourLabel(o)}</option>
       ))}
-    </select>
+    </Select>
   )
 }
 
@@ -298,30 +299,24 @@ export default function SetupPage() {
 
         {/* Block 0: Session identity */}
         <div className="flex flex-wrap gap-4">
-          <div className="flex flex-col gap-1 flex-1 min-w-45">
-            <label htmlFor={titleId} className="text-xs text-slate-400">{t('wizard.setup.titleLabel')}</label>
-            <input
-              id={titleId}
+          <Field label={t('wizard.setup.titleLabel')} id={titleId} className="flex-1 min-w-45">
+            <Input
               type="text"
               value={session.title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={120}
               placeholder={t('legacy.placeholder.sessionTitle')}
               disabled={session.locked}
-              className="bg-elevated border border-border rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled-dim-faint disabled:cursor-not-allowed h-9"
             />
-          </div>
-          <div className="flex flex-col gap-1 min-w-35">
-            <label htmlFor={dateId} className="text-xs text-slate-400">{t('tournaments.column.date')}</label>
-            <input
-              id={dateId}
+          </Field>
+          <Field label={t('tournaments.column.date')} id={dateId} className="min-w-35">
+            <Input
               type="date"
               value={session.date}
               onChange={(e) => setDate(e.target.value)}
               disabled={session.locked}
-              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled-dim-faint disabled:cursor-not-allowed cursor-pointer h-11"
             />
-          </div>
+          </Field>
         </div>
 
         {/* Block 0b: Match format */}
@@ -385,20 +380,18 @@ export default function SetupPage() {
               label="Session start time"
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor={durationId} className="text-xs text-slate-400">{t('wizard.setup.duration')}</label>
-            <select
-              id={durationId}
+          <Field label={t('wizard.setup.duration')} id={durationId} className="w-40">
+            <Select
               value={session.slotMinutes}
               disabled={session.locked}
               onChange={(e) => setSlotMinutes(Number(e.target.value))}
-              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled-dim-faint disabled:cursor-not-allowed cursor-pointer h-11"
+              className="px-2"
             >
               {DURATION_OPTIONS.map((d) => (
                 <option key={d} value={d}>{t('wizard.setup.minutes', { n: d })}</option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </Field>
         </div>
 
         {/* Block 2: Per-court times */}
@@ -411,12 +404,14 @@ export default function SetupPage() {
               const endOpts = timeOptions(endMin, 23 * 60)
               return (
                 <div key={i} className="flex items-center gap-3 bg-slate-800 rounded-xl px-3 py-2 flex-wrap">
-                  <input
+                  {/* Court name in a row: the placeholder shows the fallback
+                      label, and aria-label names the control. */}
+                  <Input
                     value={session.courtNames?.[i] ?? ''}
                     onChange={(e) => setCourtName(i, e.target.value)}
                     placeholder={courtLabel(session.courtNames, i)}
                     aria-label={`Court ${i + 1} name`}
-                    className="w-20 bg-transparent text-sm text-slate-300 placeholder-slate-400 focus:outline-none focus:text-white focus-visible:ring-2 focus-visible:ring-accent focus-visible:rounded-lg"
+                    className="w-20 px-2 text-sm"
                   />
                   <TimeSelect
                     value={ct.start}

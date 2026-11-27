@@ -22,6 +22,8 @@ import TeamGroupSchedule from '../components/tournament/TeamGroupSchedule'
 import Icon from '../components/Icon'
 import { useAdmin } from '../context/AdminContext'
 import { Toast } from '../../components/Toast'
+import { Select } from '../../components/Field'
+import { FileInput } from '../../components/Field'
 import { StandingsTable } from '../../components/StandingsTable'
 import { useImageUploadMap } from '../hooks/useImageUploadMap'
 import { useAutoDismiss } from '../hooks/useAutoDismiss'
@@ -341,16 +343,16 @@ export default function TeamTournamentPage() {
                     <div key={name} className="flex items-center gap-3 px-4 py-2 border-b border-border-subtle last:border-0">
                       <span className="flex-1 text-sm text-fg truncate">{name}</span>
                       {canEdit ? (
-                        <select
+                        <Select
                           value={String(slot)}
                           onChange={(e) => assignDrawSlot(k, Number(e.target.value))}
-                          className="w-28 bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
+                          className="w-28 px-2"
                           aria-label={`Slot for ${name}`}
                         >
                           {TEAM_NAMES.map((_, si) => (
                             <option key={si} value={si}>{t('legacy.teamTournament.team', { team: si + 1 })}</option>
                           ))}
-                        </select>
+                        </Select>
                       ) : (
                         <span className="text-sm text-fg-dim">{t('legacy.teamTournament.team', { team: slot + 1 })}</span>
                       )}
@@ -472,10 +474,8 @@ export default function TeamTournamentPage() {
                 </Card>
                 )}
 
-                <input
-                  type="file"
+                <FileInput
                   accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
                   ref={finalFileInputRef}
                   onChange={onFinalFileChange}
                 />

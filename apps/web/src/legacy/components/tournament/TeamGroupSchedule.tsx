@@ -9,6 +9,7 @@ import {
 import { useImageUploadMap } from '../../hooks/useImageUploadMap'
 import TeamMatchCard from './TeamMatchCard'
 import { Button } from '../../../components/Button'
+import { FileInput } from '../../../components/Field'
 import { shareOrDownload } from '../../utils/share'
 import { t } from '../../../i18n'
 
@@ -112,10 +113,8 @@ export default function TeamGroupSchedule({
         )
       })}
 
-      <input
-        type="file"
+      <FileInput
         accept="image/jpeg,image/png,image/webp"
-        className="hidden"
         ref={fileInputRef}
         onChange={onFileChange}
       />
