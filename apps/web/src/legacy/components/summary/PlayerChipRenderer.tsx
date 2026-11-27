@@ -180,8 +180,8 @@ export default function PlayerChipRenderer({
           width: teamKey === 'Green Grove' ? 46 : 34, height: teamKey === 'Green Grove' ? 46 : 34, maxWidth: 'none', objectFit: 'contain',
           opacity: 0.3, pointerEvents: 'none',
         }} />
-        <span style={{ position: 'relative' }}>
-          <AnnotatedPlayerName name={playerName} />
+        <span className="min-w-0 truncate" style={{ position: 'relative' }}>
+          <AnnotatedPlayerName name={playerName} className="min-w-0 truncate" />
         </span>
         {backToBackRun ? <sup className="text-[11px] font-bold text-amber-400 shrink-0 leading-none" style={{ position: 'relative' }}>*{backToBackRun}</sup> : null}
       </span>
@@ -201,7 +201,7 @@ export default function PlayerChipRenderer({
       }`}
       title={showSkippedIdle ? 'Skipped in this game' : undefined}
     >
-      <AnnotatedPlayerName name={playerName} />{showSkippedIdle ? ' ⊘' : ''}
+      <AnnotatedPlayerName name={playerName} className="min-w-0 truncate" />{showSkippedIdle ? ' ⊘' : ''}
       {backToBackRun ? <sup className="text-[11px] font-bold text-amber-400 shrink-0 leading-none">*{backToBackRun}</sup> : null}
     </span>
   )

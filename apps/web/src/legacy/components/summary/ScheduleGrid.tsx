@@ -281,7 +281,7 @@ export default function ScheduleGrid({
                       {/* Teams — 4-column precision grid: Court label (compact fixed), Team A, vs (centered lurus), Team B */}
                       <div
                         className="grid items-center gap-1 flex-1 min-w-0"
-                        style={{ gridTemplateColumns: 'minmax(32px, 40px) 1fr 20px 1fr' }}
+                        style={{ gridTemplateColumns: 'minmax(32px, 40px) minmax(0, 1fr) 20px minmax(0, 1fr)' }}
                       >
                         <span className="text-[10px] font-semibold text-slate-400 whitespace-nowrap">
                           {courtLabel(courtNames, g.court)}
