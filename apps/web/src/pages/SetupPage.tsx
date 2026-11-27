@@ -87,11 +87,11 @@ export default function SetupPage() {
       <main className={`${PAGE_COLUMN} py-4`}>
       <PageHeader title={t('setup.title')} subtitle={t('setup.subtitle')} />
 
-      <h2 className="mt-6 text-sm font-semibold text-fg">{t('setup.mine')}</h2>
+      <h2 className="mt-8 text-sm font-semibold text-fg">{t('setup.mine')}</h2>
       {memberships.length === 0 ? (
         <EmptyState title={t('setup.mine.empty')} />
       ) : (
-        <ul className="mt-2 space-y-2">
+        <ul className="mt-2 space-y-3">
           {memberships.map((membership) => (
             <li key={membership.id}>
               <Card

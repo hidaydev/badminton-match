@@ -47,6 +47,7 @@ export default function TermsPage() {
           {t('terms.updated')}
         </p>
 
+        {/* mt-6, not a section gap: the intro paragraph hangs off the title. */}
         <p className="mt-6 text-sm leading-relaxed text-fg-dim">
           {t('terms.intro')}
         </p>

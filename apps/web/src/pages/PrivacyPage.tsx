@@ -14,6 +14,7 @@ export default function PrivacyPage() {
         <h1 className="text-lg font-bold text-fg sm:text-xl">{t('privacy.title')}</h1>
         <p className="mt-2 text-sm text-fg-dim">{t('privacy.updated')}</p>
 
+        {/* mt-6, not a section gap: the intro paragraph hangs off the title. */}
         <p className="mt-6 text-sm leading-relaxed text-fg-dim">{t('privacy.intro')}</p>
 
         <h2 className="mt-8 text-lg font-semibold text-fg">{t('privacy.data.heading')}</h2>

@@ -59,6 +59,7 @@ export default function LoginPage() {
         />
         <div className="max-w-sm">
           <span aria-hidden="true" className="block h-px w-12" style={{ background: 'var(--color-accent)' }} />
+          {/* mt-5, not a section gap: the paragraph follows the accent rule inside the aside. */}
           <p className="mt-5 text-sm leading-relaxed text-fg-dim">
             {t('login.description')}
           </p>

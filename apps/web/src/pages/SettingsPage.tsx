@@ -162,7 +162,7 @@ export default function SettingsPage() {
     const message = sectionFailures[key]
     if (message === undefined) return null
     return (
-      <section className="mt-6">
+      <section className="mt-8">
         {heading.as === 'h2' ? (
           <h2 className="text-sm font-semibold text-fg">{heading.title}</h2>
         ) : (
@@ -469,9 +469,9 @@ function Members({
   timeZone: string
 }) {
   return (
-    <section className="mt-6">
+    <section className="mt-8">
       <h2 className="text-sm font-semibold text-fg">{t('admin.members')}</h2>
-      <ul className="mt-2 space-y-2">
+      <ul className="mt-2 space-y-3">
         {members.map((member) => (
           <MemberRow
             key={member.userId}
@@ -684,7 +684,7 @@ function JoinRequests({
       {requests.length === 0 ? (
         <EmptyState title={t('admin.requests.empty')} />
       ) : (
-        <ul className="mt-2 space-y-2">
+        <ul className="mt-2 space-y-3">
           {requests.map((request) => (
             <Card as="li" key={request.id} radius="xl" padding="sm">
               <p className="text-sm text-fg">{request.displayName}</p>
@@ -783,7 +783,7 @@ function PendingClaims({
       {claims.length === 0 ? (
         <EmptyState title={t('admin.claims.empty')} />
       ) : (
-        <ul className="mt-2 space-y-2">
+        <ul className="mt-2 space-y-3">
           {claims.map((claim) => (
             <Card as="li" key={claim.claimId} radius="xl" padding="sm">
               <div className="flex flex-wrap items-center justify-between gap-2">

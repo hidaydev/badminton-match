@@ -199,7 +199,7 @@ export default function PlayerDetailPage() {
           {claims === null || claims.length === 0 ? (
             <EmptyState title={t('playerAdmin.claims.empty')} />
           ) : (
-            <ul className="mt-2 space-y-2">
+            <ul className="mt-2 space-y-3">
               {claims.map((claim) => (
                 <ClaimRow
                   key={claim.id}
@@ -484,7 +484,7 @@ export function DeletePanel({
     return (
       <Button
         variant="danger"
-        className="mt-6"
+        className="mt-8"
         disabled={busy}
         onClick={() => setArmed(true)}
       >
@@ -515,7 +515,7 @@ export function DeletePanel({
   }
 
   return (
-    <Card role="group" aria-label={t('playerAdmin.delete')} padding="md" className="mt-6">
+    <Card role="group" aria-label={t('playerAdmin.delete')} padding="md" className="mt-8">
       <p className="text-sm text-fg-dim">{t('playerAdmin.delete.confirm')}</p>
       {error !== null && (
         <ErrorText className="mt-2">{error}</ErrorText>

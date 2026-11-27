@@ -157,7 +157,7 @@ export default function PlayersPage() {
       )}
 
       {items !== null && items.length > 0 && (
-        <ul className="mt-4 space-y-2">
+        <ul className="mt-4 space-y-3">
           {items.map((player) => (
             <li key={player.id}>
               <Card
