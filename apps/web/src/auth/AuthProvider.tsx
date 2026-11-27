@@ -27,6 +27,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [memberships, setMemberships] = useState<Membership[]>([])
   const [loading, setLoading] = useState(true)
   const [loggingIn, setLoggingIn] = useState(false)
+  // The retry ladder is spent and nothing but the browser's `online` event or an
+  // explicit retry will start it again. A spinner forever is not a state a
+  // person can act on, so the shell renders a retry screen instead.
+  const [bootstrapOffline, setBootstrapOffline] = useState(false)
+  // Bumping this runs the bootstrap effect again; it is how the retry button
+  // and the `online` listener restart the ladder through one path.
+  const [attemptToken, setAttemptToken] = useState(0)
 
   // One teardown for both ways a session ends. Logout and expiry must leave
   // the device in the same state: the next account must not inherit the
@@ -111,10 +118,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }, BOOT_RETRY_MS[attempt])
             return
           }
-          // The ladder is spent. `loading` stays true and `online` is the only
-          // thing that restarts it, so an installed app opened in a tunnel
-          // keeps its spinner instead of demanding a sign-in it cannot accept.
+          // The ladder is spent. `online` and the retry screen are the two ways
+          // back, so an installed app opened in a tunnel reports that instead
+          // of keeping its spinner up forever. `loading` stays true: the shell
+          // is still deciding, it just cannot decide without a network.
           awaitingNetwork = true
+          setBootstrapOffline(true)
           return
         }
         // A definitive answer that is not 401 (a client the server refuses):
@@ -137,12 +146,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!awaitingNetwork) return
       clearTimer()
       awaitingNetwork = false
+      setBootstrapOffline(false)
       startLoad(0)
     }
     window.addEventListener('online', onOnline)
     scope.onCleanup(() => window.removeEventListener('online', onOnline))
 
     startLoad(0)
+  }, [attemptToken])
+
+  // The retry button on the offline screen: same effect, same ladder, one path.
+  const retryBootstrap = useCallback(() => {
+    setBootstrapOffline(false)
+    setAttemptToken((token) => token + 1)
   }, [])
 
   const login = useCallback(async () => {
@@ -169,8 +185,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, memberships, loading, loggingIn, login, logout, refreshMemberships }),
-    [user, memberships, loading, loggingIn, login, logout, refreshMemberships],
+    () => ({
+      user,
+      memberships,
+      loading,
+      loggingIn,
+      bootstrapOffline,
+      retryBootstrap,
+      login,
+      logout,
+      refreshMemberships,
+    }),
+    [
+      user,
+      memberships,
+      loading,
+      loggingIn,
+      bootstrapOffline,
+      retryBootstrap,
+      login,
+      logout,
+      refreshMemberships,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

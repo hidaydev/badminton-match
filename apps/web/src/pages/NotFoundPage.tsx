@@ -1,6 +1,7 @@
 import { useLocation, useParams } from 'react-router-dom'
 import { ButtonLink } from '../components/Button'
 import { PageHeader } from '../components/PageHeader'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { t } from '../i18n'
 
 /**
@@ -9,6 +10,7 @@ import { t } from '../i18n'
  * home, which would erase the history entry that produced it.
  */
 export default function NotFoundPage() {
+  usePageTitle('notFound.title')
   const { pathname } = useLocation()
   const { slug } = useParams<{ slug?: string }>()
 

@@ -34,10 +34,13 @@ import { communityHref } from '../../routes.manifest'
 import { t } from '../../i18n'
 import Icon from '../components/Icon'
 import { PAGE_COLUMN } from '../../components/Page'
+import { SkipLink } from '../../components/SkipLink'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import { Button, ButtonLink, IconButton } from '../../components/Button'
 
 export default function SharedSessionPage() {
   const { sessionId = '' } = useParams<{ sessionId: string }>()
+  usePageTitle('shared.title')
   const slug = useLegacySlug()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -118,10 +121,11 @@ export default function SharedSessionPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-ground text-fg flex flex-col">
+        <SkipLink />
         {header}
-        <div className="flex-1 flex items-center justify-center">
+        <main id="main" className="flex-1 flex items-center justify-center">
           <span className="text-slate-400 text-sm">{t('legacy.common.loadingSession')}</span>
-        </div>
+        </main>
       </div>
     )
   }
@@ -133,8 +137,9 @@ export default function SharedSessionPage() {
   if (isError) {
     return (
       <div className="min-h-screen bg-ground text-fg flex flex-col">
+        <SkipLink />
         {header}
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <main id="main" className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
           <span className="text-slate-300 text-sm">{t('session.error.load')}</span>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Button variant="secondary" size="sm" className="font-semibold" onClick={() => void refetch()}>
@@ -147,7 +152,7 @@ export default function SharedSessionPage() {
               {t('session.backToCommunity')}
             </Link>
           </div>
-        </div>
+        </main>
       </div>
     )
   }
@@ -155,13 +160,14 @@ export default function SharedSessionPage() {
   if (!snapshot) {
     return (
       <div className="min-h-screen bg-ground text-fg flex flex-col">
+        <SkipLink />
         {header}
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+        <main id="main" className="flex-1 flex flex-col items-center justify-center gap-4">
           <span className="text-slate-300 text-sm">{t('session.error.notFound')}</span>
           <ButtonLink variant="ghost" size="sm" to={communityHref(slug, '/')}>
             {t('session.backToCommunity')}
           </ButtonLink>
-        </div>
+        </main>
       </div>
     )
   }
@@ -185,7 +191,8 @@ export default function SharedSessionPage() {
 
   return (
     <AmbiguousNamesProvider value={ambiguousNames}>
-    <main className="min-h-screen bg-ground text-fg flex flex-col">
+    <SkipLink />
+    <main id="main" className="min-h-screen bg-ground text-fg flex flex-col pb-[env(safe-area-inset-bottom)]">
       {header}
       {saveError && <Toast message={saveError} onDismiss={() => setSaveError(null)} />}
       <SummaryModal

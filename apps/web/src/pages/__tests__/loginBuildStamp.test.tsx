@@ -12,6 +12,8 @@ const auth: AuthContextValue = {
   memberships: [],
   loading: false,
   loggingIn: false,
+  bootstrapOffline: false,
+  retryBootstrap: () => undefined,
   login: async () => undefined,
   logout: async () => undefined,
   refreshMemberships: async () => [],

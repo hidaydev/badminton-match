@@ -295,7 +295,7 @@ export default function SummaryModal({
   const playedCount = played.size
 
   return (
-    <div ref={dialogRef} tabIndex={-1} className={standalone ? 'flex-1 flex flex-col bg-ground overflow-hidden' : 'fixed inset-0 z-overlay bg-ground flex flex-col overflow-hidden'} role="dialog" aria-modal={!standalone} aria-label={t('summary.title')}>
+    <div ref={dialogRef} tabIndex={-1} className={standalone ? 'flex-1 flex flex-col bg-ground overflow-hidden' : 'fixed inset-0 z-overlay bg-ground flex flex-col overflow-hidden'} role={standalone ? 'region' : 'dialog'} aria-modal={standalone ? undefined : true} aria-label={t('summary.title')}>
       {/* Toolbar — wraps instead of clipping on a 390px screen. */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-3 min-w-0">

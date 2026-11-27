@@ -23,9 +23,9 @@ test('the host saves a score and the page re-reads it', async ({ page }) => {
   const scoreB = 24
 
   await page.goto(`/c/${writableCommunitySlug}/sessions/${session.id}`)
-  // The summary dialog is the session shell; the title is a paragraph inside it.
+  // MAJ-04: the session sheet is the page, so it is a named region, not a dialog.
   await page
-    .getByRole('dialog', { name: 'Session summary' })
+    .getByRole('region', { name: 'Session summary' })
     .getByText(session.title)
     .waitFor()
 

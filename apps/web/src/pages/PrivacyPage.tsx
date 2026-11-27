@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { t } from '../i18n'
 
 /**
@@ -6,6 +7,7 @@ import { t } from '../i18n'
  * the page describes the data the rest of the application actually stores.
  */
 export default function PrivacyPage() {
+  usePageTitle('privacy.title')
   return (
     <main className="min-h-screen bg-ground text-fg p-4 sm:p-6">
       <article className="mx-auto w-full max-w-3xl pb-12">

@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation, useNavigate } from '../router'
 import { useStore } from '../store'
 import { t } from '../../i18n'
 import { SkipLink } from '../../components/SkipLink'
+import { usePageTitle, titleKeyForPath } from '../../hooks/usePageTitle'
 import Icon from '../../components/Icon'
 import { PAGE_COLUMN } from '../../components/Page'
 
@@ -20,6 +21,7 @@ export default function SessionLayout() {
   const resetSession = useStore((s) => s.resetSession)
   const location = useLocation()
   const navigate = useNavigate()
+  usePageTitle(titleKeyForPath(location.pathname))
 
   const currentIndex = Math.max(
     0,

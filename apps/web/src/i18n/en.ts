@@ -4,6 +4,9 @@
 export const en = {
   'app.name': 'MAJADU',
   'app.loading': 'Loading…',
+  'app.offline.title': 'No connection',
+  'app.offline.body': 'Majadu could not reach the server. Check your connection and try again.',
+  'app.offline.retry': 'Try again',
   'app.outdated': 'This page is running an older version and can no longer talk to the server.',
   'app.outdated.action': 'Reload',
   'app.updateAvailable': 'Update available',

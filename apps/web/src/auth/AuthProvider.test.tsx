@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 vi.mock('./redirect', () => ({ redirectTo: vi.fn() }))
@@ -19,8 +19,16 @@ const MEMBERSHIPS = {
 }
 
 function Probe() {
-  const { user, loading } = useAuth()
-  return <span>{loading ? 'loading' : (user?.displayName ?? 'signed out')}</span>
+  const { user, loading, bootstrapOffline, retryBootstrap } = useAuth()
+  return (
+    <span>
+      {loading ? 'loading' : (user?.displayName ?? 'signed out')}
+      {bootstrapOffline ? <em>offline</em> : null}
+      <button type="button" onClick={retryBootstrap}>
+        retry bootstrap
+      </button>
+    </span>
+  )
 }
 
 function renderAuth(client: QueryClient) {
@@ -265,6 +273,46 @@ describe('AuthProvider bootstrap failures', () => {
 
     expect(meCalls).toBe(2)
     expect(screen.getByText('Host One')).toBeInTheDocument()
+  })
+
+  it('reports the spent ladder instead of spinning forever', async () => {
+    // MAJ-16: FE-49 kept the spinner, which a person cannot act on. The shell
+    // now gets a state it can render a retry from.
+    vi.useFakeTimers()
+    try {
+      let offline = true
+      mockFetch({
+        'GET /api/auth/me': () => {
+          if (offline) throw new TypeError('Failed to fetch')
+          return { body: FIRST_HOST }
+        },
+        'GET /api/communities': () => {
+          if (offline) throw new TypeError('Failed to fetch')
+          return { body: MEMBERSHIPS }
+        },
+      })
+
+      renderAuth(new QueryClient({ defaultOptions: { queries: { retry: false } } }))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20_000)
+      })
+
+      // Still deciding, but no longer silent about why.
+      expect(screen.getByText('loading')).toBeInTheDocument()
+      expect(screen.getByText('offline')).toBeInTheDocument()
+
+      // The retry button is the second way back, beside the online listener.
+      offline = false
+      fireEvent.click(screen.getByRole('button', { name: 'retry bootstrap' }))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      expect(screen.getByText('Host One')).toBeInTheDocument()
+      expect(screen.queryByText('offline')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('goes to sign-in on a 401 instead of retrying', async () => {

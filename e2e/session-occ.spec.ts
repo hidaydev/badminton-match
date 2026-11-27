@@ -75,7 +75,7 @@ function savedScore(score: { a: number; b: number }): RegExp {
 
 async function openSession(page: Page, slug: string, sessionId: string, title: string): Promise<void> {
   await page.goto(`/c/${slug}/sessions/${sessionId}`)
-  await page.getByRole('dialog', { name: t('summary.title') }).getByText(title).waitFor()
+  await page.getByRole('region', { name: t('summary.title') }).getByText(title).waitFor()
 }
 
 test('two writers on one session: the stale save is refused, a reload shows the first score, then the next save lands', async ({ browser }) => {
@@ -131,9 +131,9 @@ test('two writers on one session: the stale save is refused, a reload shows the 
     // reloads and reads its own score back.
     await first.reload()
     // The page now carries the session title in its sr-only h1 as well as in
-    // the summary dialog, so the wait has to name the surface it expects.
+    // the summary region, so the wait has to name the surface it expects.
     await first
-      .getByRole('dialog', { name: t('summary.title') })
+      .getByRole('region', { name: t('summary.title') })
       .getByText(title)
       .waitFor()
     await expect(first.getByRole('button', { name: savedScore(FIRST) })).toBeVisible()
@@ -142,9 +142,9 @@ test('two writers on one session: the stale save is refused, a reload shows the 
     await secondContext.unroute(detailRoute)
     await second.reload()
     // Same two surfaces as the first writer: the title also sits in the
-    // sr-only h1, so the wait names the dialog it expects.
+    // sr-only h1, so the wait names the region it expects.
     await second
-      .getByRole('dialog', { name: t('summary.title') })
+      .getByRole('region', { name: t('summary.title') })
       .getByText(title)
       .waitFor()
     await expect(second.getByRole('button', { name: savedScore(FIRST) })).toBeVisible()

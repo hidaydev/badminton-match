@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import SummaryModal from '../SummaryModal'
 import { toPlayerId, type Player } from '../../types'
+import { t } from '../../../i18n'
 
 const players: Player[] = (
   [
@@ -67,6 +68,17 @@ describe('SummaryModal a11y wiring', () => {
     expect(screen.getByRole('dialog')).toHaveFocus()
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onClose).toHaveBeenCalled()
+  })
+
+  // MAJ-04: a sheet that is the whole page is not a dialog. Claiming modal
+  // semantics over the page's own header and skip link tells a screen reader
+  // everything behind it is unavailable, and it is not.
+  it('is a named region, not a modal dialog, when it is the page', () => {
+    renderModal({ standalone: true })
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    const region = screen.getByRole('region', { name: t('summary.title') })
+    expect(region).not.toHaveAttribute('aria-modal')
   })
 
   it('shows the points, not the set count, in a single-set format', () => {
