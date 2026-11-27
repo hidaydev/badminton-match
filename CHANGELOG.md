@@ -5,6 +5,15 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.4.2] - 2026-11-27
+
+### Changed
+- test(e2e): record the linux scoreboard baselines from the batch run (f7b1fbc; e2e/__screenshots__/linux/scoreboard-desktop.png, e2e/__screenshots__/linux/scoreboard-iphone-17.png, e2e/__screenshots__/linux/scoreboard-poco-f5.png (+1 more))
+- test(e2e): assert touch targets against the built CSS instead of the spelling (055e7b7; apps/web/package.json, apps/web/scripts/check-touch-targets.mjs, apps/web/scripts/touch-gate-selftest.mjs (+4 more))
+
+### Fixed
+- fix(web): ship hit44 as a real utility and scan scoreboard-ui classes (d8d1255; apps/scoreboard/src/index.css, apps/web/src/index.css, apps/web/src/legacy/components/hitTarget.ts (+8 more))
+
 ## [2.4.1] - 2026-11-26
 
 ### Changed
