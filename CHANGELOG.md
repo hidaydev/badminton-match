@@ -5,6 +5,15 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.5.1] - 2026-11-27
+
+### Changed
+- test(e2e): record the linux session baseline for the pair-level ellipsis (efcf60d; e2e/__screenshots__/linux/session-desktop.png, e2e/__screenshots__/linux/session-iphone-17.png, e2e/__screenshots__/linux/session-poco-f5.png)
+
+### Fixed
+- fix(web): cut an idle pair once, at the end, instead of clipping each name (d3b9054; apps/web/src/legacy/components/summary/PlayerChipRenderer.tsx, apps/web/src/legacy/components/summary/ScheduleGrid.readonly.test.tsx, apps/web/src/legacy/components/summary/ScheduleGrid.tsx (+3 more))
+- fix(web): give the share link the session screen's own column (612ee04; apps/web/src/pages/SharedSessionPage.tsx)
+
 ## [2.5.0] - 2026-11-27
 
 ### Added
