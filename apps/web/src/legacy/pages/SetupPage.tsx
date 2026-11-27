@@ -290,7 +290,7 @@ export default function SetupPage() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-lg font-bold text-fg mb-0.5">{t('wizard.setup.title')}</h1>
+        <h1 className="text-lg font-bold text-fg sm:text-xl mb-0.5">{t('wizard.setup.title')}</h1>
         <p className="text-slate-400 text-sm">{t('legacy.setup.subtitle')}</p>
       </div>
 

@@ -28,7 +28,7 @@ export default function TournamentListPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h1 className="text-lg font-bold text-fg">{t('tournaments.title')}</h1>
+          <h1 className="text-lg font-bold text-fg sm:text-xl">{t('tournaments.title')}</h1>
           <span className="text-xs font-mono text-fg-dim font-medium">
             {filtered.length} {t('common.total')}
           </span>

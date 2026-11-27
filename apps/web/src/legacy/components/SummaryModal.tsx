@@ -446,7 +446,7 @@ export default function SummaryModal({
       {(title || date) && (
         <div className="px-5 py-3 border-b border-slate-800 shrink-0 flex items-center gap-2">
           <div className="flex-1 min-w-0">
-            {title && <p className="text-white font-bold text-[1rem] leading-tight">{title}</p>}
+            {title && <p className="text-white font-bold text-lg sm:text-xl leading-tight">{title}</p>}
             {date && (
               <p className="text-slate-400 text-xs mt-0.5">
                 {formatLongDate(date)}

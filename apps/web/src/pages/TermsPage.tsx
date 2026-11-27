@@ -40,7 +40,7 @@ export default function TermsPage() {
           {t('terms.back')}
         </Link>
 
-        <h1 className="mt-2 text-2xl font-bold tracking-tight text-fg">
+        <h1 className="mt-2 text-lg font-bold tracking-tight text-fg sm:text-xl">
           {t('terms.title')}
         </h1>
         <p className="mt-1 font-mono text-xs uppercase tracking-wide text-fg-dim">

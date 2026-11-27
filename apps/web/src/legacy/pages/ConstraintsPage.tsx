@@ -16,7 +16,7 @@ export default function ConstraintsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h1 className="text-lg font-bold text-fg mb-0.5">{t('wizard.step.constraints')}</h1>
+          <h1 className="text-lg font-bold text-fg sm:text-xl mb-0.5">{t('wizard.step.constraints')}</h1>
           <p className="text-slate-400 text-sm">{t('wizard.constraints.subtitle')}</p>
         </div>
         {fixMatches.length > 0 && (

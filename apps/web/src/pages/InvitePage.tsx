@@ -85,7 +85,7 @@ export default function InvitePage() {
     return (
       <main className="min-h-screen bg-ground text-fg flex items-center justify-center p-4">
         <Card className="w-full max-w-sm p-6">
-          <h1 className="text-xl font-bold text-fg">{t('invite.title')}</h1>
+          <h1 className="text-lg font-bold text-fg sm:text-xl">{t('invite.title')}</h1>
           <p className="mt-2 text-sm text-fg-dim">{t('invite.signedOutHint')}</p>
           <Button
             className="mt-6 w-full py-3"
@@ -105,7 +105,7 @@ export default function InvitePage() {
   return (
     <main className="min-h-screen bg-ground text-fg flex items-center justify-center p-4">
       <Card className="w-full max-w-sm p-6">
-        <h1 className="text-xl font-bold text-fg">{t('invite.title')}</h1>
+        <h1 className="text-lg font-bold text-fg sm:text-xl">{t('invite.title')}</h1>
         <p className="mt-2 text-sm text-fg-dim">{t('invite.signedInHint')}</p>
         <p className="mt-2 text-xs text-fg-dim">
           {t('invite.signedInAs', { name: user.displayName })}

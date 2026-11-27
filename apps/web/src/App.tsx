@@ -254,7 +254,7 @@ function RootRedirect() {
       <EmptyState
         as="h1"
         className="mt-6"
-        titleClassName="text-xl sm:text-2xl font-bold"
+        titleClassName="text-lg font-bold sm:text-xl"
         title={t('home.empty')}
         description={isOwner ? t('home.emptyOwnerHint') : t('home.emptyHint')}
         action={

@@ -273,7 +273,7 @@ export default function TeamTournamentPage() {
       {overlayError && <Toast message={overlayError} onDismiss={() => setOverlayError(null)} />}
       <div className="bg-surface px-4 pt-3 pb-0 border-b border-border-subtle">
         <div className="flex items-center gap-2">
-          <h1 className="text-[1rem] font-bold text-fg leading-tight">{snap.name}</h1>
+          <h1 className="text-lg font-bold text-fg sm:text-xl leading-tight">{snap.name}</h1>
           {publish.isPending && <span className="text-xs text-fg-dim">{t('teamTournament.saving')}</span>}
         </div>
         <p className="text-xs text-fg-dim mt-0.5 mb-3">

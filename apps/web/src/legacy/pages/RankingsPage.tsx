@@ -107,7 +107,7 @@ export default function RankingsPage() {
       <div className="flex flex-col gap-3">
         {/* Header Title */}
         <div className="flex items-baseline justify-between gap-2">
-          <h1 className="text-lg font-bold text-fg">{t('rankings.title')}</h1>
+          <h1 className="text-lg font-bold text-fg sm:text-xl">{t('rankings.title')}</h1>
         </div>
 
         {/* Filter Tier Chips */}

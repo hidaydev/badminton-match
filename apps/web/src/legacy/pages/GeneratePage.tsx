@@ -244,7 +244,7 @@ export default function GeneratePage() {
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2 mb-0.5">
-            <h1 className="text-lg font-bold text-fg">{t('wizard.generate.title')}</h1>
+            <h1 className="text-lg font-bold text-fg sm:text-xl">{t('wizard.generate.title')}</h1>
           </div>
           <p className="text-slate-400 text-xs sm:text-sm">
             {t('legacy.generate.meta', { players: players.length, games: selectTotalGames(session), courts: session.courts, plural: session.courts > 1 ? 's' : '' })}</p>

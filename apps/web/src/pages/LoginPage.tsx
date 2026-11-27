@@ -75,7 +75,7 @@ export default function LoginPage() {
         />
 
         <div className="mt-8 w-full max-w-sm md:mt-0">
-          <h1 className="text-3xl font-semibold tracking-tight text-fg">
+          <h1 className="text-lg font-bold tracking-tight text-fg sm:text-xl">
             {t('login.title')}
           </h1>
           <p className="mt-3 text-sm leading-relaxed text-fg-dim md:hidden">

@@ -161,7 +161,7 @@ export default function TournamentPage() {
       {/* Header */}
       <div className="bg-surface px-4 pt-3 pb-0 border-b border-border">
         <div className="flex items-center gap-2">
-          <h1 className="text-[1rem] font-bold text-fg leading-tight">{name}</h1>
+          <h1 className="text-lg font-bold text-fg sm:text-xl leading-tight">{name}</h1>
           {groupsFull && (
             isSaving ? (
               <Spinner size={14} className="text-fg-dim" label={t('app.loading')} />

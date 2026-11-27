@@ -72,7 +72,7 @@ export default function AchievementBadgesPreviewPage() {
   return (
     <div className="flex flex-col gap-6 p-1">
       <div className="rounded-xl border border-border-subtle bg-surface px-5 py-4">
-        <h1 className="text-base font-bold text-fg">{t('legacy.badgesPreview.title')}</h1>
+        <h1 className="text-lg font-bold text-fg sm:text-xl">{t('legacy.badgesPreview.title')}</h1>
         <p className="mt-1 text-xs leading-relaxed text-fg-dim">
           {t('legacy.badgesPreview.intro')}</p>
       </div>

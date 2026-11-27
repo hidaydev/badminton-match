@@ -31,7 +31,7 @@ export default function NewTournamentPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h1 className="text-lg font-bold text-fg">{t('legacy.newTournament.title')}</h1>
+        <h1 className="text-lg font-bold text-fg sm:text-xl">{t('legacy.newTournament.title')}</h1>
         <p className="text-xs text-fg-dim">{t('legacy.newTournament.subtitle')}</p>
       </div>
 

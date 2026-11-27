@@ -123,7 +123,7 @@ function TeamWizard() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-fg">{t('legacy.wizard.teamTitle')}</h1>
+        <h1 className="text-lg font-bold text-fg sm:text-xl">{t('legacy.wizard.teamTitle')}</h1>
         <span className="text-xs font-sans text-fg-dim">{step} · {['Setup', 'Players', 'Teams'][step - 1]}</span>
       </div>
 
@@ -324,7 +324,7 @@ function ClassicWizard() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-fg">{t('legacy.wizard.classicTitle')}</h1>
+        <h1 className="text-lg font-bold text-fg sm:text-xl">{t('legacy.wizard.classicTitle')}</h1>
         <span className="text-xs font-sans text-fg-dim">{step} · {['Setup', 'Pairs', 'Draw'][step - 1]}</span>
       </div>
 
