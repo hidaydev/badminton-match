@@ -22,6 +22,9 @@ for (const raw of tokens) {
   const token = raw.slice(1, -1).trim()
   if (!token.includes('/')) continue
   if (!EXTENSIONS.some(ext => token.endsWith(ext))) continue
+  // A token with whitespace is a shell command (`grep -rn '<input' apps/web/src`),
+  // not a file citation. It ends with a path only because the command does.
+  if (/\s/.test(token)) continue
   paths.add(token)
 }
 

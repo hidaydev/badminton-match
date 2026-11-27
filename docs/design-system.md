@@ -1,10 +1,16 @@
 # Majadu App — Design System
 
-Version: 2.1.0
-Last reviewed: 2026-11-16
+Version: 3.0.0
+Last reviewed: 2026-11-27
 
 > Formalized and adopted across the codebase. `./task docs-check` fails when
 > either line above goes missing or the review date goes stale.
+
+Sections marked **Batch B** record decision D-8 in the UI/UX audit backlog,
+approved 2026-11-27. They are the contract the `feat/p1-visual-system` build is reviewed
+against: where the code still shows the old recipe, the code is what moves, not
+this document. Every Batch B rule is stated so a reviewer can grep the tree for
+it.
 
 ## Versioning and review
 
@@ -101,12 +107,43 @@ tracked-label token, used only by `label-meta` and never for data.
 
 | Level | Token | Classes | Usage |
 |-------|-------|---------|-------|
-| Page Title | `--text-2xl` / `--text-xl` | `text-xl sm:text-2xl font-bold` | Page `h1` |
+| Page Title | `--text-lg` / `--text-xl` | `text-lg font-bold sm:text-xl` | The one `h1` recipe, owned by `PageHeader` |
 | Section Title | `--text-sm` | `text-sm font-semibold` | Section `h2` |
 | Body | `--text-sm` | `text-sm text-fg-dim` | Descriptions |
 | Label | `--text-xs` | `text-xs text-fg-dim` | Form labels |
-| Meta | `--text-meta` (10px) | `text-[10px] font-mono label-meta` | Single tracked label |
-| Detail | `--text-2xs` (11px) | `text-[11px]` | Compact data, never below |
+| Meta | `--text-meta` (10px) | `text-meta font-mono label-meta` | Single tracked label |
+| Detail | `--text-2xs` (11px) | `text-2xs` | Compact data, never below |
+
+### Page title — Batch B
+
+One recipe, in `PageHeader` (`src/components/PageHeader.tsx`):
+`text-lg font-bold text-fg sm:text-xl`. No page spells an `h1` class of its own.
+
+- A screen that draws its own title outside `PageHeader`, such as the session
+  sheet's header, repeats that exact step (`text-lg font-bold sm:text-xl`). A
+  screen at 16px/400 or `text-xl sm:text-2xl` is a defect of this rule.
+- `EmptyState` used as a page heading keeps `titleClassName` on the same step,
+  so the tallest text on the screen is the same size whether or not data landed.
+- The old guidance `text-xl sm:text-2xl` is retired. Any remaining occurrence in
+  `apps/web/src` is drift, not a variant.
+
+Checkable: `grep -rn 'text-xl sm:text-2xl' apps/web/src` returns only stat
+numbers and the scoreboard, never a page or sheet heading.
+
+### Type floor — Batch B
+
+`text-2xs` (11px) is the floor for body copy; `text-meta` (10px) is the only
+token allowed below it, and only for a tracked label with `label-meta`.
+
+- Write `text-2xs` and `text-meta`, never `text-[11px]` or `text-[10px]`.
+  Arbitrary sizes bypass the token and cannot be ratcheted by the gate.
+- `text-meta` never carries data: no score, no count, no timestamp value. It
+  titles a block; the value under it is at least `text-2xs`.
+- Retired: the table row that taught `text-[10px] font-mono label-meta` as the
+  Meta step. It was the instruction the 116 `text-[10px]` call sites followed.
+
+Checkable: `grep -rn 'text-\[10px\]\|text-\[11px\]' apps/web/src` counts only
+down. The count is a ratchet, the same way the raw-palette count is.
 
 ## Boolean Controls
 
@@ -122,22 +159,96 @@ Four spacing steps, three radii, three elevations, two durations.
 
 | Step | Token | Tailwind | Usage |
 |------|-------|----------|-------|
-| `0.5rem` | Spacing | `p-2` / `gap-2` | Chip and icon padding |
-| `0.75rem` | Spacing | `p-3` / `gap-3` | Row padding |
-| `1rem` | Spacing | `p-4` | Card padding |
-| `1.5rem` | Spacing | `gap-6` | Section gaps |
+| `0.5rem` | Spacing | `p-2` / `gap-2` | Chip and icon padding; the gap inside one row |
+| `0.75rem` | Spacing | `p-3` / `gap-3` | Row padding (`Card padding="sm"`); the gap between rows |
+| `1rem` | Spacing | `p-4` | Card padding (`Card padding="md"`) |
+| `2rem` | Spacing | `mt-8` | The gap between page sections |
 
 | Radius | Token | Tailwind | Usage |
 |--------|-------|----------|-------|
 | `0.5rem` | `--radius-lg` | `rounded-lg` | Chips, inputs |
-| `0.75rem` | `--radius-xl` | `rounded-xl` | Buttons |
-| `1rem` | `--radius-2xl` | `rounded-2xl` | Cards |
+| `0.75rem` | `--radius-xl` | `rounded-xl` | Buttons, **list rows** |
+| `1rem` | `--radius-2xl` | `rounded-2xl` | **Launcher tiles**, sheet and panel surfaces |
 
 | Elevation | Token | Tailwind | Usage |
 |-----------|-------|----------|-------|
 | Raised | `--shadow-sm` | `shadow-sm` | Chips, badges |
 | Panel | `--shadow-md` | `shadow-md` | Cards, menus |
 | Sheet | `--shadow-lg` | `shadow-lg` | Overlays |
+
+### Row and container recipes — Batch B
+
+One row recipe and one tile recipe. A screen picks one; it does not restyle a
+`Card` to look like the other.
+
+| Site | Recipe | Where |
+|------|--------|-------|
+| List row | `Card radius="xl" padding="sm"` | Sessions, players, settings rows, standings rows |
+| Launcher tile | `Card radius="2xl"` (the default) | Both Home grids |
+
+- `Card` defaults stay `radius="2xl"` and `padding="none"`, so the tile recipe is
+  written by leaving the radius out, not by passing `radius="2xl"`.
+- A list row that passes `radius="2xl"` or a page that spells
+  `rounded-xl border border-border-subtle bg-surface` is drift.
+- `padding="sm"` is the row's inner padding (p-3); a row does not add its own
+  `px-*`/`py-*` on top of it.
+
+Checkable: a list row is a `Card` with `radius="xl"` and `padding="sm"` in the
+same opening tag; a Home launcher tile has no `radius` prop.
+
+### Section rhythm — Batch B
+
+Three gaps, one each per level. The owner's word for the old screens was
+"spaciness", meaning there was no scale at all.
+
+| Level | Class | Contract |
+|-------|-------|----------|
+| Inside a row | `gap-2` | Icon to label, label to value, chip to chip in one row |
+| Between rows | `gap-3` | The column of rows, the column of cards |
+| Between page sections | `mt-8` | One section of a page to the next |
+
+- A page's first section does not open with `mt-*`; the page body's own top
+  padding is that gap. `SettingsPage.tsx`'s first `mt-6` becomes `mt-8` so the
+  first section matches the rest.
+- `mt-6` and `mt-5` are not section gaps. A page that needs a different gap has
+  a layout reason and records it here.
+- `gap-2`/`gap-3` inside a `Card` follow the same steps; `p-*` on the card is a
+  separate decision from the gap between its children.
+
+Checkable: `grep -rn 'mt-6' apps/web/src/pages apps/web/src/legacy/pages` only
+matches inside a component that documents why, and `SettingsPage.tsx` has no
+`<section className="mt-6">`.
+
+## Utilities in `index.css` — Batch B
+
+A class a component writes as if it were CSS has to exist in `index.css` as an
+`@utility`. The set today: `focus-ring`, `hit44`, `disabled-dim`,
+`disabled-dim-soft`, `disabled-dim-faint`, `disabled-dim-ghost`, `z-overlay`,
+`z-toast`, `label-meta`, and `no-scrollbar`.
+
+`no-scrollbar` is the case that made this a rule. `RankingsPage.tsx:114` puts it
+on a horizontal chip row, and no rule ever produced it, so the row showed a
+scrollbar on every platform that draws one. The name states the intent, so it is
+defined rather than deleted:
+
+```css
+/* A row that scrolls sideways on purpose: the overflow stays reachable, the bar
+   does not draw. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+```
+
+The touch gate (`apps/web/scripts/check-touch-targets.mjs`) asserts against the
+built stylesheet rather than the spelling: every marker a source uses has a rule
+in the built CSS, and every class a `@majadu/*` package renders compiles. Adding
+`no-scrollbar` to `index.css` puts it in that artefact, which is the only proof
+the class is real. Deleting the class and its call site would also be correct;
+leaving it undefined is not. A new invented class gets the same test: define it,
+or remove the call site.
 
 ## Breakpoints and viewports
 
@@ -161,6 +272,11 @@ Layout changes are written with those prefixes. The two-column forms use `md:`
 screen uses `lg:` (1024px). A new prefix, or a change to one of these values, is
 a layout change and belongs in this file with the screen that needs it.
 
+Breakpoint values are 400/640/1024 and stay there (checked 2026-11-27 against
+`src/index.css` `@theme`). MAJ-18 was this table quoting 640/768/1024 while the
+CSS set 400/640/1024; the table now states the CSS, and a reader can verify it
+with `grep -n 'breakpoint' apps/web/src/index.css`.
+
 Three viewports are compared: `iphone-17` (402x874, WebKit) and `poco-f5`
 (393x873, Chromium) for the phones, and `desktop` (1440x900, Chromium) for the
 admin screens. `pnpm check:e2e` runs the visual baseline on all three, and the
@@ -179,12 +295,21 @@ recipe, not a new exception.
 | Navigation styled as an action | `ButtonLink` | `components/Button` |
 | An action whose label is an icon | `IconButton` | `components/Button` |
 | The whole surface is the target | `Card` with `variant="interactive"` | `components/Card` |
-| Filter or single-choice pill | `Chip` | `components/Chip` |
-| Tab strip | `Tabs` | `components/Tabs` |
+| Filter or single-choice pill, any look | `Chip` | `components/Chip` |
+| Tab strip, any look | `Tabs` | `components/Tabs` |
+| Any text input, labelled | `Field` + `Input` | `components/Field` |
 
 Decision order: navigation goes to `ButtonLink`, an icon-only control to
 `IconButton`, a whole-row target to `Card interactive`, a filter to `Chip`, a tab
-strip to `Tabs`, everything else to `Button`.
+strip to `Tabs`, a text field to `Field` + `Input`, everything else to `Button`.
+
+Two more rules hold at this level, both from decision D-8:
+
+- **One chip, one tab strip.** `Chip` and `Tabs` each absorb the looks their
+  screens used to hand-roll, as a `variant`. A page may pass `variant` and
+  `size`; it may not pass a class string that reproduces either.
+- **No hand-rolled text control.** A raw `<input>` outside `Input`, or a
+  `<label>` wrapper outside `Field`, is a defect even when it looks right.
 
 ### Button variants
 
@@ -296,22 +421,42 @@ Anti-example: a hand-written `<svg>` with its own `strokeWidth` in a page.
 
 ### Chip
 
-`src/components/Chip.tsx` — the filter or single-choice pill. `selected` is
-rendered as `aria-pressed` and as the accent outline, so the state reaches a
-screen reader; `size` is `md` or `sm` and both stay 44px tall.
+`src/components/Chip.tsx` — the only chip, in every place a chip appears. It is
+the filter and single-choice control on rankings, tournaments and anywhere else a
+row of choices sits. `selected` is rendered as `aria-pressed` and as the accent
+outline, so the state reaches a screen reader; `size` is `md` or `sm` and both
+stay 44px tall through `hit44`.
+
+| Prop | Type | Notes |
+|---|---|---|
+| `selected` | `boolean` | Rendered as `aria-pressed` plus the accent border and ink |
+| `size` | `'md' \| 'sm'` | `md` is `px-3 text-xs`, `sm` is `px-2.5 text-2xs`; height is 44px in both |
+| `variant` | `'outline' \| 'pill'` | **Batch B.** `outline` is the bordered chip above; `pill` is the filled, fully rounded look the rankings tier row and the tournament format row used to spell locally |
+| `loading` | `boolean` | Keeps the label, swaps in a spinner, blocks a second press |
+
+`variant="pill"` replaces three local class strings, not one: the rankings tier
+row (`RankingsPage.tsx`), the tournament format row (`TournamentListPage.tsx`)
+and the pill that both copied. A page that writes `rounded-full border px-2.5 py-1`
+on a `<button>` is drift.
 
 ```tsx
 <Chip selected={tier === t} onClick={() => setTier(t)}>{TIER_LABELS[t]}</Chip>
+<Chip variant="pill" selected={format === f} onClick={() => setFormat(f)}>{f}</Chip>
 ```
 
-Anti-example: a `<button>` whose selected state is only a blue background.
+Anti-examples: a `<button>` whose selected state is only a blue background; a
+`rounded-full` pill with its own `border`/`bg` pair; a tier row at 26px whose
+last chip is clipped with no scroll affordance (MAJ-10 — the row scrolls, the
+chip keeps 44px, and the overflow is visible as a partial chip, never a cut
+`border`).
 
 ### Card
 
 `src/components/Card.tsx` — the panel container. `padding` is `none` (default),
-`sm` (p-3), `md` (p-4) or `lg` (p-6); `radius` is `2xl` (default), `xl` or `lg`,
-so adoption keeps the corner each site already had rather than flattening it — the
-three radii stay on purpose. `variant` is `panel` (default), `flush` or
+`sm` (p-3), `md` (p-4) or `lg` (p-6); `radius` is `2xl` (default), `xl` or `lg`.
+The three radii stay available on purpose, but the recipe picks one: **a list row
+is `radius="xl" padding="sm"`; a launcher tile is `radius="2xl"`** (see *Row and
+container recipes — Batch B*). `variant` is `panel` (default), `flush` or
 `interactive`: `flush` adds `overflow-hidden` for children that draw their own
 dividers, such as a list or a table. The remaining div props pass through.
 `CARD_RECIPE` is exported for the one component that has to spell the recipe on a
@@ -320,11 +465,13 @@ and press affordances and takes `as` so the card is a real `button` (or a link)
 instead of a clickable div.
 
 ```tsx
+<Card radius="xl" padding="sm">row content</Card>
 <Card padding="md" role="group" aria-label="Danger zone">...</Card>
 <Card as="button" variant="interactive" onClick={open}>Sunday draft</Card>
 ```
 
-Anti-example: `rounded-2xl border border-border-subtle bg-surface` in a page.
+Anti-example: `rounded-2xl border border-border-subtle bg-surface` in a page, or
+a list row at `radius="2xl"`.
 
 ### CollapsiblePanel
 
@@ -342,7 +489,7 @@ Anti-example: hand written `<details>` with a copied summary class.
 `src/components/Field.tsx` — one named control with an optional hint. `Field`
 generates (or accepts `id`) and points `htmlFor` at it, and appends the hint id
 to the control's `aria-describedby`. `Input` and `Select` are the only control
-recipes.
+recipes, for every text field in the app (Batch B, decision D-8).
 
 ```tsx
 <Field label="Aliases" hint="Comma separated"><Input value={aliases} /></Field>
@@ -350,6 +497,20 @@ recipes.
 
 Anti-example: a `<label>` wrapper plus a hand styled `<select>` and a hint with
 no id.
+
+The rule is absolute: a text field is `Field` + `Input`, and the 14 duplicated
+control class strings that spelled `bg-elevated border border-border rounded-xl
+px-3 py-3` by hand are deleted. A raw `<input>` in a page or a legacy component
+is drift, even when it looks identical today, because the next change to the
+input recipe would skip it.
+
+Checkable: `grep -rn '<input' apps/web/src` matches only
+`src/components/Field.tsx`, `src/components/Checkbox.tsx` and `src/components/Radio.tsx`.
+
+One height for one control: every input, select and button that stands in a row
+is at least 44px tall. The three heights MAJ-14 measured come from a hand-rolled
+input, a `py-1` select and an unstyled control, and all three disappear with this
+rule.
 
 ### Checkbox and Radio
 
@@ -414,13 +575,16 @@ in flight.
 ### PageHeader
 
 `src/components/PageHeader.tsx` — the `h1` and optional subtitle every V2 page
-opens with.
+opens with. It owns the page title recipe (`text-lg font-bold text-fg
+sm:text-xl`) and the subtitle (`mt-1 text-sm text-fg-dim`); a page passes the
+words and nothing else.
 
 ```tsx
 <PageHeader title={t('players.title')} subtitle={t('players.subtitle')} />
 ```
 
-Anti-example: a page-local `<h1 className="text-xl ...">`.
+Anti-example: a page-local `<h1 className="text-xl ...">`, or a heading in a
+session sheet at `text-base font-normal` instead of the same step.
 
 ### Page
 
@@ -470,32 +634,42 @@ Overlay section below.
 
 ### Tabs
 
-`src/components/Tabs.tsx` — one WAI-ARIA tab strip. `items` (`id`, `label`),
-`value`, `onChange`, `panelId`, `label`, optional `idPrefix`, `className` and
-`tabClassName(active)`. It owns the roving tabindex and the arrow/Home/End
-handling; the panel stays with the page.
+`src/components/Tabs.tsx` — the only tab strip (Batch B, decision D-8). `items`
+(`id`, `label`), `value`, `onChange`, `panelId`, `label`, optional `idPrefix`,
+`className` and `tabClassName(active)`. It owns the roving tabindex and the
+arrow/Home/End handling; the panel stays with the page.
+
+| Prop | Type | Default | Notes |
+|---|---|---|---|
+| `items` | `readonly { id, label }[]` | required | Order is the reading order |
+| `value` | `string` | required | The selected id |
+| `onChange` | `(id: string) => void` | required | Called on click, arrow and Home/End |
+| `panelId` | `string` | required | Each tab's `aria-controls` |
+| `label` | `string` | required | The `tablist` accessible name |
+| `idPrefix` | `string` | `panelId` | Prefix for `tabId`/`tabPanelId` |
+| `variant` | `'pill' \| 'underline'` | `'pill'` | **Batch B.** `pill` is the filled gold block; `underline` is a text tab with an accent rule under the selected label |
+| `className` | `string` | `flex gap-1` | The strip box |
+| `tabClassName` | `(active: boolean) => string` | — | Escape hatch for spacing only. It is not a second look |
+
+The variant is what the old `TabBar` was. That component and both of its test
+files are deleted with this
+version: a page that imported `TabBar` imports `Tabs` and passes
+`variant="underline"`, and the required `idPrefix` those call sites passed is
+still accepted.
+
+The tournament screen's per-tab look moves into the variant, and `SummaryModal`
+drops its `indigo` override for the default accent. A `tabClassName` that sets
+`bg-indigo-*`, `text-indigo-*` or `border-indigo-*` is drift: the selected tab is
+accent ink on every screen.
 
 ```tsx
 <Tabs items={tabs} value={tab} onChange={setTab} panelId="panel" label="Sections" />
+<Tabs items={tabs} value={tab} onChange={setTab} panelId="summary-panel"
+  label="Views" idPrefix="summary-tabs" variant="underline" />
 ```
 
-Anti-example: a page-local `role="tablist"` with its own `querySelectorAll`.
-
-### TabBar
-
-`src/components/TabBar.tsx` — the other tab strip, used by the tournament screen.
-`items`, `value`, `onChange`, `label`, a required `idPrefix` (shared with the
-exported `tabId` and `tabPanelId` helpers), `className` and
-`tabClassName(item, selected)`. It owns the same roving tabindex and arrow/Home/End
-handling as `Tabs`; the difference is that the id scheme and the per-tab look are
-both required rather than defaulted.
-
-```tsx
-<TabBar items={tabs} value={tab} onChange={handleTabChange} label="Views"
-  idPrefix="tournament-tabs" tabClassName={(_item, selected) => tabClass(selected)} />
-```
-
-Anti-example: three unrelated buttons that each set the same view.
+Anti-examples: a page-local `role="tablist"` with its own `querySelectorAll`; a
+second tab component; an indigo selected state.
 
 ### StandingsTable
 
@@ -645,6 +819,7 @@ That is why the footer no longer carries `pb-[max(...)]`.
 |------|---------------|
 | Focus rings | the `focus-ring` utility (defined once in `index.css`, NOT `focus:ring`) — no tap flash |
 | Micro labels | the `label-meta` utility: uppercase plus 0.05em tracking, the whole recipe; size and colour stay at the call site (DS-15) |
+| Utility classes | every non-Tailwind class a component writes is a real `@utility` in `index.css`; a class that never became CSS is a defect, not a style |
 | Touch targets | ≥44px for interactive elements, enforced by `apps/web/scripts/check-touch-targets.mjs` (`check:touch`) |
 | Reduced motion | `@media (prefers-reduced-motion: reduce)` |
 | Screen readers | `aria-label` on icon buttons, `role="dialog"` on modals |
@@ -652,6 +827,23 @@ That is why the footer no longer carries `pb-[max(...)]`.
 | Error text | `role="alert"` only. Adding `aria-live` on top is redundant; see `ErrorText` |
 | Keyboard nav | a real `<button>` for every action, including the score tap zones; a `role="button"` wrapper around other controls nests interactive elements |
 | Menu | `role="menu"` / `role="menuitem"` on ActionsMenu |
+
+## Batch B review checklist
+
+Each rule above with the check a reviewer runs. The batch is reviewable when all
+nine pass; a failure names the recipe, not the screen.
+
+| # | Rule | Check |
+|---|------|-------|
+| 1 | One page-title recipe | `grep -rn 'sm:text-2xl' apps/web/src/components apps/web/src/pages` returns nothing for a heading; `PageHeader.tsx` holds `text-lg font-bold` and `sm:text-xl` |
+| 2 | Row and tile radii | a list row's `Card` carries `radius="xl"` with `padding="sm"`; a Home launcher tile passes no `radius` |
+| 3 | One tab strip | `ls apps/web/src/components/TabBar.tsx` and both test files are gone; `Tabs` declares `variant?: 'pill' \| 'underline'`; `grep -rn 'indigo' apps/web/src/legacy/components/SummaryModal.tsx` returns nothing in the tab classes |
+| 4 | One chip | `Chip` declares `variant?: 'outline' \| 'pill'`; `grep -rn 'rounded-full.*px-2.5' apps/web/src` hits no `<button>`; rankings and tournaments import `Chip` |
+| 5 | Section rhythm | `SettingsPage.tsx` has no `<section className="mt-6">`; page sections use `mt-8`, row columns `gap-3`, rows `gap-2` |
+| 6 | Type floor | `grep -rn 'text-\[10px\]\|text-\[11px\]' apps/web/src \| wc -l` only goes down; this file no longer teaches either literal |
+| 7 | One text control | `grep -rn '<input' apps/web/src` matches only `Field.tsx`, `Checkbox.tsx`, `Radio.tsx` |
+| 8 | Real utilities | every class outside Tailwind that a component writes appears as `@utility` in `index.css`; `no-scrollbar` is one of them |
+| 9 | Breakpoints | `apps/web/src/index.css` sets `--breakpoint-sm: 25rem` and `--breakpoint-md: 40rem`; no other value in this file |
 
 ## File Locations
 
