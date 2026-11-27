@@ -51,4 +51,26 @@ describe('shared session load failure', () => {
     expect(await screen.findByText(t('session.error.notFound'))).toBeInTheDocument()
     expect(screen.queryByText(t('session.error.load'))).not.toBeInTheDocument()
   })
+
+  // MAJ-04: the share link is where every stranger lands, and it rendered
+  // outside the shell — no skip link, no `id="main"`, so the first Tab went
+  // through the header instead of to the content.
+  it('offers the skip link and a main landmark on every branch', async () => {
+    handlers(() => ({ status: 404, body: { code: 'NOT_FOUND', detail: 'no session' } }))
+
+    render(<App />)
+
+    // Read the branch that actually rendered, then assert the landmark and the
+    // skip link are there in it; a share link can land on loading, error or the
+    // session itself and all three need the same way in.
+    await screen.findByText(t('session.error.notFound'))
+    expect(screen.getByRole('link', { name: t('shell.skipToContent') })).toHaveAttribute(
+      'href',
+      '#main',
+    )
+    expect(document.querySelector('main#main')).not.toBeNull()
+
+    await screen.findByText(t('session.error.notFound'))
+    expect(document.querySelector('main#main')).not.toBeNull()
+  })
 })

@@ -41,7 +41,8 @@ async function openShareSheet(page: Page) {
   const { communitySlug, sessionId } = state()
   await page.goto(`/c/${communitySlug}/sessions/${sessionId}`)
 
-  const summary = page.getByRole('dialog', { name: t('summary.title') })
+  // MAJ-04: in-app the sheet is the page, so it is a named region.
+  const summary = page.getByRole('region', { name: t('summary.title') })
   await expect(summary).toBeVisible()
   const trigger = summary.getByRole('button', { name: t('session.share') })
   // WebKit does not focus a button on a pointer tap, so a keyboard open is the

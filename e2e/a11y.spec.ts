@@ -37,7 +37,9 @@ const dialogCases: readonly DialogCase[] = [
     path: (state) => `/c/${state.communitySlug}/sessions/${state.sessionId}`,
     ready: (state) => `text=${state.sessionTitle}`,
     open: async (page) => {
-      const summary = page.getByRole('dialog', { name: t('summary.title') })
+      // MAJ-04: the session sheet is the page in standalone mode, so it is a
+      // named region, not a dialog.
+      const summary = page.getByRole('region', { name: t('summary.title') })
       await summary.getByRole('button', { name: t('summary.actions') }).click()
       await page.getByRole('menu', { name: t('summary.actionsSession') }).waitFor()
     },
