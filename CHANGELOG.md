@@ -5,6 +5,36 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.5.0] - 2026-11-27
+
+### Added
+- feat(web): name the screen in the document title (8081061; apps/web/src/hooks/usePageTitle.test.tsx, apps/web/src/hooks/usePageTitle.ts, apps/web/src/legacy/components/HomeLayout.tsx (+6 more))
+
+### Changed
+- test(e2e): record the batch B visual baseline on linux (d606d77; e2e/__screenshots__/linux/community-desktop.png, e2e/__screenshots__/linux/community-iphone-17.png, e2e/__screenshots__/linux/community-poco-f5.png (+35 more))
+- test(e2e): record the batch B visual baseline on darwin (3145da9; e2e/__screenshots__/darwin/community-desktop.png, e2e/__screenshots__/darwin/community-iphone-17.png, e2e/__screenshots__/darwin/community-poco-f5.png (+35 more))
+- refactor(web): one text control recipe, and one height for it (edccfc2; apps/web/src/components/Field.tsx, apps/web/src/legacy/components/ResolvePlayersModal.tsx, apps/web/src/legacy/components/SummaryModal.tsx (+16 more))
+- refactor(web): name the type floor instead of spelling it 186 times (de558b0; apps/web/src/components/StandingsTable.tsx, apps/web/src/legacy/components/AccountSessions.tsx, apps/web/src/legacy/components/AnnotatedPlayerName.tsx (+43 more))
+- refactor(web): three gaps, one per level, across the page sections (7fe263d; apps/web/src/pages/InvitePage.tsx, apps/web/src/pages/LoginPage.tsx, apps/web/src/pages/PlayerDetailPage.tsx (+5 more))
+- refactor(web): one row recipe, Card radius=xl padding=sm (382a37e; apps/web/src/components/Card.tsx, apps/web/src/legacy/components/admin/AdminMenuGrid.tsx, apps/web/src/legacy/pages/SessionListPage.tsx (+4 more))
+- refactor(web): one chip, with a pill variant (b173d79; apps/web/src/components/Chip.tsx, apps/web/src/legacy/pages/RankingsPage.tsx, apps/web/src/legacy/pages/TournamentListPage.tsx)
+- refactor(web): one tab strip, with an underline variant (46987de; apps/web/src/components/TabBar.test.tsx, apps/web/src/components/TabBar.tsx, apps/web/src/components/Tabs.tsx (+3 more))
+- docs(design): batch B contract at 3.0.0, and stop the path gate reading commands as files (263ec3a; apps/web/scripts/check-doc-paths.mjs, docs/design-system.md)
+- test(e2e): record the linux scoreboard baselines from the batch run (f7b1fbc; e2e/__screenshots__/linux/scoreboard-desktop.png, e2e/__screenshots__/linux/scoreboard-iphone-17.png, e2e/__screenshots__/linux/scoreboard-poco-f5.png (+1 more))
+- test(e2e): assert touch targets against the built CSS instead of the spelling (055e7b7; apps/web/package.json, apps/web/scripts/check-touch-targets.mjs, apps/web/scripts/touch-gate-selftest.mjs (+4 more))
+
+### Fixed
+- fix(web): emit no-scrollbar, the class the design system already promised (c933f07; apps/web/src/index.css)
+- fix(web): let the played-match team cells shrink, so a name cannot reach the score (02c442c; apps/web/src/legacy/components/summary/PlayerChipRenderer.tsx, apps/web/src/legacy/components/summary/ScheduleGrid.tsx)
+- fix(a11y): give the scoreboard controls a 44px target, and empty the exemption file (71ecb4e; apps/scoreboard/src/components/UpdatePrompt.tsx, apps/scoreboard/src/index.css, apps/web/scripts/touch-target-exemptions.json (+1 more))
+- fix(web): one page-title recipe, text-lg font-bold sm:text-xl (7ab7157; apps/web/src/App.tsx, apps/web/src/components/PageHeader.tsx, apps/web/src/legacy/components/SummaryModal.tsx (+17 more))
+- fix(a11y): say the connection is the problem instead of spinning forever (ddc7746; apps/web/src/App.tsx, apps/web/src/auth/AuthContext.ts, apps/web/src/auth/AuthProvider.test.tsx (+3 more))
+- fix(web): remember where the user left, not where the new page clamped them (4e48511; apps/web/src/components/RouteChange.test.tsx, apps/web/src/components/RouteChange.tsx)
+- fix(a11y): give the directory the shell it renders outside of (4a4aab7; apps/web/src/community/DirectoryPage.test.tsx, apps/web/src/community/DirectoryPage.tsx)
+- fix(a11y): the shared session is the page, not a modal dialog (e0ded48; apps/web/src/legacy/components/SummaryModal.tsx, apps/web/src/legacy/components/__tests__/SummaryModal.a11y.test.tsx, apps/web/src/legacy/pages/SharedSessionPage.tsx (+5 more))
+- fix(web): keep the player when an old ratings link is followed (bb4b48d; apps/web/src/App.tsx, apps/web/src/legacy/pages/__tests__/ratingsRedirect.test.tsx, e2e/a11y.spec.ts)
+- fix(web): ship hit44 as a real utility and scan scoreboard-ui classes (d8d1255; apps/scoreboard/src/index.css, apps/web/src/index.css, apps/web/src/legacy/components/hitTarget.ts (+8 more))
+
 ## [2.4.1] - 2026-11-26
 
 ### Changed
