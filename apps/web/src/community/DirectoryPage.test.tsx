@@ -109,4 +109,27 @@ describe('community directory', () => {
     const link = await screen.findByRole('link', { name: t('directory.page.back', { name: 'Acme' }) })
     expect(link).toHaveAttribute('href', '/c/acme')
   })
+
+  // MAJ-05: the directory is available before the account has a community, so
+  // it renders outside HomeLayout — and used to render without the three things
+  // that layout provides: skipped-to content, a sticky header with a way back,
+  // and the top safe-area inset.
+  it('is a shell, not a floating list: skip link, header and a way back', async () => {
+    mockSignedIn({
+      'GET /api/directory': () => ({ body: { items: entries } }),
+    })
+
+    renderAt('/directory')
+
+    await screen.findByRole('heading', { name: t('directory.page.title') })
+    expect(screen.getByRole('link', { name: t('shell.skipToContent') })).toHaveAttribute(
+      'href',
+      '#main',
+    )
+    const header = screen.getByRole('banner')
+    expect(header.className).toContain('sticky')
+    expect(header.className).toContain('pt-[env(safe-area-inset-top)]')
+    expect(screen.getByRole('button', { name: t('shell.back') })).toBeInTheDocument()
+    expect(document.querySelector('main#main')).not.toBeNull()
+  })
 })
