@@ -79,4 +79,38 @@ describe('ScheduleGrid read-only render', () => {
       expect(screen.getByText('Candra')).toBeInTheDocument()
     },
   )
+
+  // A pair that truncates per name reads "Ca… & De…", which names nobody. The
+  // idle row has no tap target per name, so it is allowed to cut the pair once:
+  // one ellipsis, after the last name.
+  it('cuts an idle pair once, at the end, instead of clipping each name', () => {
+    const { container } = render(
+      <ScheduleGrid data={makeData()} mode="idle" locked saving={false} />,
+    )
+
+    const teamCells = Array.from(
+      container.querySelectorAll('[style*="grid-template-columns"] > div'),
+    )
+    expect(teamCells).toHaveLength(2)
+    for (const cell of teamCells) {
+      // The pair line itself is the one clamp; no leaf is cut on its own.
+      expect(cell.className).toContain('truncate')
+      expect(cell.querySelectorAll('.truncate')).toHaveLength(0)
+      // Each leaf stays on one line, so the cut happens at the pair's end.
+      expect(cell.querySelectorAll('.whitespace-nowrap')).toHaveLength(2)
+    }
+  })
+
+  // The spacing between the names is `gap-1` in the flex modes and `mx-1` on the
+  // ampersand in the inline one, so the pair reads identically either way.
+  it('keeps the same 4px around the ampersand in the inline pair', () => {
+    const { container } = render(
+      <ScheduleGrid data={makeData()} mode="idle" locked saving={false} />,
+    )
+
+    const ampersands = Array.from(container.querySelectorAll('[style*="grid-template-columns"] span'))
+      .filter((el) => el.textContent === '&')
+    expect(ampersands).toHaveLength(2)
+    for (const el of ampersands) expect(el.className).toContain('mx-1')
+  })
 })

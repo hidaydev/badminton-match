@@ -38,6 +38,13 @@ interface PlayerChipRendererProps {
   playerId: string
   /** Back-to-back run length for this chip's game slot (e.g. 2 when this game is part of a 2-in-a-row) — shown in idle mode only */
   backToBackRun?: number
+  /**
+   * Clamp this name on its own. On by default, because a chip that can be
+   * tapped must keep its own box. A read-only pair turns it off and lets the
+   * row cut the pair once, at the end, which is the only way the ellipsis still
+   * reads as a name.
+   */
+  clip?: boolean
 }
 
 /**
@@ -67,6 +74,7 @@ export default function PlayerChipRenderer({
   court,
   playerId,
   backToBackRun,
+  clip = true,
 }: PlayerChipRendererProps & { isSkipped?: boolean; onSkipToggle?: (gameKey: string, playerId: string) => void }) {
   const target: SwapTarget = { slot, court, playerId, team, index: position }
   const gameKey = `${slot}-${court}`
@@ -171,17 +179,28 @@ export default function PlayerChipRenderer({
   const teamKey = TEAM_HIGHLIGHT_ENABLED ? HIGHLIGHTED_PLAYERS[playerName] : undefined
   const teamTheme = teamKey && !done && !isAbsent && !showSkippedIdle ? TEAM_HIGHLIGHTS[teamKey] : null
 
+  // In a read-only pair the row owns the ellipsis, not the name: two names that
+  // each clip leave "Lu… & Fa…", which says nothing. `clip={false}` drops the
+  // per-name clamp so the pair overflows as one line and the row cuts it once,
+  // at the end.
+  const chipWidth = clip ? 'max-w-full' : ''
+  const leaf = clip ? 'min-w-0 truncate' : 'whitespace-nowrap'
+  // A pair that truncates as one line needs inline boxes, not flex ones: a
+  // flex child is an atomic box, and the ellipsis then lands on whichever name
+  // the browser chose to clip instead of at the end of the pair.
+  const shape = clip ? 'inline-flex items-center' : 'inline'
+
   if (teamTheme) {
     return (
-      <span className="inline-flex items-center min-w-0 max-w-full text-xs font-medium px-0.5 py-0.5 rounded-lg border border-transparent text-white" style={{ position: 'relative', overflow: 'visible' }}>
+      <span className={`${shape} min-w-0 ${chipWidth} text-xs font-medium px-0.5 py-0.5 rounded-lg border border-transparent text-white`} style={{ position: 'relative', overflow: 'visible' }}>
         <img src={teamTheme.logo} style={{
           position: 'absolute', top: '50%', left: '50%',
           transform: 'translate(-50%, -50%)',
           width: teamKey === 'Green Grove' ? 46 : 34, height: teamKey === 'Green Grove' ? 46 : 34, maxWidth: 'none', objectFit: 'contain',
           opacity: 0.3, pointerEvents: 'none',
         }} />
-        <span className="min-w-0 truncate" style={{ position: 'relative' }}>
-          <AnnotatedPlayerName name={playerName} className="min-w-0 truncate" />
+        <span className={leaf} style={{ position: 'relative' }}>
+          <AnnotatedPlayerName name={playerName} className={leaf} />
         </span>
         {backToBackRun ? <sup className="text-2xs font-bold text-amber-400 shrink-0 leading-none" style={{ position: 'relative' }}>*{backToBackRun}</sup> : null}
       </span>
@@ -190,7 +209,7 @@ export default function PlayerChipRenderer({
 
   return (
     <span
-      className={`inline-flex items-center min-w-0 max-w-full text-xs font-medium px-0.5 py-0.5 rounded-lg border ${
+      className={`${shape} min-w-0 ${chipWidth} text-xs font-medium px-0.5 py-0.5 rounded-lg border ${
         isAbsent
           ? 'border-transparent text-slate-300 line-through'
           : showSkippedIdle
@@ -201,7 +220,7 @@ export default function PlayerChipRenderer({
       }`}
       title={showSkippedIdle ? 'Skipped in this game' : undefined}
     >
-      <AnnotatedPlayerName name={playerName} className="min-w-0 truncate" />{showSkippedIdle ? ' ⊘' : ''}
+      <AnnotatedPlayerName name={playerName} className={leaf} />{showSkippedIdle ? ' ⊘' : ''}
       {backToBackRun ? <sup className="text-2xs font-bold text-amber-400 shrink-0 leading-none">*{backToBackRun}</sup> : null}
     </span>
   )

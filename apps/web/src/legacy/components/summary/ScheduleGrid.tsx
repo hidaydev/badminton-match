@@ -202,8 +202,9 @@ export default function ScheduleGrid({
                       </button>
                     )
                   }
+                  const oneLinePair = mode === 'idle'
                   return (
-                    <div className="flex items-center gap-1 min-w-0">
+                    <div className={oneLinePair ? 'min-w-0 truncate' : 'flex items-center gap-1 min-w-0'}>
                       {([0, 1] as const).map((i) => {
                         const id = ids[i]
                         const n = name(id)
@@ -215,8 +216,21 @@ export default function ScheduleGrid({
                           ))
                         const chipDimmed = !!pendingSwap && !chipSelected
                         return (
-                          <span key={i} className={`flex items-center gap-1 min-w-0 ${chipDimmed ? 'opacity-30' : ''}`}>
-                            {i > 0 && <span className="text-2xs text-slate-400 shrink-0">&</span>}
+                          <span
+                            key={i}
+                            // Idle: inline, so the pair is one line and the cell
+                            // cuts it once at the end. Every other mode keeps
+                            // flex, because each chip is its own tap target.
+                            className={oneLinePair
+                              ? `inline min-w-0 ${chipDimmed ? 'opacity-30' : ''}`
+                              : `flex items-center gap-1 min-w-0 ${chipDimmed ? 'opacity-30' : ''}`}
+                          >
+                            {i > 0 && (
+                              // mx-1 reproduces the 4px `gap-1` the flex modes
+                              // get from their container, so the pair keeps the
+                              // identical spacing it had before it went inline.
+                              <span className={`text-2xs text-slate-400 shrink-0 ${oneLinePair ? 'mx-1' : ''}`}>&</span>
+                            )}
                             <PlayerChipRenderer
                               playerName={n}
                               team={team}
@@ -238,6 +252,7 @@ export default function ScheduleGrid({
                               court={g.court}
                               playerId={id}
                               backToBackRun={backToBackRunBySlot[id]?.get(s)}
+                              clip={!oneLinePair}
                             />
                           </span>
                         )
