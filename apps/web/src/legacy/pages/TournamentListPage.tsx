@@ -7,6 +7,7 @@ import { t } from '../../i18n'
 import Icon from '../components/Icon'
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
+import { Chip } from '../../components/Chip'
 import { EmptyState } from '../../components/EmptyState'
 
 const MONTH_NAMES = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
@@ -50,18 +51,16 @@ export default function TournamentListPage() {
               ? t('tournaments.formatTeam')
               : t('tournaments.formatClassic')
           return (
-            <button
+            <Chip
               key={fmt}
-              type="button"
+              variant="pill"
+              size="sm"
+              selected={isSelected}
               onClick={() => setSelectedFormat(fmt)}
-              className={`hit44 shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border ${
-                isSelected
-                  ? 'bg-accent/20 text-accent border-accent/60 font-semibold'
-                  : 'bg-surface text-fg-dim border-border-subtle hover:text-fg hover:border-border'
-              }`}
+              className="shrink-0"
             >
               {label}
-            </button>
+            </Chip>
           )
         })}
       </div>

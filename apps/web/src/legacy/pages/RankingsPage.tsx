@@ -9,6 +9,7 @@ import { collectAmbiguousBaseNames } from '../utils/nameParser'
 import { AmbiguousNamesProvider } from '../context/AmbiguousNamesContext'
 import { t } from '../../i18n'
 import { Card } from '../../components/Card'
+import { Chip } from '../../components/Chip'
 import { ErrorText } from '../../components/ErrorText'
 import { StandingsTable } from '../../components/StandingsTable'
 
@@ -112,36 +113,30 @@ export default function RankingsPage() {
 
         {/* Filter Tier Chips */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
-          <button
-            type="button"
+          <Chip
+            variant="pill"
+            size="sm"
+            selected={selectedTier === 'all'}
             onClick={() => handleTierChange('all')}
-            className={`hit44 shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border ${
-              selectedTier === 'all'
-                ? 'bg-accent/20 text-accent border-accent/60 font-semibold'
-                : 'bg-surface text-fg-dim border-border-subtle hover:text-fg hover:border-border'
-            }`}
+            className="shrink-0"
           >
             {t('common.all')} ({rawRows.length})
-          </button>
+          </Chip>
           {ALL_RATING_TIERS.map((tier) => {
             const count = tierCounts[tier] || 0
             const isSelected = selectedTier === tier
             return (
-              <button
+              <Chip
                 key={tier}
-                type="button"
+                variant="pill"
+                size="sm"
+                selected={isSelected}
                 onClick={() => handleTierChange(tier)}
-                className={`hit44 shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border flex items-center gap-1 ${
-                  isSelected
-                    ? 'bg-accent/20 text-accent border-accent/60 font-semibold'
-                    : count > 0
-                      ? 'bg-surface text-fg-dim border-border-subtle hover:text-fg hover:border-border'
-                      : 'bg-surface/50 text-fg-dim border-border-subtle/50'
-                }`}
+                className="shrink-0"
               >
                 <span>{tier}</span>
                 <span className="text-[10px] font-mono">({count})</span>
-              </button>
+              </Chip>
             )
           })}
         </div>

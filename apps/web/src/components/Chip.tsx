@@ -7,9 +7,18 @@ import { Spinner } from './Spinner'
  * not a colour pair the caller picks, so a screen reader hears the state too.
  */
 type Size = 'md' | 'sm'
+type Variant = 'outline' | 'pill'
 
 const BASE =
-  'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-border font-semibold text-fg-dim transition-[color,background-color,transform] duration-150 hover:bg-elevated hover:text-fg active:scale-[0.99] focus-ring aria-pressed:border-accent aria-pressed:text-accent disabled:cursor-not-allowed disabled-dim disabled:active:scale-100'
+  'inline-flex min-h-11 items-center justify-center gap-1.5 transition-[color,background-color,transform] duration-150 hover:text-fg active:scale-[0.99] focus-ring disabled:cursor-not-allowed disabled-dim disabled:active:scale-100'
+
+/** `outline` is the default bordered chip; `pill` is the fully rounded filled chip. */
+const VARIANT: Record<Variant, string> = {
+  outline:
+    'rounded-lg border border-border font-semibold text-fg-dim hover:bg-elevated aria-pressed:border-accent aria-pressed:text-accent',
+  pill:
+    'rounded-full border border-border-subtle bg-surface font-medium text-fg-dim hover:text-fg hover:border-border aria-pressed:border-accent/60 aria-pressed:bg-accent/20 aria-pressed:text-accent aria-pressed:font-semibold',
+}
 
 const SIZE = {
   md: 'px-3 text-xs',
@@ -24,6 +33,7 @@ type ChipProps = Omit<ComponentPropsWithoutRef<'button'>, 'aria-pressed'> & {
   /** Toggle state, rendered as `aria-pressed` and as the accent border and ink. */
   selected?: boolean
   size?: Size
+  variant?: Variant
   /** Keeps the label and blocks a second press while the choice is applied. */
   loading?: boolean
 }
@@ -31,6 +41,7 @@ type ChipProps = Omit<ComponentPropsWithoutRef<'button'>, 'aria-pressed'> & {
 export function Chip({
   selected = false,
   size = 'md',
+  variant = 'outline',
   type = 'button',
   disabled,
   loading = false,
@@ -45,7 +56,7 @@ export function Chip({
       aria-pressed={selected}
       disabled={disabled || loading}
       aria-busy={loading ? true : undefined}
-      className={join(BASE, SIZE[size], 'hit44', className)}
+      className={join(BASE, VARIANT[variant], SIZE[size], 'hit44', className)}
     >
       {loading && <Spinner size={12} />}
       {children}
