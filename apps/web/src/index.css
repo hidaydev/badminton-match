@@ -184,6 +184,15 @@
   }
 }
 
+/* A row that scrolls sideways on purpose: the overflow stays reachable, the bar
+   does not draw. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* DS-03: the disabled treatment, in one ladder. A control dims with
    `disabled-dim`; the weaker steps exist because a 50% chip in a dense table
    reads as missing rather than unavailable. Nothing opts into a raw opacity
