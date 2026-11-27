@@ -38,7 +38,7 @@ export function ScoreboardFooter({
     <button
       type="button"
       onClick={onExport}
-      className="px-3 py-1 rounded-lg text-white/90 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
+      className="hit44 px-3 py-1 rounded-lg text-white/90 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
       style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
       aria-label={labels.exportMatch}
     >

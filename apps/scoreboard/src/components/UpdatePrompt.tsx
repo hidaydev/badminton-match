@@ -15,7 +15,7 @@ export default function UpdatePrompt({ onUpdate, onDismiss }: UpdatePromptProps)
       <button
         type="button"
         onClick={onUpdate}
-        className="px-3 py-1 rounded-lg font-semibold text-white cursor-pointer"
+        className="hit44 px-3 py-1 rounded-lg font-semibold text-white cursor-pointer"
         style={{ background: 'rgba(255,255,255,0.16)' }}
       >
         Reload
@@ -23,7 +23,7 @@ export default function UpdatePrompt({ onUpdate, onDismiss }: UpdatePromptProps)
       <button
         type="button"
         onClick={onDismiss}
-        className="px-2 py-1 text-white/80 cursor-pointer"
+        className="hit44 px-2 py-1 text-white/80 cursor-pointer"
       >
         Later
       </button>

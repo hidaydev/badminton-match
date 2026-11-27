@@ -22,6 +22,24 @@
   z-index: 50;
 }
 
+/* The 44px touch target, in one place. Same rule as the web app's `index.css`:
+   the pseudo-element takes the taps, so the visible box and the surrounding
+   layout stay untouched. A shared package renders `hit44` (the footer's export
+   button) so this app has to emit it too. The parent must not clip overflow. */
+@utility hit44 {
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 2.75rem;
+    height: 2.75rem;
+    transform: translate(-50%, -50%);
+  }
+}
+
 :root {
   color-scheme: dark;
 }
