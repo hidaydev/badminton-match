@@ -142,7 +142,7 @@ function declaredRoutes(): RouteDecl[] {
     if (path.startsWith('/')) stack.length = 0
     const full = path.startsWith('/') ? path : [parent, path].filter(Boolean).join('/')
     const redirect =
-      /<LegacyNavigate|<LegacySessionRedirect|<RootRedirect|<Navigate/.test(line)
+      /<LegacyNavigate|<LegacySessionRedirect|<LegacyPlayerRatingRedirect|<RootRedirect|<Navigate/.test(line)
     routes.push({ path: full, redirect, layout: !/element=/.test(line) })
     if (!isSelfClosing(indented)) stack.push({ indent, path: full })
   }

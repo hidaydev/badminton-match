@@ -185,6 +185,11 @@ function LegacySessionRedirect() {
   return <LegacyNavigate to={`/s/${id}`} replace />
 }
 
+function LegacyPlayerRatingRedirect() {
+  const { playerId = '' } = useParams<{ playerId: string }>()
+  return <LegacyNavigate to={`/rankings/${playerId}`} replace />
+}
+
 function CommunityNotFound() {
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-4">
@@ -305,7 +310,7 @@ function AuthedRoutes() {
           <Route path="rankings" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="rankings"><RankingsPage /></ErrorBoundary></Suspense>} />
           <Route path="rankings/:playerId" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="rankings-player"><RatingPlayerPage /></ErrorBoundary></Suspense>} />
           <Route path="ratings" element={<LegacyNavigate to="/rankings" replace />} />
-          <Route path="ratings/:playerId" element={<LegacyNavigate to="/rankings" replace />} />
+          <Route path="ratings/:playerId" element={<LegacyPlayerRatingRedirect />} />
           {DEV_PREVIEWS && (
             <>
               <Route path="dev/achievement-badges" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="achievement-badges-preview"><AchievementBadgesPreviewPage /></ErrorBoundary></Suspense>} />
