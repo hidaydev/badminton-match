@@ -127,22 +127,30 @@ export default function SharedSessionPage() {
   const session = current?.value ?? null
   const view = useMemo(() => (session === null ? null : buildGuestView(session)), [session])
 
+  // The body below is the same standalone summary the session screen renders,
+  // and that screen owns the gutter: it draws its own `px-4` panel inside a
+  // full-width column. A second `px-4` here made every row 32px narrower than
+  // the same session opened from the app, which is what turned half the names
+  // into ellipses. The strip above it keeps the column, so the label still
+  // lines up with the panel's left edge.
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col px-4 py-4">
-      <header className="flex items-baseline justify-between gap-3">
-        <p className="text-sm font-semibold text-accent">{t('shared.title')}</p>
-        {session !== null && (
-          <p className="text-xs text-fg-dim">{session.community.name}</p>
-        )}
-      </header>
+    <main className="flex min-h-screen w-full flex-col bg-ground text-fg pb-[env(safe-area-inset-bottom)]">
+      <div className="mx-auto flex w-full max-w-panel flex-col px-4 pt-4">
+        <header className="flex items-baseline justify-between gap-3">
+          <p className="text-sm font-semibold text-accent">{t('shared.title')}</p>
+          {session !== null && (
+            <p className="text-xs text-fg-dim">{session.community.name}</p>
+          )}
+        </header>
 
-      {loading && <LoadingState label={t('app.loading')} rows={1} />}
-      {current?.error === 'notFound' && (
-        <ErrorText className="mt-4">{t('shared.error.missing')}</ErrorText>
-      )}
-      {current?.error === 'failed' && (
-        <ErrorText className="mt-4">{t('shared.error.load')}</ErrorText>
-      )}
+        {loading && <LoadingState label={t('app.loading')} rows={1} />}
+        {current?.error === 'notFound' && (
+          <ErrorText className="mt-4">{t('shared.error.missing')}</ErrorText>
+        )}
+        {current?.error === 'failed' && (
+          <ErrorText className="mt-4">{t('shared.error.load')}</ErrorText>
+        )}
+      </div>
 
       {session !== null && view !== null && (
         <Suspense fallback={<LoadingState label={t('app.loading')} rows={1} />}>
