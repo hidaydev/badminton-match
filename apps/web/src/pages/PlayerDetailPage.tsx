@@ -340,7 +340,7 @@ function ClaimRow({
   const [reason, setReason] = useState('')
 
   return (
-    <li className="rounded-xl border border-border-subtle bg-surface p-3">
+    <Card as="li" radius="xl" padding="sm">
       <p className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-fg">
         <span className="text-xs text-fg-dim">{claimant}</span>
         <span className={`text-xs ${claim.status === 'pending' ? 'text-info' : 'text-fg-dim'}`}>
@@ -393,7 +393,7 @@ function ClaimRow({
           </Button>
         </div>
       )}
-    </li>
+    </Card>
   )
 }
 

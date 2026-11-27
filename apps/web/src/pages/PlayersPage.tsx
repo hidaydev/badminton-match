@@ -7,6 +7,7 @@ import { createPlayer } from '../players/api'
 import { usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
 import { Button } from '../components/Button'
+import { Card } from '../components/Card'
 import { CollapsiblePanel } from '../components/CollapsiblePanel'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { EmptyState } from '../components/EmptyState'
@@ -159,9 +160,12 @@ export default function PlayersPage() {
         <ul className="mt-4 space-y-2">
           {items.map((player) => (
             <li key={player.id}>
-              <Link
+              <Card
+                as={Link}
                 to={`/c/${encodeURIComponent(slug)}/players/${encodeURIComponent(player.id)}`}
-                className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-border-subtle bg-surface px-4 py-3 hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent"
+                radius="xl"
+                padding="sm"
+                className="flex min-h-11 items-center justify-between gap-3 hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-semibold text-fg">
@@ -176,7 +180,7 @@ export default function PlayersPage() {
                     ? t('players.unclaimed')
                     : t('players.claimed')}
                 </span>
-              </Link>
+              </Card>
             </li>
           ))}
         </ul>

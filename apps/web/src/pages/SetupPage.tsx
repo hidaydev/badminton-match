@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { Button } from '../components/Button'
+import { Card } from '../components/Card'
 import { EmptyState } from '../components/EmptyState'
 import { CollapsiblePanel } from '../components/CollapsiblePanel'
 import { useAsyncAction } from '../hooks/useAsyncAction'
@@ -93,15 +94,18 @@ export default function SetupPage() {
         <ul className="mt-2 space-y-2">
           {memberships.map((membership) => (
             <li key={membership.id}>
-              <Link
+              <Card
+                as={Link}
                 to={`/c/${encodeURIComponent(membership.slug)}`}
-                className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-border-subtle bg-surface px-4 py-3 hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent"
+                radius="xl"
+                padding="sm"
+                className="flex min-h-11 items-center justify-between gap-3 hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <span className="truncate text-sm text-fg">{membership.name}</span>
                 <span className="shrink-0 text-xs text-fg-dim">
                   {t(ROLE_LABEL[membership.role])}
                 </span>
-              </Link>
+              </Card>
             </li>
           ))}
         </ul>

@@ -22,6 +22,7 @@ import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { formatInstantDate } from '../utils/day'
 import { Button } from '../components/Button'
+import { Card } from '../components/Card'
 import { EmptyState } from '../components/EmptyState'
 import { CollapsiblePanel } from '../components/CollapsiblePanel'
 import { useAsyncAction } from '../hooks/useAsyncAction'
@@ -502,7 +503,7 @@ function MemberRow({
   const [confirming, setConfirming] = useState(false)
 
   return (
-    <li className="rounded-xl border border-border-subtle bg-surface p-3">
+    <Card as="li" radius="xl" padding="sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="min-w-0">
           <span className="block truncate text-sm text-fg">{member.displayName}</span>
@@ -564,7 +565,7 @@ function MemberRow({
           </Button>
         </div>
       )}
-    </li>
+    </Card>
   )
 }
 
@@ -685,10 +686,7 @@ function JoinRequests({
       ) : (
         <ul className="mt-2 space-y-2">
           {requests.map((request) => (
-            <li
-              key={request.id}
-              className="rounded-xl border border-border-subtle bg-surface p-3"
-            >
+            <Card as="li" key={request.id} radius="xl" padding="sm">
               <p className="text-sm text-fg">{request.displayName}</p>
               <p className="font-mono text-[10px] text-fg-dim">
                 {formatInstantDate(request.createdAt, timeZone)}
@@ -729,7 +727,7 @@ function JoinRequests({
                   {t('admin.requests.reject')}
                 </Button>
               </div>
-            </li>
+            </Card>
           ))}
         </ul>
       )}
@@ -787,10 +785,7 @@ function PendingClaims({
       ) : (
         <ul className="mt-2 space-y-2">
           {claims.map((claim) => (
-            <li
-              key={claim.claimId}
-              className="rounded-xl border border-border-subtle bg-surface p-3"
-            >
+            <Card as="li" key={claim.claimId} radius="xl" padding="sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="min-w-0">
                   <span className="block truncate text-sm text-fg">
@@ -819,7 +814,7 @@ function PendingClaims({
                   </Button>
                 </span>
               </div>
-            </li>
+            </Card>
           ))}
         </ul>
       )}

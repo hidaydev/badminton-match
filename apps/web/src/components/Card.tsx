@@ -40,6 +40,8 @@ type CardProps = ComponentProps<'div'> & {
   type?: 'button' | 'submit' | 'reset'
   /** Only used when `as="a"` or with a router link element. */
   href?: string
+  /** Only used when `as` is a router link element. */
+  to?: string
   children: ReactNode
 }
 

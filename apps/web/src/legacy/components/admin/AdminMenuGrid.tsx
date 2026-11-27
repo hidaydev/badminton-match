@@ -23,7 +23,7 @@ export default function AdminMenuGrid() {
   return (
     <div className="grid grid-cols-2 gap-2.5">
       {items.map((it) => (
-        <Card as="button" variant="interactive" padding="sm" radius="xl" className="flex items-start gap-3 hover:border-border active:scale-[0.98] transition-[border-color,transform] text-left shadow-xs hit44" key={it.to} onClick={() => navigate(it.to)}>
+        <Card as="button" variant="interactive" padding="sm" className="flex items-start gap-3 hover:border-border active:scale-[0.98] transition-[border-color,transform] text-left shadow-xs hit44" key={it.to} onClick={() => navigate(it.to)}>
           <div className="w-8 h-8 rounded-lg bg-elevated border border-border-subtle flex items-center justify-center shrink-0 text-accent">
             <Icon name={it.icon} size={18} />
           </div>

@@ -298,9 +298,11 @@ export default function SessionListPage() {
               <Card
                 as="button"
                 variant="interactive"
+                radius="xl"
+                padding="sm"
                 key={s.id}
                 onClick={() => navigate(`/s/${s.id}`)}
-                className="flex items-center gap-3.5 px-3.5 py-3 hover:bg-elevated"
+                className="flex items-center gap-3.5 hover:bg-elevated"
               >
                 {/* Date Badge */}
                 <div className="w-11 h-11 rounded-lg bg-elevated border border-border flex flex-col items-center justify-center shrink-0">
