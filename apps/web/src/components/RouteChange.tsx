@@ -31,21 +31,53 @@ export function RouteChange() {
   const navigation = useNavigationType()
   const entryKey = useRef(location.key)
   const entryOffset = useRef(0)
+  // Where the user was when they asked to leave. The browser clamps the scroll
+  // offset as soon as the destination renders shorter than the current one, and
+  // that clamp fires a scroll event before this entry's cleanup runs, so the
+  // live offset is no longer the one to remember. Capturing it on the way out
+  // is what keeps a Back from a short screen landing at the wrong row.
+  const departure = useRef<number | null>(null)
   const first = useRef(true)
 
   // Track the offset of the entry currently on screen. The cleanup runs when
   // the key changes, before the next effect, so it records where the user was
   // when they left.
   useEffect(() => {
-    entryKey.current = location.key
+    const key = location.key
+    entryKey.current = key
     entryOffset.current = window.scrollY
+    departure.current = null
+
     const onScroll = () => {
+      // A scroll that arrives after the click belongs to the destination and is
+      // clamped to its height, not to where the user left.
+      if (departure.current !== null) return
       entryOffset.current = window.scrollY
     }
+    // Capture phase, so the snapshot is taken before the router swaps the
+    // screen. `click` also covers a link activated by keyboard.
+    const rememberDeparture = () => {
+      if (departure.current !== null) return
+      departure.current = window.scrollY
+    }
+    const onPopState = () => {
+      // Not `window.scrollY`: by the time a pop lands, the browser may already
+      // have clamped this entry to the destination's height. The last tracked
+      // offset is still this entry's own.
+      if (departure.current !== null) return
+      departure.current = entryOffset.current
+    }
+
     window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('popstate', onPopState)
+    document.addEventListener('pointerdown', rememberDeparture, true)
+    document.addEventListener('click', rememberDeparture, true)
     return () => {
       window.removeEventListener('scroll', onScroll)
-      offsets.set(entryKey.current, entryOffset.current)
+      window.removeEventListener('popstate', onPopState)
+      document.removeEventListener('pointerdown', rememberDeparture, true)
+      document.removeEventListener('click', rememberDeparture, true)
+      offsets.set(key, departure.current ?? entryOffset.current)
     }
   }, [location.key])
 

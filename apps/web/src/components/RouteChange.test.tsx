@@ -24,6 +24,9 @@ function Nav() {
       <button type="button" onClick={() => navigate(-1)}>
         back
       </button>
+      <button type="button" onClick={() => navigate(1)}>
+        forward
+      </button>
     </>
   )
 }
@@ -105,5 +108,75 @@ describe('RouteChange', () => {
 
     expect(() => fireEvent.click(screen.getByRole('button', { name: 'go' }))).not.toThrow()
     expect(document.activeElement).toBe(document.body)
+  })
+
+  // MAJ-15: the destination clamps the offset as soon as it renders shorter
+  // than where the user was, and that clamp is a scroll event. Recording it
+  // would make Back from a short screen land at the clamp, not at the row the
+  // user actually left.
+  it('remembers the offset the user left even when the next screen is shorter', () => {
+    renderAt('/one')
+
+    scrollY = 800
+    act(() => {
+      window.dispatchEvent(new Event('scroll'))
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'go' }))
+
+    // The short screen: the browser clamps the scroll and says so.
+    scrollY = 73
+    act(() => {
+      window.dispatchEvent(new Event('scroll'))
+    })
+
+    scrollTo.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'back' }))
+
+    expect(scrollTo).toHaveBeenCalledWith(0, 800)
+  })
+
+  it('takes the offset at pointerdown, before the destination can clamp it', () => {
+    renderAt('/one')
+
+    scrollY = 640
+    act(() => {
+      window.dispatchEvent(new Event('scroll'))
+    })
+    act(() => {
+      document.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    })
+    // A clamp that arrives after the press but before the router swaps.
+    scrollY = 40
+    act(() => {
+      window.dispatchEvent(new Event('scroll'))
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'go' }))
+    scrollTo.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'back' }))
+
+    expect(scrollTo).toHaveBeenCalledWith(0, 640)
+  })
+
+  it('keeps the last known offset when a pop arrives already clamped', () => {
+    renderAt('/one')
+
+    scrollY = 512
+    act(() => {
+      window.dispatchEvent(new Event('scroll'))
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'go' }))
+
+    // Going forward: the browser fires popstate with the offset already
+    // reduced to the destination's height.
+    scrollY = 90
+    act(() => {
+      window.dispatchEvent(new Event('popstate'))
+    })
+
+    scrollTo.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'back' }))
+
+    expect(scrollTo).toHaveBeenCalledWith(0, 512)
   })
 })
