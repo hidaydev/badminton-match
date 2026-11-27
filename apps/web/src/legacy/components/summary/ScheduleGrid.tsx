@@ -15,7 +15,6 @@ import type { TeamSwapTarget } from '../../utils/swap'
 import type { PlayerChipMode } from './PlayerChipRenderer'
 import PlayerChipRenderer from './PlayerChipRenderer'
 import type { GridInteraction } from './useGridInteraction'
-import { hit44 } from '../hitTarget'
 import SlotGameCard from './SlotGameCard'
 import { Spinner } from '@/components/Spinner'
 import { t } from '@/i18n'
@@ -275,7 +274,7 @@ export default function ScheduleGrid({
                         disabled={locked || saving || mode !== 'idle' || !onTogglePlayedGame}
                         aria-pressed={done}
                         aria-label={`Played: ${teamANames} vs ${teamBNames}`}
-                        className={`w-6 h-6 shrink-0 rounded border flex items-center justify-center transition-colors ${hit44} disabled:cursor-not-allowed ${locked || mode !== 'idle' ? 'opacity-25' : saving ? 'opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
+                        className={`w-6 h-6 shrink-0 rounded border flex items-center justify-center transition-colors hit44 disabled:cursor-not-allowed ${locked || mode !== 'idle' ? 'opacity-25' : saving ? 'opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
                       >
                         {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
                       </button>
@@ -296,7 +295,7 @@ export default function ScheduleGrid({
                         <button
                           onClick={() => { if (!locked) { onScoreChange({ kind: 'expand', key, draft: draftFromScore(savedScore, scoring) }) } }}
                           aria-label={`Score: ${teamANames} ${headline}${setLine ? `, sets ${setLine}` : ''}. Edit score`}
-                          className={`text-[11px] font-bold shrink-0 whitespace-nowrap min-h-6 px-1 leading-tight tabular-nums ${hit44} ${locked ? 'text-slate-300 cursor-default' : 'text-emerald-300 hover:text-emerald-200'}`}
+                          className={`text-[11px] font-bold shrink-0 whitespace-nowrap min-h-6 px-1 leading-tight tabular-nums hit44 ${locked ? 'text-slate-300 cursor-default' : 'text-emerald-300 hover:text-emerald-200'}`}
                         >
                           <span className="block">{headline}</span>
                           {setLine && <span className="block text-[11px] font-medium text-slate-400 tabular-nums">{setLine}</span>}
@@ -307,7 +306,7 @@ export default function ScheduleGrid({
                             if (isOpen) { onScoreChange({ kind: 'collapse' }) }
                             else { onScoreChange({ kind: 'expand', key, draft: draftFromScore(undefined) }) }
                           }}
-                          className={`text-[10px] text-slate-400 hover:text-slate-400 shrink-0 whitespace-nowrap min-h-6 px-1 transition-colors ${hit44}`}
+                          className={`text-[10px] text-slate-400 hover:text-slate-400 shrink-0 whitespace-nowrap min-h-6 px-1 transition-colors hit44`}
                         >
                           {isOpen ? '▲ score' : '+ score'}
                         </button>

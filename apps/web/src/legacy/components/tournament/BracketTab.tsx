@@ -6,7 +6,6 @@ import { canvasToBlob, shareOrDownload } from '../../utils/share'
 import { loadOverlayImages } from '../../utils/overlays'
 import { useImageUploadMap } from '../../hooks/useImageUploadMap'
 import Icon from '../Icon'
-import { hit44 } from '../hitTarget'
 import ScoreModal from './ScoreModal'
 import { IconButton } from '../../../components/Button'
 import { Card } from '../../../components/Card'
@@ -57,7 +56,7 @@ function MatchCard({
             <button
               aria-label={`Upload photo for ${getPairName(match.pairAId)} vs ${getPairName(match.pairBId)}`}
               onClick={onUploadPhoto}
-              className={`w-7 h-7 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70 ${hit44}`}
+              className={`w-7 h-7 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70 hit44`}
             >
               <Icon name="camera" size={13} stroke="white" strokeWidth={2.2} />
             </button>
@@ -266,7 +265,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
                     <button
                       aria-label={round.ariaLabel}
                       onClick={() => handleDownloadRound(round.matchIds, round.downloadTitle)}
-                      className={`w-8 h-8 rounded-full bg-accent flex items-center justify-center active:bg-accent/80 ${hit44}`}
+                      className={`w-8 h-8 rounded-full bg-accent flex items-center justify-center active:bg-accent/80 hit44`}
                     >
                       <Icon name="download-tray" size={15} stroke="black" />
                     </button>
@@ -377,7 +376,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
                   {podiumPhotos[pos] && (
                     <button
                       onClick={() => handleDownloadPosition(pos, positionLabel, name)}
-                      className={`w-8 h-8 rounded-full bg-accent flex items-center justify-center active:bg-accent/80 ${hit44}`}
+                      className={`w-8 h-8 rounded-full bg-accent flex items-center justify-center active:bg-accent/80 hit44`}
                     >
                       <Icon name="download-tray" size={15} stroke="black" />
                     </button>

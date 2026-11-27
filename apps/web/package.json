@@ -13,7 +13,8 @@
     "check:tailwind": "node scripts/check-tailwind-arbitrary.mjs",
     "check": "pnpm run check:types && pnpm run check:lint && pnpm run check:tailwind && pnpm run check:touch && pnpm run check:docpaths && pnpm test",
     "test": "vitest run --coverage",
-    "check:touch": "node scripts/check-touch-targets.mjs",
+    "check:touch": "node scripts/check-touch-targets.mjs --source",
+    "check:touch-artifact": "node scripts/check-touch-targets.mjs",
     "check:docpaths": "node scripts/check-doc-paths.mjs",
     "check:precache": "node scripts/check-precache.mjs"
   },
