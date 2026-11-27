@@ -282,10 +282,34 @@ function OwnerOnly({ children }: { children: React.ReactNode }) {
 }
 
 function Protected({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth()
+  const { user, loading, bootstrapOffline, retryBootstrap } = useAuth()
+  if (loading && bootstrapOffline) return <OfflineBootstrap onRetry={retryBootstrap} />
   if (loading) return <Loading />
   if (!user) return <LoginPage />
   return children
+}
+
+/**
+ * The shell's answer when the bootstrap ladder is spent: one sentence and one
+ * retry. It is not the sign-in screen, because the cookie may still be valid
+ * and an installed app cannot sign in offline (FE-49).
+ */
+function OfflineBootstrap({ onRetry }: { onRetry: () => void }) {
+  return (
+    <main
+      id="main"
+      role="status"
+      className="min-h-screen bg-ground text-fg flex items-center justify-center p-4"
+    >
+      <div className="w-full max-w-md text-center">
+        <p className="text-sm font-semibold text-fg">{t('app.offline.title')}</p>
+        <p className="mt-1 text-sm text-fg-dim">{t('app.offline.body')}</p>
+        <Button variant="secondary" className="mt-4" onClick={onRetry}>
+          {t('app.offline.retry')}
+        </Button>
+      </div>
+    </main>
+  )
 }
 
 function AuthedRoutes() {

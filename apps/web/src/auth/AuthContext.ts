@@ -5,6 +5,14 @@ export type AuthContextValue = {
   user: SessionUser | null
   memberships: Membership[]
   loading: boolean
+  /**
+   * The bootstrap retry ladder is spent: no answer yet, and only the browser
+   * coming back online or an explicit retry will try again. `loading` stays
+   * true while this is set, because the shell is still deciding.
+   */
+  bootstrapOffline: boolean
+  /** Re-run the bootstrap from its first attempt. */
+  retryBootstrap: () => void
   /** True while the login request is in flight (button feedback only). */
   loggingIn: boolean
   login: () => Promise<void>
