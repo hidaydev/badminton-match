@@ -141,10 +141,25 @@ Four spacing steps, three radii, three elevations, two durations.
 
 ## Breakpoints and viewports
 
-Layout changes are written with Tailwind's `sm:` (640px), `md:` (768px) and
-`lg:` (1024px) prefixes. The two-column forms use `md:`, the wider page column
-uses `md:`, and the settings screen uses `lg:`. A new prefix is a layout change
-and belongs in this file with the screen that needs it.
+Breakpoints come from `@theme` in each app's entry CSS, not from Tailwind's
+defaults. `apps/web/src/index.css` overrides two of them and leaves `lg` at the
+framework default:
+
+| Prefix | `apps/web` (`@theme`, `src/index.css`) | `apps/scoreboard` (no override) |
+|--------|----------------------------------------|---------------------------------|
+| `sm:`  | `--breakpoint-sm: 25rem` (400px)       | 40rem (640px)                   |
+| `md:`  | `--breakpoint-md: 40rem` (640px)       | 48rem (768px)                   |
+| `lg:`  | 64rem (1024px), framework default       | 64rem (1024px), framework default |
+
+`apps/scoreboard/src/index.css` imports Tailwind and the design tokens but sets
+no breakpoint token, so the same `sm:` and `md:` class covers a different width
+there (640px and 768px). A screen that has to break at the same width in both
+apps needs its own token or an explicit value.
+
+Layout changes are written with those prefixes. The two-column forms use `md:`
+(so they stack below 640px), the wider page column uses `md:`, and the settings
+screen uses `lg:` (1024px). A new prefix, or a change to one of these values, is
+a layout change and belongs in this file with the screen that needs it.
 
 Three viewports are compared: `iphone-17` (402x874, WebKit) and `poco-f5`
 (393x873, Chromium) for the phones, and `desktop` (1440x900, Chromium) for the

@@ -1,0 +1,23 @@
+{
+  "$comment": "Dated debt, the same shape as coverage-debt and flakeregister: owner, expires, reason. Keyed by the exact file:line the gate prints, so an entry is copied from a red run. A line that moves is a new red run. Expiry is the point: this is a debt, not an allowlist.",
+  "buttons": [
+    {
+      "at": "packages/scoreboard-ui/src/scoreboard/ScoreboardFooter.tsx:38",
+      "owner": "Panji (Team B)",
+      "expires": "2026-12-11",
+      "reason": "The export button is px-3 py-1 (~35px tall). Found by MAJ-03 when the gate started covering packages/. Not in the P0 batch: fixing it moves the scoreboard baseline, which is a separate decision."
+    },
+    {
+      "at": "apps/scoreboard/src/components/UpdatePrompt.tsx:15",
+      "owner": "Panji (Team B)",
+      "expires": "2026-12-11",
+      "reason": "The 'Reload' button in the update toast is px-3 py-1. The scoreboard app never had a touch gate before MAJ-03; not in the P0 batch."
+    },
+    {
+      "at": "apps/scoreboard/src/components/UpdatePrompt.tsx:23",
+      "owner": "Panji (Team B)",
+      "expires": "2026-12-11",
+      "reason": "The 'Later' button in the update toast is px-2 py-1 (~28px tall). Same as above: newly visible, out of the P0 batch."
+    }
+  ]
+}
