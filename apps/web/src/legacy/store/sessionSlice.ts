@@ -12,6 +12,20 @@ const DEFAULT_COURT_TIMES: CourtTime[] = [
   { start: toTimeString(DEFAULT_START), end: toTimeString(DEFAULT_END) },
 ]
 
+/**
+ * The slot grid is laid out from `sessionStart`, the earliest moment a court
+ * can play, so the two must not disagree. Editing the court hours alone used to
+ * leave the origin at its old value: the generator then offset every game by
+ * the difference (a 19:00 court on a 09:00 start placed the first game at slot
+ * 30) and the session and the public share both drew hours of empty rows before
+ * the first match. Every write that changes `courtTimes` goes through here.
+ */
+function withCourtTimes(session: SessionConfig, courtTimes: CourtTime[]): SessionConfig {
+  if (courtTimes.length === 0) return { ...session, courtTimes }
+  const earliest = Math.min(...courtTimes.map((ct) => timeToMinutes(ct.start)))
+  return { ...session, courtTimes, sessionStart: toTimeString(minutesToTime(earliest)) }
+}
+
 function makeDefaultSession(): SessionConfig {
   return {
     title: '',
@@ -66,11 +80,7 @@ export const createSessionSlice = (
         : toTimeString(DEFAULT_END)
       const courtTimes = Array.from({ length: n }, (_, i) => prev[i] ?? { start: s.session.sessionStart, end: defaultEnd })
       return {
-        session: {
-          ...s.session,
-          courts: n,
-          courtTimes,
-        },
+        session: withCourtTimes({ ...s.session, courts: n }, courtTimes),
         ...RESET_GENERATED,
       }
     }),
@@ -116,10 +126,7 @@ export const createSessionSlice = (
         const courtTimes = [...s.session.courtTimes]
         courtTimes[index] = ct
         return {
-          session: {
-            ...s.session,
-            courtTimes,
-          },
+          session: withCourtTimes(s.session, courtTimes),
           ...RESET_GENERATED,
         }
       } catch (e) {

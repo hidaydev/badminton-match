@@ -116,4 +116,27 @@ describe('Field', () => {
 
     expect(screen.getByLabelText('Player name')).toHaveAttribute('aria-invalid', 'true')
   })
+
+  // `.w-full` is emitted after `.w-20` in the compiled sheet, so a recipe that
+  // always carried it silently won over the caller's width and stretched the
+  // court-hours row into a full line per control (MAJ-18). The default only
+  // applies when the caller did not size the control.
+  it('fills the row when the caller gives no width', () => {
+    render(<Input aria-label="Title" />)
+
+    expect(screen.getByLabelText('Title').className).toContain('w-full')
+  })
+
+  it('lets the caller size the control instead of filling the row', () => {
+    render(<Input aria-label="Court name" className="w-20" />)
+    render(
+      <Select aria-label="Court start" className="w-auto">
+        <option value="09:00">09:00</option>
+      </Select>,
+    )
+
+    expect(screen.getByLabelText('Court name').className).not.toContain('w-full')
+    expect(screen.getByLabelText('Court name').className).toContain('w-20')
+    expect(screen.getByLabelText('Court start').className).not.toContain('w-full')
+  })
 })
