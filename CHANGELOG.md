@@ -5,6 +5,14 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.5.2] - 2026-11-28
+
+### Changed
+- test(e2e): record the linux session baseline for the court-label column (243c8da; e2e/__screenshots__/linux/session-desktop.png, e2e/__screenshots__/linux/session-iphone-17.png, e2e/__screenshots__/linux/session-poco-f5.png)
+
+### Fixed
+- fix(web): press the pair names against the court label, not 40px away (a40d444; apps/web/src/legacy/components/summary/ScheduleGrid.readonly.test.tsx, apps/web/src/legacy/components/summary/ScheduleGrid.tsx, e2e/__screenshots__/darwin/session-desktop.png (+2 more))
+
 ## [2.5.1] - 2026-11-27
 
 ### Changed
