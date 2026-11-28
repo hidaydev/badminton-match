@@ -5,6 +5,15 @@ All notable changes to Majadu are documented here. The format follows
 [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html). Entries are
 generated from Conventional Commits by `./task release`.
 
+## [2.5.3] - 2026-11-28
+
+### Changed
+- test(ops): fail a connection string passed into a username slot (aa698ee; docs/test-plan.md, tools/shelltests/tests/dsn_username_guard_test.nim)
+
+### Fixed
+- fix(web): put the schedule on its court hours and keep a sized control's width (#109) (9407890; apps/web/src/components/Field.test.tsx, apps/web/src/components/Field.tsx, apps/web/src/legacy/components/summary/ScheduleGrid.readonly.test.tsx (+9 more))
+- fix(archcheck): read a char literal as data, not as a string opener (d7002df; tools/archcheck/rules.nim, tools/archcheck/tests/archcheck_test.nim)
+
 ## [2.5.2] - 2026-11-28
 
 ### Changed
