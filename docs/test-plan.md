@@ -66,7 +66,7 @@ that check is not a second gate: `--order-check` is opt-in, and a plain
 | ETL (`tools/import`) | High | cutover correctness | `tools/import/tests/integration/import_test.nim`, `testdata/import/production-shaped.sql`, `nightly.yml` |
 | `apps/web` | Medium | member-facing flows, hooks, router | `apps/web/src/**/*.test.tsx`, `pnpm check:web` |
 | `apps/scoreboard` | Medium | the score is the product | `apps/scoreboard/src/**`, `e2e/scoreboard.spec.ts`, `./task scoreboard-pwa` |
-| Operator scripts | High | deploy, cutover, rollback | `tools/shelltests/tests/ops_scripts_test.nim`, `deploy_guards_test.nim` |
+| Operator scripts | High | deploy, cutover, rollback | `tools/shelltests/tests/ops_scripts_test.nim`, `deploy_guards_test.nim`, `dsn_username_guard_test.nim` |
 
 ## 4. Requirement traceability
 
