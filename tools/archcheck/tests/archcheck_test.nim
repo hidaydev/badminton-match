@@ -263,6 +263,18 @@ suite "honest test rules":
     let source = "  test \"x\":\n    check 1 == 1\n"
     check honestTestViolations("modules/session/tests/x_test.nim", source).len == 0
 
+  test "a quote char literal above a test does not hide its assertions":
+    ## `'"'` is a char literal, not the start of a string. Reading it as one
+    ## left the scanner quoted for the rest of the file, and the test below was
+    ## reported as having no assertion.
+    let source = "proc isQuote(c: char): bool =\n" &
+      "  c == '\"'\n" &
+      "\n" &
+      "  test \"x\":\n" &
+      "    check isQuote('a') == false\n"
+    let found = honestTestViolations("modules/session/tests/x_test.nim", source)
+    check found.len == 0
+
   test "a block without an assertion is reported":
     let source = "  test \"does nothing\":\n    let a = 1\n    discard a\n"
     let found = honestTestViolations("modules/session/tests/x_test.nim", source)

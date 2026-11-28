@@ -58,6 +58,20 @@ proc scanStrings(lines: seq[string]): tuple[code: seq[string],
       elif c == '"':
         quoted = true
         index.inc
+      elif c == '\'':
+        # A char literal, `'"'` or `'\\'`: the quote between the apostrophes is
+        # data, not a string opener. Reading it as one left the scanner inside a
+        # string for the rest of the file, so every test body below it looked
+        # empty to R-01.
+        index.inc
+        while index < line.len:
+          if line[index] == '\\':
+            index += 2
+            continue
+          if line[index] == '\'':
+            index.inc
+            break
+          index.inc
       else:
         rendered.add(c)
         index.inc
