@@ -101,6 +101,29 @@ describe('ScheduleGrid read-only render', () => {
     }
   })
 
+  // The court label used to own a fixed 32-40px track. It is content-sized now:
+  // a long custom name may not push the pair names, and the full value stays
+  // reachable through the title.
+  it('keeps a long court name out of the names, with the full value in its title', () => {
+    render(
+      <ScheduleGrid
+        data={makeData({ courtNames: ['Court One — East Wing Championship Deck'] })}
+        mode="idle"
+        locked
+        saving={false}
+      />,
+    )
+
+    const label = screen.getByTitle('Court One — East Wing Championship Deck')
+    expect(label).toBeInTheDocument()
+    expect(label.className).toContain('truncate')
+    expect(label.className).toContain('max-w-12')
+    // Short enough that the pair never inherits the label's width.
+    expect(label.className).toContain('min-w-0')
+    // The pair is still the cell next to it, not pushed out of the row.
+    expect(screen.getByText('Ani')).toBeInTheDocument()
+  })
+
   // The spacing between the names is `gap-1` in the flex modes and `mx-1` on the
   // ampersand in the inline one, so the pair reads identically either way.
   it('keeps the same 4px around the ampersand in the inline pair', () => {

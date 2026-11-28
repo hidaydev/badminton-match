@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ErrorText } from '@/components/ErrorText'
 import { Input } from '@/components/Field'
 import AnnotatedPlayerName from '../AnnotatedPlayerName'
@@ -135,12 +135,56 @@ export default function ScheduleGrid({
     ...result.schedule.map(g => g.slot + 1)
   )
 
+  // The court label used to own a fixed 32-40px track while "A" is ~7px wide, so
+  // every pair started ~37px late. The track is now content-sized: one width,
+  // measured once from the widest label in the grid (no per-row measurement, so
+  // every row in a slot starts team A at the same x), capped at 48px so a custom
+  // name cannot eat the names.
+  const courtLabels = useMemo(() => {
+    const seen = new Set<number>()
+    const labels: string[] = []
+    for (const game of result.schedule) {
+      if (seen.has(game.court)) continue
+      seen.add(game.court)
+      labels.push(courtLabel(courtNames, game.court))
+    }
+    return labels
+  }, [result.schedule, courtNames])
+  const gridRoot = useRef<HTMLDivElement>(null)
+  const [courtTrack, setCourtTrack] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const host = gridRoot.current
+    if (!host) return
+    // A detached probe instead of an always-rendered copy: a second copy of the
+    // label in the tree would read as a duplicate to every text query.
+    const probe = document.createElement('span')
+    probe.className = 'text-2xs font-semibold'
+    probe.style.position = 'absolute'
+    probe.style.visibility = 'hidden'
+    probe.style.whiteSpace = 'nowrap'
+    host.appendChild(probe)
+    let widest = 0
+    for (const label of courtLabels) {
+      probe.textContent = label
+      widest = Math.max(widest, probe.getBoundingClientRect().width)
+    }
+    probe.remove()
+    // jsdom has no layout, so 0 means "unmeasured": the CSS fallback below
+    // sizes the track per row instead of pinning it to 0.
+    const px = Math.ceil(widest)
+    // +1 covers the subpixel tail of the widest glyph so `truncate` never shaves
+    // it; the rest of the 4px gap-1 is the only space between label and name.
+    setCourtTrack(px > 0 ? Math.min(px + 1, 48) : null)
+  }, [courtLabels])
+  // 4 columns: court label (content-sized), Team A, the centered vs, Team B.
+  const teamColumns = `${courtTrack !== null ? `${courtTrack}px` : 'max-content'} minmax(0, 1fr) 20px minmax(0, 1fr)`
+
   function name(id: string): string {
     return playerMap.get(id)?.name ?? id
   }
 
   const scheduleGrid = (
-    <div className="flex flex-col divide-y divide-slate-800">
+    <div ref={gridRoot} className="relative flex flex-col divide-y divide-slate-800">
       {Array.from({ length: maxSlots }, (_, s) => {
         const games = (bySlot.get(s) ?? []).sort((a, b) => a.court - b.court)
         return (
@@ -294,12 +338,15 @@ export default function ScheduleGrid({
                       >
                         {done && <span className="text-white text-2xs font-bold leading-none">✓</span>}
                       </button>
-                      {/* Teams — 4-column precision grid: Court label (compact fixed), Team A, vs (centered lurus), Team B */}
+                      {/* Teams — 4-column precision grid: Court label (content-sized), Team A, vs (centered lurus), Team B */}
                       <div
                         className="grid items-center gap-1 flex-1 min-w-0"
-                        style={{ gridTemplateColumns: 'minmax(32px, 40px) minmax(0, 1fr) 20px minmax(0, 1fr)' }}
+                        style={{ gridTemplateColumns: teamColumns }}
                       >
-                        <span className="text-2xs font-semibold text-slate-400 whitespace-nowrap">
+                        <span
+                          className="min-w-0 max-w-12 truncate text-2xs font-semibold text-slate-400"
+                          title={courtLabel(courtNames, g.court)}
+                        >
                           {courtLabel(courtNames, g.court)}
                         </span>
                         {teamCell('A')}
