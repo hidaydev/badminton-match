@@ -134,6 +134,13 @@ export default function ScheduleGrid({
     Math.max(...slotsPerCourt),
     ...result.schedule.map(g => g.slot + 1)
   )
+  // A session saved before the court hours moved keeps the old origin: a 19:00
+  // court on a 09:00 start puts the first game at slot 30, and the grid used to
+  // draw ten hours of empty rows above it. Rows before the first game are not a
+  // schedule, so the grid starts where play does. An honest origin starts at 0.
+  const firstSlot = result.schedule.length === 0
+    ? 0
+    : result.schedule.reduce((min, game) => Math.min(min, game.slot), maxSlots)
 
   // The court label used to own a fixed 32-40px track while "A" is ~7px wide, so
   // every pair started ~37px late. The track is now content-sized: one width,
@@ -185,12 +192,13 @@ export default function ScheduleGrid({
 
   const scheduleGrid = (
     <div ref={gridRoot} className="relative flex flex-col divide-y divide-slate-800">
-      {Array.from({ length: maxSlots }, (_, s) => {
+      {Array.from({ length: maxSlots - firstSlot }, (_, i) => {
+        const s = firstSlot + i
         const games = (bySlot.get(s) ?? []).sort((a, b) => a.court - b.court)
         return (
           <div key={s} className="flex items-start gap-4 py-4">
             <div className="flex flex-col items-center w-4 shrink-0 pt-0.5 gap-0.5">
-              <span className="text-xs font-bold text-slate-400 tabular-nums">#{s + 1}</span>
+              <span className="text-xs font-bold text-slate-400 tabular-nums">#{i + 1}</span>
               <span className="text-2xs text-slate-400 font-medium leading-none tabular-nums">
                 {minutesToTime(timeToMinutes(sessionStart) + s * slotMinutes)}
               </span>

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import ScheduleGrid, { type ScheduleGridData } from './ScheduleGrid'
 import type { PlayerChipMode } from './PlayerChipRenderer'
-import { toPlayerId, type Player } from '../../types'
+import { toPlayerId, type Player, type PlayerId } from '../../types'
 
 const players: Player[] = (
   [
@@ -135,5 +135,40 @@ describe('ScheduleGrid read-only render', () => {
       .filter((el) => el.textContent === '&')
     expect(ampersands).toHaveLength(2)
     for (const el of ampersands) expect(el.className).toContain('mx-1')
+  })
+
+  // A saved session can carry a stale origin: the court hours were edited to
+  // 19:00 before the store learned to move `sessionStart` with them, so the
+  // generator placed the first game at slot 30. The grid drew ten hours of empty
+  // rows above it, which read as a broken schedule rather than a late start.
+  it('starts at the first played slot instead of drawing the rows above it', () => {
+    render(
+      <ScheduleGrid
+        data={makeData({
+          sessionStart: '09:00',
+          slotsPerCourt: [31],
+          result: {
+            schedule: [
+              { slot: 30, court: 0, teamA: ['p1', 'p2'].map(toPlayerId) as [PlayerId, PlayerId], teamB: ['p3', 'p4'].map(toPlayerId) as [PlayerId, PlayerId] },
+            ],
+            playCount: {},
+            sitCount: {},
+            partnerWith: {},
+            facedBy: {},
+            unplacedFixMatches: [],
+          },
+        })}
+        mode="idle"
+        locked
+        saving={false}
+      />,
+    )
+
+    // Slot 30 on a 09:00 origin is 19:00; the row number follows the screen.
+    expect(screen.getByText('#1')).toBeInTheDocument()
+    expect(screen.queryByText('#2')).toBeNull()
+    expect(screen.getByText('19:00')).toBeInTheDocument()
+    expect(screen.queryByText('09:00')).toBeNull()
+    expect(screen.getByText('Ani')).toBeInTheDocument()
   })
 })

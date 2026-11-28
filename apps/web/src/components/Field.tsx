@@ -10,7 +10,18 @@ import { ErrorText } from './ErrorText'
  * invalid border and ring already declared on the shared control class.
  */
 const CONTROL =
-  'mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-ring disabled:cursor-not-allowed disabled-dim-soft read-only:opacity-60 aria-invalid:border-error aria-invalid:ring-1 aria-invalid:ring-error'
+  'mt-1 min-h-11 rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-ring disabled:cursor-not-allowed disabled-dim-soft read-only:opacity-60 aria-invalid:border-error aria-invalid:ring-1 aria-invalid:ring-error'
+
+/**
+ * The recipe fills its row unless the caller sizes it. Emitting `w-full` anyway
+ * would not let a caller win: the compiled sheet puts `.w-full` after `.w-20`,
+ * so the wider rule took the court-hours row and the score steppers and
+ * stretched them over the whole line (two width utilities have no attribute
+ * order to appeal to).
+ */
+function width(className?: string): string {
+  return /(^|\s)!?w-/.test(className ?? '') ? '' : 'w-full'
+}
 
 function join(...parts: (string | undefined)[]): string {
   return parts.filter((part) => part !== undefined && part !== '').join(' ')
@@ -67,7 +78,7 @@ export function Field({ label, hint, error, id, children, className }: FieldProp
 }
 
 export function Input({ className, ...props }: ComponentProps<'input'>) {
-  return <input {...props} className={join(CONTROL, className)} />
+  return <input {...props} className={join(CONTROL, width(className), className)} />
 }
 
 /**
@@ -85,5 +96,5 @@ export function FileInput({ className, ...props }: Omit<ComponentProps<'input'>,
  * minimum. An explicit height is honoured by every engine.
  */
 export function Select({ className, ...props }: ComponentProps<'select'>) {
-  return <select {...props} className={join(CONTROL, 'h-11', className)} />
+  return <select {...props} className={join(CONTROL, 'h-11', width(className), className)} />
 }

@@ -178,4 +178,19 @@ describe('legacy store persistence', () => {
     expect(useStore.getState().pendingPublish?.failedAt).toBe(failedAt)
     expect(useStore.getState().pendingPublish?.message).toBe('Someone else changed this session.')
   })
+
+  // The grid labels every slot from `sessionStart`, so a court hour edited after
+  // the session start used to leave the origin ten hours behind the play. The
+  // generator then put the first game at slot 30 and the screen drew the empty
+  // rows in between.
+  it('moves the slot origin with the earliest court hour', async () => {
+    const { useStore } = await loadStore()
+
+    useStore.getState().setCourtTime(0, '19:00', '22:00')
+    expect(useStore.getState().session.sessionStart).toBe('09:00')
+
+    useStore.getState().setCourtTime(1, '19:00', '22:00')
+    expect(useStore.getState().session.sessionStart).toBe('19:00')
+    expect(useStore.getState().session.courtTimes.map((ct) => ct.start)).toEqual(['19:00', '19:00'])
+  })
 })
